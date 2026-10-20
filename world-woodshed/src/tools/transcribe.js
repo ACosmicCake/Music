@@ -1,7 +1,11 @@
 /* World Woodshed — Transcribe: slow down, loop, focus, find notes, save setups */
-(window.WW_PLUGINS = window.WW_PLUGINS || []).push(function (UI) {
+import D from '../data.js';
+import A from '../audio.js';
+import E from '../engine.js';
+import Stretch from '../stretch.js';
+
+export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
-  const A = window.WW_AUDIO, E = window.WW_ENGINE, D = window.WW_DATA;
 
   /* ---------- formatting ---------- */
   function fmt(t) {
@@ -50,7 +54,7 @@
   function getWorker() {
     if (worker !== null) return worker;
     try {
-      worker = new Worker('stretch.js');
+      worker = new Worker(new URL('../stretch.worker.js', import.meta.url), { type: 'module' });
       worker.onmessage = e => {
         const m = e.data, p = pending.get(m.id);
         if (!p) return;
@@ -70,7 +74,7 @@
   function stretch(channels, sr, speed, semis, onProgress) {
     return new Promise((resolve, reject) => {
       const runLocal = () => setTimeout(() => {
-        try { resolve(self.WW_STRETCH.process(channels, sr, speed, semis, null)); } catch (e) { reject(e); }
+        try { resolve(Stretch.process(channels, sr, speed, semis, null)); } catch (e) { reject(e); }
       }, 30);
       const w = getWorker();
       if (!w) { runLocal(); return; }
@@ -876,4 +880,4 @@
     lib.append(list);
     view.append(lib);
   };
-});
+}
