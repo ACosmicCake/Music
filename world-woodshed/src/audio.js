@@ -53,7 +53,7 @@ function ksBuffer(midi) {
 
 function track(node, stopAt) { voices.add(node); node.onended = () => voices.delete(node); }
 
-function note(midi, when, vel = 0.8, dur = 1.6) {
+function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
   const base = Math.round(midi);
@@ -66,18 +66,18 @@ function note(midi, when, vel = 0.8, dur = 1.6) {
   g.gain.setValueAtTime(vel, when + dur);
   g.gain.exponentialRampToValueAtTime(0.0008, when + dur + 0.25);
   const tone = ctx.createBiquadFilter();
-  tone.type = 'lowpass'; tone.frequency.value = 4200;
-  src.connect(tone); tone.connect(g); g.connect(master);
+  tone.type = 'lowpass'; tone.frequency.value = o.tone || 4200;
+  src.connect(tone); tone.connect(g); g.connect(o.out || master);
   src.start(when); src.stop(when + dur + 0.3);
   track(src);
   return when;
 }
 
-function strum(midis, when, vel = 0.6, spread = 0.018, dur = 1.6) {
+function strum(midis, when, vel = 0.6, spread = 0.018, dur = 1.6, o) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
   const v = vel / Math.sqrt(Math.max(1, midis.length) / 2);
-  midis.forEach((m, i) => note(m, when + i * spread, v, dur));
+  midis.forEach((m, i) => note(m, when + i * spread, v, dur, o));
 }
 
 function env(g, when, peak, decay) {
@@ -85,42 +85,42 @@ function env(g, when, peak, decay) {
   g.gain.exponentialRampToValueAtTime(peak, when + 0.004);
   g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
 }
-function noiseHit(when, vel, type, freq, q, decay) {
+function noiseHit(when, vel, type, freq, q, decay, out) {
   const s = ctx.createBufferSource(); s.buffer = noiseBuf;
   s.playbackRate.value = 0.8 + Math.random() * 0.4;
   const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
   const g = ctx.createGain(); env(g, when, vel, decay);
-  s.connect(f); f.connect(g); g.connect(master);
+  s.connect(f); f.connect(g); g.connect(out || master);
   s.start(when, Math.random() * 0.5); s.stop(when + decay + 0.05); track(s);
 }
-function toneHit(when, vel, wave, f0, f1, decay, glide) {
+function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
   const o = ctx.createOscillator(); o.type = wave;
   o.frequency.setValueAtTime(f0, when);
   if (f1) o.frequency.exponentialRampToValueAtTime(f1, when + (glide || decay * 0.6));
   const g = ctx.createGain(); env(g, when, vel, decay);
-  o.connect(g); g.connect(master);
+  o.connect(g); g.connect(out || master);
   o.start(when); o.stop(when + decay + 0.05); track(o);
 }
 
 /* Percussion voices */
-function hit(type, when, vel = 0.8) {
+function hit(type, when, vel = 0.8, out) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
   switch (type) {
-    case 'low': toneHit(when, 0.95 * vel, 'sine', 140, 52, 0.42, 0.12); break;
-    case 'mid': toneHit(when, 0.6 * vel, 'sine', 260, 200, 0.22); noiseHit(when, 0.08 * vel, 'bandpass', 900, 1, 0.05); break;
-    case 'high': noiseHit(when, 0.55 * vel, 'bandpass', 3200, 1.2, 0.07); toneHit(when, 0.2 * vel, 'triangle', 520, 480, 0.06); break;
-    case 'clave': toneHit(when, 0.55 * vel, 'sine', 2500, 0, 0.07); toneHit(when, 0.18 * vel, 'triangle', 1250, 0, 0.05); break;
-    case 'bell': toneHit(when, 0.22 * vel, 'square', 587, 0, 0.22); toneHit(when, 0.16 * vel, 'square', 845, 0, 0.18); break;
-    case 'shaker': noiseHit(when, 0.18 * vel, 'highpass', 6500, 0.7, 0.045); break;
+    case 'low': toneHit(when, 0.95 * vel, 'sine', 140, 52, 0.42, 0.12, out); break;
+    case 'mid': toneHit(when, 0.6 * vel, 'sine', 260, 200, 0.22, undefined, out); noiseHit(when, 0.08 * vel, 'bandpass', 900, 1, 0.05, out); break;
+    case 'high': noiseHit(when, 0.55 * vel, 'bandpass', 3200, 1.2, 0.07, out); toneHit(when, 0.2 * vel, 'triangle', 520, 480, 0.06, undefined, out); break;
+    case 'clave': toneHit(when, 0.55 * vel, 'sine', 2500, 0, 0.07, undefined, out); toneHit(when, 0.18 * vel, 'triangle', 1250, 0, 0.05, undefined, out); break;
+    case 'bell': toneHit(when, 0.22 * vel, 'square', 587, 0, 0.22, undefined, out); toneHit(when, 0.16 * vel, 'square', 845, 0, 0.18, undefined, out); break;
+    case 'shaker': noiseHit(when, 0.18 * vel, 'highpass', 6500, 0.7, 0.045, out); break;
     case 'clap':
-      for (let i = 0; i < 3; i++) noiseHit(when + i * 0.009, 0.42 * vel, 'bandpass', 1400, 0.9, 0.06 + i * 0.02);
+      for (let i = 0; i < 3; i++) noiseHit(when + i * 0.009, 0.42 * vel, 'bandpass', 1400, 0.9, 0.06 + i * 0.02, out);
       break;
-    case 'chick': noiseHit(when, 0.35 * vel, 'bandpass', 2200, 1.4, 0.05); toneHit(when, 0.12 * vel, 'triangle', 330, 0, 0.04); break;
-    case 'hat': noiseHit(when, 0.22 * vel, 'highpass', 8500, 0.8, 0.035); break;
-    case 'ride': noiseHit(when, 0.12 * vel, 'highpass', 6000, 0.7, 0.35); toneHit(when, 0.05 * vel, 'square', 3100, 0, 0.3); break;
-    case 'click': toneHit(when, 0.45 * vel, 'sine', 1500, 0, 0.035); break;
-    case 'clickHi': toneHit(when, 0.6 * vel, 'sine', 2200, 0, 0.04); break;
+    case 'chick': noiseHit(when, 0.35 * vel, 'bandpass', 2200, 1.4, 0.05, out); toneHit(when, 0.12 * vel, 'triangle', 330, 0, 0.04, undefined, out); break;
+    case 'hat': noiseHit(when, 0.22 * vel, 'highpass', 8500, 0.8, 0.035, out); break;
+    case 'ride': noiseHit(when, 0.12 * vel, 'highpass', 6000, 0.7, 0.35, out); toneHit(when, 0.05 * vel, 'square', 3100, 0, 0.3, undefined, out); break;
+    case 'click': toneHit(when, 0.45 * vel, 'sine', 1500, 0, 0.035, undefined, out); break;
+    case 'clickHi': toneHit(when, 0.6 * vel, 'sine', 2200, 0, 0.04, undefined, out); break;
     default: break;
   }
 }
@@ -181,6 +181,29 @@ function Drone(tonicMidi, fifth = 7) {
   return loop;
 }
 
+/* Sustained, organ-like reference tone (for tuning). Returns a function that stops it. */
+function tone(midi, when, dur = 4, vel = 0.35) {
+  ensure();
+  when = Math.max(when || 0, ctx.currentTime);
+  const f = mtof(midi), g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(vel, when + 0.06);
+  g.gain.setValueAtTime(vel, when + dur);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + dur + 0.4);
+  g.connect(master);
+  const oscs = [[1, 1], [2, 0.35], [3, 0.18], [4, 0.08]].map(([k, a]) => {
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.frequency.value = f * k; og.gain.value = a;
+    o.connect(og); og.connect(g); o.start(when); o.stop(when + dur + 0.45); track(o);
+    return o;
+  });
+  return () => {
+    const t = ctx.currentTime;
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    oscs.forEach(o => { try { o.stop(t + 0.2); } catch (e) { /* already stopped */ } });
+  };
+}
+
 function stopAll() {
   voices.forEach(v => { try { v.stop(); } catch (e) { /* already stopped */ } });
   voices.clear();
@@ -193,4 +216,4 @@ function eventToAudioTime(ev) {
   return ctx.currentTime - ageMs / 1000 - latency();
 }
 
-export default { ensure, now, latency, mtof, note, strum, hit, Loop, Drone, stopAll, eventToAudioTime };
+export default { out: () => master, ensure, now, latency, mtof, note, strum, hit, tone, Loop, Drone, stopAll, eventToAudioTime };

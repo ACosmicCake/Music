@@ -2,7 +2,7 @@
 
 The app is in `world-woodshed/`, a Vite project with plain JavaScript ES modules and no framework. It is an installable PWA (vite-plugin-pwa) deployed to GitHub Pages by `.github/workflows/deploy.yml`.
 
-Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to test the service worker) inside `world-woodshed/`, and drive it with Playwright to check a change. No tests yet.
+Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to test the service worker) inside `world-woodshed/`, and drive it with Playwright to check a change. `npm test` (Vitest, `test/`) covers state migration and device merging (`src/sync.js`) and checks the content data (rhythm lengths, chord symbols, drill bars, reading generators); the deploy workflow runs it before building.
 
 ## Files
 
@@ -10,20 +10,34 @@ Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to t
 
 - `index.html`: page shell only.
 - `src/styles.css`: all CSS (design tokens on `:root`, dark mode via `prefers-color-scheme` and `data-theme`). Fonts are bundled from `@fontsource` so the app works offline.
-- `src/data.js`: content. Intervals and anchor songs, chords, progressions, world scales and ragas/maqamat, rhythm cycles, jazz standards, grooves, technique exercises, atlas regions.
-- `src/audio.js`: Web Audio synthesis (Karplus-Strong guitar, percussion voices, look-ahead `Loop` scheduler, tanpura `Drone`).
-- `src/engine.js`: skill model, spaced repetition, mastery and level unlocks, placement test, routine builder, persistence, backup export/import.
-- `src/ui/core.js`: UI helpers (`h`, `s`, `Fretboard`, `toast`, `Quiz`), tabs and routing, the tool registry (`tool`, `openTool`), routine runner. `PAGES` lives here and is filled in by `src/pages.js`.
-- `src/tools/ear.js`, `rhythm.js`, `play.js`, `atlas.js`: trainers, registered with `tool(id, def)`.
-- `src/tools/transcribe.js`: the Transcribe tab, a plugin that receives the `UI` object.
-- `src/pages.js`: tab pages and the Today dashboard.
-- `src/stretch.js` (WSOLA time-stretch and pitch shift) and `src/stretch.worker.js` (runs it in a module Worker).
+- `src/data.js`: content. Intervals and anchor songs, chords, progressions, world scales and ragas/maqamat, rhythm cycles, tunes, grooves, technique exercises, styles (atlas regions). It merges in `src/content/`.
+- `src/content/`: long-form content. `styles-a.js`, `styles-b.js` (deep-dive fields for the original regions: history, sub-styles, how it works, listening path, players, study, practice) and `styles-new.js` (eight whole new styles); `lessons.js` (the theory course); `rhythms-new.js` (more rhythms per style, appended to `RHYTHMS`) and `rhythms-var.js` (variations, fills, cycles, tempo range and tips for every rhythm, attached as `r.var`; the player's own part never changes in a variation); `drills-a.js`, `drills-b.js` (four style drills per style, `D.DRILLS`); `exercise-vars.js` (variations, speed burst and listening cue per technique exercise, `ex.vars`); `gym.js` (the rhythm gym: tuplets and polyrhythms). Keep recordings, years and books accurate.
+- `src/theory.js`: chord-symbol parsing, note spelling, diatonic chords.
+- `src/curriculum.js`: the smart practice engine. Every content item (scale on the neck, technique, rhythm, tune, lesson) has a memory stability in days (FSRS-style recall curve); it plans a session for the minutes the player has now, taking earlier sessions that day into account, caps new material per day, follows the player's ranked styles, rotates warm-up key/pattern/position/tempo, and grades blocks from tool signals (`hooks.signal(itemId, data)`) or a one-tap rating. Parameters follow `src/content/science.js` (verified research, shown in the app).
+- `src/notation.js` (SVG staff renderer, no fonts), `src/content/reading.js` (16 sight-reading levels and generators) and `src/tools/reading.js` (the Sight-reading tool: notes, rhythm, melody, with mic scoring). `src/readlib.js` keeps every generated rhythm and melody you read (compactly encoded, in `state.readLib`); missed ones come back for a re-read after a gap, one piece in three, and you can star, replay or delete them.
+- `src/routines.js`: routine block types (`BLOCKS`), templates, time fitting (`setTotal`, auto breaks), no-guitar swaps (`awayBlocks`).
+- `src/audio.js`: Web Audio synthesis (Karplus-Strong guitar, percussion voices, look-ahead `Loop` scheduler, tanpura `Drone`). `note`, `strum` and `hit` take an optional output node.
+- `src/band.js`: the Repertoire gym's backing band (`Band`). Swing: walking upright bass, rootless piano voicings with voice leading and varied comping rhythms, synthesized ride kit; bossa nova; other grooves from the `GROOVES` patterns. Parts sit on a bus with room reverb and can be muted (e.g. bass alone). `barAt(time)` drives the "follow the form by ear" check. Tunes can carry a `form` (`[[label, bars]]`) in `data.js`.
+- `src/engine.js`: your guitar (`TUNINGS`, `STRINGS` updated in place for tuning and capo, `setGuitar`; left-handed fretboard; letter or solfège note names applied to `D.NOTE_NAMES`), skill model, spaced repetition, mastery and level unlocks, placement test, the adaptive (smart) plan, custom routines, the running session, lessons done, recordings heard, practice journal, persistence, backup export/import.
+- `src/ui/core.js`: UI helpers (`h`, `s`, `Fretboard`, `toast`, `Quiz`), tabs and routing (old `#ear`, `#rhythm`, `#play`, `#atlas` links are aliases), the tool registry (`tool`, `openTool`), placement runner. `PAGES` lives here and is filled in by the page modules; `hooks` lets `session.js` plug in without import cycles.
+- `src/ui/session.js`: the practice session runner: wall-clock timer that keeps counting with the screen off, session bar on each tool, time-up chime and auto-advance, wake lock, finish screen and journal.
+- `src/ui/smart.js`: the smart planner ("How much time do you have right now?"), learning preferences (ranked styles, pace, daily goal) and the science page.
+- `src/ui/routine.js`: the Routine tab (routine editor with drag reorder, durations, templates, smart plan, session overview).
+- `src/tools/ear.js`, `rhythm.js`, `play.js`, `atlas.js`: trainers, registered with `tool(id, def)`. Ear tools accept `params.contrast: [a, b]` (a contrast drill on two confused items, started from Today's weak spots); the scale explorer compares quarter-tone maqamat with their 12-TET rounding.
+- `src/tools/dictation.js` (+ `dictation.css`, items and melody generator in `src/content/dictation.js`): Melodic dictation, skill `dictation`.
+- `src/tools/practice.js`: scale warm-up, chord & scale explorer, circle of fifths, reference tones, free practice, break, no-guitar drills.
+- `src/tools/learn.js`: the Learn tab (style library and style pages, theory course and lesson reader, reference) and the `listening` and `lesson` tools.
+- `src/tools/transcribe.js` (+ `transcribe.css`): the Transcribe tab, a plugin that receives the `UI` object. Key and tempo estimates on load, a beat grid with snap-to-beat loops, the note at the playhead, Media Session controls and a screen wake lock while playing.
+- `src/pages.js`: the Today dashboard and the Train page.
+- `src/stretch.js` (phase-vocoder time-stretch with phase locking, transient resets and shared stereo phase; windowed-sinc resampler for pitch shift) and `src/stretch.worker.js` (runs it in a module Worker).
+- `src/listen.js` (pitch and onset detection, the `Mic` input and its latency calibration) and `src/ui/mic.js` (the Listen toggle, mic settings card, timing meter).
 - `src/pwa.js`: service worker registration, update banner, install banner.
 
 ## Conventions
 
 - No frameworks and no runtime requests to other sites; everything is bundled so it works offline.
 - New tabs or tools can be added as a plugin: export a function that takes the `UI` object and add it to the list in `src/main.js` (pushing onto `window.WW_PLUGINS` still works too).
-- Persistence: `engine.js` saves state to `localStorage` and a copy in IndexedDB, and asks for persistent storage. When `window.claude` exists (inside a claude.ai Artifact with the `db` and `user` capabilities), it also syncs to the private database. Keep that guard.
+- Persistence: `engine.js` saves state to `localStorage` and a copy in IndexedDB, and asks for persistent storage. When `window.claude` exists (inside a claude.ai Artifact with the `db` and `user` capabilities), it also syncs to the private database (chunked under `data/users/<id>/`, live across devices). Keep that guard.
+- Saved state has a `schema` number. Changing its shape means adding a migration in `src/sync.js` (`MIGRATIONS`), never dropping old data, and teaching `merge()` about any new top-level key. Every copy (IndexedDB, cloud, sync file) is merged, not overwritten: practice time is kept per device in `state.hdev` and `history` is rebuilt from it; deletions leave a tombstone (`E.tombstone`). Device-only settings (latency, mic) are listed in `DEVICE_SETTINGS`.
 - Transcribe stores loaded audio in IndexedDB on the device only; song setups save with the rest of the state.
-- No microphone input: answers are given by tapping.
+- Microphone input is opt-in. `src/listen.js` analyses it on the device (pitch, note onsets with exact timing); nothing is recorded or sent. Tools subscribe with `Mic.on(type, fn)` and the mic closes when the last listener unsubscribes. Every mic feature must also work by tapping.

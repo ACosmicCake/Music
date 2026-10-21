@@ -1,9 +1,19 @@
 /* World Woodshed — adaptive engine: tracking, spaced repetition, mastery, routines */
 import D from './data.js';
+import { readingItems } from './content/reading.js';
+import { gymItems } from './content/gym.js';
+import { dictationItems } from './content/dictation.js';
+import { SCHEMA, migrate, merge, digest } from './sync.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
 const BOX_MS = [0, 10 * 60 * 1000, DAY, 3 * DAY, 7 * DAY, 21 * DAY, 45 * DAY];
+/* This install's id: practice time is kept per device so two devices' days add up when they sync.
+   Lives outside the synced state on purpose. */
+const DEV = (() => {
+  try { let d = localStorage.getItem('ww-device'); if (!d) { d = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); localStorage.setItem('ww-device', d); } return d; }
+  catch (e) { return 'd-local'; }
+})();
 
 /* ---------- Skill definitions ---------- */
 const SKILLS = {
@@ -12,21 +22,64 @@ const SKILLS = {
   degrees: { name: 'Scale degrees', cat: 'ear', tool: 'degrees', qpm: 5 },
   progressions: { name: 'Progressions', cat: 'ear', tool: 'progressions', qpm: 3 },
   scales: { name: 'World scales by ear', cat: 'ear', tool: 'scales', qpm: 3 },
+  dictation: { name: 'Melodic dictation', cat: 'ear', tool: 'dictation', qpm: 2 },
   rhythmTap: { name: 'Rhythm feel', cat: 'rhythm', tool: 'rhythms', qpm: 2 },
   rhythmId: { name: 'Rhythm ID', cat: 'rhythm', tool: 'rhythmid', qpm: 4 },
   clock: { name: 'Internal clock', cat: 'rhythm', tool: 'clock', qpm: 2 },
+  tuplets: { name: 'Tuplets & 16ths', cat: 'rhythm', tool: 'gym', qpm: 1 },
   fretboard: { name: 'Fretboard notes', cat: 'play', tool: 'fretboard', qpm: 10 },
   callresp: { name: 'Call & response', cat: 'play', tool: 'callresp', qpm: 4 },
   repertoire: { name: 'Repertoire', cat: 'play', tool: 'repertoire', qpm: 6 },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', qpm: 1 },
+  reading: { name: 'Sight-reading', cat: 'play', tool: 'sightread', qpm: 4 },
   atlas: { name: 'World knowledge', cat: 'know', tool: 'atlasquiz', qpm: 6 }
 };
-const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard & repertoire', tech: 'Technique', know: 'Knowledge' };
+const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard, reading & repertoire', tech: 'Technique', know: 'Knowledge' };
 
-const STRINGS = [
-  { id: 'E', name: 'low E', midi: 40 }, { id: 'A', name: 'A', midi: 45 }, { id: 'D', name: 'D', midi: 50 },
-  { id: 'G', name: 'G', midi: 55 }, { id: 'B', name: 'B', midi: 59 }, { id: 'e', name: 'high e', midi: 64 }
+/* Your guitar: the tuning and capo set in Today → Your guitar. STRINGS is updated in place, so every tool
+   that reads E.STRINGS (positions, fretboard answers, mic answers) follows the tuning. Ids stay by position
+   (6th string = 'E' … 1st = 'e') so progress items keep their meaning. */
+const TUNINGS = [
+  { id: 'standard', name: 'Standard', midi: [40, 45, 50, 55, 59, 64] },
+  { id: 'halfdown', name: 'Half step down', midi: [39, 44, 49, 54, 58, 63] },
+  { id: 'dstd', name: 'Whole step down (D standard)', midi: [38, 43, 48, 53, 57, 62] },
+  { id: 'dropd', name: 'Drop D', midi: [38, 45, 50, 55, 59, 64] },
+  { id: 'dadgad', name: 'DADGAD', midi: [38, 45, 50, 55, 57, 62] },
+  { id: 'openg', name: 'Open G (Taro Patch)', midi: [38, 43, 50, 55, 59, 62] },
+  { id: 'opend', name: 'Open D', midi: [38, 45, 50, 54, 57, 62] },
+  { id: 'openc', name: 'Open C', midi: [36, 43, 48, 55, 60, 64] },
+  { id: 'opene', name: 'Open E', midi: [40, 47, 52, 56, 59, 64] },
+  { id: 'dropc', name: 'Drop C', midi: [36, 43, 48, 53, 57, 62] }
 ];
+const POS_IDS = ['E', 'A', 'D', 'G', 'B', 'e'];
+const PCN = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const STRINGS = POS_IDS.map((id, i) => ({ id, name: '', midi: TUNINGS[0].midi[i], open: TUNINGS[0].midi[i] }));
+function applyTuning(id, capo) {
+  const t = TUNINGS.find(x => x.id === id) || TUNINGS[0];
+  capo = Math.max(0, Math.min(9, capo | 0));
+  STRINGS.forEach((st, i) => {
+    st.open = t.midi[i]; st.midi = t.midi[i] + capo;
+    const n = (D.NOTE_NAMES[t.midi[i] % 12] || PCN[t.midi[i] % 12]);
+    st.name = i === 0 ? 'low ' + n : i === 5 ? 'high ' + (n.length === 1 ? n.toLowerCase() : n) : n;
+  });
+  delete universeCache.fretboard;
+}
+/* Note names: letters (C D E) or fixed-do solfège (Do Re Mi), applied to the shared name tables in place */
+const NAME_SETS = {
+  letters: { names: ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'], full: ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'] },
+  solfege: { names: ['Do', 'Do♯', 'Re', 'Mi♭', 'Mi', 'Fa', 'Fa♯', 'Sol', 'La♭', 'La', 'Si♭', 'Si'], full: ['Do', 'Do♯/Re♭', 'Re', 'Re♯/Mi♭', 'Mi', 'Fa', 'Fa♯/Sol♭', 'Sol', 'Sol♯/La♭', 'La', 'La♯/Si♭', 'Si'] },
+  solfegeTi: { names: ['Do', 'Do♯', 'Re', 'Mi♭', 'Mi', 'Fa', 'Fa♯', 'Sol', 'La♭', 'La', 'Ti♭', 'Ti'], full: ['Do', 'Do♯/Re♭', 'Re', 'Re♯/Mi♭', 'Mi', 'Fa', 'Fa♯/Sol♭', 'Sol', 'Sol♯/La♭', 'La', 'La♯/Ti♭', 'Ti'] }
+};
+function applyNames(mode) {
+  const set = NAME_SETS[mode] || NAME_SETS.letters;
+  set.names.forEach((n, i) => { D.NOTE_NAMES[i] = n; }); set.full.forEach((n, i) => { D.NOTE_FULL[i] = n; });
+}
+function guitar() { const st = state.settings; return { tuning: st.tuning || 'standard', capo: st.capo || 0, lefty: !!st.lefty }; }
+function setGuitar(patch) {
+  Object.assign(state.settings, patch);
+  const g = guitar(); applyNames(state.settings.noteNames); applyTuning(g.tuning, g.capo);
+  scheduleSave(); emit();
+}
 const NATURALS = [0, 2, 4, 5, 7, 9, 11];
 
 /* Item universe for each skill: [{id, label, tier}] */
@@ -50,6 +103,7 @@ function universe(skill) {
     case 'degrees': list = D.DEGREES.map(d => ({ id: d.id, label: 'Degree ' + d.id, tier: d.tier })); break;
     case 'progressions': list = D.NUMERALS.filter(n => n.id !== 'I').map(n => ({ id: n.id, label: n.id + ' chord', tier: n.tier })); break;
     case 'scales': list = D.SCALES.map(s => ({ id: s.id, label: s.name, tier: s.tier })); break;
+    case 'dictation': list = dictationItems(); break;
     case 'rhythmTap': case 'rhythmId': list = D.RHYTHMS.map(r => ({ id: r.id, label: r.name, tier: r.tier })); break;
     case 'clock': list = [[100, 1], [80, 1], [120, 2], [60, 2], [140, 3], [50, 3], [160, 4]].map(([b, t]) => ({ id: String(b), label: b + ' bpm', tier: t })); break;
     case 'fretboard':
@@ -67,6 +121,8 @@ function universe(skill) {
     case 'callresp': list = D.LICK_ITEMS.map(l => ({ id: l.id, label: scaleName(l.scale) + ', ' + l.len + ' notes', tier: l.tier })); break;
     case 'repertoire': list = D.TUNES.map((t, i) => ({ id: t.id, label: t.name, tier: t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(i / 3)) : 2 })); break;
     case 'technique': list = D.EXERCISES.map(e => ({ id: e.id, label: e.name, tier: 1 })); break;
+    case 'reading': list = readingItems(); break;
+    case 'tuplets': list = gymItems(); break;
     case 'atlas':
       D.REGIONS.forEach(r => r.facts.forEach((f, i) => list.push({ id: r.id + ':' + i, label: r.name + ': ' + f.q, tier: 1, region: r.id })));
       break;
@@ -80,11 +136,12 @@ function itemLabel(skill, id) { const it = universe(skill).find(x => x.id === id
 /* ---------- State ---------- */
 function freshState() {
   return {
-    v: 1, created: Date.now(), updatedAt: 0,
-    skills: {}, history: {}, anchors: {},
+    v: 1, schema: SCHEMA, created: Date.now(), updatedAt: 0,
+    skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
     tech: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
-    routine: null, placementDone: false, songs: {}
+    routine: null, placementDone: false, songs: {},
+    routines: [], session: null, lessons: {}, heard: {}, journal: []
   };
 }
 let state = freshState();
@@ -103,7 +160,7 @@ let storageNote = 'Saved on this device';
 function loadLocal() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) state = Object.assign(freshState(), s); }
+    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) state = Object.assign(freshState(), migrate(s, DEV)); }
   } catch (e) { /* storage unavailable */ }
 }
 function saveLocal() {
@@ -136,24 +193,50 @@ async function loadIdb() {
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
     const s = json ? JSON.parse(json) : null;
-    if (s && s.v === 1 && (s.updatedAt || 0) > (state.updatedAt || 0)) {
-      state = Object.assign(freshState(), s);
-      try { localStorage.setItem(LS_KEY, json); } catch (e) { /* ignore */ }
-      emit();
-    }
+    if (s && s.v === 1) adopt(migrate(s, DEV), false);
   } catch (e) { /* IndexedDB unavailable */ }
 }
 
-/* ---------- Backup file: export and import ---------- */
-function exportBackup() {
-  return { app: 'world-woodshed', exportedAt: new Date().toISOString(), state };
+/* Fold another copy of the progress (IndexedDB, the cloud, a sync file) into this one.
+   Nothing practised on either side is lost; returns true when anything changed. */
+function adopt(other, save = true) {
+  const before = digest(state);
+  state = Object.assign(freshState(), merge(state, other));
+  const changed = digest(state) !== before;
+  if (changed) { applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); saveLocal(); emit(); }
+  if (save && changed) scheduleSave(300);
+  return changed;
 }
-function importBackup(obj) {
+function tombstone(key) { if (!state.tomb) state.tomb = {}; state.tomb[key] = Date.now(); }
+
+/* ---------- Backup and sync file: export and import ---------- */
+function exportBackup() {
+  return { app: 'world-woodshed', exportedAt: new Date().toISOString(), device: DEV, schema: SCHEMA, state };
+}
+/* mode 'merge' (default) combines the file with this device's progress; 'replace' restores it as it was */
+function importBackup(obj, mode = 'merge') {
   const s = obj && obj.app === 'world-woodshed' ? obj.state : obj;
   if (!s || s.v !== 1 || typeof s.skills !== 'object') throw new Error('This file is not a World Woodshed backup');
-  state = Object.assign(freshState(), s);
-  scheduleSave(100);
-  emit();
+  const m = migrate(JSON.parse(JSON.stringify(s)), obj.device || 'file');
+  if (mode === 'replace') { state = Object.assign(freshState(), m); applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); scheduleSave(100); emit(); return true; }
+  return adopt(m);
+}
+
+/* ---------- Cloud: the private database inside a claude.ai Artifact ----------
+   The state is stored in chunks (a document holds at most 256 KiB) under data/users/<id>/, written chunks first
+   and the index last, so a reader never sees half a save. Other devices' saves arrive live and are merged in. */
+const CHUNK = 180000;
+let cloudBase = '', cloudVer = '', unsubCloud = null, lastPulled = '';
+async function cloudRead() {
+  const snap = await docRef.get();
+  if (!snap.exists) return null;
+  const meta = snap.data();
+  if (typeof meta.json === 'string') return JSON.parse(meta.json); // the old single-document format
+  if (!meta.n) return null;
+  const parts = await Promise.all(Array.from({ length: meta.n }, (_, i) => db.doc(cloudBase + '/chunks/c' + i).get()));
+  if (parts.some(p => !p.exists || p.data().ver !== meta.ver)) return null; // another device is mid-save; its snapshot will come
+  lastPulled = meta.ver;
+  return JSON.parse(parts.map(p => p.data().part).join(''));
 }
 async function connectCloud() {
   try {
@@ -163,24 +246,21 @@ async function connectCloud() {
     const uid = await userNs.id();
     if (!uid) return;
     db = dbNs;
-    docRef = db.doc('data/users/' + uid + '/progress');
-    const snap = await docRef.get();
-    if (snap.exists) {
-      const body = snap.data();
-      let remote = null;
-      try { remote = JSON.parse(body.json); } catch (e) { remote = null; }
-      if (remote && remote.v === 1 && (remote.updatedAt || 0) > (state.updatedAt || 0)) {
-        state = Object.assign(freshState(), remote);
-        saveLocal();
-        emit();
-      } else if ((state.updatedAt || 0) > ((remote && remote.updatedAt) || 0)) {
-        scheduleSave(200);
-      }
-    } else if (state.updatedAt) {
-      scheduleSave(200);
-    }
+    cloudBase = 'data/users/' + uid;
+    docRef = db.doc(cloudBase + '/progress');
+    const remote = await cloudRead();
+    const changedHere = remote && remote.v === 1 ? adopt(migrate(remote, 'cloud'), false) : false;
+    // push if this device has anything the cloud copy lacks
+    if (!remote || changedHere || digest(state) !== digest(Object.assign(freshState(), migrate(remote, 'cloud')))) scheduleSave(200);
     storageNote = 'Synced to your account';
     emit();
+    if (unsubCloud) unsubCloud();
+    unsubCloud = docRef.onSnapshot(snap => {
+      if (!snap.exists) return;
+      const meta = snap.data();
+      if (!meta || meta.ver === cloudVer || meta.ver === lastPulled || meta.dev === DEV) return;
+      cloudRead().then(r => { if (r && r.v === 1) adopt(migrate(r, 'cloud'), false); }).catch(() => {});
+    }, () => {});
   } catch (e) {
     docRef = null;
   }
@@ -197,7 +277,10 @@ async function flush() {
   if (saving) { pendingSave = true; return; }
   saving = true;
   try {
-    await docRef.set({ json: JSON.stringify(state), updatedAt: state.updatedAt });
+    const json = JSON.stringify(state), n = Math.max(1, Math.ceil(json.length / CHUNK)), ver = uid('v');
+    for (let i = 0; i < n; i++) await db.doc(cloudBase + '/chunks/c' + i).set({ ver, i, part: json.slice(i * CHUNK, (i + 1) * CHUNK) });
+    cloudVer = ver;
+    await docRef.set({ ver, n, dev: DEV, schema: SCHEMA, updatedAt: state.updatedAt });
     storageNote = 'Synced to your account';
   } catch (e) {
     if (e && e.code === 'unavailable') { setTimeout(flush, 1500 + Math.random() * 1000); }
@@ -218,16 +301,29 @@ function today() {
   if (!state.history[k]) state.history[k] = { sec: 0, q: 0, c: 0, by: {} };
   return state.history[k];
 }
+/* this device's own record of today (the totals above add up every device's) */
+function todayDev() {
+  const k = dayKey();
+  if (!state.hdev) state.hdev = {};
+  const d = state.hdev[DEV] || (state.hdev[DEV] = {});
+  if (!d[k]) d[k] = { sec: 0, q: 0, c: 0, by: {} };
+  return d[k];
+}
+function bump(rec, skill, q, c, sec) {
+  rec.q += q; rec.c += c; rec.sec += sec;
+  if (skill) { const b = rec.by[skill] || (rec.by[skill] = [0, 0, 0]); b[0] += q; b[1] += c; b[2] = (b[2] || 0) + sec; }
+}
 function addTime(sec, skill) {
   if (!(sec > 0)) return;
-  const h = today();
-  h.sec += Math.min(sec, 600);
-  if (skill) { h.by[skill] = h.by[skill] || [0, 0, 0]; h.by[skill][2] = (h.by[skill][2] || 0) + Math.min(sec, 600); }
+  const add = Math.min(sec, 600);
+  bump(today(), skill, 0, 0, add); bump(todayDev(), skill, 0, 0, add);
   scheduleSave();
 }
 function pruneHistory() {
   const keys = Object.keys(state.history).sort();
   while (keys.length > 180) delete state.history[keys.shift()];
+  const oldest = keys[0];
+  Object.values(state.hdev || {}).forEach(d => Object.keys(d).forEach(k => { if (k < oldest) delete d[k]; }));
 }
 
 /* ---------- Recording results ---------- */
@@ -247,9 +343,7 @@ function record(skill, itemId, correct, opts = {}) {
   }
   ss.last = Date.now();
   const h = today();
-  h.q++; if (correct) h.c++;
-  h.by[skill] = h.by[skill] || [0, 0, 0];
-  h.by[skill][0]++; if (correct) h.by[skill][1]++;
+  bump(h, skill, 1, correct ? 1 : 0, 0); bump(todayDev(), skill, 1, correct ? 1 : 0, 0);
   h.mastery = h.mastery || {};
   h.mastery[skill] = Math.round(mastery(skill));
   pruneHistory();
@@ -286,6 +380,19 @@ function unlockedTier(skill) {
     if (coverage >= 0.8 && avg >= 0.75) tier++; else break;
   }
   return tier;
+}
+/* What stands between you and the next level of a skill, in plain words */
+function levelProgress(skill) {
+  const ss = skillState(skill), u = universe(skill), tier = unlockedTier(skill);
+  const maxTier = Math.max(...u.map(x => x.tier));
+  if (tier >= maxTier) return { tier, maxTier, text: 'All levels open' };
+  const pool = u.filter(x => x.tier <= tier), seen = pool.filter(x => ss.items[x.id]);
+  const avg = seen.length ? seen.reduce((a, x) => a + ss.items[x.id].ema, 0) / seen.length : 0;
+  const needSeen = Math.max(0, Math.ceil(pool.length * 0.8) - seen.length);
+  const parts = [];
+  if (needSeen) parts.push(needSeen + ' more item' + (needSeen === 1 ? '' : 's') + ' to try');
+  if (avg < 0.75) parts.push('accuracy ' + Math.round(avg * 100) + '% of 75%');
+  return { tier, maxTier, coverage: seen.length / pool.length, avg, text: 'Level ' + (tier + 1) + ': ' + (parts.join(', ') || 'nearly there') };
 }
 function unlocked(skill) { const t = unlockedTier(skill); return universe(skill).filter(x => x.tier <= t); }
 function dueCount(skill) {
@@ -384,10 +491,12 @@ function regionScore(r) {
 }
 function regionOfWeek() {
   const rw = state.settings.regionWeek;
-  if (rw && Date.now() - rw.start < 7 * DAY && D.REGIONS.find(r => r.id === rw.id)) return D.REGIONS.find(r => r.id === rw.id);
+  const pri = (state.cur && state.cur.prefs && state.cur.prefs.styles) || [];
+  if (rw && Date.now() - rw.start < 7 * DAY && D.REGIONS.find(r => r.id === rw.id) && (!pri.length || pri.includes(rw.id) || rw.manual)) return D.REGIONS.find(r => r.id === rw.id);
   const visited = (state.settings.visitedRegions || []);
-  const candidates = D.REGIONS.filter(r => r.rhythms.length || r.scales.length);
-  const ranked = candidates.map(r => ({ r, s: regionScore(r) + (visited.includes(r.id) ? 0.3 : 0) + Math.random() * 0.05 })).sort((a, b) => a.s - b.s);
+  // with style priorities set, the weekly focus rotates through them, favouring the top of the list
+  const candidates = pri.length ? pri.map(id => D.REGIONS.find(r => r.id === id)).filter(Boolean) : D.REGIONS.filter(r => r.rhythms.length || r.scales.length);
+  const ranked = candidates.map((r, i) => ({ r, s: regionScore(r) + (visited.includes(r.id) ? 0.3 : 0) + (pri.length ? i * 0.12 : 0) + Math.random() * 0.05 })).sort((a, b) => a.s - b.s);
   const chosen = ranked[0].r;
   state.settings.regionWeek = { id: chosen.id, start: Date.now() };
   const v = state.settings.visitedRegions || (state.settings.visitedRegions = []);
@@ -397,7 +506,7 @@ function regionOfWeek() {
   return chosen;
 }
 function setRegionWeek(id) {
-  state.settings.regionWeek = { id, start: Date.now() };
+  state.settings.regionWeek = { id, start: Date.now(), manual: true };
   const v = state.settings.visitedRegions || (state.settings.visitedRegions = []);
   if (!v.includes(id)) v.push(id);
   if (v.length >= D.REGIONS.length) state.settings.visitedRegions = [id];
@@ -417,7 +526,8 @@ const FOCUS = {
 function techPick() {
   // exercise with lowest best/target, nudged toward the region of the week
   const rw = regionOfWeek();
-  const regional = { flamenco: ['rasg', 'picado'], manouche: ['reststroke', 'pompe'], brazil: ['bossarh'], carnatic: ['konnakol'], hindustani: ['konnakol'], cuba: ['strskip'], westafrica: ['travis'], centraleast: ['altpick', 'tremolo'] }[rw.id] || [];
+  const regional = { flamenco: ['rasg', 'picado'], manouche: ['reststroke', 'pompe'], brazil: ['bossarh'], carnatic: ['konnakol'], hindustani: ['konnakol'], cuba: ['strskip'], westafrica: ['travis'], centraleast: ['altpick', 'tremolo'],
+    blues: ['bends'], rock: ['altpick', 'legato', 'bends'], funksoul: ['funkstrum'], country: ['hybrid', 'travis'], classical: ['pima'], fado: ['tremolo'], hawaii: ['travis'], persian: ['tremolo'] }[rw.id] || [];
   const ranked = D.EXERCISES.map(e => {
     const t = state.tech[e.id];
     const ratio = t && t.best ? t.best / e.target : 0;
@@ -581,10 +691,13 @@ function anchor(ivId, dir) {
 }
 function setAnchor(ivId, dir, text) { state.anchors[ivId + ':' + dir] = text; scheduleSave(); }
 function setSetting(k, v) { state.settings[k] = v; scheduleSave(); emit(); }
+// save and notify after changing state in place (used by the curriculum)
+function touch() { scheduleSave(); emit(); }
 function resetAll() { state = freshState(); scheduleSave(100); emit(); }
 
 function init() {
   loadLocal();
+  applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo);
   loadIdb().then(connectCloud);
   // Ask the browser not to evict saved progress when space runs low.
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
@@ -601,14 +714,89 @@ function saveSong(setup) {
   while (ids.length > 150) delete state.songs[ids.pop()];
   scheduleSave();
 }
-function deleteSong(id) { delete songsObj()[id]; scheduleSave(); emit(); }
+function deleteSong(id) { delete songsObj()[id]; tombstone('song:' + id); scheduleSave(); emit(); }
+
+/* ---------- Custom routines ---------- */
+function routines() { if (!Array.isArray(state.routines)) state.routines = []; return state.routines; }
+function getRoutine(id) { return routines().find(r => r.id === id) || null; }
+function saveRoutine(r) {
+  r.updatedAt = Date.now();
+  const list = routines(), i = list.findIndex(x => x.id === r.id);
+  const copy = JSON.parse(JSON.stringify(r));
+  if (i >= 0) list[i] = copy; else list.push(copy);
+  scheduleSave(); emit();
+  return copy;
+}
+function deleteRoutine(id) {
+  state.routines = routines().filter(r => r.id !== id);
+  tombstone('routine:' + id);
+  if (state.settings.activeRoutine === id) state.settings.activeRoutine = state.routines.length ? state.routines[0].id : 'smart';
+  scheduleSave(); emit();
+}
+function activeRoutineId() {
+  const id = state.settings.activeRoutine;
+  if (id === 'smart' || getRoutine(id)) return id;
+  return 'smart';
+}
+function setActiveRoutine(id) { state.settings.activeRoutine = id; scheduleSave(); emit(); }
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+/* ---------- Practice session (a routine being played through) ----------
+   Elapsed time is wall-clock while not paused, so it keeps counting while you play with the screen off. */
+function session() {
+  const s = state.session;
+  if (!s) return null;
+  if (Date.now() - (s.lastTick || s.started) > 12 * 3600 * 1000) { state.session = null; return null; }
+  return s;
+}
+function startSession(src) {
+  state.session = {
+    id: uid('s'), routineId: src.id || null, name: src.name, started: Date.now(), lastTick: Date.now(),
+    paused: false, idx: 0, autoAdvance: src.autoAdvance !== false,
+    blocks: src.blocks.map(b => Object.assign(JSON.parse(JSON.stringify(b)), { elapsed: 0, done: false, skipped: false }))
+  };
+  scheduleSave(); emit();
+  return state.session;
+}
+// Called often by the session ticker; saves without re-rendering pages.
+function touchSession() { if (state.session) { state.session.lastTick = Date.now(); scheduleSave(4000); } }
+function sessionChanged() { if (state.session) state.session.lastTick = Date.now(); scheduleSave(); emit(); }
+function endSession(note) {
+  const s = state.session; if (!s) return null;
+  const sec = Math.round(s.blocks.reduce((a, b) => a + (b.elapsed || 0), 0) / 1000);
+  const entry = { ts: Date.now(), date: dayKey(), name: s.name, sec, done: s.blocks.filter(b => b.done).length, total: s.blocks.length, note: (note || '').trim() };
+  if (!Array.isArray(state.journal)) state.journal = [];
+  if (sec >= 30 || entry.note) state.journal.unshift(entry);
+  if (state.journal.length > 300) state.journal.length = 300;
+  state.session = null;
+  scheduleSave(); emit();
+  return entry;
+}
+function journal() { return Array.isArray(state.journal) ? state.journal : []; }
+
+/* ---------- Lessons read and recordings heard ---------- */
+function lessonDone(id) { return !!(state.lessons && state.lessons[id]); }
+function setLessonDone(id, done) {
+  if (!state.lessons) state.lessons = {};
+  if (done) state.lessons[id] = Date.now(); else delete state.lessons[id];
+  scheduleSave(); emit();
+}
+function heard(key) { return !!(state.heard && state.heard[key]); }
+function setHeard(key, on) {
+  if (!state.heard) state.heard = {};
+  if (on) state.heard[key] = Date.now(); else delete state.heard[key];
+  scheduleSave(); emit();
+}
 
 export default {
+  routines, getRoutine, saveRoutine, deleteRoutine, activeRoutineId, setActiveRoutine, uid,
+  session, startSession, touchSession, sessionChanged, endSession, journal,
+  lessonDone, setLessonDone, heard, setHeard, techPick,
   listSongs, getSong, saveSong, deleteSong,
-  SKILLS, CAT_NAMES, STRINGS, FOCUS, init, get state() { return state; }, onChange, emit,
-  universe, unlocked, unlockedTier, pick, record, mastery, dueCount, daysSince, itemLabel,
+  SKILLS, CAT_NAMES, STRINGS, TUNINGS, guitar, setGuitar, FOCUS, init, get state() { return state; }, onChange, emit,
+  universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
-  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, addTime, resetAll, exportBackup, importBackup,
-  storageNote: () => storageNote, skillState, dayKey
+  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, resetAll, exportBackup, importBackup,
+  storageNote: () => storageNote, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };

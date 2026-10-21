@@ -1,4 +1,22 @@
 /* World Woodshed — content library */
+import LESSONS from './content/lessons.js';
+import STYLES_A from './content/styles-a.js';
+import STYLES_B from './content/styles-b.js';
+import STYLES_NEW from './content/styles-new.js';
+import ESSAYS_1 from './content/essays-1.js';
+import ESSAYS_2 from './content/essays-2.js';
+import ESSAYS_3 from './content/essays-3.js';
+import ESSAYS_4 from './content/essays-4.js';
+import ESSAYS_5 from './content/essays-5.js';
+import ESSAYS_6 from './content/essays-6.js';
+import TECH_A from './content/techniques-a.js';
+import SCIENCE from './content/science.js';
+import TECH_B from './content/techniques-b.js';
+import EX_VARS from './content/exercise-vars.js';
+import RHY_VAR from './content/rhythms-var.js';
+import RHY_NEW from './content/rhythms-new.js';
+import DRILLS_A from './content/drills-a.js';
+import DRILLS_B from './content/drills-b.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const NOTE_FULL = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
 
@@ -99,7 +117,12 @@ const SCALES = [
   { id: 'slendro', name: 'Slendro (approx.)', aka: 'Javanese and Balinese gamelan', steps: [0, 2.4, 4.8, 7.2, 9.6], tier: 5, region: 'Indonesia', note: 'Five roughly equal steps. Each gamelan has its own tuning.' },
   { id: 'pelog', name: 'Pelog (approx.)', aka: 'Gamelan 5-note selection', steps: [0, 1.2, 2.7, 6.6, 7.5], tier: 5, region: 'Indonesia', note: 'Uneven steps, small and large. Tunings vary by gamelan.' },
   { id: 'bati', name: 'Bati (major)', aka: 'Ethiopian qenet', steps: [0, 4, 5, 7, 11], tier: 5, region: 'Ethiopia', note: 'Pentatonic with the major 7th; heard in Ethio-jazz.' },
-  { id: 'anchihoye', name: 'Anchihoye', aka: 'Ethiopian qenet', steps: [0, 1, 5, 6, 9], tier: 5, region: 'Ethiopia', note: 'A striking pentatonic with two half steps.' }
+  { id: 'anchihoye', name: 'Anchihoye', aka: 'Ethiopian qenet', steps: [0, 1, 5, 6, 9], tier: 5, region: 'Ethiopia', note: 'A striking pentatonic with two half steps.' },
+  { id: 'wholetone', name: 'Whole tone', aka: 'Augmented scale of Debussy and bebop', steps: [0, 2, 4, 6, 8, 10], tier: 4, region: 'Jazz · Impressionism', note: 'Six notes, all whole steps. Dreamy and unresolved; fits 7♯5 chords.' },
+  { id: 'hwdim', name: 'Half-whole diminished', aka: 'Dominant diminished · octatonic', steps: [0, 1, 3, 4, 6, 7, 9, 10], tier: 4, region: 'Jazz', note: 'Alternating half and whole steps. Fits 7♭9 chords and repeats every minor 3rd.' },
+  { id: 'altered', name: 'Altered (super Locrian)', aka: '7th mode of melodic minor', steps: [0, 1, 3, 4, 6, 8, 10], tier: 5, region: 'Jazz', note: 'Every tension on a dominant chord at once: ♭9, ♯9, ♯11 and ♭13.' },
+  { id: 'shur', name: 'Dastgah Shur', aka: 'Persian · close to Maqam Bayati', steps: [0, 1.5, 3, 5, 7, 8, 10], tier: 5, region: 'Iran', note: 'The 2nd is koron, about a quarter tone flat. Shur is the parent of several other Persian modes.' },
+  { id: 'chahargah', name: 'Dastgah Chahargah', aka: 'Persian', steps: [0, 1.5, 4, 5, 7, 8.5, 11], tier: 5, region: 'Iran', note: 'Two koron notes (2nd and 6th), each followed by a wide step. Bright and heroic.' }
 ];
 
 /* ---------- Rhythm library ----------
@@ -205,7 +228,19 @@ const RHYTHMS = [
     note: 'Bass note on 1 and 3, a short, crisp chord on 2 and 4.' },
   { id: 'bulgar', name: 'Bulgar / freylekhs', region: 'klezmer', meter: '4/4 (3+3+2)', steps: 8, spb: 2, bpm: 130, tier: 2, target: 'clap',
     tracks: { clap: 'X..x..x.', low: 'x...x...', chick: '..x...x.' },
-    note: 'Klezmer dance rhythm with the 3+3+2 accent over a steady oom-pah.' }
+    note: 'Klezmer dance rhythm with the 3+3+2 accent over a steady oom-pah.' },
+  { id: 'shuffle', name: 'Blues shuffle (12/8)', region: 'blues', meter: '12/8', steps: 12, spb: 3, bpm: 84, tier: 1, target: 'ride',
+    tracks: { ride: 'x.xx.xx.xx.x', high: '...x.....x..', low: 'x.....x.....' },
+    note: 'Each beat splits into a long and a short note (the first and third of a triplet). Snare on 2 and 4.' },
+  { id: 'backbeat', name: 'Rock backbeat', region: 'rock', meter: '4/4', steps: 8, spb: 2, bpm: 112, tier: 1, target: 'high',
+    tracks: { hat: 'xxxxxxxx', high: '..X...X.', low: 'x...xx..' },
+    note: 'Straight eighths on the hi-hat, kick on 1 and 3, snare cracking on 2 and 4. Tap the snare.' },
+  { id: 'funk16', name: 'Funk sixteenths', region: 'funksoul', meter: '4/4 (16ths)', steps: 16, spb: 4, bpm: 96, tier: 3, target: 'low',
+    tracks: { hat: 'x.x.x.x.x.x.x.x.', high: '....X..x....X..x', low: 'x......x..x.....' },
+    note: 'Ghost notes and a syncopated kick around a hard 2 and 4. Count every 16th: 1 e & a.' },
+  { id: 'boomchick', name: 'Boom-chick', region: 'country', meter: '2/4 feel', steps: 8, spb: 2, bpm: 110, tier: 1, target: 'chick',
+    tracks: { low: 'x...x...', chick: '..X...X.' },
+    note: 'Bass note on 1 and 3 (root, then fifth), a short strum on 2 and 4. The engine of country and bluegrass rhythm guitar.' }
 ];
 
 /* ---------- World music atlas ---------- */
@@ -350,7 +385,7 @@ const REGIONS = [
       { q: 'A signature gypsy jazz chord is the…', a: 'Minor 6', w: ['Sus2', 'Power chord', 'Quartal'] },
       { q: 'Rest-stroke picking means…', a: 'The pick comes to rest on the next string', w: ['Resting between phrases', 'Muting with the palm', 'Using only upstrokes'] }
     ] },
-  { id: 'jazz', name: 'USA: blues & jazz', places: 'New Orleans · Chicago · Kansas City · New York',
+  { id: 'jazz', name: 'Jazz (USA)', places: 'New Orleans · Chicago · Kansas City · New York',
     summary: 'Jazz grew in New Orleans from blues, ragtime, brass bands and Caribbean rhythm. Swing feel, improvising over chord changes and a shared book of standards are its core.',
     concepts: ['Swing feel: uneven eighths and a 2 and 4 backbeat', 'ii–V–I progressions', 'Guide tones: the 3rd and 7th of each chord', '12-bar blues form', 'Rhythm changes'],
     instruments: ['Guitar', 'Piano', 'Double bass', 'Drums', 'Saxophone', 'Trumpet'],
@@ -428,6 +463,21 @@ const REGIONS = [
     ] }
 ];
 
+/* Deep-dive fields (history, sub-styles, recordings, players, study) live in src/content/.
+   Existing regions get them merged in; new styles are appended whole. */
+Object.values(STYLES_NEW).forEach(st => REGIONS.push(st));
+REGIONS.forEach(r => Object.assign(r, STYLES_A[r.id] || {}, STYLES_B[r.id] || {}));
+// Long-form essays: philosophy and meaning, how it works, guitar approach, glossary
+const ESSAYS = Object.assign({}, ESSAYS_1, ESSAYS_2, ESSAYS_3, ESSAYS_4, ESSAYS_5, ESSAYS_6);
+REGIONS.forEach(r => { if (ESSAYS[r.id]) r.essay = ESSAYS[r.id]; });
+const AREA = {
+  cuba: 'Americas', brazil: 'Americas', latam: 'Americas', caribbean: 'Americas', jazz: 'Americas', blues: 'Americas', rock: 'Americas', funksoul: 'Americas', country: 'Americas', hawaii: 'Americas',
+  flamenco: 'Europe', manouche: 'Europe', klezmer: 'Europe', celtic: 'Europe', classical: 'Europe', fado: 'Europe', turkbalkan: 'Europe',
+  arabic: 'Middle East & India', persian: 'Middle East & India', hindustani: 'Middle East & India', carnatic: 'Middle East & India',
+  westafrica: 'Africa', centraleast: 'Africa', eastasia: 'East Asia'
+};
+REGIONS.forEach(r => { r.area = AREA[r.id] || 'World'; });
+
 /* ---------- Repertoire: chord charts & grooves ---------- */
 const GROOVES = {
   swing: { name: 'Swing', steps: 12, spb: 3, perc: { ride: 'X..x.xx..x.x', hat: '...x.....x..' }, comp: 'x..x..x..x..', bass: 'walk' },
@@ -439,17 +489,22 @@ const GROOVES = {
   flamenco: { name: 'Flamenco tangos (4/4)', steps: 8, spb: 2, perc: { clap: '..x...x.', mid: 'x.x.x.x.' }, comp: 'X.xxX.x.', bass: 'r...r...' },
   highlife: { name: 'Highlife', steps: 16, spb: 4, perc: { bell: 'x.x.xx.x.x.x.x.x', shaker: 'x.x.x.x.x.x.x.x.' }, comp: '..x...x...x...x.', bass: 'r...5...r...5...' },
   soukous: { name: 'Soukous / rumba', steps: 16, spb: 4, perc: { hat: 'x.x.x.x.x.x.x.x.', high: '....x.......x...', low: 'x.......x.......' }, comp: 'x.xx.xx.x.xx.xx.', bass: 'r..5..r.r..5..r.' },
-  drone: { name: 'Drone', steps: 8, spb: 2, perc: {}, comp: 'x.......', bass: 'r.......' }
+  drone: { name: 'Drone', steps: 8, spb: 2, perc: {}, comp: 'x.......', bass: 'r.......' },
+  shuffle: { name: 'Blues shuffle', steps: 12, spb: 3, perc: { ride: 'x.xx.xx.xx.x', high: '...x.....x..', low: 'x.....x.....' }, comp: '...x.....x..', bass: 'r.35.67.65.3' },
+  rock: { name: 'Rock eighths', steps: 8, spb: 2, perc: { hat: 'xxxxxxxx', high: '..x...x.', low: 'x...xx..' }, comp: 'X.x.X.x.', bass: 'rrrrrrrr' },
+  funk: { name: 'Funk sixteenths', steps: 16, spb: 4, perc: { hat: 'x.x.x.x.x.x.x.x.', high: '....X..x....X..x', low: 'x......x..x.....' }, comp: '..x.x..x..x.x..x', bass: 'r......r..r.8...' },
+  boomchick: { name: 'Boom-chick', steps: 8, spb: 2, perc: {}, comp: '..x...x.', bass: 'r...5...' },
+  fado: { name: 'Fado', steps: 8, spb: 2, perc: {}, comp: '..x.x.x.', bass: 'r...5...' }
 };
 
 // bars: each string is one bar; chords in a bar separated by space
 const TUNES = [
   { id: 'autumn', name: 'Autumn Leaves', group: 'Jazz standards', groove: 'swing', bpm: 140, note: 'Major and minor ii–V–Is in G minor / B♭ major.',
-    bars: ['Cm7', 'F7', 'Bbmaj7', 'Ebmaj7', 'Am7b5', 'D7', 'Gm6', 'Gm6', 'Cm7', 'F7', 'Bbmaj7', 'Ebmaj7', 'Am7b5', 'D7', 'Gm6', 'Gm6', 'Am7b5', 'D7', 'Gm6', 'Gm6', 'Cm7', 'F7', 'Bbmaj7', 'Ebmaj7', 'Am7b5', 'D7', 'Gm7 C7', 'Fm7 Bb7', 'Ebmaj7', 'Am7b5 D7', 'Gm6', 'Gm6'] },
+    form: [['A', 8], ['A', 8], ['B', 8], ['C', 8]], bars: ['Cm7', 'F7', 'Bbmaj7', 'Ebmaj7', 'Am7b5', 'D7', 'Gm6', 'Gm6', 'Cm7', 'F7', 'Bbmaj7', 'Ebmaj7', 'Am7b5', 'D7', 'Gm6', 'Gm6', 'Am7b5', 'D7', 'Gm6', 'Gm6', 'Cm7', 'F7', 'Bbmaj7', 'Ebmaj7', 'Am7b5', 'D7', 'Gm7 C7', 'Fm7 Bb7', 'Ebmaj7', 'Am7b5 D7', 'Gm6', 'Gm6'] },
   { id: 'bluebossa', name: 'Blue Bossa', group: 'Jazz standards', groove: 'bossa', bpm: 130, note: 'Minor ii–V in C minor, then a brief trip to D♭ major.',
-    bars: ['Cm7', 'Cm7', 'Fm7', 'Fm7', 'Dm7b5', 'G7', 'Cm7', 'Cm7', 'Ebm7', 'Ab7', 'Dbmaj7', 'Dbmaj7', 'Dm7b5', 'G7', 'Cm7', 'Dm7b5 G7'] },
+    form: [['A', 8], ['B', 8]], bars: ['Cm7', 'Cm7', 'Fm7', 'Fm7', 'Dm7b5', 'G7', 'Cm7', 'Cm7', 'Ebm7', 'Ab7', 'Dbmaj7', 'Dbmaj7', 'Dm7b5', 'G7', 'Cm7', 'Dm7b5 G7'] },
   { id: 'summertime', name: 'Summertime (simplified)', group: 'Jazz standards', groove: 'swing', bpm: 90, note: 'A minor blues-tinged song form. Great for guide tones in minor.',
-    bars: ['Am6', 'E7', 'Am6', 'Am6', 'Dm7', 'Dm7', 'Bm7b5', 'E7', 'Am6', 'E7', 'Am6', 'Am6', 'C6 Am7', 'Dm7 E7', 'Am6', 'Bm7b5 E7'] },
+    form: [['A', 8], ['A', 8]], bars: ['Am6', 'E7', 'Am6', 'Am6', 'Dm7', 'Dm7', 'Bm7b5', 'E7', 'Am6', 'E7', 'Am6', 'Am6', 'C6 Am7', 'Dm7 E7', 'Am6', 'Bm7b5 E7'] },
   { id: 'flyme', name: 'Fly Me to the Moon (A section)', group: 'Jazz standards', groove: 'swing', bpm: 130, note: 'Runs down the cycle of fifths.',
     bars: ['Am7', 'Dm7', 'G7', 'Cmaj7 C7', 'Fmaj7', 'Bm7b5', 'E7', 'Am7 A7', 'Dm7', 'G7', 'Cmaj7 Am7', 'Dm7', 'G7', 'Cmaj7', 'Bm7b5', 'E7'] },
   { id: 'fblues', name: 'Jazz blues in F', group: 'Jazz standards', groove: 'swing', bpm: 140, note: 'The jazz blues used by Billie\'s Bounce, Now\'s the Time and many more.',
@@ -459,11 +514,11 @@ const TUNES = [
   { id: 'atrain', name: 'Take the A Train (A section)', group: 'Jazz standards', groove: 'swing', bpm: 160, note: 'Home for the famous II7 (D7 in C) with a ♯11.',
     bars: ['Cmaj7', 'Cmaj7', 'D7#11', 'D7#11', 'Dm7', 'G7', 'Cmaj7', 'Cmaj7'] },
   { id: 'sowhat', name: 'So What (modal)', group: 'Jazz standards', groove: 'swing', bpm: 135, note: 'Sixteen bars of D Dorian, eight of E♭ Dorian, eight of D Dorian.',
-    bars: ['Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7'] },
+    form: [['A', 8], ['A', 8], ['B', 8], ['A', 8]], bars: ['Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Ebm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7', 'Dm7'] },
   { id: 'rhythm', name: 'Rhythm changes (A section)', group: 'Jazz standards', groove: 'swing', bpm: 170, note: 'From I Got Rhythm: fast I–vi–ii–V turnarounds in B♭.',
     bars: ['Bbmaj7 G7', 'Cm7 F7', 'Dm7 G7', 'Cm7 F7', 'Fm7 Bb7', 'Ebmaj7 Edim7', 'Dm7 G7', 'Cm7 F7'] },
   { id: 'atttya', name: 'All the Things You Are', group: 'Jazz standards', groove: 'swing', bpm: 140, note: 'Key centers move by fourths and thirds. A guide-tone workout.',
-    bars: ['Fm7', 'Bbm7', 'Eb7', 'Abmaj7', 'Dbmaj7', 'G7', 'Cmaj7', 'Cmaj7', 'Cm7', 'Fm7', 'Bb7', 'Ebmaj7', 'Abmaj7', 'Am7b5 D7', 'Gmaj7', 'Gmaj7', 'Am7', 'D7', 'Gmaj7', 'Gmaj7', 'F#m7b5', 'B7', 'Emaj7', 'C7', 'Fm7', 'Bbm7', 'Eb7', 'Abmaj7', 'Dbmaj7', 'Dbm7', 'Cm7', 'Bdim7', 'Bbm7', 'Eb7', 'Abmaj7', 'Gm7b5 C7'] },
+    form: [['A1', 8], ['A2', 8], ['B', 8], ['A3', 12]], bars: ['Fm7', 'Bbm7', 'Eb7', 'Abmaj7', 'Dbmaj7', 'G7', 'Cmaj7', 'Cmaj7', 'Cm7', 'Fm7', 'Bb7', 'Ebmaj7', 'Abmaj7', 'Am7b5 D7', 'Gmaj7', 'Gmaj7', 'Am7', 'D7', 'Gmaj7', 'Gmaj7', 'F#m7b5', 'B7', 'Emaj7', 'C7', 'Fm7', 'Bbm7', 'Eb7', 'Abmaj7', 'Dbmaj7', 'Dbm7', 'Cm7', 'Bdim7', 'Bbm7', 'Eb7', 'Abmaj7', 'Gm7b5 C7'] },
   { id: 'solar', name: 'Solar', group: 'Jazz standards', groove: 'swing', bpm: 150, note: 'A 12-bar cycle that slides through keys by ii–Vs.',
     bars: ['Cm6', 'Cm6', 'Gm7', 'C7', 'Fmaj7', 'Fmaj7', 'Fm7', 'Bb7', 'Ebmaj7', 'Ebm7 Ab7', 'Dbmaj7', 'Dm7b5 G7'] },
   { id: 'giant', name: 'Giant Steps', group: 'Jazz standards', groove: 'swing', bpm: 120, note: 'Coltrane changes: three keys a major third apart. Start slow.',
@@ -485,7 +540,19 @@ const TUNES = [
   { id: 'tango', name: 'Tango minor', group: 'World grooves', region: 'latam', groove: 'tango', bpm: 110, note: 'A minor with harmonic-minor V7. Strong habanera bass.',
     bars: ['Am', 'E7', 'E7', 'Am', 'Dm', 'Am', 'E7', 'Am'] },
   { id: 'hijazvamp', name: 'Hijaz / freygish vamp', group: 'World grooves', region: 'arabic', groove: 'flamenco', bpm: 100, note: 'D–E♭–D: play D Phrygian dominant (Hijaz on D). Also works for klezmer and Balkan music.',
-    bars: ['D', 'D', 'Eb', 'D', 'D', 'Cm', 'Eb', 'D'] }
+    bars: ['D', 'D', 'Eb', 'D', 'D', 'Cm', 'Eb', 'D'] },
+  { id: 'blues12', name: '12-bar shuffle blues in A', group: 'Blues, rock & roots', region: 'blues', groove: 'shuffle', bpm: 88, note: 'I7 for four bars, IV7 for two, back to I7, then V7–IV7–I7–V7. Play A minor pentatonic, then aim for each chord\'s 3rd.',
+    bars: ['A7', 'A7', 'A7', 'A7', 'D7', 'D7', 'A7', 'A7', 'E7', 'D7', 'A7', 'E7'] },
+  { id: 'rockvamp', name: 'Rock I–♭VII–IV in D', group: 'Blues, rock & roots', region: 'rock', groove: 'rock', bpm: 116, note: 'The Mixolydian rock move. Try D minor pentatonic, then D Mixolydian.',
+    bars: ['D', 'C', 'G', 'D', 'D', 'C', 'G', 'D'] },
+  { id: 'funkvamp', name: 'One-chord funk in E', group: 'Blues, rock & roots', region: 'funksoul', groove: 'funk', bpm: 98, note: 'Stay on E9 and lock to the 16ths. E Dorian and E minor pentatonic on top.',
+    bars: ['E9', 'E9', 'E9', 'E9'] },
+  { id: 'country145', name: 'I–IV–V boom-chick in G', group: 'Blues, rock & roots', region: 'country', groove: 'boomchick', bpm: 110, note: 'Bass on 1 and 3, strum on 2 and 4. G major pentatonic for fills.',
+    bars: ['G', 'G', 'C', 'C', 'G', 'G', 'D7', 'D7', 'G', 'G', 'C', 'C', 'G', 'D7', 'G', 'G'] },
+  { id: 'fadominor', name: 'Fado menor progression', group: 'World grooves', region: 'fado', groove: 'fado', bpm: 70, note: 'i–V7–i with a turn to iv. A harmonic minor over the E7.',
+    bars: ['Am', 'Am', 'E7', 'E7', 'E7', 'E7', 'Am', 'Am', 'Am', 'A7', 'Dm', 'Dm', 'Am', 'E7', 'Am', 'Am'] },
+  { id: 'slackkey', name: 'Slack key vamp in G', group: 'World grooves', region: 'hawaii', groove: 'boomchick', bpm: 90, note: 'Alternate the thumb on the bass strings and play the melody on top, as in Taro Patch (open G) tuning.',
+    bars: ['G', 'G', 'C', 'G', 'G', 'D7', 'G', 'G'] }
 ];
 
 /* ---------- Technique exercises ---------- */
@@ -503,7 +570,11 @@ const EXERCISES = [
   { id: 'reststroke', name: 'Gypsy jazz rest stroke', unit: '8ths', target: 200, start: 110, how: 'Downstroke that rests on the next string when changing strings. Upstrokes stay on one string.' },
   { id: 'pompe', name: 'La pompe', unit: 'quarters', target: 200, start: 120, how: 'Bass on 1 and 3, a short muted chord on 2 and 4. Keep the wrist loose.' },
   { id: 'tremolo', name: 'Tremolo picking', unit: '16ths', target: 160, start: 90, how: 'Very fast, even picks on one note. Relax the forearm.' },
-  { id: 'konnakol', name: 'Konnakol + guitar (ta-ka-di-mi)', unit: '16ths', target: 120, start: 60, how: 'Say ta-ka-di-mi while playing 16ths. Then try ta-ki-ta (3s) against the click.' }
+  { id: 'konnakol', name: 'Konnakol + guitar (ta-ka-di-mi)', unit: '16ths', target: 120, start: 60, how: 'Say ta-ka-di-mi while playing 16ths. Then try ta-ki-ta (3s) against the click.' },
+  { id: 'funkstrum', name: '16th-note funk strumming', unit: '16ths', target: 110, start: 70, how: 'Keep the strumming hand moving down-up in 16ths. The fretting hand mutes most strokes; let only the accents ring.' },
+  { id: 'hybrid', name: 'Hybrid picking', unit: '8ths', target: 140, start: 70, how: 'Pick the bass note, then pluck the higher strings with the middle and ring fingers. A country staple.' },
+  { id: 'pima', name: 'Classical arpeggios (p-i-m-a)', unit: '16ths', target: 100, start: 50, how: 'Thumb on the bass, then i, m and a on strings 3, 2 and 1. Keep the volume even and the hand still.' },
+  { id: 'bends', name: 'Bends in tune', unit: 'quarters', target: 120, start: 60, how: 'Bend a whole step on the G or B string and match the note two frets up. Push with three fingers.' }
 ];
 
 /* ---------- Call & response items ---------- */
@@ -522,4 +593,23 @@ const LICK_ITEMS = [
   { id: 'lydian:5', scale: 'lydian', len: 5, tier: 5 }
 ];
 
-export default { NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
+/* Style drills (src/content/drills-*.js) */
+const DRILLS = [...DRILLS_A, ...DRILLS_B];
+
+/* More rhythms for every style (src/content/rhythms-new.js), and variations, fills, longer cycles and tips
+   for every rhythm (src/content/rhythms-var.js). New rhythms are listed on their style's page too. */
+RHY_NEW.extra.forEach(x => { if (!RHYTHMS.some(r => r.id === x.id)) RHYTHMS.push(x); });
+RHYTHMS.forEach(r => {
+  const v = RHY_VAR.rhythms[r.id] || RHY_NEW.rhythms[r.id];
+  if (v) r.var = v;
+  const reg = REGIONS.find(g => g.id === r.region);
+  if (reg && !(reg.rhythms = reg.rhythms || []).includes(r.id)) reg.rhythms.push(r.id);
+});
+
+/* Technique variations, a speed-burst recipe and an external-focus cue per exercise (src/content/exercise-vars.js) */
+EXERCISES.forEach(ex => { if (EX_VARS[ex.id]) ex.vars = EX_VARS[ex.id]; });
+
+/* In-depth technique guides (src/content/techniques-*.js) are merged in here */
+const TECHNIQUES = [...TECH_A, ...TECH_B];
+
+export default { DRILLS, SCIENCE, LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
