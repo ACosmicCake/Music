@@ -23,11 +23,12 @@ PAGES.learn = function () {
   const section = ui.section.learn || 'styles';
   view.append(h('div', { class: 'pagehead' },
     h('span', { class: 'eyebrow', text: 'Learn' }), h('h1', { text: 'Every style, the theory, the records' }),
-    h('p', { class: 'muted', text: 'Deep dives into 24 musical traditions with what to hear and who to study, a theory course that plays its own examples, and reference tools.' })));
-  const seg = h('div', { class: 'seg big' }, [['styles', 'Styles'], ['theory', 'Theory course'], ['tools', 'Reference']].map(([k, t]) =>
+    h('p', { class: 'muted', text: 'Deep dives into 24 musical traditions: what they mean to the people who make them, how they work, what to hear and who to study. Plus in-depth technique guides, a theory course that plays its own examples, and reference tools.' })));
+  const seg = h('div', { class: 'seg big' }, [['styles', 'Styles'], ['techniques', 'Techniques'], ['theory', 'Theory'], ['tools', 'Reference']].map(([k, t]) =>
     h('button', { 'aria-pressed': section === k ? 'true' : 'false', onclick: () => go('learn', k) }, t)));
   view.append(seg);
   if (section === 'theory') theoryIndex();
+  else if (section === 'techniques') techniqueIndex();
   else if (section === 'tools') refIndex();
   else stylesIndex();
 };
@@ -103,12 +104,17 @@ export function stylePage(r) {
   if (r.concepts) ov.push(h('h3', { text: 'Key ideas' }), h('ul', { class: 'list' }, r.concepts.map(c => h('li', { text: c }))));
   if (r.traits) ov.push(h('h3', { text: 'How it works' }), h('div', { class: 'traits' }, Object.entries(r.traits).map(([k, v]) => h('div', { class: 'trait' }, h('span', { class: 'eyebrow', text: k }), h('p', { text: v })))));
   if (r.instruments) ov.push(h('h3', { text: 'Instruments' }), h('div', { class: 'chips' }, r.instruments.map(c => h('a', { class: 'chip', href: wiki(c + ' instrument'), target: '_blank', rel: 'noopener' }, c))));
+  const es = r.essay;
+  if (es && es.thesis) ov.unshift(h('blockquote', { class: 'thesis' }, es.thesis));
   sec('overview', 'Overview', ...ov);
+  if (es && es.philosophy) sec('philosophy', 'Philosophy & meaning', readTime(es.philosophy), essay(es.philosophy),
+    es.questions ? h('div', { class: 'callout' }, h('b', { text: 'Questions to sit with' }), h('ul', { class: 'list' }, es.questions.map(q => h('li', { text: q })))) : null);
 
   if (r.history && r.history.length) sec('history', 'History', h('ol', { class: 'timeline' }, r.history.map(([when, what]) => h('li', {}, h('span', { class: 'mono when', text: when }), h('p', { text: what })))));
   if (r.substyles && r.substyles.length) sec('styles', 'Styles & forms', h('div', { class: 'subgrid' }, r.substyles.map(x => h('div', { class: 'sub' }, h('b', { text: x.name }), h('p', { class: 'small', text: x.text }), h('a', { class: 'small', href: yt(x.name + ' ' + r.name.split(' (')[0]), target: '_blank', rel: 'noopener' }, 'Hear examples ↗')))));
 
   // listening path
+  if (es && es.depth) sec('depth', 'How it really works', readTime(es.depth), essay(es.depth));
   if (n) {
     const list = h('ol', { class: 'records' });
     const prog = h('span', { class: 'mono small muted' });
@@ -128,6 +134,9 @@ export function stylePage(r) {
 
   // play it
   const play = [];
+  if (es && es.guitar) play.push(essay(es.guitar, true));
+  const techs = D.TECHNIQUES.filter(t => (t.styles || []).includes(r.id));
+  if (techs.length) play.push(h('h3', { text: 'Technique guides' }), h('div', { class: 'chips' }, techs.map(t => h('button', { class: 'chip', onclick: () => techniquePage(t, () => stylePage(r)) }, t.name))));
   if (r.practice) play.push(h('h3', { text: 'Practice steps' }), h('ol', { class: 'list steps' }, r.practice.map(x => h('li', { text: x }))));
   if (r.guitar) play.push(h('h3', { text: 'On guitar' }), h('ul', { class: 'list' }, r.guitar.map(c => h('li', { text: c }))));
   if (r.rhythms.length) play.push(h('h3', { text: 'Rhythms' }), h('div', { class: 'chips' }, r.rhythms.map(id => { const rr = D.RHYTHMS.find(x => x.id === id); return h('button', { class: 'chip', onclick: () => openTool('rhythms', { params: { rhythm: id }, returnTab: 'learn' }) }, '▶ ' + rr.name); })));
@@ -135,7 +144,10 @@ export function stylePage(r) {
     h('p', { class: 'small muted', text: 'Each opens over a drone so you can hear it and play it.' }));
   const tunes = D.TUNES.filter(t => t.region === r.id);
   if (tunes.length) play.push(h('h3', { text: 'Grooves to jam over' }), h('div', { class: 'chips' }, tunes.map(t => h('button', { class: 'chip', onclick: () => openTool('repertoire', { params: { tune: t.id }, returnTab: 'learn' }) }, t.name))));
-  sec('play', 'Play it', ...play);
+  sec('play', 'On guitar', ...play);
+  if (es && (es.glossary || es.respect)) sec('words', 'Words & respect',
+    es.respect ? h('div', { class: 'callout patina' }, h('b', { text: 'Learning it with respect' }), h('p', { text: es.respect })) : null,
+    es.glossary ? h('dl', { class: 'glossary' }, es.glossary.map(g => [h('dt', { text: g.term }), h('dd', { text: g.def })])) : null);
 
   if (r.study && r.study.length) sec('study', 'Go deeper', h('div', { class: 'stack' }, r.study.map(x => h('div', { class: 'studyrow' },
     h('span', { class: 'badge', text: STUDY_KIND[x.kind] || 'Resource' }),
@@ -368,6 +380,60 @@ function example(ex, loops) {
     default: return h('span');
   }
   return wrap;
+}
+
+/* ---------- Long-form reading ---------- */
+const wordsIn = secs => secs.reduce((a, x) => a + x.p.join(' ').split(/\s+/).length, 0);
+function readTime(secs) { return h('span', { class: 'mono small muted', text: Math.max(1, Math.round(wordsIn(secs) / 220)) + ' min read · ' + secs.length + ' parts' }); }
+/* Sections as expandable parts; the first is open so the page reads straight away */
+function essay(secs, allOpen) {
+  return h('div', { class: 'essay' }, secs.map((x, i) => {
+    const d = h('details', { class: 'essay-sec', open: allOpen || i === 0 ? true : null },
+      h('summary', {}, h('span', { class: 'mono es-n', text: String(i + 1).padStart(2, '0') }), h('span', { text: x.h })),
+      h('div', { class: 'prose' }, x.p.map(t => h('p', { text: t }))));
+    return d;
+  }));
+}
+
+/* ---------- Techniques ---------- */
+const FAMILIES = ['Picking hand', 'Fretting hand', 'Fingerstyle', 'Rhythm', 'Expression', 'Body & mind'];
+function techniqueIndex() {
+  view.append(h('p', { class: 'small muted', text: 'Each guide covers why the technique exists, the idea behind it, exactly how both hands move, the usual problems and their fixes, a path from first try to fluent, and recordings where you can hear it done well.' }));
+  FAMILIES.forEach(f => {
+    const ts = D.TECHNIQUES.filter(t => t.family === f);
+    if (!ts.length) return;
+    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: f }),
+      h('div', { class: 'stylegrid' }, ts.map(t => {
+        const ex = D.EXERCISES.find(e => e.id === t.id), st = ex && E.state.tech[ex.id];
+        return h('button', { class: 'stylecard tech-card', onclick: () => techniquePage(t) },
+          h('b', { class: 'sc-name', text: t.name }), h('span', { class: 'small muted', text: t.summary }),
+          ex ? h('span', { class: 'sc-meta' }, h('span', { class: 'mono small', text: 'Tempo ladder' }), h('span', { class: 'mono small', text: (st && st.best ? st.best : '—') + ' / ' + ex.target })) : null);
+      }))));
+  });
+}
+export function techniquePage(t, back) {
+  teardown(); ui.runner = { id: 'technique-guide', opts: {} }; ui.tab = 'learn'; renderTabs();
+  view.innerHTML = ''; window.scrollTo(0, 0);
+  const ex = D.EXERCISES.find(e => e.id === t.id);
+  const sections = [];
+  const sec = (id, title, ...kids) => { const el = h('section', { class: 'card', id: 'st-' + id }, h('h2', { text: title }), ...kids); sections.push([id, title, el]); return el; };
+  view.append(h('div', { class: 'hero' },
+    h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: () => back ? back() : go('learn', 'techniques') }, '← Back'), h('span', { class: 'eyebrow', text: t.family })),
+    h('h1', { text: t.name }), h('p', { class: 'lede', text: t.summary }),
+    h('div', { class: 'row' },
+      ex ? h('button', { class: 'btn brass small', onclick: () => openTool('technique', { params: { exercise: ex.id }, returnTab: 'learn' }) }, '▶ Practise on the tempo ladder') : null,
+      (t.styles || []).map(id => { const r = D.REGIONS.find(x => x.id === id); return r ? h('button', { class: 'chip', onclick: () => stylePage(r) }, r.name) : null; }))));
+  sec('why', 'Why it matters', h('div', { class: 'prose' }, t.why.map(p => h('p', { text: p }))));
+  sec('idea', 'The deeper idea', h('div', { class: 'prose' }, t.philosophy.map(p => h('p', { text: p }))));
+  sec('how', 'How to do it', essay(t.mechanics, true));
+  sec('fix', 'Problems and fixes', h('div', { class: 'fixes' }, t.mistakes.map(m => h('div', { class: 'fix' }, h('b', { text: m.problem }), h('p', { class: 'small', text: m.fix })))));
+  sec('path', 'From first try to fluent', h('ol', { class: 'stages' }, t.stages.map(st => h('li', {}, h('b', { text: st.name }), h('p', { class: 'small', text: st.goal }), h('p', { class: 'small muted', text: st.how })))));
+  sec('hear', 'Hear it', h('ol', { class: 'records' }, t.listen.map((e, i) => h('li', { class: 'record' },
+    h('span', { class: 'heardbtn static', text: String(i + 1) }),
+    h('div', { class: 'rec-body' }, h('b', { text: e.work }), h('span', { class: 'small', text: e.artist }), e.note ? h('p', { class: 'small muted', text: e.note }) : null),
+    ext(yt(e.artist + ' ' + e.work), 'Play', 'linkbtn rec-link')))));
+  const nav = h('nav', { class: 'secnav', 'aria-label': 'Sections' }, sections.map(([id, title]) => h('button', { class: 'chip', onclick: () => document.getElementById('st-' + id).scrollIntoView({ behavior: 'smooth', block: 'start' }) }, title)));
+  view.append(nav, ...sections.map(x => x[2]));
 }
 
 /* ---------- Reference ---------- */
