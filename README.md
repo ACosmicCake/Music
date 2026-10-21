@@ -37,6 +37,8 @@ The same app is also packaged for Android (`world-woodshed/android`, Capacitor),
 
 It opens with **On the go**: a smart session sized to your ride that needs only the phone (scale positions become seeing the neck in your head, call & response becomes dictation, tunes become following the form by ear), and hands-free ear training where a question plays, the answer is spoken, and you grade it by tapping either half of a dark screen. It works fully offline. Use the sync file above to keep it in step with the computer.
 
+**Build it on your own computer instead** (no GitHub Actions needed): install [Android Studio](https://developer.android.com/studio), then in `world-woodshed/` run `npm install` and `npm run android:sync`, open the `android` folder in Android Studio and choose **Build → Build App Bundle(s) / APK(s) → Build APK(s)** (or run `./gradlew assembleRelease` inside `android/`). The APK lands in `android/app/build/outputs/apk/`. Copy it to the phone, or plug the phone in with USB debugging on and press Run.
+
 Builds are signed with the sideload key in `android/app` so updates install over each other. To sign with your own key instead, add the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` (switching keys means uninstalling once, so sync your progress to a file first).
 
 ### Work on it
