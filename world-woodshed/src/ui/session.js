@@ -3,6 +3,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, bar } from './core.js';
 import { BLOCKS, CATS, paramsFor, blockTitle, describe, fmtClock, fmtMin, totalOf } from '../routines.js';
+import Cur from '../curriculum.js';
 
 let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0, wake = null;
 const bars = new Set();
@@ -25,7 +26,7 @@ export function runCurrent() {
   if (s.paused) { s.paused = false; E.sessionChanged(); }
   ensureTicker();
   // resolve 'auto' choices once, so coming back to a block opens the same exercise or tune
-  if (!b.resolved) { b.params = paramsFor(b); b.resolved = true; E.touchSession(); }
+  if (!b.resolved) { b.params = paramsFor(b, new Set(s.blocks.map(x => x.cur).filter(Boolean))); b.resolved = true; E.touchSession(); }
   openTool(BLOCKS[b.type].tool, { session: true, params: b.params, returnTab: 'routine' });
 }
 export function jump(i) {
@@ -33,9 +34,44 @@ export function jump(i) {
   s.idx = Math.max(0, Math.min(s.blocks.length - 1, i)); s.autoAt = null;
   E.sessionChanged(); runCurrent();
 }
+/* ---------- grading the block's item for the smart plan ---------- */
+// Tools report what they measured (a test score, notes the mic heard, Clean presses) for the current item
+hooks.signal = (curId, data) => {
+  const b = cur();
+  if (b && b.cur === curId) { b.signals = Object.assign(b.signals || {}, data); E.touchSession(); }
+};
+function autoGrade(b) {
+  const g = b.signals || {};
+  if (typeof g.score === 'number') return Cur.gradeFromScore(g.score);
+  if (typeof g.micAcc === 'number' && (g.micN || 0) >= 8) return Cur.gradeFromScore(g.micAcc);
+  if (g.clean || g.notClean) return g.notClean >= 2 && g.notClean > (g.clean || 0) ? 'hard' : (g.clean || 0) >= 2 ? 'easy' : g.clean ? 'good' : 'hard';
+  return null;
+}
+function applyGrade(b, grade) {
+  const g = b.signals || {}, info = {};
+  if (b.type === 'scalewarm' && b.params) {
+    const base = g.bpm || b.params.bpm || 66;
+    info.bpm = g.clean || g.notClean ? base : base + ({ easy: 4, good: 2, hard: -4, again: -8 }[grade] || 0);
+    info.key = b.params.tonic; info.pattern = b.params.pattern;
+  }
+  Cur.review(b.cur, grade, info);
+  b.rated = grade; b.askRating = false;
+}
+export function rate(grade) {
+  const b = cur(); if (!b) return;
+  if (grade) applyGrade(b, grade); else { b.rated = 'skipped'; b.askRating = false; }
+  next(false);
+}
+
 export function next(skip) {
   const s = E.session(); if (!s) return;
   const b = s.blocks[s.idx];
+  // finishing a block that teaches an item: grade it from what was measured, or ask
+  if (b && !skip && b.cur && !b.rated && (b.elapsed || 0) > 20000) {
+    const g = autoGrade(b);
+    if (g) { applyGrade(b, g); toast(Cur.describeItem(b.cur) + ': logged as ' + Cur.GRADE_LABEL[g].toLowerCase()); }
+    else { b.askRating = true; s.autoAt = null; E.sessionChanged(); render(); return; }
+  }
   if (b) { if (skip) b.skipped = true; else b.done = true; }
   s.autoAt = null;
   // move to the next block that isn't finished yet, else finish
@@ -124,7 +160,7 @@ function paint(el) {
   const def = BLOCKS[b.type];
   el.className = 'sessionbar cat-' + def.cat + (s.paused ? ' paused' : '') + (b.timeUp ? ' over' : '');
   const left = b.minutes * 60 - b.elapsed / 1000;
-  const sig = [s.idx, s.paused, b.timeUp, !!s.autoAt, b.minutes].join('|');
+  const sig = [s.idx, s.paused, b.timeUp, !!s.autoAt, b.minutes, !!b.askRating].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
     el.innerHTML = '';
@@ -138,6 +174,12 @@ function paint(el) {
           h('span', { class: 'small muted', text: describe(b) })),
         h('div', { class: 'sb-clock mono', 'aria-live': 'off' })),
       h('div', { class: 'sb-prog' }, h('i')),
+      b.reason && b.smart !== false && b.reason !== describe(b) ? h('p', { class: 'small sb-why', text: b.reason }) : '',
+      b.askRating ? h('div', { class: 'sb-rate' },
+        h('b', { text: 'How did ' + Cur.describeItem(b.cur) + ' go?' }),
+        h('span', { class: 'small muted', text: 'This sets when it comes back.' }),
+        h('div', { class: 'row' }, ['again', 'hard', 'good', 'easy'].map(g => h('button', { class: 'btn small rate-' + g, onclick: () => rate(g) }, Cur.GRADE_LABEL[g])),
+          h('button', { class: 'btn small ghost', onclick: () => rate(null) }, 'Skip'))) : '',
       h('div', { class: 'sb-ctrl' },
         h('button', { class: 'btn small', onclick: togglePause, 'aria-label': s.paused ? 'Resume' : 'Pause' }, s.paused ? '▶ Resume' : '❚❚ Pause'),
         h('button', { class: 'btn small ghost', onclick: () => addMinutes(1) }, '+1 min'),
@@ -198,11 +240,15 @@ export function finishScreen() {
     h('div', { class: 'card' },
       h('label', { class: 'stack', for: 'journal-note' }, h('h3', { text: 'Practice journal' }), h('span', { class: 'small muted', text: 'A line or two for future you. It shows on the Today page.' })), note,
       h('div', { class: 'row' },
-        h('button', { class: 'btn brass', onclick: () => { E.endSession(note.value); updateWake(); toast('Session saved'); go('today'); } }, 'Save & finish'),
+        h('button', { class: 'btn brass', onclick: () => { Cur.logSession(s, sec / 60); E.endSession(note.value); updateWake(); toast('Session saved'); go('today'); } }, 'Save & finish'),
         h('button', { class: 'btn ghost', onclick: () => { const st = E.session(); const i = st.blocks.findIndex(b => !b.done); jump(i >= 0 ? i : 0); } }, 'Back to the session'))));
 }
 
-export function discardSession() { E.endSession(''); updateWake(); render(); }
+export function discardSession() {
+  const s = E.session();
+  if (s) { const sec = s.blocks.reduce((a, b) => a + (b.elapsed || 0), 0) / 1000; if (sec > 120) Cur.logSession(s, sec / 60); }
+  E.endSession(''); updateWake(); render();
+}
 
 // resume the ticker after a reload if a session was running (call after E.init)
 export function bootSession() { if (E.session()) ensureTicker(); render(); }

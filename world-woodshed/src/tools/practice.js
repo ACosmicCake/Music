@@ -1,7 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, s, toast, tool, openTool, Fretboard, positionsOfPc } from '../ui/core.js';
+import { h, s, toast, tool, openTool, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
 import { degreeLabel, diatonicChords, chordMidis, spell, keyPrefersFlats, prettySym, flatName } from '../theory.js';
 import { PATTERNS, DRILLS, warmScales } from '../routines.js';
 import Mic from '../listen.js';
@@ -83,7 +83,11 @@ tool('scalewarm', {
     };
     const bpmKey = () => st.scale + ':' + st.pattern;
     const bpms = E.state.settings.warmBpm || {};
-    let bpm = p.bpm && !bpms[bpmKey()] ? p.bpm : (bpms[bpmKey()] || p.bpm || 72);
+    // the smart plan sets the tempo and position itself
+    let bpm = p.smart ? p.bpm : p.bpm && !bpms[bpmKey()] ? p.bpm : (bpms[bpmKey()] || p.bpm || 72);
+    if (p.smart && p.start !== undefined) st.start = p.start;
+    const sig = { clean: 0, notClean: 0 };
+    const report = extra => { Object.assign(sig, extra || {}, { bpm }); if (hooks.signal) hooks.signal('warm:' + st.scale, sig); };
     let loop = null, seq = [], notes = [], rounds = 0;
     const card = h('div', { class: 'card' }), ctl = h('div', { class: 'card' });
     body.append(card, ctl);
@@ -98,8 +102,8 @@ tool('scalewarm', {
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), h('div', { class: 'stack', style: { gap: '0', justifyItems: 'center' } }, h('span', { class: 'eyebrow', text: 'bpm' }), bpmLbl), h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'))),
       fb.el, info,
       h('div', { class: 'row' }, playBtn,
-        h('button', { class: 'btn brass', onclick: () => { saveBest(); setBpm(bpm + 4); toast('Clean. Up to ' + bpm + ' bpm'); } }, 'Clean ✓ +4'),
-        h('button', { class: 'btn', onclick: () => { setBpm(bpm - 6); toast('Back to ' + bpm + ' bpm. Rebuild it clean.'); } }, 'Not clean'), roundLbl));
+        h('button', { class: 'btn brass', onclick: () => { saveBest(); setBpm(bpm + 4); sig.clean++; report(); toast('Clean. Up to ' + bpm + ' bpm'); } }, 'Clean ✓ +4'),
+        h('button', { class: 'btn', onclick: () => { setBpm(bpm - 6); sig.notClean++; report(); toast('Back to ' + bpm + ' bpm. Rebuild it clean.'); } }, 'Not clean'), roundLbl));
 
     // Listening: each note you play is checked against the note due at that moment, and its timing
     const steps = [];            // recent scheduled steps: { t, i }
@@ -119,6 +123,7 @@ tool('scalewarm', {
           if (Math.abs(near.t - t) > 60 / bpm / st.sub * 0.6 || near.i >= seq.length) return;
           const want = seq[near.i], got = Math.round(ev.midi), ok = got === want.m;
           tries++; if (ok) hits++;
+          report({ micAcc: hits / tries, micN: tries });
           paintHeard(noteLabel(ev.midi) + (ok ? ' ✓' : ' ✗ (wanted ' + noteLabel(want.m).split(' ')[0] + ')'));
         });
       },

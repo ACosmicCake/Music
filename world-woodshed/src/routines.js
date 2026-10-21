@@ -1,6 +1,7 @@
 /* World Woodshed — practice routine building blocks, templates and time fitting */
 import D from './data.js';
 import E from './engine.js';
+import Cur from './curriculum.js';
 
 /* Block categories: colour tokens live in styles.css as --c-<id> */
 export const CATS = {
@@ -8,7 +9,7 @@ export const CATS = {
   tech: { name: 'Technique' },
   rhythm: { name: 'Rhythm' },
   ear: { name: 'Ear' },
-  fret: { name: 'Fretboard' },
+  fret: { name: 'Neck & reading' },
   music: { name: 'Music' },
   study: { name: 'Study' },
   rest: { name: 'Rest' }
@@ -30,6 +31,7 @@ export const BLOCKS = {
   progressions: { name: 'Progressions', cat: 'ear', tool: 'progressions', skill: 'progressions', minutes: 8, fields: [], desc: 'Follow chord changes by ear.' },
   scales: { name: 'Scales by ear', cat: 'ear', tool: 'scales', skill: 'scales', minutes: 6, fields: [], desc: 'Ragas, maqamat and modes over a drone.' },
   drone: { name: 'Drone improvisation', cat: 'ear', tool: 'drone', skill: 'scales', minutes: 10, fields: ['scale', 'tonic'], desc: 'Improvise in a raga, maqam or mode over a tanpura drone.' },
+  sightread: { name: 'Sight-reading', cat: 'fret', tool: 'sightread', skill: 'reading', minutes: 8, fields: [], desc: 'Read notes, rhythms and melodies from the staff, level by level.' },
   fretboard: { name: 'Fretboard notes', cat: 'fret', tool: 'fretboard', skill: 'fretboard', minutes: 6, fields: [], desc: 'Find any note on any string, fast.' },
   explorer: { name: 'Chords & scales on the neck', cat: 'fret', tool: 'explorer', skill: 'fretboard', minutes: 8, fields: [], desc: 'Map a scale or chord across the whole neck and play through it.' },
   repertoire: { name: 'Repertoire & improvising', cat: 'music', tool: 'repertoire', skill: 'repertoire', minutes: 15, fields: ['tune'], desc: 'Loop a tune\'s changes in its groove and improvise over them.' },
@@ -41,7 +43,7 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
-export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone', 'fretboard', 'explorer', 'repertoire', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone', 'sightread', 'fretboard', 'explorer', 'repertoire', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',
@@ -81,15 +83,18 @@ export function describe(b) {
   const scale = id => (D.SCALES.find(x => x.id === id) || {}).name;
   const parts = [];
   switch (b.type) {
-    case 'scalewarm':
-      parts.push((D.NOTE_NAMES[st.tonic ?? 0]) + ' ' + (scale(st.scale || 'major') || ''), PATTERNS[st.pattern || 'updown'].toLowerCase(), (st.bpm || 72) + ' bpm');
+    case 'scalewarm': {
+      const src = b.params && b.params.scale ? b.params : st.scale && st.scale !== 'auto' ? st : null;
+      if (!src) { parts.push('Smart choice: scale, key, pattern and tempo rotate for you'); break; }
+      parts.push((D.NOTE_NAMES[src.tonic ?? 0]) + ' ' + (scale(src.scale) || ''), PATTERNS[src.pattern || 'updown'].toLowerCase(), (src.bpm || 72) + ' bpm');
       break;
+    }
     case 'drone': parts.push(st.scale ? D.NOTE_NAMES[st.tonic ?? 2] + ' ' + scale(st.scale) : 'Pick on the day'); break;
-    case 'technique': { const ex = st.exercise || (b.params && b.params.exercise); parts.push(ex && ex !== 'auto' ? (D.EXERCISES.find(e => e.id === ex) || {}).name : 'Weakest exercise, chosen for you'); break; }
-    case 'rhythms': { const rid = st.rhythm || (b.params && b.params.rhythm); parts.push(rid && rid !== 'auto' ? (D.RHYTHMS.find(r => r.id === rid) || {}).name : 'From your style of the week'); break; }
-    case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || {}).name : 'Pick a tune on the day'); break; }
+    case 'technique': { const ex = st.exercise || (b.params && b.params.exercise); parts.push(ex && ex !== 'auto' ? (D.EXERCISES.find(e => e.id === ex) || {}).name : 'Smart choice: rotates for you'); break; }
+    case 'rhythms': { const rid = st.rhythm || (b.params && b.params.rhythm); parts.push(rid && rid !== 'auto' ? (D.RHYTHMS.find(r => r.id === rid) || {}).name : 'Smart choice: rotates for you'); break; }
+    case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'transcribe': { const sg = st.song && st.song !== 'auto' ? E.getSong(st.song) : null; parts.push(sg ? sg.title : 'Your most recent song'); break; }
-    case 'lesson': parts.push(st.lesson && st.lesson !== 'auto' ? (D.LESSONS.find(l => l.id === st.lesson) || {}).title : 'Next lesson in the course'); break;
+    case 'lesson': { const lid = st.lesson && st.lesson !== 'auto' ? st.lesson : b.params && b.params.lesson; parts.push(lid ? (D.LESSONS.find(l => l.id === lid) || {}).title : 'Smart choice: new lessons and reviews'); break; }
     case 'listening': case 'atlasquiz': parts.push(st.style && st.style !== 'auto' ? (D.REGIONS.find(r => r.id === st.style) || {}).name : 'Style of the week'); break;
     case 'free': parts.push(st.notes ? st.notes.split('\n')[0].slice(0, 60) : 'Timer with notes'); if (st.bpm) parts.push(st.bpm + ' bpm'); break;
     case 'metronome': if (st.bpm) parts.push(st.bpm + ' bpm'); break;
@@ -104,21 +109,50 @@ export function blockTitle(b) {
 }
 
 /* Tool params for a block, resolving 'auto' choices at start time */
-export function paramsFor(b) {
+export function paramsFor(b, used = new Set()) {
   const st = b.settings || {}, out = Object.assign({}, b.params || {});
   const rw = E.regionOfWeek();
+  const auto = v => v === undefined || v === null || v === '' || v === 'auto';
+  // unpinned content comes from the smart plan, which also records how it went
+  const smart = kind => {
+    if (b.cur) return null;
+    const r = Cur.choose(kind, Cur.context(), used);
+    if (!r) return null;
+    b.cur = r.item.id; b.reason = r.why; if (r.isNew) b.isNew = true; used.add(r.item.id);
+    return r.item;
+  };
   switch (b.type) {
-    case 'scalewarm': Object.assign(out, { scale: st.scale || 'major', tonic: st.tonic ?? 0, pattern: st.pattern || 'updown', bpm: st.bpm || 72 }); break;
+    case 'scalewarm': {
+      if (auto(st.scale) && !out.scale) { const it = smart('warm'); if (it) { Object.assign(out, Cur.warmDetails(it)); break; } }
+      Object.assign(out, { scale: out.scale || st.scale || 'major', tonic: out.tonic ?? st.tonic ?? 0, pattern: out.pattern || st.pattern || 'updown', bpm: out.bpm || st.bpm || 72 });
+      break;
+    }
     case 'drone': if (st.scale) Object.assign(out, { scale: st.scale, tonic: st.tonic ?? 2 }); else if (!out.scale) out.scale = rw.scales.find(id => D.SCALES.find(x => x.id === id)) || 'dorian'; break;
-    case 'technique': out.exercise = st.exercise && st.exercise !== 'auto' ? st.exercise : (out.exercise || E.techPick().id); break;
-    case 'rhythms': if (st.rhythm && st.rhythm !== 'auto') out.rhythm = st.rhythm; else if (!out.rhythm) out.region = rw.id; break;
-    case 'repertoire': if (st.tune && st.tune !== 'auto') out.tune = st.tune; break;
+    case 'technique': {
+      if (!auto(st.exercise)) out.exercise = st.exercise;
+      else if (!out.exercise) { const it = smart('tech'); out.exercise = it ? it.ref : E.techPick().id; }
+      break;
+    }
+    case 'rhythms': {
+      if (!auto(st.rhythm)) out.rhythm = st.rhythm;
+      else if (!out.rhythm) { const it = smart('rhythm'); if (it) out.rhythm = it.ref; else out.region = rw.id; }
+      break;
+    }
+    case 'repertoire': {
+      if (!auto(st.tune)) out.tune = st.tune;
+      else if (!out.tune) { const it = smart('tune'); if (it) out.tune = it.ref; }
+      break;
+    }
     case 'transcribe': {
       const id = st.song && st.song !== 'auto' ? st.song : out.song || (E.listSongs()[0] || {}).id;
       if (id) out.song = id;
       break;
     }
-    case 'lesson': out.lesson = st.lesson && st.lesson !== 'auto' ? st.lesson : nextLesson().id; break;
+    case 'lesson': {
+      if (!auto(st.lesson)) out.lesson = st.lesson;
+      else if (!out.lesson) { const it = smart('lesson'); out.lesson = it ? it.ref : nextLesson().id; }
+      break;
+    }
     case 'listening': case 'atlasquiz': out.region = st.style && st.style !== 'auto' ? st.style : (out.region || rw.id); break;
     case 'free': Object.assign(out, { title: st.title || 'Free practice', notes: st.notes || '', bpm: st.bpm || 0 }); break;
     case 'metronome': if (st.bpm) out.bpm = st.bpm; break;
@@ -199,25 +233,25 @@ export function newBlock(type, extra) {
 /* ---------- Templates ---------- */
 export const TEMPLATES = [
   { id: 'essentials', name: 'Daily essentials', minutes: 60, desc: 'A bit of everything: a scale warm-up, technique, time, ear, the neck and real music.',
-    blocks: [['scalewarm', 8, { scale: 'major', tonic: 7, pattern: 'updown', bpm: 72 }], ['technique', 8], ['rhythms', 10], ['intervals', 6], ['chords', 5], ['fretboard', 5], ['repertoire', 13], ['listening', 5]] },
+    blocks: [['scalewarm', 8], ['technique', 8], ['rhythms', 10], ['intervals', 6], ['chords', 5], ['fretboard', 5], ['repertoire', 13], ['listening', 5]] },
   { id: 'quick', name: 'Quick daily', minutes: 20, desc: 'When time is short: warm up, groove, ears, play.',
-    blocks: [['scalewarm', 5, { scale: 'minpent', tonic: 9, pattern: 'updown', bpm: 80 }], ['rhythms', 5], ['intervals', 4], ['repertoire', 6]] },
+    blocks: [['scalewarm', 5], ['rhythms', 5], ['intervals', 4], ['repertoire', 6]] },
   { id: 'jazz', name: 'Jazz guitarist', minutes: 90, desc: 'Arpeggios and modes, guide tones through standards, comping, transcription and theory.',
-    blocks: [['scalewarm', 8, { scale: 'dorian', tonic: 2, pattern: 'thirds', bpm: 80 }], ['technique', 8, { exercise: 'altpick' }], ['chords', 6], ['progressions', 6], ['repertoire', 25, { tune: 'autumn' }], ['transcribe', 20], ['lesson', 10, { lesson: 'twofive' }], ['listening', 7, { style: 'jazz' }]] },
+    blocks: [['scalewarm', 8], ['technique', 8], ['chords', 6], ['progressions', 6], ['repertoire', 25, { tune: 'autumn' }], ['transcribe', 20], ['lesson', 10], ['listening', 7, { style: 'jazz' }]] },
   { id: 'world', name: 'World explorer', minutes: 60, desc: 'Ragas over a drone, rhythms from your style of the week, world scales and the records that matter.',
-    blocks: [['scalewarm', 6, { scale: 'phrydom', tonic: 4, pattern: 'updown', bpm: 70 }], ['drone', 12], ['rhythms', 12], ['scales', 6], ['repertoire', 12], ['listening', 8], ['atlasquiz', 4]] },
+    blocks: [['scalewarm', 6], ['drone', 12], ['rhythms', 12], ['scales', 6], ['repertoire', 12], ['listening', 8], ['atlasquiz', 4]] },
   { id: 'technique', name: 'Technique builder', minutes: 60, desc: 'Clean, fast, relaxed hands: scales, two technique ladders, ear-to-hand and free application.',
-    blocks: [['scalewarm', 10, { scale: 'major', tonic: 0, pattern: 'fours', bpm: 76 }], ['technique', 14, { exercise: 'altpick' }], ['technique', 12, { exercise: 'legato' }], ['callresp', 8], ['fretboard', 6], ['free', 10, { title: 'Apply it', notes: 'Improvise over a backing track using today\'s technique.' }]] },
+    blocks: [['scalewarm', 10], ['technique', 14], ['technique', 12], ['callresp', 8], ['fretboard', 6], ['free', 10, { title: 'Apply it', notes: 'Improvise over a backing track using today\'s technique.' }]] },
   { id: 'ear', name: 'Ear first', minutes: 45, desc: 'Intervals to progressions, then hands and a real recording.',
     blocks: [['intervals', 7], ['degrees', 7], ['chords', 7], ['progressions', 7], ['callresp', 7], ['transcribe', 10]] },
   { id: 'bluesrock', name: 'Blues & rock', minutes: 60, desc: 'Pentatonic boxes, bends in tune, shuffle and backbeat time, a 12-bar and the records.',
-    blocks: [['scalewarm', 8, { scale: 'minpent', tonic: 9, pattern: 'updown', bpm: 84 }], ['technique', 8, { exercise: 'bends' }], ['rhythms', 8, { rhythm: 'shuffle' }], ['repertoire', 18, { tune: 'blues12' }], ['callresp', 8], ['listening', 10, { style: 'blues' }]] },
+    blocks: [['scalewarm', 8], ['technique', 8], ['rhythms', 8, { rhythm: 'shuffle' }], ['repertoire', 18, { tune: 'blues12' }], ['callresp', 8], ['listening', 10, { style: 'blues' }]] },
   { id: 'noguitar', name: 'No guitar today', minutes: 30, desc: 'Everything you can do with just the phone and your voice: ears, rhythm, finger drills, theory and records.',
     blocks: [['intervals', 4], ['degrees', 3], ['away', 4, { drill: 'sing' }], ['rhythms', 4], ['away', 3, { drill: 'konnakol' }], ['fretboard', 3], ['away', 3, { drill: 'fingers' }], ['lesson', 4], ['listening', 2]] },
   { id: 'commute', name: 'Commute', minutes: 15, desc: 'Headphones on, no instrument: quick ear reps, a mental run through a scale and one record.',
     blocks: [['intervals', 4], ['chords', 3], ['away', 4, { drill: 'visualise' }], ['listening', 4]] },
   { id: 'marathon', name: 'Deep session', minutes: 180, desc: 'A long day in the woodshed, with breaks: every area, plus time for your own pieces.',
-    blocks: [['scalewarm', 10, { scale: 'major', tonic: 7, pattern: 'thirds', bpm: 72 }], ['technique', 15], ['rhythms', 15], ['metronome', 10], ['intervals', 8], ['chords', 8], ['progressions', 8], ['fretboard', 8], ['repertoire', 25], ['transcribe', 20], ['lesson', 12], ['free', 15, { title: 'Pieces & songs' }], ['listening', 11]] }
+    blocks: [['scalewarm', 10], ['technique', 15], ['rhythms', 15], ['metronome', 10], ['intervals', 8], ['chords', 8], ['progressions', 8], ['fretboard', 8], ['repertoire', 25], ['transcribe', 20], ['lesson', 12], ['free', 15, { title: 'Pieces & songs' }], ['listening', 11]] }
 ];
 
 export function fromTemplate(t, minutes, opts = {}) {
@@ -226,22 +260,6 @@ export function fromTemplate(t, minutes, opts = {}) {
     blocks: t.blocks.map(([type, w, settings]) => Object.assign(newBlock(type), { minutes: w, weight: w, settings: Object.assign({}, settings || {}) }))
   };
   return setTotal(r, minutes || t.minutes);
-}
-
-/* The adaptive plan, turned into session blocks */
-export function smartBlocks(minutes, focus) {
-  const r = E.makeRoutine(minutes, focus);
-  return r.blocks.map(b => {
-    const type = BLOCKS[b.tool] ? b.tool : 'free';
-    const settings = {};
-    if (b.params) {
-      if (b.params.exercise) settings.exercise = b.params.exercise;
-      if (b.params.tune) settings.tune = b.params.tune;
-      if (b.params.rhythm) settings.rhythm = b.params.rhythm;
-      if (b.params.song) settings.song = b.params.song;
-    }
-    return { id: E.uid('b'), type, minutes: b.minutes, settings, params: Object.assign({}, b.params || {}), reason: b.reason };
-  });
 }
 
 export function fmtMin(m) {

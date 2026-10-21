@@ -9,6 +9,7 @@ import '@fontsource/ibm-plex-mono/latin-500.css';
 import './styles.css';
 
 import E from './engine.js';
+import Cur from './curriculum.js';
 import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl } from './ui/core.js';
 import './tools/ear.js';
 import './tools/rhythm.js';
@@ -28,6 +29,7 @@ const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, not
 
 /* ---------- boot ---------- */
 E.init();
+Cur.migrate();
 bootSession();
 syncEl.textContent = E.storageNote();
 const hashTab = () => { const t = (location.hash || '').replace('#', ''); return TABS.some(x => x[0] === t) || TAB_ALIASES[t] ? t : null; };

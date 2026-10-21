@@ -5,7 +5,7 @@ import E from '../engine.js';
 
 export const PAGES = {};
 // filled in by other modules (session.js) to avoid import cycles
-export const hooks = { sessionBar: null, onSessionTick: null, afterNav: null };
+export const hooks = { sessionBar: null, onSessionTick: null, afterNav: null, signal: null };
 
 export const view = document.getElementById('view');
 const tabsEl = document.getElementById('tabs');

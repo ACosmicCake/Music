@@ -7,6 +7,8 @@ import { ribbon, awayButton } from './ui/routine.js';
 import { startSession, runCurrent } from './ui/session.js';
 import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
+import Cur from './curriculum.js';
+import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 
 /* ======================================================
    PAGES
@@ -50,19 +52,15 @@ Object.assign(PAGES, {
         ribbon(ses.blocks, { small: true, state: (x, i) => (x.done ? 'done' : '') + (i === ses.idx ? ' now' : '') }),
         h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => runCurrent() }, '▶ Resume: ' + (b ? blockTitle(b) : 'finish')), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'See the plan')));
     } else {
+      // the smart plan is the main way in; a custom routine is one tap away
+      pc.className = 'stack';
+      if (!st.settings.prefsDismissed) pc.append(learningPrefsCard({ compact: true, dismiss: () => { E.setSetting('prefsDismissed', true); } }));
+      pc.append(smartPlanner({ compact: true }));
       const aid = E.activeRoutineId();
       const r = aid !== 'smart' ? E.getRoutine(aid) : null;
-      if (r) {
-        pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Today\'s practice' }), h('h2', { text: r.name })), h('span', { class: 'mono', text: fmtMin(totalOf(r.blocks)) })),
-          ribbon(r.blocks),
-          h('ol', { class: 'mini-blocks' }, r.blocks.slice(0, 6).map(b => h('li', { class: 'cat-' + BLOCKS[b.type].cat }, h('i'), h('span', { text: blockTitle(b) }), h('span', { class: 'mono small muted', text: b.minutes + 'm' })))),
-          r.blocks.length > 6 ? h('p', { class: 'small muted', text: '+ ' + (r.blocks.length - 6) + ' more' }) : null,
-          h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => startSession(r) }, '▶ Start practice'), awayButton(r, 'btn'), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'Edit or change')));
-      } else {
-        pc.append(h('span', { class: 'eyebrow', text: 'Today\'s practice' }), h('h2', { text: 'Plan a session' }),
-          h('p', { class: 'small muted', text: 'Pick how long you have and what to work on, or let the smart plan choose from your weak spots.' }),
-          h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => go('routine') }, 'Plan my practice')));
-      }
+      if (r) pc.append(h('div', { class: 'card slim' }, h('div', { class: 'spread' },
+        h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Or run your routine' }), h('b', { text: r.name + ' · ' + fmtMin(totalOf(r.blocks)) })),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => startSession(r) }, '▶ Start'), awayButton(r, 'btn small ghost'))), ribbon(r.blocks, { small: true })));
     }
     view.append(pc);
 

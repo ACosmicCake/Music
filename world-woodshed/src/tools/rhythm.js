@@ -1,7 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz } from '../ui/core.js';
+import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz, hooks } from '../ui/core.js';
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
 
@@ -232,6 +232,7 @@ tool('rhythms', {
         const ghostRes = scoreTaps(expected.filter(e => e.ghost), taps, win);
         const ok = res.score >= 0.7;
         E.record('rhythmTap', r.id, ok, { score: res.score });
+        if (hooks.signal) hooks.signal('rhythm:' + r.id, { score: res.score });
         ctx.tick(1);
         stop();
         result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },

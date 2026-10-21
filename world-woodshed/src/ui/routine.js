@@ -2,8 +2,9 @@
 import D from '../data.js';
 import E from '../engine.js';
 import { view, h, toast, go, PAGES, hooks, ui } from './core.js';
-import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, smartBlocks, placeBreaks } from '../routines.js';
+import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks } from '../routines.js';
 import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause } from './session.js';
+import { smartPlanner, learningPrefsCard } from './smart.js';
 
 const PRESETS = [15, 30, 45, 60, 90, 120, 180, 240];
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -34,21 +35,13 @@ function legend(blocks) {
   }));
 }
 
-function ensureStarter() {
-  if (E.routines().length) return;
-  const r = fromTemplate(TEMPLATES[0], E.state.settings.minutes >= 15 ? Math.max(30, E.state.settings.minutes) : 60, { name: 'My daily routine' });
-  E.saveRoutine(r);
-  E.setActiveRoutine(r.id);
-}
-
 PAGES.routine = function () {
-  ensureStarter();
   const active = E.activeRoutineId();
   view.append(h('div', { class: 'pagehead' }, h('span', { class: 'eyebrow', text: 'Routine' }), h('h1', { text: 'Plan your practice' }),
-    h('p', { class: 'muted', text: 'Choose how long you have, line up the blocks you want, and press start. The timer keeps going while you play, chimes when a block is done and moves you on.' })));
+    h('p', { class: 'muted', text: 'Smart practice chooses what to work on for the time you have. Or build your own routine: line up blocks and the smart plan fills them with the right scale, technique, rhythm and tune each time. The timer keeps going while you play and moves you on.' })));
   if (E.session()) view.append(sessionCard());
   view.append(picker(active));
-  if (active === 'smart') view.append(smartCard());
+  if (active === 'smart') view.append(smartPlanner(), learningPrefsCard());
   else view.append(editor(E.getRoutine(active)));
   view.append(templatesCard());
 };
@@ -93,12 +86,12 @@ function sessionCard() {
 /* ---------- routine picker ---------- */
 function picker(active) {
   const row = h('div', { class: 'rpicker', role: 'tablist', 'aria-label': 'Routines' });
+  row.append(h('button', { class: 'rpick smart', role: 'tab', 'aria-selected': active === 'smart' ? 'true' : 'false', onclick: () => { E.setActiveRoutine('smart'); go('routine'); } },
+    h('b', { text: 'Smart practice' }), h('span', { class: 'small', text: 'Chooses what to practise for the time you have' })));
   E.routines().forEach(r => row.append(h('button', { class: 'rpick', role: 'tab', 'aria-selected': r.id === active ? 'true' : 'false', onclick: () => { E.setActiveRoutine(r.id); go('routine'); } },
     h('b', { text: r.name }), h('span', { class: 'mono small', text: fmtMin(totalOf(r.blocks)) }), ribbon(r.blocks, { small: true }))));
-  row.append(h('button', { class: 'rpick smart', role: 'tab', 'aria-selected': active === 'smart' ? 'true' : 'false', onclick: () => { E.setActiveRoutine('smart'); go('routine'); } },
-    h('b', { text: 'Smart plan' }), h('span', { class: 'small', text: 'Built daily from your weak spots' })));
   row.append(h('button', { class: 'rpick add', onclick: () => {
-    const r = { id: E.uid('r'), name: 'New routine', breaks: false, autoAdvance: true, blocks: [newBlock('scalewarm', { settings: { scale: 'major', tonic: 7, pattern: 'updown', bpm: 72 } }), newBlock('rhythms'), newBlock('repertoire')] };
+    const r = { id: E.uid('r'), name: 'New routine', breaks: false, autoAdvance: true, blocks: [newBlock('scalewarm'), newBlock('rhythms'), newBlock('repertoire')] };
     syncWeights(r); E.saveRoutine(r); E.setActiveRoutine(r.id); go('routine');
   } }, h('b', { text: '+ New routine' }), h('span', { class: 'small', text: 'Start empty-ish' })));
   return row;
@@ -171,7 +164,8 @@ function editor(stored) {
     const def = BLOCKS[b.type];
     const set = (k, v) => { b.settings = b.settings || {}; if (v === '' || v === 'auto') delete b.settings[k]; else b.settings[k] = v; commit(); };
     const redraw = () => draw();
-    const fields = def.fields.map(f => field(f, b, set, redraw)).filter(Boolean);
+    const smartScale = b.type === 'scalewarm' && (!b.settings || !b.settings.scale || b.settings.scale === 'auto');
+    const fields = def.fields.filter(f => !(smartScale && ['tonic', 'pattern', 'bpm'].includes(f))).map(f => field(f, b, set, redraw)).filter(Boolean);
     return h('div', { class: 'bpanel' },
       h('p', { class: 'small muted', text: def.desc }),
       fields.length ? h('div', { class: 'formgrid' }, fields) : null,
@@ -221,7 +215,6 @@ function editor(stored) {
       return h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: CATS[c].name }),
         h('div', { class: 'typegrid' }, types.map(t => h('button', { class: 'typecard cat-' + c, onclick: () => {
           const b = newBlock(t);
-          if (t === 'scalewarm') b.settings = { scale: 'major', tonic: 7, pattern: 'updown', bpm: 72 };
           r.blocks.push(b); syncWeights(r); commit(); openId = b.id; close(); draw();
           const el = wrap.querySelector('[data-id="' + b.id + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } }, h('span', { class: 'bicon', 'aria-hidden': 'true' }), h('b', { text: BLOCKS[t].name }), h('span', { class: 'small muted', text: BLOCKS[t].desc })))));
@@ -264,8 +257,8 @@ function field(f, b, set, redraw) {
   switch (f) {
     case 'scale': {
       const list = b.type === 'scalewarm' ? warmScales() : D.SCALES;
-      const opts = (b.type === 'drone' ? [auto('From the style of the week')] : []).concat([1, 2, 3, 4, 5].map(t => ({ group: 'Level ' + t, items: list.filter(x => x.tier === t).map(x => ({ value: x.id, text: x.name })) })).filter(g => g.items.length));
-      return sel('Scale', opts, st.scale || (b.type === 'drone' ? 'auto' : 'major'), v => set('scale', v));
+      const opts = [auto(b.type === 'drone' ? 'From the style of the week' : 'Smart choice: rotates scale, key, pattern and tempo')].concat([1, 2, 3, 4, 5].map(t => ({ group: 'Level ' + t, items: list.filter(x => x.tier === t).map(x => ({ value: x.id, text: x.name })) })).filter(g => g.items.length));
+      return sel('Scale', opts, st.scale || 'auto', v => set('scale', v));
     }
     case 'tonic': return sel('Key', D.NOTE_NAMES.map((n, i) => ({ value: String(i), text: n })), String(st.tonic ?? (b.type === 'drone' ? 2 : 0)), v => set('tonic', +v));
     case 'pattern': return sel('Pattern', Object.entries(PATTERNS).map(([k, v]) => ({ value: k, text: v })), st.pattern || 'updown', v => set('pattern', v));
@@ -274,21 +267,21 @@ function field(f, b, set, redraw) {
       inp.onchange = () => { const v = +inp.value; set('bpm', v >= 30 ? Math.min(260, v) : ''); redraw(); };
       return h('label', { class: 'stack field', for: id }, h('span', { class: 'eyebrow', text: b.type === 'scalewarm' ? 'Start tempo (bpm)' : 'Click tempo (bpm)' }), inp);
     }
-    case 'exercise': return sel('Exercise', [auto('Weakest, chosen for you')].concat(D.EXERCISES.map(e => ({ value: e.id, text: e.name }))), st.exercise || 'auto', v => set('exercise', v));
+    case 'exercise': return sel('Exercise', [auto('Smart choice: rotates for you')].concat(D.EXERCISES.map(e => ({ value: e.id, text: e.name }))), st.exercise || 'auto', v => set('exercise', v));
     case 'rhythm': {
       const byRegion = {};
       D.RHYTHMS.forEach(x => { const rn = (D.REGIONS.find(r => r.id === x.region) || { name: 'Other' }).name; (byRegion[rn] = byRegion[rn] || []).push({ value: x.id, text: x.name }); });
-      return sel('Rhythm', [auto('From the style of the week')].concat(Object.entries(byRegion).map(([g, items]) => ({ group: g, items }))), st.rhythm || 'auto', v => set('rhythm', v));
+      return sel('Rhythm', [auto('Smart choice: rotates for you')].concat(Object.entries(byRegion).map(([g, items]) => ({ group: g, items }))), st.rhythm || 'auto', v => set('rhythm', v));
     }
     case 'tune': {
       const groups = [...new Set(D.TUNES.map(t => t.group))].map(g => ({ group: g, items: D.TUNES.filter(t => t.group === g).map(t => ({ value: t.id, text: t.name })) }));
-      return sel('Tune', [auto('Pick on the day')].concat(groups), st.tune || 'auto', v => set('tune', v));
+      return sel('Tune', [auto('Smart choice: rotates for you')].concat(groups), st.tune || 'auto', v => set('tune', v));
     }
     case 'song': {
       const songs = E.listSongs();
       return sel('Song', [auto(songs.length ? 'Most recent song' : 'Load a song in Transcribe first')].concat(songs.map(sg => ({ value: sg.id, text: sg.title }))), st.song || 'auto', v => set('song', v));
     }
-    case 'lesson': return sel('Lesson', [auto('Next lesson in the course')].concat(['Foundations', 'Intermediate', 'Advanced'].map(lv => ({ group: lv, items: D.LESSONS.filter(l => l.level === lv).map(l => ({ value: l.id, text: l.title })) }))), st.lesson || 'auto', v => set('lesson', v));
+    case 'lesson': return sel('Lesson', [auto('Smart choice: new lessons and reviews')].concat(['Foundations', 'Intermediate', 'Advanced'].map(lv => ({ group: lv, items: D.LESSONS.filter(l => l.level === lv).map(l => ({ value: l.id, text: l.title })) }))), st.lesson || 'auto', v => set('lesson', v));
     case 'drill': return sel('Drill', [auto('A different one each time')].concat(Object.entries(DRILLS).map(([k, v]) => ({ value: k, text: v }))), st.drill || 'auto', v => set('drill', v));
     case 'style': return sel('Style', [auto('Style of the week')].concat(D.REGIONS.map(r => ({ value: r.id, text: r.name }))), st.style || 'auto', v => set('style', v));
     case 'title': {
@@ -303,34 +296,6 @@ function field(f, b, set, redraw) {
     }
   }
   return null;
-}
-
-/* ---------- smart plan ---------- */
-function smartCard() {
-  const st = E.state.settings;
-  let minutes = st.minutes || 30, focus = st.focus || 'balanced', preview = null;
-  const card = h('div', { class: 'card' });
-  function draw() {
-    card.innerHTML = '';
-    card.append(h('h2', { text: 'Smart plan' }),
-      h('p', { class: 'small muted', text: 'Built fresh each time from your weakest skills, reviews that are due, what you haven\'t touched lately and your style of the week.' }),
-      h('div', { class: 'chips presets' }, [15, 30, 45, 60, 90, 120].map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; preview = null; draw(); } }, fmtMin(m)))));
-    const sel = h('select', { id: 'smart-focus' });
-    Object.entries(E.FOCUS).forEach(([k, f]) => sel.append(h('option', { value: k, selected: k === focus ? true : null, text: f.name })));
-    sel.onchange = () => { focus = sel.value; preview = null; draw(); };
-    card.append(h('label', { class: 'stack field', for: 'smart-focus' }, h('span', { class: 'eyebrow', text: 'Focus' }), sel));
-    if (!preview) card.append(h('button', { class: 'btn brass', onclick: () => { preview = smartBlocks(minutes, focus); draw(); } }, 'Build my plan'));
-    else {
-      card.append(ribbon(preview), h('ol', { class: 'blocks static' }, preview.map(b => h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
-        h('div', { class: 'bmain' }, h('span', { class: 'bicon' }), h('div', { class: 'btext' }, h('b', { text: blockTitle(b) }), h('span', { class: 'small muted', text: b.reason || describe(b) })), h('span', { class: 'mono small', text: b.minutes + 'm' }))))),
-        h('div', { class: 'row' },
-          h('button', { class: 'btn brass big', onclick: () => startSession({ name: 'Smart plan', blocks: preview, autoAdvance: true }) }, '▶ Start · ' + fmtMin(totalOf(preview))),
-          h('button', { class: 'btn ghost', onclick: () => { preview = smartBlocks(minutes, focus); draw(); } }, 'Rebuild'),
-          h('button', { class: 'btn ghost', onclick: () => { const r = { id: E.uid('r'), name: 'Smart plan ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), breaks: minutes >= 90, autoAdvance: true, blocks: preview.map(b => Object.assign({}, b, { params: undefined })) }; syncWeights(r); E.saveRoutine(r); E.setActiveRoutine(r.id); toast('Saved as a routine you can edit'); go('routine'); } }, 'Save as my routine')));
-    }
-  }
-  draw();
-  return card;
 }
 
 /* ---------- templates ---------- */
