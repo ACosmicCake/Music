@@ -88,6 +88,15 @@ export default function transcribe(UI) {
     });
   }
 
+  // Leaving Transcribe mid-stretch: stop the worker (it holds its own copy of the audio) and drop the
+  // waiting requests, whose closures would otherwise keep the whole song in memory until the job ended.
+  function cancelStretches() {
+    if (!pending.size) return;
+    const list = [...pending.values()]; pending.clear();
+    if (worker) { worker.terminate(); worker = null; }
+    list.forEach(p => p.reject(new Error('cancelled')));
+  }
+
   /* ---------- FFT + note finder ---------- */
   function fft(re, im) {
     const n = re.length;
@@ -611,7 +620,7 @@ export default function transcribe(UI) {
         const needs = !(P.speed === 1 && P.semis === 0);
         if (needs) setStatus('Preparing ' + Math.round(P.speed * 100) + '% speed' + (P.semis ? ', ' + (P.semis > 0 ? '+' : '') + P.semis + ' semitones' : '') + '…', 0);
         try { entry = await playable(rg, p => { if (token === P.token) setStatus(null, p); }); }
-        catch (e) { setStatus('Could not process the audio: ' + e.message); P.wantPlay = false; refreshTransport(); return; }
+        catch (e) { if (!P.alive) return; setStatus('Could not process the audio: ' + e.message); P.wantPlay = false; refreshTransport(); return; }
         if (token !== P.token || !P.alive) return;
         setStatus('');
         const ac = A.ensure();
@@ -1405,6 +1414,11 @@ export default function transcribe(UI) {
         if (P.videoUrl) URL.revokeObjectURL(P.videoUrl);
         cancelAnimationFrame(P.raf);
         cleanups.forEach(fn => fn());
+        // Let the decoded song go now, not when the last stray callback does: a 4-minute stereo track is
+        // about 85 MB decoded, plus its mono mix, analysis copy and up to three stretched versions.
+        cancelStretches();
+        P.buffer = P.mono = P.peaks = P.ds = P.file = null;
+        P.cache = [];
       };
     }
   }));
