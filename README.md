@@ -6,7 +6,18 @@ A practice app for guitar, ear training, rhythm and world music, with a planner 
 
 It is an installable web app: it works offline on phone and computer, gets its own icon and window, and updates itself when a new version is published.
 
-### Use it
+### Start it on your computer with one click
+
+1. Install [Node.js](https://nodejs.org/en/download) (the LTS version) once.
+2. Get this repository: `git clone`, or on GitHub click **Code → Download ZIP** and unzip it.
+3. Double-click the launcher for your system in the top folder:
+   - **Windows:** `Start World Woodshed (Windows).bat`
+   - **Mac:** `Start World Woodshed (Mac).command` (the first time, right-click it → **Open** → **Open**, because macOS blocks unknown scripts)
+   - **Linux:** `start-world-woodshed.sh`
+
+The first start installs what the app needs (about a minute, internet needed once). After that it opens in your browser within seconds, offline too. Keep the small terminal window open while you practise; close it to stop.
+
+### Use it online
 
 Every push to `main` builds the app and publishes it to GitHub Pages (see `.github/workflows/deploy.yml`). Open the Pages link, then:
 
@@ -35,12 +46,15 @@ Code map:
 | `index.html` | Page shell |
 | `src/main.js` | Entry point: loads styles, tools, pages and plugins, then boots |
 | `src/styles.css` | All CSS, with design tokens on `:root` and dark mode |
-| `src/data.js` | Content: intervals, chords, scales, rhythms, tunes, regions |
+| `src/data.js` | Content: intervals, chords, scales, rhythms, tunes, styles; merges in `src/content/` |
+| `src/content/` | Style deep-dives (history, listening paths, players, books) and the theory course |
+| `src/routines.js` | Routine blocks, templates, time fitting and no-guitar swaps |
 | `src/audio.js` | Web Audio synthesis and the loop scheduler |
 | `src/engine.js` | Skill model, spaced repetition, routines, saving and backup |
 | `src/ui/core.js` | DOM helpers, tabs and routing, tool runner, quiz, fretboard |
-| `src/tools/*.js` | One file per area: ear, rhythm, play, atlas, transcribe |
-| `src/pages.js` | The tab pages (Today, Ear, Rhythm, Play, Atlas) |
+| `src/ui/routine.js`, `src/ui/session.js` | Routine editor, and the session player with its timer |
+| `src/tools/*.js` | One file per area: ear, rhythm, play, practice, learn, atlas, transcribe |
+| `src/pages.js` | The Today and Train pages |
 | `src/pwa.js` | Offline cache, update prompt and install button |
 | `src/stretch.js`, `src/stretch.worker.js` | Time-stretch and pitch shift for Transcribe |
 | `public/icons/` | App icons. Edit `icon.svg`, then run `npm run icons` |
