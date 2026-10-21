@@ -509,3 +509,30 @@ section.card { scroll-margin-top: 110px; }
 .syl.beat { box-shadow: inset 0 -3px 0 var(--line); }
 .syl.acc { color: var(--ink); font-weight: 700; }
 .syl.on { background: var(--brass); color: #fff; }
+
+/* long-form reading: essays, glossary, technique guides */
+.thesis { margin: 0; padding: 14px 16px; border-left: 4px solid var(--ac, var(--brass)); background: color-mix(in srgb, var(--ac, var(--brass)) 9%, var(--surface)); border-radius: 0 12px 12px 0; font-family: var(--font-display); font-size: 1.2rem; font-weight: 500; line-height: 1.35; }
+.essay { display: grid; gap: 6px; }
+.essay-sec { border-top: 1px solid var(--line); }
+.essay-sec:first-child { border-top: 0; }
+.essay-sec > summary { list-style: none; cursor: pointer; display: flex; gap: 12px; align-items: baseline; padding: 12px 0; font-family: var(--font-display); font-weight: 700; font-size: 1.12rem; }
+.essay-sec > summary::-webkit-details-marker { display: none; }
+.essay-sec > summary::after { content: "+"; margin-left: auto; font-family: var(--font-mono); color: var(--muted); font-weight: 400; }
+.essay-sec[open] > summary::after { content: "−"; }
+.es-n { color: var(--brass); font-size: 0.8rem; font-weight: 500; }
+.prose { display: grid; gap: 0.9em; padding-bottom: 12px; }
+.prose p { max-width: 68ch; font-size: 1.04rem; line-height: 1.65; }
+.callout.patina { border-left-color: var(--patina); background: var(--patina-soft); }
+.glossary { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+.glossary dt { font-weight: 700; font-style: italic; color: var(--brass); }
+.glossary dd { margin: 0; font-size: 0.95rem; }
+@media (max-width: 520px) { .glossary { grid-template-columns: 1fr; gap: 2px; } .glossary dd { margin-bottom: 8px; } }
+.fixes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.fix { background: var(--sunk); border-radius: 12px; padding: 12px; display: grid; gap: 6px; align-content: start; border-left: 3px solid var(--bad); }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: st; }
+.stages li { position: relative; padding: 0 0 16px 40px; display: grid; gap: 4px; counter-increment: st; }
+.stages li::before { content: counter(st); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--brass); color: #fff; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.8rem; }
+.stages li::after { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 2px; background: var(--line); }
+.stages li:last-child::after { display: none; }
+.heardbtn.static { display: grid; place-items: center; cursor: default; }
+.tech-card { border-top-color: var(--patina); }

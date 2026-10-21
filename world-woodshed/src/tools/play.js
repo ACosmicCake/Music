@@ -1,9 +1,10 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
+import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
 import { SOUND_FOR, TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
+import { techniquePage } from './learn.js';
 
 /* ======================================================
    PLAY TOOLS
@@ -292,7 +293,9 @@ tool('technique', {
       const card = h('div', { class: 'card' });
       holder.append(card);
       const back = h('button', { class: 'btn ghost small', onclick: list }, '← All exercises');
-      card.append(h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: ex.unit })), h('h2', { text: ex.name }), h('p', { class: 'small', text: ex.how }));
+      const guide = D.TECHNIQUES.find(g => g.id === ex.id);
+      card.append(h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: ex.unit })), h('h2', { text: ex.name }), h('p', { class: 'small', text: ex.how }),
+        guide ? h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => techniquePage(guide, () => openTool('technique', { params: { exercise: ex.id } })) }, 'Read the full guide: how, why and what to listen for →')) : null);
       const best = h('p', { class: 'small muted' });
       const progress = h('div');
       function refreshStats() {

@@ -576,4 +576,7 @@ const LICK_ITEMS = [
   { id: 'lydian:5', scale: 'lydian', len: 5, tier: 5 }
 ];
 
-export default { LESSONS, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
+/* In-depth technique guides (src/content/techniques-*.js) are merged in here */
+const TECHNIQUES = [];
+
+export default { LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
