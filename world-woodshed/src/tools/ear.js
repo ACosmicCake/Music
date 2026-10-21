@@ -42,10 +42,8 @@ tool('intervals', {
         else if (dir === 'down') { A.note(root + semi, t, 0.8, 1.0); A.note(root, t + 0.75, 0.8, 1.4); }
         else { A.note(root, t, 0.65, 1.8); A.note(root + semi, t, 0.65, 1.8); }
       };
-      const st = E.skillState('intervals').items[item.id];
       const anc = dir === 'harm' ? 'Sounds ' + iv.feel : E.anchor(ivId, dir);
-      let mode = 'none';
-      if (!ctx.params.test && anc) mode = (!st || st.n < 3 || st.ema < 0.5) ? 'auto' : st.ema < 0.8 ? 'button' : 'none';
+      const mode = !ctx.params.test && anc ? 'button' : 'none';
       const anchorFor = id => { if (dir === 'harm') return D.INTERVALS.find(i => i.id === id).feel; return E.anchor(id, dir) || D.INTERVALS.find(i => i.id === id).feel; };
       return {
         eyebrow: dir === 'up' ? 'Ascending' : dir === 'down' ? 'Descending' : 'Played together',
