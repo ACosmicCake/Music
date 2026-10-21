@@ -153,10 +153,11 @@ let stream = null, srcNode = null, node = null, sink = null, analyzer = null, st
 let state = 'off'; // off | starting | on | denied | unsupported
 const stateSubs = new Set();
 const setState = s => { state = s; stateSubs.forEach(fn => { try { fn(s); } catch (e) { console.error(e); } }); };
-let mutedUntil = 0;
+let mutedUntil = 0, lastHeard = 0;
 
 function dispatch(ev) {
   if ((ev.type === 'onset' || ev.type === 'note') && ev.t < mutedUntil) return;
+  if (ev.type === 'onset' || ev.type === 'note') lastHeard = Date.now();
   subs[ev.type].forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
 }
 function listenerCount() { return subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size; }
@@ -243,6 +244,8 @@ async function restart() { if (state !== 'on') return; stopNow(); await start();
 export const Mic = {
   start, stop: stopNow, restart, on, latencyMs, calibrate,
   get state() { return state; },
+  // wall-clock time (ms) the mic last heard the player play a note: the session runner waits for a pause
+  get lastHeard() { return lastHeard; },
   onState(fn) { stateSubs.add(fn); return () => stateSubs.delete(fn); },
   // ignore onsets until this audio time (e.g. while the app itself plays a phrase)
   muteUntil(t) { mutedUntil = Math.max(mutedUntil, t); },
