@@ -53,6 +53,7 @@ function ksBuffer(midi) {
 
 function track(node, stopAt) { voices.add(node); node.onended = () => voices.delete(node); }
 
+/* o: { out: node, tone: lowpass Hz, detune: cents, release: seconds to fade after dur (default 0.25) } */
 function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
@@ -60,24 +61,45 @@ function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   const e = ksBuffer(base);
   const src = ctx.createBufferSource();
   src.buffer = e.buf;
-  src.playbackRate.value = e.rate * Math.pow(2, (midi - base) / 12);
+  src.playbackRate.value = e.rate * Math.pow(2, (midi - base) / 12 + (o.detune || 0) / 1200);
+  const rel = o.release || 0.25;
   const g = ctx.createGain();
   g.gain.setValueAtTime(vel, when);
   g.gain.setValueAtTime(vel, when + dur);
-  g.gain.exponentialRampToValueAtTime(0.0008, when + dur + 0.25);
+  g.gain.exponentialRampToValueAtTime(0.0008, when + dur + rel);
   const tone = ctx.createBiquadFilter();
   tone.type = 'lowpass'; tone.frequency.value = o.tone || 4200;
   src.connect(tone); tone.connect(g); g.connect(o.out || master);
-  src.start(when); src.stop(when + dur + 0.3);
+  src.start(when); src.stop(when + dur + rel + 0.05);
   track(src);
   return when;
 }
 
-function strum(midis, when, vel = 0.6, spread = 0.018, dur = 1.6, o) {
+/* How a strum unfolds, string by string. A pick crosses the strings in 8–25 ms, a little unevenly;
+   a down-stroke starts on the bass and leans on it, an up-stroke catches the top strings first (on a
+   full chord, only the top four) and is lighter. Each string is a hair out of tune with the next, as on
+   a real guitar, and the hand damps them all at once, so every note stops at the same moment.
+   midis: low to high. rnd: random source (for tests). Returns [{ midi, at, vel, dur, detune }] with
+   `at` in seconds after the stroke starts. */
+function strumPlan(midis, vel = 0.6, spread = 0.018, dur = 1.6, dir = 'down', rnd = Math.random) {
+  let ms = midis.slice();
+  if (dir === 'up') { if (ms.length >= 5) ms = ms.slice(-4); ms.reverse(); }
+  const gap = Math.min(0.025, Math.max(0.008, spread));
+  const v = vel * (dir === 'up' ? 0.8 : 1) / Math.sqrt(Math.max(1, ms.length) / 2);
+  let at = 0;
+  return ms.map((midi, i) => {
+    if (i) at += gap * (0.8 + rnd() * 0.4);
+    const lean = 1.12 - 0.24 * (i / Math.max(1, ms.length - 1)); // the first strings struck sound a bit louder
+    return { midi, at, vel: v * lean * (0.92 + rnd() * 0.16), dur: Math.max(0.05, dur - at), detune: (rnd() - 0.5) * 6 };
+  });
+}
+
+/* o: note options, plus dir: 'down' (default) or 'up' */
+function strum(midis, when, vel = 0.6, spread = 0.018, dur = 1.6, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
-  const v = vel / Math.sqrt(Math.max(1, midis.length) / 2);
-  midis.forEach((m, i) => note(m, when + i * spread, v, dur, o));
+  const release = o.release || 0.09;
+  strumPlan(midis, vel, spread, dur, o.dir).forEach(p => note(p.midi, when + p.at, p.vel, p.dur, { ...o, detune: (o.detune || 0) + p.detune, release }));
 }
 
 function env(g, when, peak, decay) {
@@ -216,4 +238,4 @@ function eventToAudioTime(ev) {
   return ctx.currentTime - ageMs / 1000 - latency();
 }
 
-export default { out: () => master, ensure, now, latency, mtof, note, strum, hit, tone, Loop, Drone, stopAll, eventToAudioTime };
+export default { out: () => master, ensure, now, latency, mtof, note, strum, strumPlan, hit, tone, Loop, Drone, stopAll, eventToAudioTime };

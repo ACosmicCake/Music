@@ -1,6 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
+import { guitarMidis } from '../voicings.js';
 import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
 import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
@@ -360,7 +361,7 @@ tool('repertoire', {
         const cands = [want, [(c.root + (c.third === 4 ? 3 : 4)) % 12, want[1]], [want[0], (c.root + (c.seventh === 10 ? 11 : 10)) % 12], [(c.root + 7) % 12, c.root], [(want[0] + 1) % 12, (want[1] + 11) % 12]];
         cands.forEach(p => { if (!combos.some(x => key(x) === key(p))) combos.push(p); });
         const opts = shuffle(combos.slice(0, 4));
-        const voiceIt = () => { let r = 48 + c.root; A.strum([r - 12].concat(c.iv.map(x => r + x)), A.now() + 0.05, 0.6, 0.02, 1.6); };
+        const voiceIt = () => A.strum(guitarMidis(c.root, c.iv), A.now() + 0.05, 0.6, 0.02, 1.6);
         return {
           eyebrow: t.name, prompt: prettySym(c.sym) + ': 3rd & ' + (c.seventh !== null ? c.label7 : '5th') + '?',
           sub: 'Pick the guide tones, then find them on the neck above.', play: voiceIt, replayLabel: 'Hear chord', noAutoplay: false,
