@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES } from './ui/core.js';
+import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -19,7 +19,7 @@ function toolTile(id, extra) {
   return h('button', { class: 'tile', onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: m !== null ? m + '%' : '' }));
 }
 const TRAIN = {
-  ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
+  ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
   play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'fretboard', 'callresp', 'repertoire', 'explorer'], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
   away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['away', 'sightread', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
@@ -95,15 +95,17 @@ Object.assign(PAGES, {
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkQ }), h('span', { text: 'answers, last 7 days' })),
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkQ ? Math.round(100 * wkC / wkQ) + '%' : '—' }), h('span', { text: 'accuracy' })),
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: E.streak() }), h('span', { text: 'day streak' }))));
-    prog.append(dayChart(days));
+    prog.append(dayChart(days), heatmap());
     Object.entries(E.CAT_NAMES).forEach(([cat, name]) => {
       const ks = Object.keys(E.SKILLS).filter(k => E.SKILLS[k].cat === cat);
       const sec = h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: name }));
       ks.forEach(k => {
         const m = Math.round(E.mastery(k)), tr = E.trend(k);
+        const due = k !== 'technique' ? E.dueCount(k) : 0, lp = k !== 'technique' ? E.levelProgress(k) : null;
         sec.append(h('button', { class: 'tile', style: { gridTemplateColumns: '1fr' }, onclick: () => openTool(E.SKILLS[k].tool, { returnTab: 'today' }) },
-          h('div', { class: 'skillrow' }, h('span', { text: E.SKILLS[k].name + (k !== 'technique' ? ' · level ' + E.unlockedTier(k) : '') }), h('span', { class: 'mono', style: { textAlign: 'right' }, text: m + '%' }),
-            h('span', { class: 'mono small ' + (tr > 0 ? 'trend-up' : tr < 0 ? 'trend-down' : 'muted'), style: { textAlign: 'right' }, text: tr === null ? '' : (tr > 0 ? '+' : '') + Math.round(tr) }), bar(m))));
+          h('div', { class: 'skillrow' }, h('span', {}, E.SKILLS[k].name + (k !== 'technique' ? ' · level ' + E.unlockedTier(k) : ''), due ? h('span', { class: 'badge brass', text: due + ' due' }) : ''), h('span', { class: 'mono', style: { textAlign: 'right' }, text: m + '%' }),
+            h('span', { class: 'mono small ' + (tr > 0 ? 'trend-up' : tr < 0 ? 'trend-down' : 'muted'), style: { textAlign: 'right' }, text: tr === null ? '' : (tr > 0 ? '+' : '') + Math.round(tr) }), bar(m)),
+          lp && E.skillState(k).last ? h('span', { class: 'small muted', text: lp.text }) : ''));
       });
       prog.append(sec);
     });
@@ -115,7 +117,9 @@ Object.assign(PAGES, {
       weak.forEach(w => wc.append(h('div', { class: 'skillrow' }, h('span', { text: w.label }), h('span', { class: 'mono', style: { textAlign: 'right' }, text: Math.round(w.ema * 100) + '%' }), h('span', { class: 'small muted', text: E.SKILLS[w.skill].name.split(' ')[0] }), bar(w.ema * 100, 'brass'))));
       if (conf.length) {
         wc.append(h('h3', { text: 'Most confused' }));
-        wc.append(h('ul', { class: 'list' }, conf.map(c => h('li', { text: c.la + ' heard as ' + c.lb + ' (' + c.count + '×)' }))));
+        wc.append(h('ul', { class: 'list' }, conf.map(c => h('li', { class: 'confrow' }, h('span', { text: c.la + ' heard as ' + c.lb + ' (' + c.count + '×)' }),
+          CONTRAST_SKILLS.includes(c.skill) ? h('button', { class: 'btn small', onclick: () => openTool(E.SKILLS[c.skill].tool, { params: { contrast: [c.a, c.b] }, returnTab: 'today' }) }, 'Drill these two →') : ''))));
+        wc.append(h('p', { class: 'small muted', text: 'A contrast drill plays only the two you mix up, back and forth, so your ear learns the difference before they go back into the mix.' }));
       }
       view.append(wc);
     }
@@ -144,10 +148,37 @@ Object.assign(PAGES, {
     view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
     view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
-    view.append(micSettingsCard());
+    view.append(guitarCard(), micSettingsCard());
   }
 });
 
+const CONTRAST_SKILLS = ['intervals', 'chords', 'degrees', 'scales', 'rhythmId'];
+/* Six months of practice at a glance: one square per day, darker for longer */
+function heatmap() {
+  const weeks = 26, cell = 13, gap = 3, padL = 22, padT = 16;
+  const end = new Date(); end.setHours(12, 0, 0, 0);
+  const start = new Date(end); start.setDate(end.getDate() - (weeks * 7 - 1));
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // back to a Monday
+  const W = padL + weeks * (cell + gap) + 2, Hh = padT + 7 * (cell + gap);
+  const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'heatmap', role: 'img', 'aria-label': 'Practice per day over the last six months' });
+  ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach((t, i) => t && svg.append(s('text', { x: 0, y: padT + i * (cell + gap) + cell - 2 }, t)));
+  let days = 0, total = 0, lastMonth = -1;
+  for (let w = 0; w < weeks + 1; w++) for (let d = 0; d < 7; d++) {
+    const dt = new Date(start); dt.setDate(start.getDate() + w * 7 + d);
+    if (dt > end) continue;
+    const hrec = E.state.history[E.dayKey(dt.getTime())], min = hrec ? Math.round(hrec.sec / 60) : 0, q = hrec ? hrec.q : 0;
+    const lvl = min >= 45 ? 4 : min >= 20 ? 3 : min >= 8 ? 2 : (min > 0 || q > 0) ? 1 : 0;
+    if (lvl) { days++; total += min; }
+    const x = padL + w * (cell + gap), y = padT + d * (cell + gap);
+    if (d === 0 && dt.getMonth() !== lastMonth) { lastMonth = dt.getMonth(); svg.append(s('text', { x, y: 10 }, dt.toLocaleDateString(undefined, { month: 'short' }))); }
+    const r = s('rect', { class: 'hm l' + lvl, x, y, width: cell, height: cell, rx: 3 });
+    r.append(s('title', {}, dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ': ' + (min ? min + ' min' : q ? q + ' answers' : 'no practice')));
+    svg.append(r);
+  }
+  const scroller = h('div', { class: 'heatscroll' }, svg);
+  requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; }); // the latest weeks first on a narrow screen
+  return h('div', { class: 'stack heatwrap' }, h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Six months' }), h('span', { class: 'small muted', text: days + ' day' + (days === 1 ? '' : 's') + ' practised · ' + fmtMin(total) })), scroller);
+}
 function dayChart(days) {
   const W = 640, Hh = 160, padL = 30, padB = 22, padT = 12;
   const maxMin = Math.max(30, ...days.map(d => d.min));
@@ -170,6 +201,33 @@ function dayChart(days) {
   pts.forEach(p => svg.append(s('circle', { class: 'accdot', cx: p[0], cy: p[1], r: 3 })));
   const wrap = h('div', { class: 'stack' }, svg, h('p', { class: 'small muted', text: 'Bars: minutes per day. Gold line: accuracy on days you answered questions.' }));
   return wrap;
+}
+
+/* Your guitar: tuning, capo and left-handed fretboard, used by every tool that shows the neck */
+function guitarCard() {
+  const card = h('div', { class: 'card guitar-card' });
+  function draw() {
+    card.innerHTML = '';
+    const g = E.guitar(), names = E.STRINGS.map(x => x.name);
+    const sel = h('select', { id: 'g-tuning', onchange: () => { E.setGuitar({ tuning: sel.value }); draw(); } },
+      E.TUNINGS.map(t => h('option', { value: t.id, selected: t.id === g.tuning ? true : null, text: t.name })));
+    const capo = h('select', { id: 'g-capo', onchange: () => { E.setGuitar({ capo: +capo.value }); draw(); } },
+      [0, 1, 2, 3, 4, 5, 6, 7].map(n => h('option', { value: String(n), selected: n === g.capo ? true : null, text: n ? 'Fret ' + n : 'No capo' })));
+    const fb = Fretboard({ label: 'Your open strings' });
+    fb.mark(E.STRINGS.map((st, i) => ({ s: i, f: 0, kind: i === 0 ? 'root' : 'tone', label: names[i].replace(/^(low|high) /, '') })));
+    card.append(h('div', { class: 'spread' }, h('h3', { text: 'Your guitar' }), h('span', { class: 'small muted', text: names.map(n => n.replace(/^(low|high) /, '')).join(' ') + (g.capo ? ' · capo ' + g.capo : '') })),
+      h('p', { class: 'small muted', text: 'Every fretboard, scale position and fretboard answer follows these. With a capo, fret numbers count from the capo.' }),
+      h('div', { class: 'formgrid' },
+        h('label', { class: 'stack field', for: 'g-tuning' }, h('span', { class: 'eyebrow', text: 'Tuning' }), sel),
+        h('label', { class: 'stack field', for: 'g-capo' }, h('span', { class: 'eyebrow', text: 'Capo' }), capo)),
+      h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: g.lefty ? true : null, onchange: e => { E.setGuitar({ lefty: e.target.checked }); draw(); } }), 'Left-handed: show the neck mirrored, nut on the right'),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Note names' }),
+        h('div', { class: 'seg' }, [['letters', 'C D E'], ['solfege', 'Do Re Mi … Si'], ['solfegeTi', 'Do Re Mi … Ti']].map(([k, t]) => h('button', { 'aria-pressed': (E.state.settings.noteNames || 'letters') === k ? 'true' : 'false', onclick: () => { E.setGuitar({ noteNames: k }); draw(); } }, t))),
+        h('span', { class: 'small muted', text: 'Used for notes on the neck, the tuner and answers. Chord symbols stay in letters, as charts write them.' })),
+      fb.el);
+  }
+  draw();
+  return card;
 }
 
 /* Your progress on every device: a sync file that merges (nothing practised on either device is lost),

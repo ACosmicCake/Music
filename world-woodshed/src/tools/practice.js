@@ -50,7 +50,8 @@ export function positionNotes(steps, tonicPc, start) {
    or under the little finger on the 6th or 5th string (roughly the five CAGED shapes), frets 0–12 */
 export function rootPositions(tonicPc) {
   const out = [];
-  [[40, 1], [45, 1], [50, 1], [40, 4], [45, 4]].forEach(([open, back]) => {
+  const [s6, s5, s4] = E.STRINGS.map(x => x.midi);
+  [[s6, 1], [s5, 1], [s4, 1], [s6, 4], [s5, 4]].forEach(([open, back]) => {
     const f = ((tonicPc - open) % 12 + 12) % 12;
     [f, f + 12].forEach(ff => { const st = ff - back; if (st >= 0 && st <= 8) out.push(st); });
   });
@@ -403,21 +404,12 @@ tool('circle', {
 });
 
 /* ---------- Reference tones (tuner) ---------- */
-const TUNINGS = [
-  ['Standard', [40, 45, 50, 55, 59, 64]],
-  ['Half step down', [39, 44, 49, 54, 58, 63]],
-  ['Drop D', [38, 45, 50, 55, 59, 64]],
-  ['DADGAD', [38, 45, 50, 55, 57, 62]],
-  ['Open G (Taro Patch)', [38, 43, 50, 55, 59, 62]],
-  ['Open D', [38, 45, 50, 54, 57, 62]],
-  ['Open C', [36, 43, 48, 55, 60, 64]],
-  ['Open E', [40, 47, 52, 56, 59, 64]]
-];
+const TUNINGS = E.TUNINGS.map(t => [t.name, t.midi]);
 tool('tuner', {
   tab: 'learn', skill: null, title: 'Tuner & reference tones', eyebrow: 'Reference · tune up',
   desc: 'Let the app hear each string and show how far off it is, or tune by ear to sustained reference tones in eight tunings.',
   render(body) {
-    let ti = 0, stopFn = null, playing = -1, cycle = null;
+    let ti = Math.max(0, E.TUNINGS.findIndex(t => t.id === E.guitar().tuning)), stopFn = null, playing = -1, cycle = null;
     // the listening tuner
     const tcard = h('div', { class: 'card tuner' });
     const noteEl = h('div', { class: 'tn-note', text: '—' });
@@ -465,7 +457,8 @@ tool('tuner', {
             step();
           } }, '▶ Play all strings'),
           h('button', { class: 'btn ghost', onclick: () => { stopTone(); draw(); } }, 'Stop')),
-        h('p', { class: 'small muted', text: name + '. Tones use A = 440 Hz. Tap a string to hold its note; tap again to stop. The tuner above uses the tuning you pick here.' }));
+        E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo : '') + '.' }),
+        h('p', { class: 'small muted', text: name + '. Tones use A = 440 Hz, without a capo. Tap a string to hold its note; tap again to stop. The tuner above uses the tuning you pick here.' }));
     }
     draw();
     return () => { stopTone(); clearTimeout(quiet); mic.cleanup(); };

@@ -210,6 +210,11 @@ function finishPlan() {
 export function pickFor(skill, ctx, regionFilter) {
   const p = ctx.params || {};
   if (p.test) return E.pick(skill, E.universe(skill), { uniform: true });
+  // a contrast drill: only the two items you confuse
+  if (Array.isArray(p.contrast)) {
+    const pool = E.universe(skill).filter(x => p.contrast.includes(x.id));
+    if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+  }
   if (p.region && regionFilter && Math.random() < 0.65) {
     const pool = E.universe(skill).filter(x => regionFilter(x, p.region));
     if (pool.length) return E.pick(skill, pool);
@@ -227,7 +232,13 @@ export function Quiz(container, ctx, gen, opts = {}) {
     if (!alive) return;
     answered = false;
     q = gen();
+    const pair = ctx.params && Array.isArray(ctx.params.contrast) ? ctx.params.contrast : null;
+    if (pair && q.choices) { // a contrast drill offers just the two you confuse
+      const keep = q.choices.filter(c => pair.some(x => x === c.id || String(x).split(':')[0] === c.id));
+      if (keep.length >= 2) q.choices = keep;
+    }
     card.innerHTML = '';
+    if (pair) card.append(h('div', { class: 'callout contrast-banner' }, h('b', { text: 'Contrast drill' }), h('span', { class: 'small', text: ' Just these two, in random order. Listen for what makes them different; when you get most right, go back to the full mix.' })));
     const top = h('div', { class: 'stack' });
     if (q.eyebrow) top.append(h('span', { class: 'eyebrow', text: q.eyebrow }));
     top.append(h('div', { class: 'prompt', text: q.prompt }));
@@ -299,15 +310,18 @@ const FB = { W: 700, H: 250, nut: 44, fw: 54.6, top: 22, gap: 40 };
 function fretX(f) { return f === 0 ? FB.nut / 2 : FB.nut + (f - 0.5) * FB.fw; }
 function strY(si) { return FB.top + (5 - si) * FB.gap; }
 export function Fretboard(opts = {}) {
-  const svg = s('svg', { viewBox: `0 0 ${FB.W} ${FB.H}`, class: 'fretboard', role: 'img', 'aria-label': opts.label || 'Guitar fretboard, frets 0 to 12' });
+  // left-handed players see the neck mirrored: nut on the right
+  const lefty = !!(E.state.settings && E.state.settings.lefty), capo = (E.state.settings && E.state.settings.capo) || 0;
+  const X = x => (lefty ? FB.W - x : x);
+  const svg = s('svg', { viewBox: `0 0 ${FB.W} ${FB.H}`, class: 'fretboard' + (lefty ? ' lefty' : ''), role: 'img', 'aria-label': opts.label || 'Guitar fretboard, frets 0 to 12' + (capo ? ', capo at ' + capo : '') + (lefty ? ', left-handed' : '') });
   const base = s('g'), hl = s('g'), dots = s('g');
-  base.append(s('rect', { class: 'wood', x: FB.nut, y: FB.top - 12, width: FB.W - FB.nut, height: FB.gap * 5 + 24, rx: 4 }));
-  [3, 5, 7, 9].forEach(f => base.append(s('circle', { class: 'inlay', cx: fretX(f), cy: FB.top + FB.gap * 2.5, r: 7 })));
-  base.append(s('circle', { class: 'inlay', cx: fretX(12), cy: FB.top + FB.gap * 1.5, r: 7 }), s('circle', { class: 'inlay', cx: fretX(12), cy: FB.top + FB.gap * 3.5, r: 7 }));
-  for (let f = 1; f <= 12; f++) base.append(s('line', { class: 'fret', x1: FB.nut + f * FB.fw, x2: FB.nut + f * FB.fw, y1: FB.top - 12, y2: FB.top + FB.gap * 5 + 12 }));
-  base.append(s('line', { class: 'nut', x1: FB.nut, x2: FB.nut, y1: FB.top - 12, y2: FB.top + FB.gap * 5 + 12 }));
-  for (let si = 0; si < 6; si++) base.append(s('line', { class: 'str', x1: 4, x2: FB.W, y1: strY(si), y2: strY(si), 'stroke-width': 1 + (5 - si) * 0.35 + 0.4 }));
-  for (let f = 0; f <= 12; f++) base.append(s('text', { class: 'fnum', x: fretX(f), y: FB.H - 4 }, String(f)));
+  base.append(s('rect', { class: 'wood', x: lefty ? 0 : FB.nut, y: FB.top - 12, width: FB.W - FB.nut, height: FB.gap * 5 + 24, rx: 4 }));
+  [3, 5, 7, 9].forEach(f => base.append(s('circle', { class: 'inlay', cx: X(fretX(f)), cy: FB.top + FB.gap * 2.5, r: 7 })));
+  base.append(s('circle', { class: 'inlay', cx: X(fretX(12)), cy: FB.top + FB.gap * 1.5, r: 7 }), s('circle', { class: 'inlay', cx: X(fretX(12)), cy: FB.top + FB.gap * 3.5, r: 7 }));
+  for (let f = 1; f <= 12; f++) base.append(s('line', { class: 'fret', x1: X(FB.nut + f * FB.fw), x2: X(FB.nut + f * FB.fw), y1: FB.top - 12, y2: FB.top + FB.gap * 5 + 12 }));
+  base.append(s('line', { class: 'nut' + (capo ? ' capo' : ''), x1: X(FB.nut), x2: X(FB.nut), y1: FB.top - 12, y2: FB.top + FB.gap * 5 + 12 }));
+  for (let si = 0; si < 6; si++) base.append(s('line', { class: 'str', x1: X(4), x2: X(FB.W), y1: strY(si), y2: strY(si), 'stroke-width': 1 + (5 - si) * 0.35 + 0.4 }));
+  for (let f = 0; f <= 12; f++) base.append(s('text', { class: 'fnum', x: X(fretX(f)), y: FB.H - 4 }, f === 0 && capo ? 'C' + capo : String(f)));
   svg.append(base, hl, dots);
   function highlightString(si) {
     hl.innerHTML = '';
@@ -318,8 +332,8 @@ export function Fretboard(opts = {}) {
     if (!keep) dots.innerHTML = '';
     list.forEach(m => {
       const filled = ['root', 'g3', 'good', 'bad'].includes(m.kind);
-      dots.append(s('circle', { class: 'dot ' + (m.kind || 'tone'), cx: fretX(m.f), cy: strY(m.s), r: 14 }));
-      if (m.label) dots.append(s('text', { class: 'lbl' + (filled ? ' on' : ''), x: fretX(m.f), y: strY(m.s) }, m.label));
+      dots.append(s('circle', { class: 'dot ' + (m.kind || 'tone'), cx: X(fretX(m.f)), cy: strY(m.s), r: 14 }));
+      if (m.label) dots.append(s('text', { class: 'lbl' + (filled ? ' on' : ''), x: X(fretX(m.f)), y: strY(m.s) }, m.label));
     });
   }
   svg.addEventListener('click', ev => {
@@ -327,8 +341,9 @@ export function Fretboard(opts = {}) {
     const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
     const ctm = svg.getScreenCTM(); if (!ctm) return;
     const p = pt.matrixTransform(ctm.inverse());
+    const px = X(p.x);
     let si = Math.round(5 - (p.y - FB.top) / FB.gap); si = Math.max(0, Math.min(5, si));
-    let f = p.x < FB.nut ? 0 : Math.ceil((p.x - FB.nut) / FB.fw); f = Math.max(0, Math.min(12, f));
+    let f = px < FB.nut ? 0 : Math.ceil((px - FB.nut) / FB.fw); f = Math.max(0, Math.min(12, f));
     opts.onTap(si, f, ev);
   });
   const wrap = h('div', { class: 'fretwrap' }); wrap.append(svg);

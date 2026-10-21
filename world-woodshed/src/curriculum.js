@@ -232,7 +232,7 @@ export function warmDetails(item) {
 }
 
 /* ---------- planning a session ---------- */
-const EAR_TOOLS = ['intervals', 'chords', 'degrees', 'progressions', 'scales'];
+const EAR_TOOLS = ['intervals', 'chords', 'degrees', 'progressions', 'scales', 'dictation'];
 function earPick(ctx, exclude) {
   const doneToday = new Set((today().sessions || []).flatMap(s => s.types || []));
   return Object.keys(E.SKILLS).filter(k => EAR_TOOLS.includes(E.SKILLS[k].tool) && !exclude.has(k)).map(k => {

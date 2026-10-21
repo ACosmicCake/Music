@@ -1,0 +1,23 @@
+/* Melodic dictation (src/tools/dictation.js). Uses the app's tokens so light and dark themes both work. */
+.dict-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.dict-opt { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.dict-opt .eyebrow { white-space: nowrap; }
+.dict-opt .seg { max-width: 100%; }
+
+.dict-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.dict-slot {
+  min-width: 48px; min-height: 52px; padding: 4px 8px; border-radius: 10px;
+  border: 1px dashed var(--line); background: var(--sunk); color: var(--muted);
+  display: grid; place-content: center; text-align: center; gap: 1px;
+}
+.dict-slot b { font-family: var(--font-display); font-size: 1.15rem; line-height: 1.1; }
+.dict-slot small { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink); }
+.dict-slot.filled { border-style: solid; background: var(--surface); color: var(--ink); }
+.dict-slot.cur { border: 2px solid var(--brass); background: var(--brass-soft); }
+.dict-slot.ok { border: 1px solid var(--good); background: var(--good-soft); color: var(--ink); }
+.dict-slot.no { border: 1px solid var(--bad); background: var(--bad-soft); color: var(--ink); }
+
+.dict-pad { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; }
+.dict-pad .choice { min-height: 54px; padding: 6px 4px; }
+.dict-pad .choice.home { border-color: var(--brass); }
+.dict-pad .choice:active { background: var(--brass-soft); }

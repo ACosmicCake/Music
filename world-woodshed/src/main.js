@@ -12,6 +12,7 @@ import E from './engine.js';
 import Cur from './curriculum.js';
 import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl } from './ui/core.js';
 import './tools/ear.js';
+import './tools/dictation.js';
 import './tools/rhythm.js';
 import './tools/play.js';
 import './tools/atlas.js';
