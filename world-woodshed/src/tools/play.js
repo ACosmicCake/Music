@@ -3,6 +3,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
 import { SOUND_FOR, TapPad } from './rhythm.js';
+import { parseChord, flatName, prettySym } from '../theory.js';
 
 /* ======================================================
    PLAY TOOLS
@@ -126,25 +127,6 @@ tool('callresp', {
 });
 
 /* ---- Chords for repertoire ---- */
-const QUAL = [
-  ['m7b5', [0, 3, 6, 10]], ['mmaj7', [0, 3, 7, 11]], ['maj7', [0, 4, 7, 11]], ['dim7', [0, 3, 6, 9]], ['7#11', [0, 4, 7, 10, 18]],
-  ['m7', [0, 3, 7, 10]], ['m6', [0, 3, 7, 9]], ['6', [0, 4, 7, 9]], ['7', [0, 4, 7, 10]], ['m', [0, 3, 7]], ['', [0, 4, 7]]
-];
-const ROOTS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-function parseChord(sym) {
-  const mm = /^([A-G])(#|b)?(.*)$/.exec(sym);
-  if (!mm) return null;
-  let root = ROOTS[mm[1]] + (mm[2] === '#' ? 1 : mm[2] === 'b' ? -1 : 0); root = (root + 12) % 12;
-  const rest = mm[3];
-  const q = QUAL.find(([k]) => k === rest) || QUAL[QUAL.length - 1];
-  const iv = q[1];
-  const third = iv.includes(4) ? 4 : 3;
-  let seventh = iv.includes(10) ? 10 : iv.includes(11) ? 11 : (iv.includes(9) ? 9 : null);
-  const label7 = seventh === 9 ? (q[0] === 'dim7' ? '♭♭7' : '6') : '7';
-  return { sym, root, iv, third, seventh, fifth: iv.includes(6) && !iv.includes(7) ? 6 : 7, label7, triad: seventh === null };
-}
-function flatName(p) { return ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][p]; }
-function prettySym(sym) { return sym.replace(/b(?=[^a-z]|$)/, '♭').replace('#', '♯').replace('m7b5', 'm7♭5').replace(/^([A-G])b/, '$1♭'); }
 
 tool('repertoire', {
   tab: 'play', skill: 'repertoire', title: 'Repertoire gym', eyebrow: 'Play · standards & world grooves',
@@ -159,7 +141,7 @@ tool('repertoire', {
     function showList() {
       stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
       tuneCard.innerHTML = ''; listCard.innerHTML = '';
-      ['Jazz standards', 'World grooves'].forEach(g => {
+      ['Jazz standards', 'Blues, rock & roots', 'World grooves'].forEach(g => {
         listCard.append(h('h2', { text: g }));
         const tl = h('div', { class: 'tools' });
         D.TUNES.filter(t => t.group === g).forEach(t => {
@@ -216,6 +198,10 @@ tool('repertoire', {
         let r = 33 + c.root; if (r > 40) r -= 12;
         if (kind === 'r') return r;
         if (kind === '5') return r + c.fifth;
+        if (kind === '3') return r + c.third;
+        if (kind === '6') return r + 9;
+        if (kind === '7') return r + 10;
+        if (kind === '8') return r + 12;
         // walking: beat 0 root, 1 third, 2 fifth, 3 approach to next root
         if (beat === 0) return r;
         if (beat === 1) return r + c.third;
@@ -234,7 +220,7 @@ tool('repertoire', {
             const bi = Math.floor(i / g.steps), st = i % g.steps;
             const c = chordAt(bi, st);
             Object.entries(g.perc).forEach(([name, pat]) => { if (pat[st] !== '.') A.hit(SOUND_FOR[name], tt, pat[st] === 'X' ? 0.9 : 0.55); });
-            if (g.comp[st] !== '.') A.strum(voicing(c), tt, g.comp[st] === 'X' ? 0.6 : 0.42, 0.012, t.groove === 'pompe' || t.groove === 'reggae' ? 0.18 : t.groove === 'swing' ? 0.35 : 0.6);
+            if (g.comp[st] !== '.') A.strum(voicing(c), tt, g.comp[st] === 'X' ? 0.6 : 0.42, 0.012, t.groove === 'funk' ? 0.1 : ['pompe', 'reggae', 'boomchick', 'shuffle'].includes(t.groove) ? 0.18 : ['swing', 'rock', 'fado'].includes(t.groove) ? 0.35 : 0.6);
             if (g.bass === 'walk') { if (st % g.spb === 0) { const nb = bars[(bi + (st / g.spb === 3 ? 1 : 0)) % bars.length]; const nextC = st / g.spb === 3 ? nb[0] : c; A.note(bassNote(c, 'walk', nextC, st / g.spb), tt, 0.75, 0.55); } }
             else if (g.bass[st] !== '.') A.note(bassNote(c, g.bass[st]), tt, 0.75, 0.6);
           },

@@ -1,0 +1,210 @@
+/* World Woodshed — practice session runner: timer, session bar, time-up chime, finish screen */
+import A from '../audio.js';
+import E from '../engine.js';
+import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, bar } from './core.js';
+import { BLOCKS, CATS, paramsFor, blockTitle, describe, fmtClock, fmtMin, totalOf } from '../routines.js';
+
+let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0, wake = null;
+const bars = new Set();
+const pill = h('button', { class: 'session-pill', hidden: true, onclick: () => runCurrent() });
+document.querySelector('.topbar-inner').insertBefore(pill, document.getElementById('sync'));
+
+export const cur = () => { const s = E.session(); return s ? s.blocks[s.idx] || null : null; };
+const inSessionTool = () => !!(ui.runner && ui.runner.opts && ui.runner.opts.session);
+
+export function startSession(src) {
+  if (!src.blocks.length) { toast('Add a block first'); return; }
+  E.startSession(src);
+  ensureTicker();
+  runCurrent();
+}
+export function runCurrent() {
+  const s = E.session(); if (!s) { go('routine'); return; }
+  const b = s.blocks[s.idx];
+  if (!b) { finishScreen(); return; }
+  if (s.paused) { s.paused = false; E.sessionChanged(); }
+  ensureTicker();
+  // resolve 'auto' choices once, so coming back to a block opens the same exercise or tune
+  if (!b.resolved) { b.params = paramsFor(b); b.resolved = true; E.touchSession(); }
+  openTool(BLOCKS[b.type].tool, { session: true, params: b.params, returnTab: 'routine' });
+}
+export function jump(i) {
+  const s = E.session(); if (!s) return;
+  s.idx = Math.max(0, Math.min(s.blocks.length - 1, i)); s.autoAt = null;
+  E.sessionChanged(); runCurrent();
+}
+export function next(skip) {
+  const s = E.session(); if (!s) return;
+  const b = s.blocks[s.idx];
+  if (b) { if (skip) b.skipped = true; else b.done = true; }
+  s.autoAt = null;
+  // move to the next block that isn't finished yet, else finish
+  let i = s.idx + 1;
+  while (i < s.blocks.length && s.blocks[i].done) i++;
+  if (i >= s.blocks.length) { const open = s.blocks.findIndex(x => !x.done && !x.skipped); i = open >= 0 && open !== s.idx ? open : s.blocks.length; }
+  s.idx = i;
+  E.sessionChanged();
+  if (i >= s.blocks.length) finishScreen(); else runCurrent();
+}
+export function togglePause() {
+  const s = E.session(); if (!s) return;
+  s.paused = !s.paused; s.autoAt = null;
+  E.sessionChanged(); updateWake(); render();
+}
+export function addMinutes(n) {
+  const b = cur(); if (!b) return;
+  b.minutes = Math.max(1, b.minutes + n);
+  if (b.elapsed < b.minutes * 60000) b.timeUp = false;
+  const s = E.session(); s.autoAt = null;
+  E.sessionChanged(); render();
+}
+export function stay() { const s = E.session(); if (s) { s.autoAt = null; render(); } }
+
+/* ---------- ticker ---------- */
+function ensureTicker() {
+  if (ticker || !E.session()) return;
+  lastNow = Date.now();
+  ticker = setInterval(tick, 500);
+  updateWake();
+}
+function tick() {
+  const s = E.session();
+  if (!s) { clearInterval(ticker); ticker = null; updateWake(); render(); return; }
+  const now = Date.now();
+  const dt = Math.min(now - lastNow, 15 * 60000); // a sleeping device shouldn't add hours
+  lastNow = now;
+  const b = s.blocks[s.idx];
+  if (!s.paused && b) {
+    b.elapsed = (b.elapsed || 0) + dt;
+    secAcc += dt; saveAcc += dt;
+    if (secAcc >= 5000) { E.addTime(Math.round(secAcc / 1000), BLOCKS[b.type].skill); secAcc = 0; }
+    if (saveAcc >= 10000) { E.touchSession(); saveAcc = 0; }
+    if (!b.timeUp && b.elapsed >= b.minutes * 60000) timeUp(s, b);
+  }
+  if (s.autoAt && now >= s.autoAt) { s.autoAt = null; if (inSessionTool()) next(); }
+  render();
+}
+function timeUp(s, b) {
+  b.timeUp = true;
+  try {
+    A.ensure();
+    const t = A.now() + 0.05;
+    [76, 81, 88].forEach((m, i) => A.note(m, t + i * 0.16, 0.5, 1.4));
+  } catch (e) { /* audio unavailable */ }
+  try { if (navigator.vibrate) navigator.vibrate([120, 80, 120]); } catch (e) { /* ignore */ }
+  const nxt = s.blocks[s.idx + 1];
+  if (s.autoAdvance && inSessionTool() && nxt) s.autoAt = Date.now() + 10000;
+  E.touchSession();
+}
+
+/* Keep the screen on while a session runs (you're holding a guitar, not the phone) */
+async function updateWake() {
+  const want = !!(E.session() && !E.session().paused && document.visibilityState === 'visible');
+  try {
+    if (want && !wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); }
+    else if (!want && wake) { await wake.release(); wake = null; }
+  } catch (e) { wake = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { lastNow = lastNow || Date.now(); } updateWake(); });
+
+/* ---------- session bar (top of each tool during a session) ---------- */
+function sessionBar() {
+  const el = h('div', { class: 'sessionbar' });
+  bars.add(el);
+  paint(el);
+  return el;
+}
+hooks.sessionBar = sessionBar;
+hooks.afterNav = () => render();
+
+function paint(el) {
+  const s = E.session(), b = cur();
+  if (!s || !b) { el.hidden = true; return; }
+  el.hidden = false;
+  const def = BLOCKS[b.type];
+  el.className = 'sessionbar cat-' + def.cat + (s.paused ? ' paused' : '') + (b.timeUp ? ' over' : '');
+  const left = b.minutes * 60 - b.elapsed / 1000;
+  const sig = [s.idx, s.paused, b.timeUp, !!s.autoAt, b.minutes].join('|');
+  if (el.dataset.sig !== sig) {
+    el.dataset.sig = sig;
+    el.innerHTML = '';
+    const nxt = s.blocks[s.idx + 1];
+    el.append(
+      h('div', { class: 'sb-top' },
+        h('span', { class: 'sb-dot', 'aria-hidden': 'true' }),
+        h('div', { class: 'sb-what' },
+          h('span', { class: 'eyebrow', text: (s.paused ? 'Paused · ' : '') + 'Block ' + (s.idx + 1) + ' of ' + s.blocks.length + ' · ' + s.name }),
+          h('b', { text: blockTitle(b) }),
+          h('span', { class: 'small muted', text: describe(b) })),
+        h('div', { class: 'sb-clock mono', 'aria-live': 'off' })),
+      h('div', { class: 'sb-prog' }, h('i')),
+      h('div', { class: 'sb-ctrl' },
+        h('button', { class: 'btn small', onclick: togglePause, 'aria-label': s.paused ? 'Resume' : 'Pause' }, s.paused ? '▶ Resume' : '❚❚ Pause'),
+        h('button', { class: 'btn small ghost', onclick: () => addMinutes(1) }, '+1 min'),
+        h('button', { class: 'btn small ghost', onclick: () => go('routine') }, 'Plan'),
+        h('span', { class: 'grow' }),
+        h('button', { class: 'btn small ghost', onclick: () => next(true) }, 'Skip'),
+        h('button', { class: 'btn small brass', onclick: () => next(false) }, nxt ? 'Done · next →' : 'Finish ✓')),
+      b.timeUp ? h('div', { class: 'sb-up' },
+        h('b', { text: 'Time\'s up.' }),
+        h('span', { class: 'small sb-auto' }),
+        h('span', { class: 'grow' }),
+        s.autoAt ? h('button', { class: 'btn small', onclick: stay }, 'Stay here') : h('button', { class: 'btn small', onclick: () => addMinutes(5) }, '+5 min')) : '');
+  }
+  const clock = el.querySelector('.sb-clock');
+  clock.textContent = left >= 0 ? fmtClock(left) : '+' + fmtClock(-left);
+  el.querySelector('.sb-prog i').style.width = Math.min(100, 100 * b.elapsed / (b.minutes * 60000)) + '%';
+  const auto = el.querySelector('.sb-auto');
+  if (auto) {
+    const nxt = s.blocks[s.idx + 1];
+    auto.textContent = s.autoAt ? 'Next: ' + blockTitle(nxt) + ' in ' + Math.max(0, Math.ceil((s.autoAt - Date.now()) / 1000)) + ' s' : nxt ? 'Keep going, or move on when ready.' : 'Last block. Finish when ready.';
+  }
+}
+function render() {
+  bars.forEach(el => { if (!el.isConnected) bars.delete(el); else paint(el); });
+  const s = E.session(), b = cur();
+  pill.hidden = !s || !b || inSessionTool();
+  if (!pill.hidden) {
+    const left = b.minutes * 60 - b.elapsed / 1000;
+    pill.className = 'session-pill cat-' + BLOCKS[b.type].cat + (s.paused ? ' paused' : '');
+    pill.textContent = (s.paused ? '❚❚ ' : '● ') + blockTitle(b) + ' · ' + (left >= 0 ? fmtClock(left) : '+' + fmtClock(-left));
+    pill.title = 'Back to your session';
+  }
+  if (typeof hooks.onSessionTick === 'function') hooks.onSessionTick();
+}
+
+/* ---------- finish ---------- */
+export function finishScreen() {
+  const s = E.session(); if (!s) { go('routine'); return; }
+  teardown(); ui.runner = { id: 'session-end', opts: {} }; ui.tab = 'routine'; renderTabs();
+  view.innerHTML = ''; window.scrollTo(0, 0);
+  const sec = s.blocks.reduce((a, b) => a + (b.elapsed || 0), 0) / 1000;
+  const done = s.blocks.filter(b => b.done).length;
+  const note = h('textarea', { rows: 4, id: 'journal-note', placeholder: 'What went well? What to fix next time? Tempos reached, songs learned…' });
+  view.append(
+    h('div', { class: 'hero done-hero' },
+      h('span', { class: 'eyebrow', text: 'Session complete' }),
+      h('h1', { text: 'Nice work.' }),
+      h('div', { class: 'stats' },
+        h('div', { class: 'stat' }, h('b', { class: 'mono', text: fmtMin(sec / 60) }), h('span', { text: 'practised' })),
+        h('div', { class: 'stat' }, h('b', { class: 'mono', text: done + '/' + s.blocks.length }), h('span', { text: 'blocks done' })),
+        h('div', { class: 'stat' }, h('b', { class: 'mono', text: E.streak() }), h('span', { text: 'day streak' })),
+        h('div', { class: 'stat' }, h('b', { class: 'mono', text: fmtMin(totalOf(s.blocks)) }), h('span', { text: 'planned' })))),
+    h('div', { class: 'card' },
+      h('h3', { text: 'What you did' }),
+      h('div', { class: 'stack' }, s.blocks.map(b => h('div', { class: 'endrow cat-' + BLOCKS[b.type].cat },
+        h('span', { class: 'dot' }), h('span', { text: blockTitle(b) }),
+        h('span', { class: 'mono small muted', text: b.done ? fmtClock(b.elapsed / 1000) : b.skipped ? 'skipped' : 'not done' }))))),
+    h('div', { class: 'card' },
+      h('label', { class: 'stack', for: 'journal-note' }, h('h3', { text: 'Practice journal' }), h('span', { class: 'small muted', text: 'A line or two for future you. It shows on the Today page.' })), note,
+      h('div', { class: 'row' },
+        h('button', { class: 'btn brass', onclick: () => { E.endSession(note.value); updateWake(); toast('Session saved'); go('today'); } }, 'Save & finish'),
+        h('button', { class: 'btn ghost', onclick: () => { const st = E.session(); const i = st.blocks.findIndex(b => !b.done); jump(i >= 0 ? i : 0); } }, 'Back to the session'))));
+}
+
+export function discardSession() { E.endSession(''); updateWake(); render(); }
+
+// resume the ticker after a reload if a session was running (call after E.init)
+export function bootSession() { if (E.session()) ensureTicker(); render(); }
+E.onChange(() => { if (E.session()) ensureTicker(); render(); });
+export { render as renderSession };

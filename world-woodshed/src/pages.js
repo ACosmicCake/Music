@@ -1,73 +1,92 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, s, toast, bar, ui, go, TOOLS, openTool, runBlock, startRoutine, startPlacement, PAGES } from './ui/core.js';
+import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
+import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
+import { ribbon, awayButton } from './ui/routine.js';
+import { startSession, runCurrent } from './ui/session.js';
+import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 
 /* ======================================================
    PAGES
    ====================================================== */
 function toolTile(id, extra) {
   const t = TOOLS[id];
-  const m = t.skill ? Math.round(E.mastery(t.skill)) : null;
+  const m = t.skill && E.SKILLS[t.skill] ? Math.round(E.mastery(t.skill)) : null;
   return h('button', { class: 'tile', onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: m !== null ? m + '%' : '' }));
 }
+const TRAIN = {
+  ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
+  rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
+  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'fretboard', 'callresp', 'repertoire', 'explorer'], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
+  away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['away', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
+};
+function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
+
 Object.assign(PAGES, {
   today() {
     const st = E.state;
     const days = E.lastNDays(14), week = days.slice(-7);
     const wkMin = week.reduce((a, d) => a + d.min, 0), wkQ = week.reduce((a, d) => a + d.q, 0), wkC = week.reduce((a, d) => a + d.c, 0);
     const d = new Date();
-    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) }), h('h1', { text: 'Today in the woodshed' })));
+    const lessonsDone = D.LESSONS.filter(l => E.lessonDone(l.id)).length;
+    const heardAll = D.REGIONS.reduce((a, r) => a + heardCount(r), 0);
+    view.append(h('div', { class: 'hero today-hero' },
+      h('span', { class: 'eyebrow', text: d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) }),
+      h('h1', { text: greeting() + '. Time to play.' }),
+      h('div', { class: 'heromet' },
+        h('div', {}, h('b', { class: 'mono', text: E.streak() }), h('span', { text: 'day streak' })),
+        h('div', {}, h('b', { class: 'mono', text: fmtMin(wkMin) }), h('span', { text: 'this week' })),
+        h('div', {}, h('b', { class: 'mono', text: lessonsDone + '/' + D.LESSONS.length }), h('span', { text: 'lessons' })),
+        h('div', {}, h('b', { class: 'mono', text: heardAll }), h('span', { text: 'records heard' })))));
+
+    // practice now
+    const ses = E.session();
+    const pc = h('div', { class: 'card practice-card' });
+    if (ses) {
+      const b = ses.blocks[ses.idx];
+      pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Session in progress' }), h('h2', { text: ses.name })), h('span', { class: 'mono small muted', text: 'Block ' + (ses.idx + 1) + ' of ' + ses.blocks.length })),
+        ribbon(ses.blocks, { small: true, state: (x, i) => (x.done ? 'done' : '') + (i === ses.idx ? ' now' : '') }),
+        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => runCurrent() }, '▶ Resume: ' + (b ? blockTitle(b) : 'finish')), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'See the plan')));
+    } else {
+      const aid = E.activeRoutineId();
+      const r = aid !== 'smart' ? E.getRoutine(aid) : null;
+      if (r) {
+        pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Today\'s practice' }), h('h2', { text: r.name })), h('span', { class: 'mono', text: fmtMin(totalOf(r.blocks)) })),
+          ribbon(r.blocks),
+          h('ol', { class: 'mini-blocks' }, r.blocks.slice(0, 6).map(b => h('li', { class: 'cat-' + BLOCKS[b.type].cat }, h('i'), h('span', { text: blockTitle(b) }), h('span', { class: 'mono small muted', text: b.minutes + 'm' })))),
+          r.blocks.length > 6 ? h('p', { class: 'small muted', text: '+ ' + (r.blocks.length - 6) + ' more' }) : null,
+          h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => startSession(r) }, '▶ Start practice'), awayButton(r, 'btn'), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'Edit or change')));
+      } else {
+        pc.append(h('span', { class: 'eyebrow', text: 'Today\'s practice' }), h('h2', { text: 'Plan a session' }),
+          h('p', { class: 'small muted', text: 'Pick how long you have and what to work on, or let the smart plan choose from your weak spots.' }),
+          h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => go('routine') }, 'Plan my practice')));
+      }
+    }
+    view.append(pc);
 
     if (!st.placementDone) {
       view.append(h('div', { class: 'card' }, h('h2', { text: 'Find your level first' }),
-        h('p', { text: 'A 12-minute placement test samples every skill: intervals, chords, degrees, world scales, the fretboard, time feel, clave and world music knowledge. It sets your starting point so routines skip what you already know.' }),
+        h('p', { text: 'A 12-minute placement test samples every skill: intervals, chords, degrees, world scales, the fretboard, time feel, clave and world music knowledge. It sets your starting point so plans skip what you already know.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: startPlacement }, 'Start placement test'), h('button', { class: 'btn small ghost', onclick: () => { E.finishPlacement(); } }, 'Skip and start from the basics'))));
     }
 
-    const r = E.routineToday();
+    // next up: style of the week + course
     const rw = E.regionOfWeek();
-    const routineCard = h('div', { class: 'card' });
-    if (r) {
-      const nextB = r.blocks.find(b => !b.done);
-      const doneN = r.blocks.filter(b => b.done).length;
-      routineCard.append(h('div', { class: 'spread' }, h('h2', { text: "Today's routine" }), h('span', { class: 'mono small muted', text: r.minutes + ' min · ' + E.FOCUS[r.focus].name })));
-      routineCard.append(bar(100 * doneN / r.blocks.length, 'brass'));
-      const list = h('div');
-      r.blocks.forEach((b, i) => {
-        const isNext = b === nextB;
-        const target = b.questions ? b.questions : b.minutes * 60;
-        const prog = b.questions ? (b.progress || 0) + '/' + b.questions : Math.floor((b.progress || 0) / 60) + '/' + b.minutes + ' min';
-        list.append(h('div', { class: 'block' + (b.done ? ' done' : '') + (isNext ? ' next' : '') },
-          h('span', { class: 'num', text: b.done ? '✓' : String(i + 1) }),
-          h('div', { class: 'stack', style: { gap: '2px' } }, h('b', { text: TOOLS[b.tool].title + (b.params && b.params.exercise ? ': ' + D.EXERCISES.find(e => e.id === b.params.exercise).name : '') }), h('span', { class: 'why', text: b.reason })),
-          h('div', { class: 'stack', style: { justifyItems: 'end', gap: '4px' } }, h('span', { class: 'mins', text: b.minutes + ' min' }), b.progress && !b.done ? h('span', { class: 'mins', text: prog }) : null,
-            h('button', { class: 'btn small' + (isNext ? ' brass' : ''), onclick: () => { ui.plan = { kind: 'routine', blocks: r.blocks }; runBlock(b); } }, b.done ? 'Again' : isNext ? 'Start' : 'Open'))));
-      });
-      routineCard.append(list);
-      routineCard.append(h('div', { class: 'row' }, nextB ? h('button', { class: 'btn brass', onclick: startRoutine }, doneN ? 'Continue routine' : 'Start routine') : h('b', { text: 'All blocks done today.' }),
-        h('button', { class: 'btn small ghost', onclick: () => { routineCard.replaceWith(builder()); } }, 'Rebuild')));
-    } else routineCard.append(...builder().children);
-    view.append(routineCard);
-
-    function builder() {
-      const c = h('div', { class: 'card' });
-      let minutes = st.settings.minutes || 30, focus = st.settings.focus || 'balanced';
-      c.append(h('h2', { text: 'Build today\'s routine' }), h('p', { class: 'small muted', text: 'The planner weighs your weakest skills, reviews that are due, what you haven\'t touched lately and your region of the week.' }));
-      const segM = h('div', { class: 'seg' });
-      [15, 30, 45, 60].forEach(m => segM.append(h('button', { 'aria-pressed': m === minutes ? 'true' : 'false', onclick: e => { minutes = m; segM.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b === e.currentTarget ? 'true' : 'false')); } }, m + ' min')));
-      const sel = h('select', { id: 'focus-pick', 'aria-label': 'Focus' });
-      Object.entries(E.FOCUS).forEach(([k, f]) => sel.append(h('option', { value: k, selected: k === focus ? true : null, text: f.name })));
-      sel.onchange = () => { focus = sel.value; };
-      c.append(h('div', { class: 'row' }, segM), h('label', { class: 'stack', for: 'focus-pick' }, h('span', { class: 'eyebrow', text: 'Focus' }), sel),
-        h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: () => { E.makeRoutine(minutes, focus); } }, 'Build my routine')));
-      return c;
-    }
-
-    view.append(h('div', { class: 'card' },
-      h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Region of the week' }), h('span', { class: 'mono small', text: Math.round(E.regionScore(rw) * 100) + '%' })),
-      h('h2', { text: rw.name }), h('p', { class: 'small', text: rw.summary }),
-      h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => regionPage(rw) }, 'Explore ' + rw.name), h('button', { class: 'btn small ghost', onclick: () => go('atlas') }, 'Pick another'))));
+    const rec = nextRecording(rw);
+    const nl = D.LESSONS.find(l => !E.lessonDone(l.id));
+    view.append(h('div', { class: 'duo' },
+      h('div', { class: 'card nextcard area-' + rw.area.toLowerCase().replace(/[^a-z]+/g, '-') },
+        h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Style of the week' }), h('span', { class: 'mono small', text: Math.round(E.regionScore(rw) * 100) + '%' })),
+        h('h2', { text: rw.name }), h('p', { class: 'small', text: rw.summary }),
+        rec ? h('div', { class: 'callout' }, h('span', { class: 'eyebrow', text: 'Next to hear' }), h('b', { text: rec.work }), h('span', { class: 'small', text: rec.artist + ' · ' + rec.year })) : null,
+        h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => openTool('listening', { params: { region: rw.id }, returnTab: 'today' }) }, '▶ Listen'), h('button', { class: 'btn small', onclick: () => regionPage(rw) }, 'Explore'), h('button', { class: 'btn small ghost', onclick: () => go('learn', 'styles') }, 'Pick another'))),
+      h('div', { class: 'card nextcard' },
+        h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Theory course' }), h('span', { class: 'mono small', text: lessonsDone + '/' + D.LESSONS.length })),
+        nl ? h('h2', { text: nl.title }) : h('h2', { text: 'Course complete' }),
+        nl ? h('p', { class: 'small', text: nl.summary }) : h('p', { class: 'small', text: 'Revisit any lesson from the Learn tab.' }),
+        bar(100 * lessonsDone / D.LESSONS.length, 'brass'),
+        h('div', { class: 'row' }, nl ? h('button', { class: 'btn small brass', onclick: () => lessonPage(nl) }, (lessonsDone ? 'Continue' : 'Start') + ' · ' + nl.minutes + ' min') : null, h('button', { class: 'btn small ghost', onclick: () => go('learn', 'theory') }, 'All lessons')))));
 
     // Progress
     const prog = h('div', { class: 'card' });
@@ -83,7 +102,7 @@ Object.assign(PAGES, {
       const sec = h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: name }));
       ks.forEach(k => {
         const m = Math.round(E.mastery(k)), tr = E.trend(k);
-        sec.append(h('button', { class: 'tile', style: { gridTemplateColumns: '1fr' }, onclick: () => openTool(E.SKILLS[k].tool) },
+        sec.append(h('button', { class: 'tile', style: { gridTemplateColumns: '1fr' }, onclick: () => openTool(E.SKILLS[k].tool, { returnTab: 'today' }) },
           h('div', { class: 'skillrow' }, h('span', { text: E.SKILLS[k].name + (k !== 'technique' ? ' · level ' + E.unlockedTier(k) : '') }), h('span', { class: 'mono', style: { textAlign: 'right' }, text: m + '%' }),
             h('span', { class: 'mono small ' + (tr > 0 ? 'trend-up' : tr < 0 ? 'trend-down' : 'muted'), style: { textAlign: 'right' }, text: tr === null ? '' : (tr > 0 ? '+' : '') + Math.round(tr) }), bar(m))));
       });
@@ -93,7 +112,7 @@ Object.assign(PAGES, {
 
     const weak = E.weakItems(6), conf = E.confusions(4);
     if (weak.length || conf.length) {
-      const wc = h('div', { class: 'card' }, h('h2', { text: 'Weak spots' }), h('p', { class: 'small muted', text: 'Lowest-scoring items you have tried at least twice. Routines and drills serve these more often.' }));
+      const wc = h('div', { class: 'card' }, h('h2', { text: 'Weak spots' }), h('p', { class: 'small muted', text: 'Lowest-scoring items you have tried at least twice. The smart plan and the drills serve these more often.' }));
       weak.forEach(w => wc.append(h('div', { class: 'skillrow' }, h('span', { text: w.label }), h('span', { class: 'mono', style: { textAlign: 'right' }, text: Math.round(w.ema * 100) + '%' }), h('span', { class: 'small muted', text: E.SKILLS[w.skill].name.split(' ')[0] }), bar(w.ema * 100, 'brass'))));
       if (conf.length) {
         wc.append(h('h3', { text: 'Most confused' }));
@@ -102,40 +121,30 @@ Object.assign(PAGES, {
       view.append(wc);
     }
 
+    const jr = E.journal().slice(0, 5);
+    if (jr.length) {
+      view.append(h('div', { class: 'card' }, h('h2', { text: 'Practice journal' }),
+        h('div', { class: 'stack' }, jr.map(j => h('div', { class: 'jrow' },
+          h('div', { class: 'spread' }, h('b', { text: j.name }), h('span', { class: 'mono small muted', text: new Date(j.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + fmtMin(j.sec / 60) + ' · ' + j.done + '/' + j.total + ' blocks' })),
+          j.note ? h('p', { class: 'small', text: j.note }) : null)))));
+    }
+
     const danger = h('div', { class: 'card' });
     danger.append(h('div', { class: 'spread' }, h('span', { class: 'small muted', text: E.storageNote() + '. Timing correction: ' + (st.settings.latencyMs || 0) + ' ms.' }),
       h('button', { class: 'btn small ghost', onclick: () => {
         const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }), h('span', { class: 'small', text: 'This clears every score, routine and setting. It cannot be undone.' }),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small', style: { borderColor: 'var(--bad)', color: 'var(--bad)' }, onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
+          h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
         danger.append(c);
       } }, 'Reset progress')));
     view.append(backupCard(), danger);
   },
-  ear() {
-    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Ear training' }), h('h1', { text: 'Hear it before you play it' })));
-    view.append(h('div', { class: 'tools' }, ['intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone'].map(id => toolTile(id))));
-    view.append(h('p', { class: 'small muted', text: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' }));
-  },
-  rhythm() {
-    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Rhythm' }), h('h1', { text: 'Time, feel and the world\'s cycles' })));
-    view.append(h('div', { class: 'tools' }, ['rhythms', 'rhythmid', 'clock', 'metronome'].map(id => toolTile(id))));
-    view.append(h('p', { class: 'small muted', text: 'Tip: run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' }));
-  },
-  play() {
-    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Guitar' }), h('h1', { text: 'From the ear to the hands' })));
-    view.append(h('div', { class: 'tools' }, ['fretboard', 'callresp', 'repertoire', 'technique'].map(id => toolTile(id))));
-  },
-  atlas() {
-    const rw = E.regionOfWeek();
-    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'World music atlas' }), h('h1', { text: 'Play music from everywhere' }),
-      h('p', { class: 'muted', text: 'Each region has its rhythms, scales, guitar techniques, players to hear and a quiz. Your region of the week shapes your routines.' })));
-    view.append(h('div', { class: 'tools' }, toolTile('atlasquiz')));
-    const tl = h('div', { class: 'tools' });
-    D.REGIONS.forEach(r => {
-      const sc = Math.round(E.regionScore(r) * 100);
-      tl.append(h('button', { class: 'tile', onclick: () => regionPage(r) }, h('span', { class: 't-title', text: r.name + (rw.id === r.id ? '  · this week' : '') }), h('span', { class: 't-desc', text: r.places }), h('span', { class: 't-meter', text: sc + '%' })));
-    });
-    view.append(tl);
+  train() {
+    const sec = TRAIN[ui.section.train] ? ui.section.train : 'ear';
+    const t = TRAIN[sec];
+    view.append(h('div', { class: 'pagehead' }, h('span', { class: 'eyebrow', text: 'Train' }), h('h1', { text: t.title })));
+    view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
+    view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
+    view.append(h('p', { class: 'small muted', text: t.tip }));
   }
 });
 
