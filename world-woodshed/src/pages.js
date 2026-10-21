@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay } from './ui/core.js';
+import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -12,6 +12,7 @@ import { shareFile, isNative } from './native.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import Samples from './samples.js';
+import { statsPage, heatmap, dayChart } from './ui/stats.js';
 
 /* ======================================================
    PAGES
@@ -103,7 +104,7 @@ Object.assign(PAGES, {
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkQ }), h('span', { text: 'answers, last 7 days' })),
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkQ ? Math.round(100 * wkC / wkQ) + '%' : '—' }), h('span', { text: 'accuracy' })),
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: E.streak() }), h('span', { text: 'day streak' }))));
-    prog.append(dayChart(days), heatmap());
+    prog.append(dayChart(days), heatmap(), h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => statsPage() }, 'All statistics →')));
     Object.entries(E.CAT_NAMES).forEach(([cat, name]) => {
       const ks = Object.keys(E.SKILLS).filter(k => E.SKILLS[k].cat === cat);
       const sec = h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: name }));
@@ -161,56 +162,6 @@ Object.assign(PAGES, {
 });
 
 const CONTRAST_SKILLS = ['intervals', 'chords', 'degrees', 'scales', 'rhythmId'];
-/* Six months of practice at a glance: one square per day, darker for longer */
-function heatmap() {
-  const weeks = 26, cell = 13, gap = 3, padL = 22, padT = 16;
-  const end = new Date(); end.setHours(12, 0, 0, 0);
-  const start = new Date(end); start.setDate(end.getDate() - (weeks * 7 - 1));
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // back to a Monday
-  const W = padL + weeks * (cell + gap) + 2, Hh = padT + 7 * (cell + gap);
-  const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'heatmap', role: 'img', 'aria-label': 'Practice per day over the last six months' });
-  ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach((t, i) => t && svg.append(s('text', { x: 0, y: padT + i * (cell + gap) + cell - 2 }, t)));
-  let days = 0, total = 0, lastMonth = -1;
-  for (let w = 0; w < weeks + 1; w++) for (let d = 0; d < 7; d++) {
-    const dt = new Date(start); dt.setDate(start.getDate() + w * 7 + d);
-    if (dt > end) continue;
-    const hrec = E.state.history[E.dayKey(dt.getTime())], min = hrec ? Math.round(hrec.sec / 60) : 0, q = hrec ? hrec.q : 0;
-    const lvl = min >= 45 ? 4 : min >= 20 ? 3 : min >= 8 ? 2 : (min > 0 || q > 0) ? 1 : 0;
-    if (lvl) { days++; total += min; }
-    const x = padL + w * (cell + gap), y = padT + d * (cell + gap);
-    if (d === 0 && dt.getMonth() !== lastMonth) { lastMonth = dt.getMonth(); svg.append(s('text', { x, y: 10 }, dt.toLocaleDateString(undefined, { month: 'short' }))); }
-    const r = s('rect', { class: 'hm l' + lvl, x, y, width: cell, height: cell, rx: 3 });
-    r.append(s('title', {}, dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ': ' + (min ? min + ' min' : q ? q + ' answers' : 'no practice')));
-    svg.append(r);
-  }
-  const scroller = h('div', { class: 'heatscroll' }, svg);
-  requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; }); // the latest weeks first on a narrow screen
-  return h('div', { class: 'stack heatwrap' }, h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Six months' }), h('span', { class: 'small muted', text: days + ' day' + (days === 1 ? '' : 's') + ' practised · ' + fmtMin(total) })), scroller);
-}
-function dayChart(days) {
-  const W = 640, Hh = 160, padL = 30, padB = 22, padT = 12;
-  const maxMin = Math.max(30, ...days.map(d => d.min));
-  const top = Math.ceil(maxMin / 15) * 15;
-  const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chart', role: 'img', 'aria-label': 'Minutes practiced per day for 14 days, with accuracy line' });
-  const ih = Hh - padB - padT, iw = W - padL - 30;
-  const y = v => padT + ih - (v / top) * ih;
-  [0, top / 2, top].forEach(v => { svg.append(s('line', { class: 'grid', x1: padL, x2: W - 30, y1: y(v), y2: y(v) }), s('text', { x: padL - 5, y: y(v) + 3, 'text-anchor': 'end' }, Math.round(v))); });
-  svg.append(s('text', { x: padL - 5, y: padT - 2, 'text-anchor': 'end' }, 'min'), s('text', { x: W - 4, y: padT - 2, 'text-anchor': 'end' }, 'acc'));
-  const bw = iw / days.length;
-  const pts = [];
-  days.forEach((d, i) => {
-    const x = padL + i * bw;
-    if (d.min > 0) svg.append(s('rect', { class: 'barfill', x: x + 3, y: y(d.min), width: Math.max(2, bw - 6), height: Math.max(1, y(0) - y(d.min)), rx: 2 }));
-    if (i % 2 === (days.length - 1) % 2) svg.append(s('text', { x: x + bw / 2, y: Hh - 6, 'text-anchor': 'middle' }, d.date.getDate()));
-    if (d.acc !== null) pts.push([x + bw / 2, padT + ih - d.acc * ih]);
-  });
-  [0, 0.5, 1].forEach(v => svg.append(s('text', { x: W - 4, y: padT + ih - v * ih + 3, 'text-anchor': 'end' }, Math.round(v * 100) + '%')));
-  if (pts.length > 1) svg.append(s('polyline', { class: 'accline', points: pts.map(p => p.join(',')).join(' ') }));
-  pts.forEach(p => svg.append(s('circle', { class: 'accdot', cx: p[0], cy: p[1], r: 3 })));
-  const wrap = h('div', { class: 'stack' }, svg, h('p', { class: 'small muted', text: 'Bars: minutes per day. Gold line: accuracy on days you answered questions.' }));
-  return wrap;
-}
-
 /* Automatic sync through a private GitHub repository the player owns (opt-in; the token stays on this device) */
 function githubSyncBox() {
   const box = h('div', { class: 'ghsync stack' });

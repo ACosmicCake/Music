@@ -437,5 +437,12 @@ export function upcoming(n = 6) {
   return Object.entries(c.items).map(([id, it]) => ({ id, name: describeItem(id), dueIn: (it.last + it.s * DAY - now) / DAY, s: it.s }))
     .sort((a, b) => a.dueIn - b.dueIn).slice(0, n);
 }
+/* Everything the planner will treat as a due review at time t (the rule choose() uses), most overdue first */
+export function dueAt(t = Date.now()) {
+  const c = cur();
+  return Object.entries(c.items).map(([id, it]) => ({ id, it, x: byId(id) })).filter(o => o.x && overdue(o.it, t) >= 0.9)
+    .map(o => ({ id: o.id, name: o.x.name, kind: o.x.kind, kindName: KIND_NAME[o.x.kind], recall: recall(o.it, t), overdue: overdue(o.it, t) }))
+    .sort((a, b) => b.overdue - a.overdue);
+}
 
-export default { alternatives, blockFor, migrate, PACE, prefs, setPrefs, catalog, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, recall, GRADE_LABEL, focusStyle };
+export default { alternatives, blockFor, migrate, PACE, prefs, setPrefs, catalog, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };
