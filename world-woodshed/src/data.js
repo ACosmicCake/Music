@@ -14,6 +14,7 @@ import SCIENCE from './content/science.js';
 import TECH_B from './content/techniques-b.js';
 import EX_VARS from './content/exercise-vars.js';
 import RHY_VAR from './content/rhythms-var.js';
+import DRILLS_A from './content/drills-a.js';
 import DRILLS_B from './content/drills-b.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const NOTE_FULL = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
@@ -592,7 +593,7 @@ const LICK_ITEMS = [
 ];
 
 /* Style drills (src/content/drills-*.js) */
-const DRILLS = [...DRILLS_B];
+const DRILLS = [...DRILLS_A, ...DRILLS_B];
 
 /* Variations, fills, longer cycles and tips for every rhythm (src/content/rhythms-var.js) */
 RHYTHMS.forEach(r => { if (RHY_VAR.rhythms[r.id]) r.var = RHY_VAR.rhythms[r.id]; });
