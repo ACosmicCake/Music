@@ -41,6 +41,38 @@ export function toast(msg) {
   const t = h('div', { class: 'toast', role: 'status', text: msg });
   document.body.append(t); setTimeout(() => t.remove(), 2200);
 }
+/* ---------- when something breaks ----------
+   A failure while drawing a page or a tool should never leave a blank screen with no way out: it is logged,
+   said briefly, and the view offers the way back (or a reload, when Today itself failed). */
+export function failure(el, e, what) {
+  console.error(e);
+  toast(what + ' could not open');
+  const home = ui.tab === 'today' && !ui.runner
+    ? h('button', { class: 'btn brass', onclick: () => location.reload() }, 'Reload the app')
+    : h('button', { class: 'btn brass', onclick: () => go('today') }, 'Back to Today');
+  const card = h('div', { class: 'card', role: 'alert' },
+    h('h2', { text: 'Something went wrong' }),
+    h('p', { class: 'small muted', text: what + ' hit an error and could not be shown' + (e && e.message ? ' (' + e.message + ').' : '.') }),
+    h('div', { class: 'row' }, home));
+  el.append(card);
+  home.focus();
+}
+/* Errors nothing else caught (an event handler, a timer, a promise): one short note, at most every few
+   seconds, so a repeating error can't flood the screen. The error still reaches the console as usual. */
+export function watchErrors() {
+  let last = 0;
+  const note = msg => {
+    const now = Date.now();
+    if (now - last < 8000) return;
+    last = now;
+    toast('Something went wrong' + (msg ? ': ' + String(msg).slice(0, 80) : '') + '. If a screen looks stuck, go back to Today.');
+  };
+  window.addEventListener('error', e => {
+    if (/ResizeObserver loop/.test(e.message || '')) return; // harmless browser notice, not an app error
+    note(e.error && e.error.message || e.message);
+  });
+  window.addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
+}
 export function bar(pct, cls) { return h('div', { class: 'bar ' + (cls || '') }, h('i', { style: { width: Math.max(0, Math.min(100, pct)) + '%' } })); }
 export function regionName(id) { const r = D.REGIONS.find(x => x.id === id); return r ? r.name : id; }
 
@@ -109,13 +141,16 @@ export function go(tab, section) {
   renderTabs();
   view.innerHTML = '';
   window.scrollTo(0, 0);
-  PAGES[tab]();
+  try { PAGES[tab](); focusView(); } catch (e) { view.innerHTML = ''; failure(view, e, (TABS.find(t => t[0] === tab) || [, 'This page'])[1]); }
   if (hooks.afterNav) hooks.afterNav();
-  focusView();
 }
 E.onChange(() => {
   syncEl.textContent = E.storageNote();
-  if (!ui.runner && ui.tab === 'today') { const y = window.scrollY; view.innerHTML = ''; PAGES.today(); window.scrollTo(0, y); }
+  if (!ui.runner && ui.tab === 'today') {
+    const y = window.scrollY; view.innerHTML = '';
+    try { PAGES.today(); } catch (e) { view.innerHTML = ''; failure(view, e, 'Today'); }
+    window.scrollTo(0, y);
+  }
 });
 
 /* ---------- tool registry ---------- */
@@ -205,8 +240,8 @@ export function openTool(id, opts = {}) {
   renderBlockBar();
   if (hooks.afterNav) hooks.afterNav();
   let toolCleanup = null;
-  try { toolCleanup = t.render(body, ctx); } catch (e) { console.error(e); body.append(h('p', { text: 'Something went wrong loading this tool: ' + e.message })); }
-  focusView();
+  // a tool that failed keeps focus on its way back (failure() focuses it); otherwise focus the tool's title
+  try { toolCleanup = t.render(body, ctx); focusView(); } catch (e) { failure(body, e, t.title || 'This tool'); }
   ui.cleanup = () => {
     clearInterval(timer);
     document.removeEventListener('pointerdown', markAct, true);

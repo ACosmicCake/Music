@@ -3,6 +3,7 @@ import D from '../src/data.js';
 import { parseChord } from '../src/theory.js';
 import { LEVELS, genMelody, rhythmPiece, pieceLength } from '../src/content/reading.js';
 import { parseTime } from '../src/notation.js';
+import { loadDrills } from '../src/content/lazy.js';
 
 const SOUNDS = new Set(['clave', 'bell', 'low', 'mid', 'high', 'shaker', 'clap', 'chick', 'hat', 'ride']);
 const Q = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
@@ -29,7 +30,8 @@ describe('tunes, drills and exercises', () => {
       if (t.form) expect(t.form.reduce((a, f) => a + f[1], 0), t.id).toBe(t.bars.length);
     }
   });
-  it('drills point at real backings and their bars add up', () => {
+  it('drills point at real backings and their bars add up', async () => {
+    await loadDrills();
     const ids = new Set();
     for (const d of D.DRILLS) {
       expect(ids.has(d.id), d.id).toBe(false); ids.add(d.id);

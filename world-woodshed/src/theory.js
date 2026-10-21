@@ -24,9 +24,10 @@ export function parseChord(sym) {
 export function flatName(p) { return ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][((p % 12) + 12) % 12]; }
 export function prettySym(sym) { return sym.replace(/b(?=[^a-z]|$)/, '♭').replace('#', '♯').replace('m7b5', 'm7♭5').replace(/^([A-G])b/, '$1♭'); }
 
-/* Close voicing around the guitar's middle register: root in the bass, the rest above */
+/* Close voicing around the guitar's middle register: root in the bass, the rest above.
+   root is a pitch class (0 = C). The bass note is the lowest one of that name from G2 (MIDI 43) up to F♯3. */
 export function chordMidis(root, iv) {
-  let r = 40 + root; if (r < 43) r += 12;
+  let r = 40 + ((((root - 40) % 12) + 12) % 12); if (r < 43) r += 12;
   return iv.map(x => r + x);
 }
 

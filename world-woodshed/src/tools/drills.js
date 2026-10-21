@@ -9,6 +9,7 @@ import Mic from '../listen.js';
 import { MicToggle, TimingMeter } from '../ui/mic.js';
 import Cur from '../curriculum.js';
 import { Band } from '../band.js';
+import { loadDrills, drawWhenLoaded } from '../content/lazy.js';
 
 /* ======================================================
    STYLE DRILLS: the exercises a teacher of each tradition would give, with a backing loop,
@@ -154,8 +155,11 @@ tool('drill', {
       drawVar();
       playBtn.onclick = () => { if (back.loop) { back.stop(); playBtn.textContent = '▶ Play'; ctx.setActive(false); } else { meter.reset(); back.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true); } };
     }
-    const start = D.DRILLS.find(d => d.id === (ctx.params || {}).drill);
-    if (start) open(start); else list();
-    return () => stopAll();
+    // the drill texts, phrases and variations load on first use (src/content/lazy.js)
+    const stopLoad = drawWhenLoaded(loadDrills, holder, () => {
+      const start = D.DRILLS.find(d => d.id === (ctx.params || {}).drill);
+      if (start) open(start); else list();
+    });
+    return () => { stopLoad(); stopAll(); };
   }
 });
