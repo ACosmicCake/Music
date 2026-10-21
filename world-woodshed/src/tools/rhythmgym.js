@@ -54,7 +54,7 @@ tool('gym', {
       const card = h('div', { class: 'card' }); holder.append(card);
       const bpmLbl = h('b', { class: 'mono', text: bpm + ' bpm' });
       const label = h('div', { class: 'prompt gym-label', text: ex.label(0) });
-      const status = h('div', { class: 'phase' });
+      const status = h('div', { class: 'phase', role: 'status' });
       const tl = Timeline(ex.beats);
       const stats = h('div', { class: 'gym-stats small mono' });
       const practiceBtn = h('button', { class: 'btn primary' }, '▶ Practise');
