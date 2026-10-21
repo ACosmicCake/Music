@@ -16,6 +16,7 @@ import './tools/rhythm.js';
 import './tools/play.js';
 import './tools/atlas.js';
 import './tools/practice.js';
+import './tools/reading.js';
 import './tools/learn.js';
 import { bootSession } from './ui/session.js';
 import './ui/routine.js';

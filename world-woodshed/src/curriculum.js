@@ -337,7 +337,13 @@ function toBlock(b) {
       break;
     }
     case 'ear': Object.assign(out, { type: E.SKILLS[b.ear.k].tool, reason: 'Ear: ' + Math.round(b.ear.m) + '% mastered' + (b.ear.due >= 3 ? ', ' + b.ear.due + ' items due' : '') + '. Missed items come back sooner.' }); break;
-    case 'reading': Object.assign(out, { type: 'sightread', reason: 'Sight-reading at your level; notes you miss come back sooner.' }); break;
+    case 'reading': {
+      // rotate note reading, rhythm and melody; extra note drills when many notes are due
+      const recent = Object.values(cur().days).flatMap(d => d.sessions || []).flatMap(x => x.types || []).filter(t => t === 'sightread').length;
+      const mode = E.dueCount('reading') >= 4 ? 'notes' : ['notes', 'rhythm', 'melody'][recent % 3];
+      Object.assign(out, { type: 'sightread', params: { mode }, reason: 'Sight-reading (' + { notes: 'note reading', rhythm: 'rhythm', melody: 'melody' }[mode] + ') at your level. Notes you miss come back sooner.' });
+      break;
+    }
     case 'fret': Object.assign(out, { type: 'fretboard', reason: 'Fretboard notes, spaced by how well you know each one.' }); break;
     case 'listen': { const r = focusStyle() || E.regionOfWeek(); Object.assign(out, { type: 'listening', params: { region: r.id }, reason: 'Listening: the next record from ' + r.name + '.' }); break; }
     case 'transcribe': Object.assign(out, { type: 'transcribe', params: { song: b.song.id }, reason: 'Transcribe: keep going on “' + b.song.title + '”.' }); break;
