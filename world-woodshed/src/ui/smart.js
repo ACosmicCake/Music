@@ -23,11 +23,15 @@ function planFor(m, fresh) {
   return plan;
 }
 
+// a length picked here a moment ago survives the card being redrawn (Today redraws when progress changes)
+let picked = null;
+
 /* "How much time do you have right now?" → a plan for this session, explained */
 export function smartPlanner(opts = {}) {
   const card = h('div', { class: 'card smart-card' });
-  // start from the length of the last session started here, already planned: one tap to go
-  let minutes = TIMES.includes(E.state.settings.lastMinutes) ? E.state.settings.lastMinutes : null;
+  // start from the length just picked, else the last session started here, already planned: one tap to go
+  const recent = picked && Date.now() - picked.t < 15 * 60e3 ? picked.m : null;
+  let minutes = recent || (TIMES.includes(E.state.settings.lastMinutes) ? E.state.settings.lastMinutes : null);
   let plan = minutes ? planFor(minutes) : null;
   function draw() {
     card.innerHTML = '';
@@ -40,7 +44,7 @@ export function smartPlanner(opts = {}) {
         h('button', { class: 'btn small ghost', onclick: () => sciencePage() }, 'How it decides →')),
       h('div', { class: 'daygoal' }, h('span', { class: 'small', text: status }), h('span', { class: 'mono small muted', text: fmtMin(done) + ' / ' + fmtMin(goal) + ' goal' }),
         h('div', { class: 'bar brass' }, h('i', { style: { width: Math.min(100, 100 * done / goal) + '%' } }))));
-    const chips = h('div', { class: 'chips presets' }, TIMES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; plan = planFor(m); draw(); } }, fmtMin(m).replace(' min', 'm').replace(' h', 'h'))));
+    const chips = h('div', { class: 'chips presets' }, TIMES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; picked = { m, t: Date.now() }; plan = planFor(m); draw(); } }, fmtMin(m).replace(' min', 'm').replace(' h', 'h'))));
     card.append(chips);
     if (!plan) {
       card.append(h('p', { class: 'small muted', text: 'Pick a length. The plan reviews what is due, brings in new material slowly from the styles you put first, and remembers what you already did today, so a second or third session picks up where the first left off.' }));
@@ -56,7 +60,7 @@ export function smartPlanner(opts = {}) {
           h('div', { class: 'stack', style: { gap: '4px', justifyItems: 'end' } }, h('span', { class: 'mono small', text: b.minutes + 'm' }),
             b.type !== 'break' ? h('button', { class: 'mbtn', 'aria-label': 'Swap ' + blockTitle(b), title: 'Swap this block', onclick: () => openSwap({ block: b, used: plan.blocks.map(x => x.cur).filter(Boolean), onPick: nb => { nb.minutes = b.minutes; plan.blocks[i] = nb; draw(); } }) }, '⇄') : null))))),
       h('div', { class: 'row' },
-        h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastMinutes = minutes; startSession({ name: 'Smart practice', blocks: plan.blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
+        h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastMinutes = minutes; picked = null; startSession({ name: 'Smart practice', blocks: plan.blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
         h('button', { class: 'btn ghost', onclick: () => { plan = planFor(minutes, true); draw(); } }, 'Shuffle'),
         opts.compact ? null : h('button', { class: 'btn ghost', onclick: () => {
           const r = { id: E.uid('r'), name: 'Smart ' + fmtMin(minutes), breaks: false, autoAdvance: true, blocks: plan.blocks.filter(b => b.type !== 'break').map(b => ({ id: E.uid('b'), type: b.type, minutes: b.minutes, settings: {} })) };
