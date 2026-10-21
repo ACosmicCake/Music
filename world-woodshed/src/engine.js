@@ -163,9 +163,30 @@ function loadLocal() {
     if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) state = Object.assign(freshState(), migrate(s, DEV)); }
   } catch (e) { /* storage unavailable */ }
 }
+/* Save health: did the last save reach this device's storage? localStorage is the main copy and IndexedDB
+   the second; a save that fails in one still goes to the other. The UI shows one quiet banner while the
+   main copy is failing (src/ui/savebanner.js), never a toast per save. */
+const health = { local: true, idb: true, lastOk: Date.now(), error: '' };
+const healthListeners = new Set();
+const STALE = DAY; // after a day without a successful save, the banner asks for a backup file
+function saveHealth() {
+  const level = health.local ? 'ok' : health.idb ? 'idb-only' : 'failing';
+  return { level, lastOk: health.lastOk, stale: level !== 'ok' && Date.now() - health.lastOk > STALE, error: health.error };
+}
+function onSaveHealth(fn) { healthListeners.add(fn); return () => healthListeners.delete(fn); }
+let healthSig = 'ok';
+function markSave(store, ok, err, quiet) {
+  health[store] = ok;
+  if (ok) health.lastOk = Date.now();
+  else if (err && store === 'local') health.error = err.name === 'QuotaExceededError' ? 'storage full' : (err.name || err.message || 'storage unavailable');
+  if (quiet) return;
+  const h = saveHealth(), sig = h.level + (h.stale ? ':stale' : '');
+  if (sig !== healthSig) { healthSig = sig; healthListeners.forEach(fn => { try { fn(h); } catch (e) { console.error(e); } }); }
+}
 function saveLocal() {
   const json = JSON.stringify(state);
-  try { localStorage.setItem(LS_KEY, json); } catch (e) { /* ignore */ }
+  // a failure here is announced once the IndexedDB copy has settled, so the banner says the right thing first time
+  try { localStorage.setItem(LS_KEY, json); markSave('local', true); } catch (e) { markSave('local', false, e, true); }
   idbPut(json);
 }
 
@@ -183,7 +204,11 @@ function idb() {
   return idbp;
 }
 function idbPut(json) {
-  idb().then(d => d.transaction('state', 'readwrite').objectStore('state').put(json, LS_KEY)).catch(() => {});
+  idb().then(d => new Promise((res, rej) => {
+    const tx = d.transaction('state', 'readwrite');
+    tx.objectStore('state').put(json, LS_KEY);
+    tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error);
+  })).then(() => markSave('idb', true), e => markSave('idb', false, e));
 }
 async function loadIdb() {
   try {
@@ -798,5 +823,5 @@ export default {
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
   techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, resetAll, exportBackup, importBackup,
-  storageNote: () => storageNote, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
+  storageNote: () => (saveHealth().level === 'failing' ? 'Not saving on this device' : storageNote), saveHealth, onSaveHealth, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };

@@ -1,0 +1,21 @@
+{
+  "v": 1, "created": 1760000000000, "updatedAt": 1760900000000,
+  "skills": {
+    "intervals": { "items": { "P5:up": { "n": 6, "c": 5, "ema": 0.82, "box": 3, "due": 1761000000000, "last": 1760900000000 } }, "conf": { "M3:up>P4:up": 2 }, "last": 1760900000000 },
+    "chords": { "items": { "maj": { "n": 3, "c": 3, "ema": 1, "box": 3, "due": 1761100000000, "last": 1760800000000 } }, "conf": {}, "last": 1760800000000 }
+  },
+  "history": {
+    "2025-10-18": { "sec": 1200, "q": 14, "c": 11, "by": { "intervals": [10, 8, 600], "technique": [0, 0, 600] }, "mastery": { "intervals": 12 } },
+    "2025-10-19": { "sec": 900, "q": 4, "c": 4, "by": { "chords": [4, 4, 900] } }
+  },
+  "tomb": {}, "anchors": { "P5:up": "Star Wars theme" },
+  "tech": { "altpick": { "bpm": 96, "best": 92, "last": 1760800000000, "hist": [["2025-10-18", 92]], "sloppy": 0 } },
+  "settings": { "latencyMs": 35, "minutes": 30, "focus": "jazz", "tuning": "dropd", "capo": 2, "noteNames": "letters" },
+  "routine": null, "placementDone": true,
+  "songs": { "sg1": { "id": "sg1", "title": "Blue in Green", "lastOpened": 1760850000000, "speed": 0.75, "sections": [{ "a": 10, "b": 20, "name": "Intro" }] } },
+  "routines": [{ "id": "r1", "name": "Mornings", "breaks": false, "blocks": [{ "id": "b1", "type": "scalewarm", "minutes": 10, "settings": {} }], "updatedAt": 1760700000000 }],
+  "session": null,
+  "lessons": { "notes": 1760600000000 }, "heard": { "flamenco:0": 1760600000000 },
+  "journal": [{ "ts": 1760800000000, "date": "2025-10-18", "name": "Mornings", "sec": 1200, "done": 1, "total": 1, "note": "Felt good" }],
+  "readLib": { "n": 2, "pieces": { "p1": { "id": "p1", "no": 1, "lv": 1, "kind": "melody", "code": "C/4/4/60w", "made": 1760600000000, "reads": [{ "t": 1760600000000, "s": 0.6, "bpm": 60 }], "best": 0.6, "gap": 1, "due": 1760686400000, "star": true }, "p2": { "id": "p2", "no": 2, "lv": 1, "kind": "rhythm", "code": "C/4/4/71h 71h", "made": 1760600000000, "reads": [], "best": 0, "gap": 0, "due": null, "star": false } } }
+}
