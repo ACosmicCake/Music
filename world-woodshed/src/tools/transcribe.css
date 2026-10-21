@@ -1,0 +1,22 @@
+/* Transcribe: key, tempo and beat grid card; note at the playhead */
+.tr-est .tr-keyline { margin: 0; font-size: 1.05rem; }
+.tr-est .tr-keyline b { color: var(--patina); }
+.tr-est p { margin: 0; }
+.tr-sub { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tr-bpm-wrap { gap: 6px; }
+input.num.tr-bpm { width: 6.5em; }
+.tr-sub select { min-height: 38px; padding: 6px 8px; }
+.tr-an .bar { max-width: 320px; }
+
+.tr-note-read { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.tr-note { font-family: var(--font-mono); font-size: 2.4rem; line-height: 1; min-width: 3.4ch; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tr-note.dim { color: var(--muted); opacity: 0.6; }
+.tr-note-detail { gap: 4px; min-width: 150px; }
+.tr-note-why { margin: 0; min-height: 1.3em; }
+.tr-cents { position: relative; height: 8px; width: min(200px, 100%); background: var(--sunk); border: 1px solid var(--line); border-radius: 99px; }
+.tr-cents::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--line); }
+.tr-cents > i { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; border-radius: 2px; background: var(--brass); left: 50%; transition: left 0.12s ease-out; }
+.tr-cents > i.ok { background: var(--good); }
+.tr-cents[hidden] { display: none; }
+.tr-mini .fretwrap { max-width: 460px; }
+@media (prefers-reduced-motion: reduce) { .tr-cents > i { transition: none; } }

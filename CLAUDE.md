@@ -18,15 +18,16 @@ Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to t
 - `src/routines.js`: routine block types (`BLOCKS`), templates, time fitting (`setTotal`, auto breaks), no-guitar swaps (`awayBlocks`).
 - `src/audio.js`: Web Audio synthesis (Karplus-Strong guitar, percussion voices, look-ahead `Loop` scheduler, tanpura `Drone`). `note`, `strum` and `hit` take an optional output node.
 - `src/band.js`: the Repertoire gym's backing band (`Band`). Swing: walking upright bass, rootless piano voicings with voice leading and varied comping rhythms, synthesized ride kit; bossa nova; other grooves from the `GROOVES` patterns. Parts sit on a bus with room reverb and can be muted (e.g. bass alone). `barAt(time)` drives the "follow the form by ear" check. Tunes can carry a `form` (`[[label, bars]]`) in `data.js`.
-- `src/engine.js`: skill model, spaced repetition, mastery and level unlocks, placement test, the adaptive (smart) plan, custom routines, the running session, lessons done, recordings heard, practice journal, persistence, backup export/import.
+- `src/engine.js`: your guitar (`TUNINGS`, `STRINGS` updated in place for tuning and capo, `setGuitar`; left-handed fretboard; letter or solfège note names applied to `D.NOTE_NAMES`), skill model, spaced repetition, mastery and level unlocks, placement test, the adaptive (smart) plan, custom routines, the running session, lessons done, recordings heard, practice journal, persistence, backup export/import.
 - `src/ui/core.js`: UI helpers (`h`, `s`, `Fretboard`, `toast`, `Quiz`), tabs and routing (old `#ear`, `#rhythm`, `#play`, `#atlas` links are aliases), the tool registry (`tool`, `openTool`), placement runner. `PAGES` lives here and is filled in by the page modules; `hooks` lets `session.js` plug in without import cycles.
 - `src/ui/session.js`: the practice session runner: wall-clock timer that keeps counting with the screen off, session bar on each tool, time-up chime and auto-advance, wake lock, finish screen and journal.
 - `src/ui/smart.js`: the smart planner ("How much time do you have right now?"), learning preferences (ranked styles, pace, daily goal) and the science page.
 - `src/ui/routine.js`: the Routine tab (routine editor with drag reorder, durations, templates, smart plan, session overview).
-- `src/tools/ear.js`, `rhythm.js`, `play.js`, `atlas.js`: trainers, registered with `tool(id, def)`.
+- `src/tools/ear.js`, `rhythm.js`, `play.js`, `atlas.js`: trainers, registered with `tool(id, def)`. Ear tools accept `params.contrast: [a, b]` (a contrast drill on two confused items, started from Today's weak spots); the scale explorer compares quarter-tone maqamat with their 12-TET rounding.
+- `src/tools/dictation.js` (+ `dictation.css`, items and melody generator in `src/content/dictation.js`): Melodic dictation, skill `dictation`.
 - `src/tools/practice.js`: scale warm-up, chord & scale explorer, circle of fifths, reference tones, free practice, break, no-guitar drills.
 - `src/tools/learn.js`: the Learn tab (style library and style pages, theory course and lesson reader, reference) and the `listening` and `lesson` tools.
-- `src/tools/transcribe.js`: the Transcribe tab, a plugin that receives the `UI` object.
+- `src/tools/transcribe.js` (+ `transcribe.css`): the Transcribe tab, a plugin that receives the `UI` object. Key and tempo estimates on load, a beat grid with snap-to-beat loops, the note at the playhead, Media Session controls and a screen wake lock while playing.
 - `src/pages.js`: the Today dashboard and the Train page.
 - `src/stretch.js` (phase-vocoder time-stretch with phase locking, transient resets and shared stereo phase; windowed-sinc resampler for pitch shift) and `src/stretch.worker.js` (runs it in a module Worker).
 - `src/listen.js` (pitch and onset detection, the `Mic` input and its latency calibration) and `src/ui/mic.js` (the Listen toggle, mic settings card, timing meter).

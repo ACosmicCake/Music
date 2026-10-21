@@ -1,7 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, rand, choice, shuffle, noteName, TOOLS, tool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
+import { h, rand, choice, shuffle, noteName, toast, TOOLS, tool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
 
 /* ======================================================
    EAR TOOLS
@@ -35,6 +35,7 @@ tool('intervals', {
       let ids = [...new Set(pool.filter(x => x.id.endsWith(':' + dir)).map(x => x.id.split(':')[0]))];
       if (ids.length < 4) ids = [...new Set(pool.map(x => x.id.split(':')[0]))];
       if (!ids.includes(ivId)) ids.push(ivId);
+      if (ctx.params.contrast) ids = [...new Set(ctx.params.contrast.map(x => x.split(':')[0]).concat([ivId]))];
       const choices = D.INTERVALS.filter(i => ids.includes(i.id)).map(i => ({ id: i.id, label: i.id, sub: i.name }));
       const playIv = semi => {
         const t = A.now() + 0.05;
@@ -71,7 +72,7 @@ tool('chords', {
       const item = pickFor('chords', ctx);
       const ch = D.CHORDS.find(c => c.id === item.id);
       const root = rand(45, 53);
-      const pool = (ctx.params.test ? E.universe('chords') : E.unlocked('chords')).map(x => x.id);
+      const pool = ctx.params.contrast || (ctx.params.test ? E.universe('chords') : E.unlocked('chords')).map(x => x.id);
       let opts = D.CHORDS.filter(c => pool.includes(c.id));
       if (opts.length > 8) opts = shuffle(opts.filter(c => c.id !== ch.id)).slice(0, 7).concat([ch]).sort((a, b) => D.CHORDS.indexOf(a) - D.CHORDS.indexOf(b));
       const playCh = c => {
@@ -104,7 +105,7 @@ tool('degrees', {
       const item = pickFor('degrees', ctx);
       const dg = D.DEGREES.find(d => d.id === item.id);
       const t = rand(55, 63);
-      const pool = (ctx.params.test ? E.universe('degrees') : E.unlocked('degrees')).map(x => x.id);
+      const pool = ctx.params.contrast || (ctx.params.test ? E.universe('degrees') : E.unlocked('degrees')).map(x => x.id);
       const opts = D.DEGREES.filter(d => pool.includes(d.id)).sort((a, b) => a.semi - b.semi);
       const play = () => { const at = cadence(t, A.now() + 0.05); A.note(t + dg.semi, at + 0.4, 0.85, 1.6); };
       return {
@@ -208,7 +209,8 @@ tool('scales', {
       const sc = D.SCALES.find(x => x.id === item.id);
       const tonic = rand(50, 57);
       let pool = (ctx.params.test ? E.universe('scales') : E.unlocked('scales')).map(x => x.id).filter(id => id !== sc.id);
-      if (pool.length < 3) pool = D.SCALES.filter(x => x.tier <= sc.tier + 1 && x.id !== sc.id).map(x => x.id);
+      if (ctx.params.contrast) pool = ctx.params.contrast.filter(id => id !== sc.id);
+      else if (pool.length < 3) pool = D.SCALES.filter(x => x.tier <= sc.tier + 1 && x.id !== sc.id).map(x => x.id);
       const opts = shuffle(shuffle(pool).slice(0, 3).concat([sc.id])).map(id => D.SCALES.find(x => x.id === id));
       const play = (scale = sc) => {
         stopDrone(); A.stopAll();
@@ -246,7 +248,9 @@ tool('drone', {
     const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.02, 0.8, 1.4) });
     const droneBtn = h('button', { class: 'btn primary' }, 'Start drone');
     const playBtn = h('button', { class: 'btn' }, '▶ Play scale');
-    card.append(h('label', { class: 'stack', for: 'drone-scale' }, h('span', { class: 'eyebrow', text: 'Scale' }), sel), h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tonic (Sa)' }), tonics), h('div', { class: 'row' }, droneBtn, playBtn), info, fb.el,
+    // quarter-tone scales: hear the real intervals against the nearest piano (12-TET) notes
+    const abBox = h('div', { class: 'callout abbox', hidden: true });
+    card.append(h('label', { class: 'stack', for: 'drone-scale' }, h('span', { class: 'eyebrow', text: 'Scale' }), sel), h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tonic (Sa)' }), tonics), h('div', { class: 'row' }, droneBtn, playBtn), abBox, info, fb.el,
       h('p', { class: 'small muted', text: 'Tap the fretboard to hear a note. Dashed circles are quarter-tone notes: bend the fret below about halfway.' }));
     function tonicMidi() { return 48 + tonicPc; }
     function refresh() {
@@ -264,6 +268,18 @@ tool('drone', {
         positionsOfPc([p]).forEach(m => marks.push(Object.assign(m, { kind: st === 0 ? 'root' : whole ? 'tone' : 'quarter', label: whole ? D.NOTE_NAMES[p] : '¼' })));
       });
       fb.mark(marks);
+      const micro = sc.steps.some(st => !Number.isInteger(st));
+      abBox.hidden = !micro; abBox.innerHTML = '';
+      if (micro) {
+        const tempered = sc.steps.map(Math.ceil);
+        const at = (steps, when) => playScale(tonicMidi() + 12, steps, when || A.now() + 0.1);
+        abBox.append(h('b', { text: 'Real quarter tones vs. the piano' }),
+          h('p', { class: 'small', text: 'The ¼ notes sit between two frets. Hear the scale as it is sung and played on the oud or ney, then rounded to the nearest piano note, and listen for how the neutral steps lose their colour.' }),
+          h('div', { class: 'row' },
+            h('button', { class: 'btn small', onclick: () => { A.ensure(); at(sc.steps); } }, '▶ Real'),
+            h('button', { class: 'btn small', onclick: () => { A.ensure(); at(tempered); } }, '▶ Rounded (12-TET)'),
+            h('button', { class: 'btn small brass', onclick: () => { A.ensure(); at(tempered, at(sc.steps) + 0.6); toast('Real first, then rounded'); } }, '▶ Compare')));
+      }
     }
     function startDrone() { drone = A.Drone(tonicMidi()); drone.start(); droneBtn.textContent = 'Stop drone'; ctx.setActive(true); }
     function stop() { if (drone) drone.stop(); drone = null; droneBtn.textContent = 'Start drone'; ctx.setActive(false); }

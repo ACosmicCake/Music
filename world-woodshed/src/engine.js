@@ -2,6 +2,7 @@
 import D from './data.js';
 import { readingItems } from './content/reading.js';
 import { gymItems } from './content/gym.js';
+import { dictationItems } from './content/dictation.js';
 import { SCHEMA, migrate, merge, digest } from './sync.js';
 
 const LS_KEY = 'world-woodshed-v1';
@@ -21,6 +22,7 @@ const SKILLS = {
   degrees: { name: 'Scale degrees', cat: 'ear', tool: 'degrees', qpm: 5 },
   progressions: { name: 'Progressions', cat: 'ear', tool: 'progressions', qpm: 3 },
   scales: { name: 'World scales by ear', cat: 'ear', tool: 'scales', qpm: 3 },
+  dictation: { name: 'Melodic dictation', cat: 'ear', tool: 'dictation', qpm: 2 },
   rhythmTap: { name: 'Rhythm feel', cat: 'rhythm', tool: 'rhythms', qpm: 2 },
   rhythmId: { name: 'Rhythm ID', cat: 'rhythm', tool: 'rhythmid', qpm: 4 },
   clock: { name: 'Internal clock', cat: 'rhythm', tool: 'clock', qpm: 2 },
@@ -34,10 +36,50 @@ const SKILLS = {
 };
 const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard, reading & repertoire', tech: 'Technique', know: 'Knowledge' };
 
-const STRINGS = [
-  { id: 'E', name: 'low E', midi: 40 }, { id: 'A', name: 'A', midi: 45 }, { id: 'D', name: 'D', midi: 50 },
-  { id: 'G', name: 'G', midi: 55 }, { id: 'B', name: 'B', midi: 59 }, { id: 'e', name: 'high e', midi: 64 }
+/* Your guitar: the tuning and capo set in Today → Your guitar. STRINGS is updated in place, so every tool
+   that reads E.STRINGS (positions, fretboard answers, mic answers) follows the tuning. Ids stay by position
+   (6th string = 'E' … 1st = 'e') so progress items keep their meaning. */
+const TUNINGS = [
+  { id: 'standard', name: 'Standard', midi: [40, 45, 50, 55, 59, 64] },
+  { id: 'halfdown', name: 'Half step down', midi: [39, 44, 49, 54, 58, 63] },
+  { id: 'dstd', name: 'Whole step down (D standard)', midi: [38, 43, 48, 53, 57, 62] },
+  { id: 'dropd', name: 'Drop D', midi: [38, 45, 50, 55, 59, 64] },
+  { id: 'dadgad', name: 'DADGAD', midi: [38, 45, 50, 55, 57, 62] },
+  { id: 'openg', name: 'Open G (Taro Patch)', midi: [38, 43, 50, 55, 59, 62] },
+  { id: 'opend', name: 'Open D', midi: [38, 45, 50, 54, 57, 62] },
+  { id: 'openc', name: 'Open C', midi: [36, 43, 48, 55, 60, 64] },
+  { id: 'opene', name: 'Open E', midi: [40, 47, 52, 56, 59, 64] },
+  { id: 'dropc', name: 'Drop C', midi: [36, 43, 48, 53, 57, 62] }
 ];
+const POS_IDS = ['E', 'A', 'D', 'G', 'B', 'e'];
+const PCN = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const STRINGS = POS_IDS.map((id, i) => ({ id, name: '', midi: TUNINGS[0].midi[i], open: TUNINGS[0].midi[i] }));
+function applyTuning(id, capo) {
+  const t = TUNINGS.find(x => x.id === id) || TUNINGS[0];
+  capo = Math.max(0, Math.min(9, capo | 0));
+  STRINGS.forEach((st, i) => {
+    st.open = t.midi[i]; st.midi = t.midi[i] + capo;
+    const n = (D.NOTE_NAMES[t.midi[i] % 12] || PCN[t.midi[i] % 12]);
+    st.name = i === 0 ? 'low ' + n : i === 5 ? 'high ' + (n.length === 1 ? n.toLowerCase() : n) : n;
+  });
+  delete universeCache.fretboard;
+}
+/* Note names: letters (C D E) or fixed-do solfège (Do Re Mi), applied to the shared name tables in place */
+const NAME_SETS = {
+  letters: { names: ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'], full: ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'] },
+  solfege: { names: ['Do', 'Do♯', 'Re', 'Mi♭', 'Mi', 'Fa', 'Fa♯', 'Sol', 'La♭', 'La', 'Si♭', 'Si'], full: ['Do', 'Do♯/Re♭', 'Re', 'Re♯/Mi♭', 'Mi', 'Fa', 'Fa♯/Sol♭', 'Sol', 'Sol♯/La♭', 'La', 'La♯/Si♭', 'Si'] },
+  solfegeTi: { names: ['Do', 'Do♯', 'Re', 'Mi♭', 'Mi', 'Fa', 'Fa♯', 'Sol', 'La♭', 'La', 'Ti♭', 'Ti'], full: ['Do', 'Do♯/Re♭', 'Re', 'Re♯/Mi♭', 'Mi', 'Fa', 'Fa♯/Sol♭', 'Sol', 'Sol♯/La♭', 'La', 'La♯/Ti♭', 'Ti'] }
+};
+function applyNames(mode) {
+  const set = NAME_SETS[mode] || NAME_SETS.letters;
+  set.names.forEach((n, i) => { D.NOTE_NAMES[i] = n; }); set.full.forEach((n, i) => { D.NOTE_FULL[i] = n; });
+}
+function guitar() { const st = state.settings; return { tuning: st.tuning || 'standard', capo: st.capo || 0, lefty: !!st.lefty }; }
+function setGuitar(patch) {
+  Object.assign(state.settings, patch);
+  const g = guitar(); applyNames(state.settings.noteNames); applyTuning(g.tuning, g.capo);
+  scheduleSave(); emit();
+}
 const NATURALS = [0, 2, 4, 5, 7, 9, 11];
 
 /* Item universe for each skill: [{id, label, tier}] */
@@ -61,6 +103,7 @@ function universe(skill) {
     case 'degrees': list = D.DEGREES.map(d => ({ id: d.id, label: 'Degree ' + d.id, tier: d.tier })); break;
     case 'progressions': list = D.NUMERALS.filter(n => n.id !== 'I').map(n => ({ id: n.id, label: n.id + ' chord', tier: n.tier })); break;
     case 'scales': list = D.SCALES.map(s => ({ id: s.id, label: s.name, tier: s.tier })); break;
+    case 'dictation': list = dictationItems(); break;
     case 'rhythmTap': case 'rhythmId': list = D.RHYTHMS.map(r => ({ id: r.id, label: r.name, tier: r.tier })); break;
     case 'clock': list = [[100, 1], [80, 1], [120, 2], [60, 2], [140, 3], [50, 3], [160, 4]].map(([b, t]) => ({ id: String(b), label: b + ' bpm', tier: t })); break;
     case 'fretboard':
@@ -160,7 +203,7 @@ function adopt(other, save = true) {
   const before = digest(state);
   state = Object.assign(freshState(), merge(state, other));
   const changed = digest(state) !== before;
-  if (changed) { saveLocal(); emit(); }
+  if (changed) { applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); saveLocal(); emit(); }
   if (save && changed) scheduleSave(300);
   return changed;
 }
@@ -175,7 +218,7 @@ function importBackup(obj, mode = 'merge') {
   const s = obj && obj.app === 'world-woodshed' ? obj.state : obj;
   if (!s || s.v !== 1 || typeof s.skills !== 'object') throw new Error('This file is not a World Woodshed backup');
   const m = migrate(JSON.parse(JSON.stringify(s)), obj.device || 'file');
-  if (mode === 'replace') { state = Object.assign(freshState(), m); scheduleSave(100); emit(); return true; }
+  if (mode === 'replace') { state = Object.assign(freshState(), m); applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); scheduleSave(100); emit(); return true; }
   return adopt(m);
 }
 
@@ -337,6 +380,19 @@ function unlockedTier(skill) {
     if (coverage >= 0.8 && avg >= 0.75) tier++; else break;
   }
   return tier;
+}
+/* What stands between you and the next level of a skill, in plain words */
+function levelProgress(skill) {
+  const ss = skillState(skill), u = universe(skill), tier = unlockedTier(skill);
+  const maxTier = Math.max(...u.map(x => x.tier));
+  if (tier >= maxTier) return { tier, maxTier, text: 'All levels open' };
+  const pool = u.filter(x => x.tier <= tier), seen = pool.filter(x => ss.items[x.id]);
+  const avg = seen.length ? seen.reduce((a, x) => a + ss.items[x.id].ema, 0) / seen.length : 0;
+  const needSeen = Math.max(0, Math.ceil(pool.length * 0.8) - seen.length);
+  const parts = [];
+  if (needSeen) parts.push(needSeen + ' more item' + (needSeen === 1 ? '' : 's') + ' to try');
+  if (avg < 0.75) parts.push('accuracy ' + Math.round(avg * 100) + '% of 75%');
+  return { tier, maxTier, coverage: seen.length / pool.length, avg, text: 'Level ' + (tier + 1) + ': ' + (parts.join(', ') || 'nearly there') };
 }
 function unlocked(skill) { const t = unlockedTier(skill); return universe(skill).filter(x => x.tier <= t); }
 function dueCount(skill) {
@@ -641,6 +697,7 @@ function resetAll() { state = freshState(); scheduleSave(100); emit(); }
 
 function init() {
   loadLocal();
+  applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo);
   loadIdb().then(connectCloud);
   // Ask the browser not to evict saved progress when space runs low.
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
@@ -736,8 +793,8 @@ export default {
   session, startSession, touchSession, sessionChanged, endSession, journal,
   lessonDone, setLessonDone, heard, setHeard, techPick,
   listSongs, getSong, saveSong, deleteSong,
-  SKILLS, CAT_NAMES, STRINGS, FOCUS, init, get state() { return state; }, onChange, emit,
-  universe, unlocked, unlockedTier, pick, record, mastery, dueCount, daysSince, itemLabel,
+  SKILLS, CAT_NAMES, STRINGS, TUNINGS, guitar, setGuitar, FOCUS, init, get state() { return state; }, onChange, emit,
+  universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
   techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, resetAll, exportBackup, importBackup,

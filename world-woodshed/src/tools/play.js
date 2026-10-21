@@ -12,6 +12,12 @@ import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 /* ======================================================
    PLAY TOOLS
    ====================================================== */
+const ROOT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+/* the same chord k semitones higher */
+function transposeChord(c, k) {
+  if (!k) return c;
+  return parseChord(ROOT_NAMES[(c.root + k) % 12] + c.sym.replace(/^[A-G][#b]?/, '')) || c;
+}
 tool('fretboard', {
   tab: 'play', skill: 'fretboard', title: 'Fretboard notes', eyebrow: 'Play · know the neck',
   desc: 'Find the named note on the highlighted string: tap it, or play it on your guitar with the mic. Starts with natural notes on the low strings.',
@@ -196,17 +202,28 @@ tool('repertoire', {
       const chartEl = h('div', { class: 'cform' });
       const barEls = [];
       let check = false, checks = 0, right = 0, askAt = -1, curBar = 0;
+      /* Woodshedding: a key for this run, a key change every chorus (all 12 keys), a looped section, tempo up each chorus */
+      let keyBase = 0, keyMove = pref.keyMove || 'same', ramp = pref.ramp || 0, range = null, shownCh = 0;
+      const STEP = { same: 0, fourth: 5, half: 1 };
+      const shiftFor = ch => ((keyBase + STEP[keyMove] * ch) % 12 + 12) % 12;
+      const tCache = {};
+      const barsIn = k => tCache[k] || (tCache[k] = bars.map(b => b.map(c => transposeChord(c, k))));
+      const barsFor = ch => barsIn(shiftFor(ch));
+      const shiftName = k => (k === 0 ? 'original key' : (k <= 6 ? 'up ' + k : 'down ' + (12 - k)) + ' semitone' + ((k <= 6 ? k : 12 - k) === 1 ? '' : 's'));
       function drawChart() {
         chartEl.innerHTML = ''; barEls.length = 0;
+        const B = barsFor(shownCh);
         let bi = 0;
-        form.forEach(([lbl, len]) => {
+        form.forEach(([lbl, len], fi) => {
           const grid = h('div', { class: 'cchart' });
-          for (let k = 0; k < len && bi < bars.length; k++, bi++) {
-            const b = bars[bi], idx = bi;
-            const el = h('div', { class: 'cbar', onclick: ev => guess(idx, ev) }, b.map(c => blind ? h('span', { class: 'blind', text: '?' }) : h('span', { text: prettySym(c.sym) })));
+          const first = bi;
+          for (let k = 0; k < len && bi < B.length; k++, bi++) {
+            const b = B[bi], idx = bi;
+            const el = h('div', { class: 'cbar' + (range && (idx < range[0] || idx > range[1]) ? ' out' : ''), onclick: ev => guess(idx, ev) }, b.map(c => blind ? h('span', { class: 'blind', text: '?' }) : h('span', { text: prettySym(c.sym) })));
             grid.append(el); barEls.push(el);
           }
-          chartEl.append(lbl ? h('div', { class: 'csection' }, h('span', { class: 'csec', text: lbl }), grid) : grid);
+          const last = bi - 1;
+          chartEl.append(lbl ? h('div', { class: 'csection' }, h('button', { class: 'csec', title: 'Loop the ' + lbl + ' section', 'aria-label': 'Loop section ' + lbl, onclick: () => setRange(range && range[0] === first && range[1] === last ? null : [first, last]) }, lbl), grid) : grid);
         });
         chartEl.classList.toggle('checking', check);
       }
@@ -225,12 +242,37 @@ tool('repertoire', {
       const compSeg = engine === 'pattern' ? null : seg([['piano', 'Piano'], ['guitar', 'Guitar']], pref.comp, k => { savePref({ comp: k }); whoSeg.children[2].textContent = 'Bass & ' + (k === 'guitar' ? 'guitar' : 'piano'); if (band) band.set({ comp: k }); });
       const feelSeg = engine === 'swing' ? seg([['walk', 'Walking'], ['two', 'Two-feel']], pref.feel, k => { savePref({ feel: k }); if (band) band.set({ feel: k }); }) : null;
       const tally = h('span', { class: 'small mono' });
-      const checkBox = h('input', { type: 'checkbox', onchange: e => { check = e.target.checked; checks = 0; right = 0; tally.textContent = ''; askAt = -1; drawChart(); if (band) highlight(curBar); showChord(check ? null : bars[curBar][0]); } });
+      const checkBox = h('input', { type: 'checkbox', onchange: e => { check = e.target.checked; checks = 0; right = 0; tally.textContent = ''; askAt = -1; drawChart(); if (band) highlight(curBar); showChord(check ? null : barsFor(shownCh)[curBar][0]); } });
       const band_ = h('div', { class: 'bandbox' },
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Who plays' }), whoSeg),
         compSeg ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Comping' }), compSeg) : null,
         feelSeg ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Bass' }), feelSeg) : null,
         h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: pref.countIn ? true : null, onchange: e => savePref({ countIn: e.target.checked }) }), 'Two-bar count-in'));
+      const fromSel = h('select', { id: 'loop-from', 'aria-label': 'Loop from bar' }), toSel = h('select', { id: 'loop-to', 'aria-label': 'Loop to bar' });
+      bars.forEach((b, i) => { fromSel.append(h('option', { value: String(i), text: String(i + 1) })); toSel.append(h('option', { value: String(i), text: String(i + 1) })); });
+      toSel.value = String(bars.length - 1);
+      const loopAll = h('button', { class: 'btn small ghost', onclick: () => setRange(null) }, 'Whole tune');
+      const applyRange = () => { let a = +fromSel.value, b = +toSel.value; if (b < a) [a, b] = [b, a]; setRange(a === 0 && b === bars.length - 1 ? null : [a, b]); };
+      fromSel.onchange = applyRange; toSel.onchange = applyRange;
+      function setRange(r) {
+        range = r;
+        fromSel.value = String(r ? r[0] : 0); toSel.value = String(r ? r[1] : bars.length - 1);
+        loopAll.hidden = !r;
+        drawChart(); highlight(curBar);
+        if (band) { stopLoop(); play(); }
+      }
+      const keySel = h('select', { id: 'tune-key', 'aria-label': 'Key', onchange: () => { keyBase = +keySel.value; shownCh = 0; drawChart(); showChord(check ? null : barsFor(0)[0][0]); if (band) { stopLoop(); play(); } } },
+        [0, 1, 2, 3, 4, 5, 6, 11, 10, 9, 8, 7].map(k => h('option', { value: String(k), text: k === 0 ? 'Original key' : shiftName(k)[0].toUpperCase() + shiftName(k).slice(1) })));
+      const moveSeg = seg([['same', 'Same key'], ['fourth', 'Up a 4th: all 12 keys'], ['half', 'Up a half step']], keyMove, k => { keyMove = k; savePref({ keyMove: k }); });
+      const rampSel = h('select', { id: 'tune-ramp', 'aria-label': 'Tempo change each chorus', onchange: () => { ramp = +rampSel.value; savePref({ ramp }); } },
+        [0, 2, 4, 6, 8, 10].map(n => h('option', { value: String(n), selected: n === ramp ? true : null, text: n ? '+' + n + ' bpm each chorus' : 'Steady tempo' })));
+      loopAll.hidden = true;
+      const shed = h('div', { class: 'bandbox shedbox' },
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Loop' }), h('div', { class: 'row' }, h('span', { class: 'small', text: 'bars' }), fromSel, h('span', { class: 'small', text: 'to' }), toSel, loopAll)),
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keySel),
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Each chorus' }), moveSeg),
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tempo' }), rampSel),
+        t.form ? h('p', { class: 'small muted', text: 'Tip: tap a section letter on the chart to loop just that section.' }) : null);
       const checkCard = h('div', { class: 'callout patina formcheck' },
         h('label', { class: 'check' }, checkBox, h('b', { text: 'Follow the form by ear' })),
         h('p', { class: 'small', text: 'The bar marker and chord readout go dark. Keep your place by listening, best with just the bass. When asked, or whenever you like, tap the bar the band is in. Play over it at the same time if you can: soloing without losing the form is the skill.' }),
@@ -240,7 +282,7 @@ tool('repertoire', {
         h('h2', { text: t.name }), h('p', { class: 'small muted', text: t.note }),
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
-        band_, checkCard,
+        band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl);
       tuneCard.append(card, drillHolder);
       function showChord(c) {
@@ -275,14 +317,16 @@ tool('repertoire', {
       }
       function play() {
         band = Band({
-          bars, groove: g, grooveId: t.groove, bpm: () => bpm, parts: WHO[pref.who][1], comp: pref.comp, feel: pref.feel, countIn: pref.countIn,
+          bars, barsFor, range, groove: g, grooveId: t.groove, bpm: () => bpm, parts: WHO[pref.who][1], comp: pref.comp, feel: pref.feel, countIn: pref.countIn,
           onCount: n => { nowLbl.textContent = n; },
+          onChorus: () => { if (ramp) { bpm = Math.min(+tempo.max, bpm + ramp); setTimeout(() => { tempo.value = bpm; tempoLbl.textContent = bpm + ' bpm'; }, 0); } },
           onBeat: ({ bar: bi, beat, chorus, chord }) => {
             if (beat === 0) {
               curBar = bi;
+              if (chorus !== shownCh) { const moved = shiftFor(chorus) !== shiftFor(shownCh); shownCh = chorus; if (moved) drawChart(); }
               highlight(bi);
-              const sec = sectionOf(bi);
-              where.textContent = 'Chorus ' + (chorus + 1) + ' · ' + (check ? '?' : 'bar ' + (bi + 1)) + ' / ' + bars.length + (sec && !check ? ' · ' + sec : '');
+              const sec = sectionOf(bi), k = shiftFor(chorus);
+              where.textContent = 'Chorus ' + (chorus + 1) + ' · ' + (check ? '?' : 'bar ' + (bi + 1)) + ' / ' + bars.length + (sec && !check ? ' · ' + sec : '') + (k ? ' · ' + shiftName(k) : '');
               if (check) {
                 if (askAt < 0 && chorus + bi > 0 && Math.random() < 0.18) { askAt = bi; nowLbl.textContent = 'Where are we? Tap the bar.'; }
                 else if (askAt >= 0 && bi !== askAt && (bi - askAt + bars.length) % bars.length > 2) { askAt = -1; nowLbl.textContent = 'Listen…'; }
@@ -292,13 +336,14 @@ tool('repertoire', {
           }
         });
         let lastChord = null;
+        shownCh = 0; drawChart();
         band.start();
         playBtn.textContent = '■ Stop'; ctx.setActive(true); ctx.timeSkill = 'repertoire';
       }
       stopTune = () => { report(); checks = 0; right = 0; };
       playBtn.onclick = () => { if (band) { stopLoop(); playBtn.textContent = '▶ Play changes'; } else play(); };
       tempo.oninput = () => { bpm = +tempo.value; tempoLbl.textContent = bpm + ' bpm'; };
-      blindBtn.onclick = () => { blind = !blind; blindBtn.setAttribute('aria-pressed', String(blind)); blindBtn.textContent = blind ? 'Show chord names' : 'Hide chord names'; drawChart(); highlight(curBar); showChord(check ? null : bars[curBar][0]); };
+      blindBtn.onclick = () => { blind = !blind; blindBtn.setAttribute('aria-pressed', String(blind)); blindBtn.textContent = blind ? 'Show chord names' : 'Hide chord names'; drawChart(); highlight(curBar); showChord(check ? null : barsFor(shownCh)[curBar][0]); };
       drillBtn.onclick = () => { if (drillCleanup) drillCleanup(); drillHolder.innerHTML = ''; drillCleanup = drill(drillHolder, t, bars); drillHolder.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
     }
     function drill(holder, t, bars) {

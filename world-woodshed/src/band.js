@@ -297,10 +297,16 @@ const SWING_2 = [
 
 /* ---------- the band ---------- */
 export function Band(o) {
-  // o: { bars: [[chord]], groove, grooveId, bpm(), parts: {drums, comp, bass}, comp: 'piano'|'guitar', feel: 'walk'|'two', countIn, onBeat, onCount, onChorus }
+  // o: { bars: [[chord]], barsFor(chorus)?, range: [firstBar, lastBar]?, groove, grooveId, bpm(), parts: {drums, comp, bass},
+  //      comp: 'piano'|'guitar', feel: 'walk'|'two', countIn, onBeat, onCount, onChorus(chorus) }
+  // barsFor gives each pass its own chords (e.g. a new key every chorus); range loops a section of the form.
   const g = o.groove, gid = o.grooveId;
   const engine = gid === 'swing' ? 'swing' : gid === 'bossa' ? 'bossa' : 'pattern';
-  const bars = o.bars, nb = bars.length;
+  const nb = o.bars.length;
+  const lo = o.range ? Math.max(0, o.range[0]) : 0, hi = o.range ? Math.min(nb - 1, o.range[1]) : nb - 1;
+  const barsOf = ch => (o.barsFor ? o.barsFor(ch) : o.bars);
+  let bars = barsOf(0);
+  const nextBar = (bi, ch) => (bi < hi ? bars[bi + 1] : barsOf(ch + 1)[lo]);
   const BPB = Math.round(g.steps / g.spb) || 4;
   const bright = ['rock', 'funk', 'reggae', 'soukous', 'highlife', 'son'].includes(gid);
   let loop = null, stopTimer = null, countTimers = [];
@@ -308,7 +314,8 @@ export function Band(o) {
   const history = [];
   const beatDur = () => 60 / o.bpm();
   const sw = () => { const b = o.bpm(); return b < 110 ? 0.66 : b < 180 ? 0.63 : b < 240 ? 0.58 : 0.54; };
-  const chordAt = (bi, beat) => { const b = bars[((bi % nb) + nb) % nb]; return b[Math.min(b.length - 1, Math.floor(beat * b.length / BPB))]; };
+  const chordIn = (B, bi, beat) => { const b = B[((bi % nb) + nb) % nb]; return b[Math.min(b.length - 1, Math.floor(beat * b.length / BPB))]; };
+  const chordAt = (bi, beat) => chordIn(bars, bi, beat);
 
   function setParts(p) {
     if (!bus) return;
@@ -319,11 +326,11 @@ export function Band(o) {
   /* Plan one bar: bass notes, comp hits and drum extras, each tagged with the beat it starts on */
   function planBar(bi, chorus) {
     const ev = [];
-    const segs = bars[bi % nb], k = segs.length, per = BPB / k;
+    const segs = bars[bi % nb], k = segs.length, per = BPB / k, after = nextBar(bi, chorus);
     // bass
     if (engine === 'swing') {
       for (let j = 0; j < k; j++) {
-        const c = segs[j], next = j < k - 1 ? segs[j + 1] : bars[(bi + 1) % nb][0];
+        const c = segs[j], next = j < k - 1 ? segs[j + 1] : after[0];
         if (bassStart === null) bassStart = nearest(c.root, 38);
         const r = walkStretch(c, per, next, bassStart, o.feel === 'two');
         r.notes.forEach(([b, m, len]) => ev.push({ beat: j * per + b, at: 0, kind: 'bass', m, len: len * 0.92, vel: rnd(0.78, 0.9) * (b % 2 ? 0.95 : 1) }));
@@ -331,7 +338,7 @@ export function Band(o) {
       }
     } else if (engine === 'bossa') {
       for (let j = 0; j < k; j++) {
-        const c = segs[j], next = j < k - 1 ? segs[j + 1] : bars[(bi + 1) % nb][0];
+        const c = segs[j], next = j < k - 1 ? segs[j + 1] : after[0];
         const root = nearest(c.root, bassPrev || 38, 33, 50), fifth = nearest((c.root + c.fifth) % 12, root + 4, 33, 52);
         if (per >= 4) {
           ev.push({ beat: 0, at: 0, kind: 'bass', m: root, len: 1.4, vel: 0.85 }, { beat: 1, at: 0.5, kind: 'bass', m: fifth, len: 0.45, vel: 0.7 },
@@ -363,7 +370,7 @@ export function Band(o) {
         pushed = pat.some(([e]) => e === 7);
         pat.forEach(([e, len]) => {
           const beat = Math.floor(e / 2), off = e % 2;
-          ev.push({ beat, at: off ? -1 : 0, kind: 'piano', bi: off ? (beat + 1 >= BPB ? bi + 1 : bi) : bi, cb: off ? (beat + 1) % BPB : beat, len, vel: off ? rnd(0.6, 0.72) : rnd(0.5, 0.62) });
+          ev.push({ beat, at: off ? -1 : 0, kind: 'piano', c: off && beat + 1 >= BPB ? after[0] : chordAt(bi, off ? beat + 1 : beat), len, vel: off ? rnd(0.6, 0.72) : rnd(0.5, 0.62) });
         });
       }
     } else if (engine === 'bossa') {
@@ -371,7 +378,7 @@ export function Band(o) {
       const hits = pat % 2 === 0 ? [0, 3, 6] : [2, 5]; // the two-bar bossa figure in eighths
       hits.forEach(e => {
         const beat = Math.floor(e / 2), off = e % 2;
-        ev.push({ beat, at: off ? 0.5 : 0, kind: o.comp === 'guitar' ? 'gtr' : 'piano', bi: off && beat + 1 >= BPB ? bi + 1 : bi, cb: off ? (beat + 1) % BPB : beat, c: null, len: 0.85, vel: 0.55 });
+        ev.push({ beat, at: off ? 0.5 : 0, kind: o.comp === 'guitar' ? 'gtr' : 'piano', c: off && beat + 1 >= BPB ? after[0] : chordAt(bi, off ? beat + 1 : beat), len: 0.85, vel: 0.55 });
       });
     } else {
       for (let s = 0; s < g.steps; s++) if (g.comp[s] && g.comp[s] !== '.') {
@@ -381,9 +388,9 @@ export function Band(o) {
     }
     // drums
     if (engine === 'swing') {
-      const last = bi === nb - 1;
+      const last = bi === hi;
       for (let b = 0; b < BPB; b++) {
-        const top = b === 0 && bi === 0 && chorus > 0;
+        const top = b === 0 && bi === lo && chorus > 0;
         ev.push({ beat: b, at: 0, kind: 'ride', vel: top ? 1 : rnd(0.62, 0.72) + (b % 2 ? 0.08 : 0) });
         if (b % 2) { ev.push({ beat: b, at: -1, kind: 'ride', vel: rnd(0.4, 0.5) }); ev.push({ beat: b, at: 0, kind: 'chick', vel: 0.65 }); }
         ev.push({ beat: b, at: 0, kind: 'kick', vel: top ? 0.6 : 0.14 });
@@ -456,10 +463,12 @@ export function Band(o) {
       });
       t0 += 8 * bd;
     }
+    bars = barsOf(0);
     loop = A.Loop({
-      steps: nb * BPB, stepDur: beatDur,
+      steps: (hi - lo + 1) * BPB, stepDur: beatDur,
       onStep: (i, t, cycle) => {
-        const bi = Math.floor(i / BPB), beat = i % BPB;
+        const bi = lo + Math.floor(i / BPB), beat = i % BPB;
+        if (i === 0) { bars = barsOf(cycle); if (cycle > 0 && o.onChorus) o.onChorus(cycle); }
         if (beat === 0) {
           barPlan = planBar(bi, cycle);
           history.push({ t, bi, chorus: cycle }); if (history.length > 64) history.shift();
@@ -467,8 +476,8 @@ export function Band(o) {
         if (barPlan) play(barPlan.filter(e => e.beat === beat), t, beatDur());
       },
       onVisual: (i, cycle) => {
-        const bi = Math.floor(i / BPB), beat = i % BPB;
-        if (o.onBeat) o.onBeat({ bar: bi, beat, chorus: cycle, chord: chordAt(bi, beat) });
+        const bi = lo + Math.floor(i / BPB), beat = i % BPB;
+        if (o.onBeat) o.onBeat({ bar: bi, beat, chorus: cycle, chord: chordIn(barsOf(cycle), bi, beat) });
       }
     });
     loop.start(t0);

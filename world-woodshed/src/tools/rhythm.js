@@ -392,7 +392,8 @@ tool('rhythmid', {
       const item = pickFor('rhythmId', ctx, regionFilter);
       const r = D.RHYTHMS.find(x => x.id === item.id);
       let pool = (ctx.params.test ? E.universe('rhythmId') : E.unlocked('rhythmId')).map(x => x.id).filter(id => id !== r.id);
-      if (pool.length < 3) pool = D.RHYTHMS.filter(x => x.id !== r.id && x.tier <= r.tier + 1).map(x => x.id);
+      if (ctx.params.contrast) pool = ctx.params.contrast.filter(id => id !== r.id);
+      else if (pool.length < 3) pool = D.RHYTHMS.filter(x => x.id !== r.id && x.tier <= r.tier + 1).map(x => x.id);
       const opts = shuffle(shuffle(pool).slice(0, 3).concat([r.id])).map(id => D.RHYTHMS.find(x => x.id === id));
       const play = (rr = r) => { stopLoop(); loop = A.Loop({ steps: rr.steps, stepDur: stepDurFn(rr, rr.bpm), maxSteps: rr.steps * 2, onStep: (i, t) => playRhythmStep(rr, i, t) }); loop.start(); };
       return {
