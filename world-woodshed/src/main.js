@@ -29,6 +29,7 @@ import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
 import { initGitHubSync } from './ghsync.js';
 import './tools/commute.js';
+import { initSaveBanner } from './ui/savebanner.js';
 
 /* ---------- plugins (e.g. Transcribe) ---------- */
 const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, ICONS, renderTabs, get ui() { return ui; } };
@@ -38,6 +39,7 @@ const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, not
 watchErrors();
 E.init();
 applyDisplay();
+initSaveBanner();
 initGitHubSync();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
