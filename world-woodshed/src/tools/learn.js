@@ -7,6 +7,7 @@ import { RhythmGrid, playRhythmStep, stepDurFn } from './rhythm.js';
 import { CircleWidget } from './practice.js';
 import { guitarMidis, progressionMidis } from '../voicings.js';
 import { loadEssays, loadGuides, loadLessons, whenLoaded, drawWhenLoaded } from '../content/lazy.js';
+import { onSpotify, spotifyQuery, spotifyWeb, openSpotify } from '../spotify.js';
 
 /* ======================================================
    LEARN: styles library, theory course, reference tools
@@ -15,6 +16,7 @@ const yt = q => 'https://www.youtube.com/results?search_query=' + encodeURICompo
 const wiki = q => 'https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(q);
 const heardKey = (r, e) => r.id + '|' + e.artist + '|' + e.work;
 const ext = (href, label, cls) => h('a', { class: cls || 'linkbtn', href, target: '_blank', rel: 'noopener' }, label, ' ↗');
+const spotify = (e, label, cls) => { const q = spotifyQuery(e); return h('a', { class: cls || 'linkbtn', href: spotifyWeb(q), target: '_blank', rel: 'noopener', 'aria-label': 'Open ' + e.work + ' in Spotify', onclick: ev => openSpotify(ev, q) }, label, ' ↗'); };
 export function heardCount(r) { return (r.essential || []).filter(e => E.heard(heardKey(r, e))).length; }
 export function nextRecording(r) { return (r.essential || []).find(e => !E.heard(heardKey(r, e))) || null; }
 const AREAS = ['All', 'Americas', 'Europe', 'Africa', 'Middle East & India', 'East Asia'];
@@ -172,7 +174,8 @@ function recordRow(r, e, i, redraw) {
       h('div', { class: 'rec-title' }, h('b', { text: e.work }), h('span', { class: 'badge', text: e.kind }), i === 0 ? h('span', { class: 'badge brass', text: 'Start here' }) : null),
       h('span', { class: 'small' }, e.artist, h('span', { class: 'mono muted', text: ' · ' + e.year })),
       e.note ? h('p', { class: 'small muted', text: e.note }) : null),
-    ext(yt(e.artist + ' ' + e.work), 'Play', 'linkbtn rec-link'));
+    onSpotify(e) ? h('div', { class: 'rec-link rec-links' }, spotify(e, 'Spotify'), ext(yt(e.artist + ' ' + e.work), 'YouTube'))
+      : ext(yt(e.artist + ' ' + e.work), 'Play', 'linkbtn rec-link'));
 }
 
 /* ---------- Listening session tool ---------- */
@@ -197,7 +200,8 @@ tool('listening', {
           h('h2', { class: 'rec-now', text: e.work }), h('p', {}, e.artist, h('span', { class: 'mono muted', text: ' · ' + e.year + ' · ' + e.kind })),
           e.note ? h('p', { class: 'lede', text: e.note }) : null,
           r.listenFor ? h('div', { class: 'callout' }, h('b', { text: 'While it plays, listen for' }), h('ul', { class: 'list' }, shuffle(r.listenFor).slice(0, 3).map(x => h('li', { text: x })))) : null,
-          h('div', { class: 'row' }, ext(yt(e.artist + ' ' + e.work), 'Find it on YouTube', 'btn primary'),
+          h('div', { class: 'row' }, onSpotify(e) ? spotify(e, 'Open in Spotify', 'btn primary') : null,
+            ext(yt(e.artist + ' ' + e.work), onSpotify(e) ? 'YouTube' : 'Find it on YouTube', onSpotify(e) ? 'btn' : 'btn primary'),
             h('button', { class: 'btn brass', onclick: () => { E.setHeard(heardKey(r, e), true); toast('Marked as heard'); draw(); } }, 'Heard it ✓')),
           h('p', { class: 'small muted', text: 'Listen twice: once just to enjoy it, once with the prompts above. Hum one phrase you want to learn, then take it to Transcribe.' }));
       }
