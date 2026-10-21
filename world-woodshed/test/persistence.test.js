@@ -9,10 +9,15 @@ import { SCHEMA } from '../src/sync.js';
 const LS_KEY = 'world-woodshed-v1';
 const fixture = n => readFileSync(new URL('./fixtures/save-schema-' + n + '.json', import.meta.url), 'utf8');
 
-/* A minimal IndexedDB: one object store kept in memory, answering asynchronously like the real one */
+/* A minimal IndexedDB: one object store kept in memory, answering asynchronously like the real one.
+   It goes quiet when its test ends, so an engine from that test can't finish loading during the next
+   one and write its progress into the next test's storage. */
+const fakes = [];
 function fakeIndexedDB() {
   const data = new Map();
-  const later = fn => setTimeout(fn, 0);
+  let open = true;
+  const later = fn => setTimeout(() => { if (open) fn(); }, 0);
+  fakes.push(() => { open = false; });
   const db = {
     createObjectStore() {},
     transaction() {
@@ -37,7 +42,7 @@ const tick = () => new Promise(r => setTimeout(r, 5));
 
 let realSet;
 beforeEach(() => { localStorage.clear(); realSet = localStorage.setItem; delete globalThis.indexedDB; });
-afterEach(() => { localStorage.setItem = realSet; delete globalThis.indexedDB; vi.useRealTimers(); });
+afterEach(() => { fakes.splice(0).forEach(close => close()); localStorage.setItem = realSet; delete globalThis.indexedDB; vi.useRealTimers(); });
 const fillUp = () => { localStorage.setItem = () => { const e = new Error('full'); e.name = 'QuotaExceededError'; throw e; }; };
 
 describe('a save that fails', () => {
@@ -56,7 +61,8 @@ describe('a save that fails', () => {
     const E = await boot();
     fillUp();
     E.record('chords', 'maj', true);
-    await tick();
+    await vi.waitFor(() => expect(globalThis.indexedDB.data.has(LS_KEY)).toBe(true));
+    await tick(); // the transaction completes after the write
     expect(E.saveHealth().level).toBe('idb-only');
     const saved = JSON.parse(globalThis.indexedDB.data.get(LS_KEY));
     expect(saved.skills.chords.items.maj.n).toBe(1);
