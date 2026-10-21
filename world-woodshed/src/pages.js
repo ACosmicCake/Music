@@ -8,6 +8,7 @@ import { startSession, runCurrent } from './ui/session.js';
 import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
+import { shareFile, isNative } from './native.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 
 /* ======================================================
@@ -22,7 +23,7 @@ const TRAIN = {
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
   play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'fretboard', 'callresp', 'repertoire', 'explorer'], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
-  away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['away', 'sightread', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
+  away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['commute', 'away', 'dictation', 'sightread', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
 };
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
 
@@ -63,6 +64,11 @@ Object.assign(PAGES, {
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => startSession(r) }, '▶ Start'), awayButton(r, 'btn small ghost'))), ribbon(r.blocks, { small: true })));
     }
     view.append(pc);
+    // commuting: a no-guitar session or hands-free ear training (first thing in the Android app)
+    const goCard = h('div', { class: 'card go-card' }, h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'On the go' }), h('b', { text: 'Commuting? Headphones in, no guitar needed.' })),
+      h('button', { class: 'btn brass', onclick: () => openTool('commute', { returnTab: 'today' }) }, 'Open →')),
+      h('p', { class: 'small muted', text: 'A smart session sized to your ride, or hands-free ear training with the phone in your pocket.' }));
+    if (isNative()) view.insertBefore(goCard, pc); else view.append(goCard);
 
     if (!st.placementDone) {
       view.append(h('div', { class: 'card' }, h('h2', { text: 'Find your level first' }),
@@ -234,21 +240,12 @@ function guitarCard() {
    an exact restore, and live sync when the app runs inside claude.ai */
 function backupCard() {
   const card = h('div', { class: 'card sync-card' });
-  const fileFor = () => {
-    const json = JSON.stringify(E.exportBackup());
-    return new File([json], 'world-woodshed-sync-' + E.dayKey() + '.json', { type: 'application/json' });
-  };
-  const download = f => {
-    const a = h('a', { href: URL.createObjectURL(f), download: f.name });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  };
   const send = async () => {
-    const f = fileFor();
+    const name = 'world-woodshed-sync-' + E.dayKey() + '.json';
     try {
-      if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'World Woodshed progress' }); return; }
-    } catch (e) { if (e && e.name === 'AbortError') return; }
-    download(f); toast('Saved ' + f.name + '. Send it to your other device and load it there.');
+      const how = await shareFile(name, JSON.stringify(E.exportBackup()), 'World Woodshed progress');
+      if (how === 'downloaded') toast('Saved ' + name + '. Send it to your other device and load it there.');
+    } catch (e) { toast('Could not share the file'); }
   };
   const reader = mode => {
     const inp = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async () => {

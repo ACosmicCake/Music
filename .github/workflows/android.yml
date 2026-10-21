@@ -1,0 +1,81 @@
+name: Android app
+
+# Builds the Android app (the same app, packaged with Capacitor so it runs offline with the phone's
+# share sheet, text-to-speech and keep-awake). Every build is a downloadable artifact; builds of main
+# are also published as a GitHub release, so the latest APK is always at
+# https://github.com/<owner>/<repo>/releases/latest
+
+on:
+  push:
+    branches: [main]
+    paths: ['world-woodshed/**', '.github/workflows/android.yml']
+  pull_request:
+    paths: ['world-woodshed/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: world-woodshed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: world-woodshed/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Use the repository's own signing key, if one is set
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "WW_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "WW_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "WW_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "WW_KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+          else
+            echo "No signing secrets: using the sideload key in android/app."
+          fi
+      - name: Build the APK
+        working-directory: world-woodshed/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.${{ github.run_number }}
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/WorldWoodshed.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WorldWoodshed-android-${{ github.run_number }}
+          path: world-woodshed/android/app/build/outputs/apk/release/WorldWoodshed.apk
+      - name: Publish the release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v1.${{ github.run_number }}
+          name: World Woodshed for Android 1.${{ github.run_number }}
+          make_latest: true
+          files: world-woodshed/android/app/build/outputs/apk/release/WorldWoodshed.apk
+          body: |
+            Install on your phone: open this page on the phone, tap **WorldWoodshed.apk**, and allow installs from your browser when Android asks. Later versions install over this one and keep your progress.
+
+            To carry progress between the phone and your computer: Today → "Your progress on every device" → **Send my progress** on one, **Load a sync file** on the other. Loading merges, so practice on either device is kept.

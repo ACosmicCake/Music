@@ -29,7 +29,15 @@ Smart practice plans each session for the time you have right now, whether it is
 
 With the microphone allowed, the app can hear your guitar: a real tuner, answering quizzes by playing, rhythm tests on the guitar, and live timing and right-note checks in warm-ups and technique ladders. The sound is analysed on the device and never recorded or sent. Wear headphones for timing tests so the mic hears only your guitar.
 
-Progress is saved on the device (localStorage, with a second copy in IndexedDB). To move it to another device, use **Backup → Export** on the Today tab and **Import** the file on the other device.
+Progress is saved on the device (localStorage, with a second copy in IndexedDB). To carry it between devices, use **Today → Your progress on every device**: **Send my progress** on one device and **Load a sync file** on the other. Loading merges, so practice done on either device is kept.
+
+### Android app (for commutes)
+
+The same app is also packaged for Android (`world-woodshed/android`, Capacitor), built by `.github/workflows/android.yml`. Each build of `main` is published as a release: on the phone, open **Releases → latest** in this repository, tap `WorldWoodshed.apk`, and allow installs from your browser when Android asks. New versions install over the old one and keep your progress. Pull requests get the APK as a workflow artifact.
+
+It opens with **On the go**: a smart session sized to your ride that needs only the phone (scale positions become seeing the neck in your head, call & response becomes dictation, tunes become following the form by ear), and hands-free ear training where a question plays, the answer is spoken, and you grade it by tapping either half of a dark screen. It works fully offline. Use the sync file above to keep it in step with the computer.
+
+Builds are signed with the sideload key in `android/app` so updates install over each other. To sign with your own key instead, add the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` (switching keys means uninstalling once, so sync your progress to a file first).
 
 ### Work on it
 

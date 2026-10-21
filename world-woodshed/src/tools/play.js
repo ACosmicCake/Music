@@ -193,6 +193,7 @@ tool('repertoire', {
       let bpm = t.bpm, blind = false;
       const bars = t.bars.map(b => b.split(' ').map(parseChord));
       const pref = Object.assign({ who: 'full', comp: 'piano', feel: 'walk', countIn: true }, E.state.settings.band || {});
+      if (ctx.params.ear) pref.who = 'bd'; // on the go: bass and drums, to hear the form
       const savePref = patch => { Object.assign(pref, patch); E.setSetting('band', Object.assign({}, pref)); };
       const WHO = { full: ['Full band', { drums: true, comp: true, bass: true }], bd: ['Bass & drums', { drums: true, comp: false, bass: true }], bp: ['Bass & ' + (pref.comp === 'guitar' ? 'guitar' : 'piano'), { drums: false, comp: true, bass: true }], bass: ['Just bass', { drums: false, comp: false, bass: true }] };
       // form sections: [label, bars]; one unlabeled section when the tune has none
@@ -201,7 +202,7 @@ tool('repertoire', {
       const back = h('button', { class: 'btn ghost small', onclick: showList }, '← All tunes');
       const chartEl = h('div', { class: 'cform' });
       const barEls = [];
-      let check = false, checks = 0, right = 0, askAt = -1, curBar = 0;
+      let check = !!ctx.params.ear, checks = 0, right = 0, askAt = -1, curBar = 0; // ear: start in 'follow the form by ear' (On the go)
       /* Woodshedding: a key for this run, a key change every chorus (all 12 keys), a looped section, tempo up each chorus */
       let keyBase = 0, keyMove = pref.keyMove || 'same', ramp = pref.ramp || 0, range = null, shownCh = 0;
       const STEP = { same: 0, fourth: 5, half: 1 };
@@ -242,7 +243,7 @@ tool('repertoire', {
       const compSeg = engine === 'pattern' ? null : seg([['piano', 'Piano'], ['guitar', 'Guitar']], pref.comp, k => { savePref({ comp: k }); whoSeg.children[2].textContent = 'Bass & ' + (k === 'guitar' ? 'guitar' : 'piano'); if (band) band.set({ comp: k }); });
       const feelSeg = engine === 'swing' ? seg([['walk', 'Walking'], ['two', 'Two-feel']], pref.feel, k => { savePref({ feel: k }); if (band) band.set({ feel: k }); }) : null;
       const tally = h('span', { class: 'small mono' });
-      const checkBox = h('input', { type: 'checkbox', onchange: e => { check = e.target.checked; checks = 0; right = 0; tally.textContent = ''; askAt = -1; drawChart(); if (band) highlight(curBar); showChord(check ? null : barsFor(shownCh)[curBar][0]); } });
+      const checkBox = h('input', { type: 'checkbox', checked: check ? true : null, onchange: e => { check = e.target.checked; checks = 0; right = 0; tally.textContent = ''; askAt = -1; drawChart(); if (band) highlight(curBar); showChord(check ? null : barsFor(shownCh)[curBar][0]); } });
       const band_ = h('div', { class: 'bandbox' },
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Who plays' }), whoSeg),
         compSeg ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Comping' }), compSeg) : null,

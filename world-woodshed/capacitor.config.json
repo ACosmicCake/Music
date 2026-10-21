@@ -1,0 +1,12 @@
+{
+  "appId": "io.github.acosmiccake.worldwoodshed",
+  "appName": "World Woodshed",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#18201c",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 0 }
+  }
+}

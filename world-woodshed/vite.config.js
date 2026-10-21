@@ -28,6 +28,7 @@ export default defineConfig({
         ],
         shortcuts: [
           { name: 'Today', url: '.#today' },
+          { name: 'On the go', url: '.#go' },
           { name: 'Transcribe', url: '.#transcribe' }
         ]
       },
