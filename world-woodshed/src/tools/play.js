@@ -5,23 +5,25 @@ import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOL
 import { SOUND_FOR, TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
 import { techniquePage } from './learn.js';
+import Mic from '../listen.js';
+import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 
 /* ======================================================
    PLAY TOOLS
    ====================================================== */
 tool('fretboard', {
   tab: 'play', skill: 'fretboard', title: 'Fretboard notes', eyebrow: 'Play · know the neck',
-  desc: 'Find the named note on the highlighted string. Starts with natural notes on the low strings.',
+  desc: 'Find the named note on the highlighted string: tap it, or play it on your guitar with the mic. Starts with natural notes on the low strings.',
   render(body, ctx) {
     const card = h('div', { class: 'card' }); body.append(card);
     const prompt = h('div', { class: 'prompt' });
     const sub = h('p', { class: 'small muted' });
     const fbk = h('div', { class: 'feedback', hidden: true });
     let item, si, target, t0, locked = false, timer = null;
-    const fb = Fretboard({ onTap: (s2, f, ev) => {
+    const answer = (s2, f, heard) => {
       if (locked) return;
       A.ensure();
-      A.note(E.STRINGS[s2].midi + f, A.now() + 0.01, 0.8, 1.2);
+      if (!heard) A.note(E.STRINGS[s2].midi + f, A.now() + 0.01, 0.8, 1.2);
       if (s2 !== si) { sub.textContent = 'Tap on the ' + E.STRINGS[si].name + ' string (highlighted).'; return; }
       locked = true;
       const got = (E.STRINGS[s2].midi + f) % 12;
@@ -35,8 +37,18 @@ tool('fretboard', {
       fbk.hidden = false; fbk.className = 'feedback ' + (ok ? 'ok' : 'no');
       fbk.textContent = ok ? 'Yes — ' + D.NOTE_FULL[target] + '.' : 'That was ' + D.NOTE_FULL[got] + '. ' + D.NOTE_FULL[target] + ' is at fret ' + marks.filter(m => m.kind === 'good').map(m => m.f).join(' and ') + '.';
       timer = setTimeout(next, ok ? 700 : 2000);
-    } });
-    card.append(prompt, sub, fb.el, fbk);
+    };
+    const fb = Fretboard({ onTap: (s2, f) => answer(s2, f, false) });
+    // Played on the guitar: map the heard pitch onto the highlighted string
+    let micOff = null;
+    const mic = MicToggle({ label: 'Answer by playing', onLabel: 'Listening: play the note', hint: 'Play the note on the highlighted string.',
+      onOn: () => { micOff = Mic.on('note', ev => {
+        const m = Math.round(ev.midi), f = m - E.STRINGS[si].midi;
+        if (f >= 0 && f <= 12) answer(si, f, true);
+        else if (!locked) sub.textContent = 'Heard ' + noteLabel(ev.midi) + ': that isn’t on the ' + E.STRINGS[si].name + ' string between frets 0 and 12.';
+      }); },
+      onOff: () => { if (micOff) micOff(); micOff = null; } });
+    card.append(prompt, sub, mic.el, fb.el, fbk);
     function next() {
       clearTimeout(timer); locked = false; fbk.hidden = true; fb.clear();
       item = pickFor('fretboard', ctx);
@@ -48,33 +60,45 @@ tool('fretboard', {
       t0 = performance.now();
     }
     next();
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); mic.cleanup(); };
   }
 });
 
 tool('callresp', {
   tab: 'play', skill: 'callresp', title: 'Call & response', eyebrow: 'Play · ear to hands',
-  desc: 'Hear a short phrase, then play it back by tapping the fretboard. Any octave counts.',
+  desc: 'Hear a short phrase, then play it back on your guitar (the mic listens) or by tapping the fretboard. Any octave counts.',
   render(body, ctx) {
     const card = h('div', { class: 'card' }); body.append(card);
     let item, lick = [], played = [], done = false, tonic, sc;
     const prompt = h('div', { class: 'prompt' }), sub = h('p', { class: 'small muted' });
     const slots = h('div', { class: 'row mono' });
     const fbk = h('div', { class: 'feedback', hidden: true });
-    const fb = Fretboard({ onTap: (si, f) => {
+    const add = (si, f, heard) => {
       A.ensure();
       const m = E.STRINGS[si].midi + f;
-      A.note(m, A.now() + 0.01, 0.8, 1.0);
+      if (!heard) A.note(m, A.now() + 0.01, 0.8, 1.0);
       if (done) return;
       played.push({ m, si, f });
       fb.mark(played.map(p => ({ s: p.si, f: p.f, kind: 'tone', label: noteName(p.m) })));
       renderSlots();
       if (played.length === lick.length) check(false);
-    } });
+    };
+    const fb = Fretboard({ onTap: (si, f) => add(si, f, false) });
+    // Played on the guitar: place each heard note near the previous one on the neck
+    let micOff = null;
+    const placeNote = m => {
+      const prev = played.length ? played[played.length - 1] : { si: 2, f: 5 };
+      let best = null;
+      E.STRINGS.forEach((st, si) => { const f = m - st.midi; if (f >= 0 && f <= 12) { const cost = Math.abs(f - prev.f) + Math.abs(si - prev.si) * 1.5; if (!best || cost < best.cost) best = { si, f, cost }; } });
+      return best;
+    };
+    const mic = MicToggle({ label: 'Answer by playing', onLabel: 'Listening: play it back', hint: 'Play after the phrase ends. Any octave counts.',
+      onOn: () => { micOff = Mic.on('note', ev => { const p = placeNote(Math.round(ev.midi)); if (p) add(p.si, p.f, true); }); },
+      onOff: () => { if (micOff) micOff(); micOff = null; } });
     const playBtn = h('button', { class: 'btn primary' }, '▶ Play phrase');
     const undoBtn = h('button', { class: 'btn small' }, 'Undo');
     const giveBtn = h('button', { class: 'btn small ghost' }, 'Show answer');
-    card.append(prompt, sub, h('div', { class: 'row' }, playBtn, undoBtn, giveBtn), slots, fb.el, fbk);
+    card.append(prompt, sub, h('div', { class: 'row' }, playBtn, undoBtn, giveBtn), mic.el, slots, fb.el, fbk);
     function renderSlots() {
       slots.innerHTML = '';
       lick.forEach((m, i) => slots.append(h('span', { class: 'chip', text: played[i] ? noteName(played[i].m) : '·' })));
@@ -83,6 +107,8 @@ tool('callresp', {
       const at = A.now() + 0.05;
       A.strum([tonic - 12, tonic - 5, tonic, tonic + (sc.steps.includes(3) && !sc.steps.includes(4) ? 3 : 4)], at, 0.4, 0.02, 0.9);
       lick.forEach((m, i) => A.note(m, at + 1.1 + i * 0.42, 0.85, 0.8));
+      // don't mistake the app's own phrase for your answer
+      Mic.muteUntil(at + 1.1 + lick.length * 0.42 + 0.6 + Mic.latencyMs() / 1000);
     }
     function gen() {
       item = pickFor('callresp', ctx);
@@ -124,6 +150,7 @@ tool('callresp', {
     undoBtn.onclick = () => { if (done) return; played.pop(); fb.mark(played.map(p => ({ s: p.si, f: p.f, kind: 'tone', label: noteName(p.m) }))); renderSlots(); };
     giveBtn.onclick = () => { if (!done) check(true); };
     gen();
+    return () => mic.cleanup();
   }
 });
 
@@ -276,8 +303,9 @@ tool('technique', {
     const holder = h('div', { class: 'section' }); body.append(holder);
     let loop = null, countTimer = null;
     function stopAll() { if (loop) loop.stop(); loop = null; clearInterval(countTimer); ctx.setActive(false); }
+    const dropExtra = () => { if (ctx._cleanupExtra) { ctx._cleanupExtra(); ctx._cleanupExtra = null; } };
     function list() {
-      stopAll(); holder.innerHTML = '';
+      stopAll(); dropExtra(); holder.innerHTML = '';
       const tl = h('div', { class: 'tools' });
       D.EXERCISES.forEach(ex => {
         const t = E.state.tech[ex.id];
@@ -288,7 +316,7 @@ tool('technique', {
       holder.append(tl);
     }
     function open(ex) {
-      stopAll(); holder.innerHTML = '';
+      stopAll(); dropExtra(); holder.innerHTML = '';
       const t = E.techState(ex.id);
       const card = h('div', { class: 'card' });
       holder.append(card);
@@ -320,7 +348,7 @@ tool('technique', {
           }, 100);
         };
         refreshStats();
-        const prevCleanup = ctx._cleanupExtra; ctx._cleanupExtra = () => { padObj.cleanup(); prevCleanup && prevCleanup(); };
+        ctx._cleanupExtra = () => padObj.cleanup();
         return;
       }
       const big = h('div', { class: 'big-number mono', text: t.bpm });
@@ -331,14 +359,21 @@ tool('technique', {
       const cleanBtn = h('button', { class: 'btn brass' }, 'Clean ✓');
       const sloppyBtn = h('button', { class: 'btn' }, 'Not clean');
       const note = h('p', { class: 'small muted', text: 'Play 4 bars per attempt. Be honest: clean means even, relaxed and in time.' });
-      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus), playBtn), h('div', { class: 'row' }, cleanBtn, sloppyBtn), note);
+      // with the mic on, a meter shows where each note lands against the click
+      const meter = TimingMeter(() => (loop ? { start: loop.startTime, step: 60 / t.bpm / sub } : null), { idle: 'Start the click and play the exercise.', onClean: true });
+      const meterBox = h('div', { hidden: true }, meter.el);
+      const mic = MicToggle({ label: 'Check my timing', onLabel: 'Listening to your timing', hint: 'Wear headphones so the mic hears your guitar, not the click.',
+        onOn: () => { meterBox.hidden = false; meter.reset(); meter.start('onset'); },
+        onOff: () => { meterBox.hidden = true; meter.stop(); } });
+      ctx._cleanupExtra = () => { meter.stop(); mic.cleanup(); };
+      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus), playBtn), h('div', { class: 'row' }, cleanBtn, sloppyBtn), mic.el, meterBox, note);
       function start() {
         A.ensure();
         loop = A.Loop({ steps: 4 * sub, stepDur: () => 60 / t.bpm / sub, onStep: (i, tt) => { if (i === 0) A.hit('clickHi', tt, 1); else if (i % sub === 0) A.hit('click', tt, 0.85); else A.hit('click', tt, 0.3); } });
         loop.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true);
       }
-      function restart() { if (loop) { loop.stop(); loop = null; start(); } }
-      playBtn.onclick = () => { if (loop) { stopAll(); playBtn.textContent = '▶ Click'; } else start(); };
+      function restart() { meter.reset(); if (loop) { loop.stop(); loop = null; start(); } }
+      playBtn.onclick = () => { if (loop) { stopAll(); playBtn.textContent = '▶ Click'; } else { meter.reset(); start(); } };
       cleanBtn.onclick = () => { const before = t.bpm; E.techResult(ex.id, true); big.textContent = t.bpm; refreshStats(); restart(); toast('Clean at ' + before + '. Next: ' + t.bpm + ' bpm'); };
       sloppyBtn.onclick = () => { const before = t.bpm; E.techResult(ex.id, false); big.textContent = t.bpm; refreshStats(); restart(); toast(t.bpm < before ? 'Dropped to ' + t.bpm + ' bpm. Rebuild it clean.' : 'Stay at ' + t.bpm + ' and try again'); };
       refreshStats();

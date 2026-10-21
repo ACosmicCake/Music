@@ -4,6 +4,8 @@ import E from '../engine.js';
 import { h, s, toast, tool, openTool, Fretboard, positionsOfPc } from '../ui/core.js';
 import { degreeLabel, diatonicChords, chordMidis, spell, keyPrefersFlats, prettySym, flatName } from '../theory.js';
 import { PATTERNS, DRILLS, warmScales } from '../routines.js';
+import Mic from '../listen.js';
+import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 
 /* ======================================================
    PRACTICE TOOLS: scale warm-up, explorer, circle of fifths, tuner, free practice, break
@@ -99,6 +101,30 @@ tool('scalewarm', {
         h('button', { class: 'btn brass', onclick: () => { saveBest(); setBpm(bpm + 4); toast('Clean. Up to ' + bpm + ' bpm'); } }, 'Clean ✓ +4'),
         h('button', { class: 'btn', onclick: () => { setBpm(bpm - 6); toast('Back to ' + bpm + ' bpm. Rebuild it clean.'); } }, 'Not clean'), roundLbl));
 
+    // Listening: each note you play is checked against the note due at that moment, and its timing
+    const steps = [];            // recent scheduled steps: { t, i }
+    let lastStep = null, hits = 0, tries = 0, micNoteOff = null;
+    const heardLbl = h('span', { class: 'mono small' });
+    const meter = TimingMeter(() => (loop && lastStep ? { start: lastStep.t, step: 60 / bpm / st.sub } : null), { idle: 'Press Start and play along.' });
+    const listenBox = h('div', { class: 'stack', hidden: true }, h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Right notes' }), heardLbl), meter.el);
+    const paintHeard = last => { heardLbl.textContent = (tries ? hits + ' of ' + tries + ' (' + Math.round(100 * hits / tries) + '%)' : '—') + (last ? ' · last: ' + last : ''); };
+    const mic = MicToggle({ label: 'Check my notes and timing', onLabel: 'Listening to you play', hint: 'Headphones help: the mic should hear your guitar, not the click.',
+      onOn: () => {
+        listenBox.hidden = false; hits = tries = 0; paintHeard(); meter.reset(); meter.start('note');
+        micNoteOff = Mic.on('note', ev => {
+          if (!loop || !steps.length) return;
+          const t = ev.t - Mic.latencyMs() / 1000;
+          let near = steps[0];
+          steps.forEach(x => { if (Math.abs(x.t - t) < Math.abs(near.t - t)) near = x; });
+          if (Math.abs(near.t - t) > 60 / bpm / st.sub * 0.6 || near.i >= seq.length) return;
+          const want = seq[near.i], got = Math.round(ev.midi), ok = got === want.m;
+          tries++; if (ok) hits++;
+          paintHeard(noteLabel(ev.midi) + (ok ? ' ✓' : ' ✗ (wanted ' + noteLabel(want.m).split(' ')[0] + ')'));
+        });
+      },
+      onOff: () => { listenBox.hidden = true; meter.stop(); if (micNoteOff) micNoteOff(); micNoteOff = null; } });
+    card.append(mic.el, listenBox);
+
     const posSel = h('div');
     function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb }); }
     function setBpm(v) {
@@ -132,7 +158,7 @@ tool('scalewarm', {
     }
     let countTimers = [];
     function start() {
-      A.ensure(); rounds = 0;
+      A.ensure(); rounds = 0; steps.length = 0; lastStep = null;
       const len = seq.length, beat = 60 / bpm;
       // one bar of count-in, then the pattern loops (steps are subdivisions)
       const t0 = A.now() + 0.1;
@@ -145,7 +171,9 @@ tool('scalewarm', {
         stepDur: () => 60 / bpm / st.sub,
         onStep: (i, t) => {
           if (i % st.sub === 0) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8);
-          if (i < len && st.guide) A.note(seq[i].m, t, 0.32, 0.25);
+          // guide notes would confuse the mic, so they stay off while it listens
+          if (i < len && st.guide && !mic.on) A.note(seq[i].m, t, 0.32, 0.25);
+          lastStep = { t, i }; steps.push(lastStep); if (steps.length > 16) steps.shift();
         },
         onVisual: (i, cycle) => {
           if (i < len) highlight(i);
@@ -176,7 +204,7 @@ tool('scalewarm', {
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; persist(); } }), 'Speed up 2 bpm every 2 rounds')));
     }
     build();
-    return () => { countTimers.forEach(clearTimeout); if (loop) loop.stop(); loop = null; };
+    return () => { countTimers.forEach(clearTimeout); if (loop) loop.stop(); loop = null; meter.stop(); mic.cleanup(); };
   }
 });
 
@@ -341,16 +369,44 @@ const TUNINGS = [
   ['Open E', [40, 47, 52, 56, 59, 64]]
 ];
 tool('tuner', {
-  tab: 'learn', skill: null, title: 'Reference tones', eyebrow: 'Reference · tune by ear',
-  desc: 'Sustained tones for each string in common tunings. Play the string with the tone and listen for the beating to slow down and stop.',
+  tab: 'learn', skill: null, title: 'Tuner & reference tones', eyebrow: 'Reference · tune up',
+  desc: 'Let the app hear each string and show how far off it is, or tune by ear to sustained reference tones in eight tunings.',
   render(body) {
     let ti = 0, stopFn = null, playing = -1, cycle = null;
+    // the listening tuner
+    const tcard = h('div', { class: 'card tuner' });
+    const noteEl = h('div', { class: 'tn-note', text: '—' });
+    const centsEl = h('div', { class: 'mono tn-cents', text: '' });
+    const needle = h('i', { class: 'tn-needle' });
+    const scale = h('div', { class: 'tn-scale' }, h('span', { class: 'tn-zone' }), needle, h('span', { class: 'tn-lab l', text: '−50' }), h('span', { class: 'tn-lab c', text: '0' }), h('span', { class: 'tn-lab r', text: '+50' }));
+    const strEl = h('p', { class: 'small muted', text: 'Play one string at a time and let it ring.' });
+    const recent = [];
+    let pitchOff = null, quiet = null;
+    const mic = MicToggle({ label: 'Tune with the mic', onLabel: 'Listening', hint: '',
+      onOn: () => { pitchOff = Mic.on('pitch', ev => {
+        recent.push(ev.midi); if (recent.length > 5) recent.shift();
+        const sorted = recent.slice().sort((a, b) => a - b), m = sorted[sorted.length >> 1];
+        if (Math.abs(ev.midi - m) > 0.7) return; // wait for the reading to settle
+        const r = Math.round(m), c = Math.round((m - r) * 100);
+        noteEl.textContent = noteLabel(r);
+        centsEl.textContent = (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(c) + ' cents · ' + ev.freq.toFixed(1) + ' Hz';
+        needle.style.left = (50 + Math.max(-50, Math.min(50, c))) + '%';
+        tcard.classList.toggle('intune', Math.abs(c) <= 4);
+        const midis = TUNINGS[ti][1];
+        let si = 0; midis.forEach((x, i) => { if (Math.abs(x - m) < Math.abs(midis[si] - m)) si = i; });
+        const off = Math.round((m - midis[si]) * 100);
+        strEl.textContent = 'String ' + (6 - si) + ' (' + flatName(midis[si]) + '): ' + (Math.abs(off) <= 4 ? 'in tune' : Math.abs(off) > 150 ? 'far off: check you’re on the right string' : (off > 0 ? 'sharp by ' + off + ' cents, tune down' : 'flat by ' + (-off) + ' cents, tune up'));
+        clearTimeout(quiet); quiet = setTimeout(() => { tcard.classList.remove('intune'); }, 1500);
+      }); },
+      onOff: () => { if (pitchOff) pitchOff(); pitchOff = null; noteEl.textContent = '—'; centsEl.textContent = ''; } });
+    tcard.append(h('div', { class: 'spread' }, h('h2', { text: 'Tuner' }), mic.el), noteEl, centsEl, scale, strEl);
+    body.append(tcard);
     const card = h('div', { class: 'card' }); body.append(card);
     function stopTone() { if (stopFn) stopFn(); stopFn = null; playing = -1; clearTimeout(cycle); cycle = null; }
     function draw() {
       card.innerHTML = '';
       const [name, midis] = TUNINGS[ti];
-      card.append(selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; draw(); }),
+      card.append(h('h3', { text: 'Reference tones' }), selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; draw(); }),
         h('div', { class: 'strings' }, midis.map((m, i) => h('button', { class: 'stringbtn' + (playing === i ? ' on' : ''), onclick: () => {
           A.ensure(); const was = playing === i; stopTone();
           if (!was) { stopFn = A.tone(m, A.now() + 0.02, 30); playing = i; }
@@ -364,10 +420,10 @@ tool('tuner', {
             step();
           } }, '▶ Play all strings'),
           h('button', { class: 'btn ghost', onclick: () => { stopTone(); draw(); } }, 'Stop')),
-        h('p', { class: 'small muted', text: name + '. Tones use A = 440 Hz. Tap a string to hold its note; tap again to stop.' }));
+        h('p', { class: 'small muted', text: name + '. Tones use A = 440 Hz. Tap a string to hold its note; tap again to stop. The tuner above uses the tuning you pick here.' }));
     }
     draw();
-    return () => stopTone();
+    return () => { stopTone(); clearTimeout(quiet); mic.cleanup(); };
   }
 });
 
@@ -507,13 +563,28 @@ tool('away', {
         const pool = D.DEGREES.filter(x => x.tier <= 3);
         let tonic = 48 + Math.floor(Math.random() * 7), cur = null, n = 0;
         const prompt = h('div', { class: 'prompt' }), sub = h('p', { class: 'small muted' });
-        const next = () => { cur = pool[Math.floor(Math.random() * pool.length)]; n++; prompt.textContent = 'Sing ' + cur.id + ' (' + cur.solf + ' / ' + cur.sargam + ')'; sub.textContent = 'Round ' + n + '. Hold the note, then check it.'; };
+        const sungEl = h('div', { class: 'sung' });
+        let inTuneSince = 0;
+        const next = () => { cur = pool[Math.floor(Math.random() * pool.length)]; n++; inTuneSince = 0; sungEl.textContent = ''; sungEl.className = 'sung'; prompt.textContent = 'Sing ' + cur.id + ' (' + cur.solf + ' / ' + cur.sargam + ')'; sub.textContent = 'Round ' + n + '. Hold the note, then check it.'; };
+        // with the mic, show how close the sung note is to the target degree (any octave)
+        let pitchOff = null;
+        const mic = MicToggle({ label: 'Let the app hear me sing', onLabel: 'Listening to your voice', hint: 'Headphones keep the drone out of the mic.',
+          onOn: () => { pitchOff = Mic.on('pitch', ev => {
+            let d = (ev.midi - (tonic + cur.semi)) % 12; if (d > 6) d -= 12; if (d < -6) d += 12;
+            const c = Math.round(d * 100);
+            if (Math.abs(c) <= 25) { if (!inTuneSince) inTuneSince = ev.t; } else inTuneSince = 0;
+            const held = inTuneSince && ev.t - inTuneSince > 0.6;
+            sungEl.className = 'sung' + (held ? ' ok' : Math.abs(c) <= 25 ? ' near' : '');
+            sungEl.textContent = held ? '✓ ' + cur.id + ', in tune. Next degree when ready.' : 'You: ' + noteLabel(ev.midi).split(' ')[0] + ' · ' + (Math.abs(c) <= 25 ? 'close' : Math.abs(c) > 150 ? 'a different note' : c > 0 ? c + '¢ sharp' : -c + '¢ flat');
+          }); },
+          onOff: () => { if (pitchOff) pitchOff(); pitchOff = null; sungEl.textContent = ''; } });
+        cleanupExtra = () => mic.cleanup();
         const droneBtn = h('button', { class: 'btn' }, 'Start drone');
         droneBtn.onclick = () => { A.ensure(); if (drone) { drone.stop(); drone = null; droneBtn.textContent = 'Start drone'; ctx.setActive(false); } else { drone = A.Drone(tonic); drone.start(); droneBtn.textContent = 'Stop drone'; ctx.setActive(true); } };
         next();
         card.append(h('h2', { text: 'Sing the degrees' }),
           h('p', { text: 'A drone holds the tonic (Sa, Do, 1). Sing the degree shown, hold it against the drone, then tap Check to hear the right note. Sing quietly; humming is fine.' }),
-          droneBtn, prompt, sub,
+          droneBtn, prompt, sub, mic.el, sungEl,
           h('div', { class: 'row' },
             h('button', { class: 'btn primary', onclick: () => { A.ensure(); A.note(tonic + 12 + cur.semi, A.now() + 0.02, 0.8, 1.6); } }, '▶ Check'),
             h('button', { class: 'btn brass', onclick: next }, 'Next degree →')),
