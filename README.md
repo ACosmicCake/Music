@@ -69,6 +69,7 @@ Code map:
 | `src/notation.js`, `src/tools/reading.js` | Staff notation renderer and the sight-reading trainer |
 | `src/audio.js` | Web Audio synthesis and the loop scheduler |
 | `src/band.js` | The backing band for tunes: walking bass, piano comping, drums, mixer |
+| `src/samples.js`, `public/samples/` | Recorded instruments, loaded on first use (credits in `public/samples/LICENSES.md`, rebuilt by `scripts/samples/build.mjs`) |
 | `src/engine.js` | Skill model, spaced repetition, routines, saving and backup |
 | `src/ui/core.js` | DOM helpers, tabs and routing, tool runner, quiz, fretboard |
 | `src/ui/routine.js`, `src/ui/session.js` | Routine editor, and the session player with its timer |

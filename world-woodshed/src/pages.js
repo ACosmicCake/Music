@@ -11,6 +11,7 @@ import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
+import Samples from './samples.js';
 
 /* ======================================================
    PAGES
@@ -265,8 +266,37 @@ function fold(card, title) {
 const foldWith = (title, card) => fold(card, title);
 
 /* Display: compact layout and text size, for this device only */
+/* Sampled instruments: what there is, how big, and a button to keep them all for offline use */
+function soundsSection() {
+  const el = h('div', { class: 'stack' });
+  const mb = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
+  const total = Samples.totalBytes(), names = Samples.instruments().map(x => x.name.toLowerCase()).join(' and ');
+  const status = h('span', { class: 'small muted', role: 'status' });
+  const btn = h('button', { class: 'btn small' }, 'Download all sounds · ' + mb(total));
+  el.append(h('span', { class: 'eyebrow', text: 'Sounds' }),
+    h('span', { class: 'small muted', text: 'Recorded instruments (' + names + ') load the first time they play, and the synthesized sound fills in until they do. Download them now to have them all offline.' }));
+  if (isNative()) { el.append(h('span', { class: 'small', text: 'Included in the app: ' + mb(total) + '.' })); return el; }
+  el.append(h('div', { class: 'row' }, btn), status);
+  const show = have => {
+    const all = have >= total;
+    status.textContent = all ? 'All sounds are on this device.' : have ? mb(have) + ' of ' + mb(total) + ' on this device.' : '';
+    btn.disabled = all ? true : null;
+  };
+  Samples.offlineBytes().then(show);
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const r = await Samples.downloadAll((done, all) => { status.textContent = 'Downloading… ' + Math.round(100 * done / all) + '%'; });
+    if (r.failed) { status.textContent = r.failed + ' files could not be downloaded. Check the connection and try again.'; btn.disabled = null; return; }
+    // with no service worker yet (the first visit), the browser's own cache is all there is
+    const have = await Samples.offlineBytes();
+    if (have) show(have); else status.textContent = 'Downloaded. They will be kept for offline use once the app has installed itself.';
+  };
+  return el;
+}
+
 function displayCard() {
   const card = h('div', { class: 'card' });
+  const sounds = soundsSection();
   function draw() {
     card.innerHTML = '';
     const st = E.state.settings, seg = (opts, cur, key) => h('div', { class: 'seg' }, opts.map(([k, t]) => h('button', { 'aria-pressed': String(k === cur), onclick: () => { E.setSetting(key, k); applyDisplay(); draw(); } }, t)));
@@ -274,7 +304,8 @@ function displayCard() {
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Layout' }), seg([['auto', 'Auto'], ['compact', 'Compact'], ['roomy', 'Roomy']], st.display || 'auto', 'display'),
         h('span', { class: 'small muted', text: 'Compact suits small phones: a slim top bar, the tab bar tucked away inside tools, tool descriptions behind ⓘ, and long sections folded. Auto turns it on for screens under 380 × 640.' })),
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Text size' }), seg([['s', 'Small'], ['m', 'Normal'], ['l', 'Large']], st.textSize || 'm', 'textSize'),
-        h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })));
+        h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })),
+      sounds);
   }
   draw();
   return card;

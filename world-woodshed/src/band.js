@@ -4,6 +4,7 @@
    Other grooves use the pattern data with the same bass and voice-led guitar chords.
    Parts mix on a small bus with a room reverb, so any of them can be muted, e.g. bass alone. */
 import A from './audio.js';
+import Samples from './samples.js';
 
 const pcOf = m => ((m % 12) + 12) % 12;
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -54,8 +55,19 @@ function getBus() {
 }
 
 /* ---------- instruments ---------- */
-/* Upright bass: a sine body with a filtered saw for the string, plucked by a fast filter sweep */
+/* A recorded note when the instrument's samples have loaded (they start loading with the band),
+   else null and the synth voice plays. */
+function sampled(id, m, when, dur, vel, dest) {
+  const n = Samples.play(id, m, when, vel, dur, dest);
+  if (n) { live.add(n); n.onended = () => live.delete(n); }
+  return n;
+}
+
+/* Upright bass: a recorded double bass, pizzicato. Until it loads: a sine body with a filtered saw
+   for the string, plucked by a fast filter sweep. */
 function bassVoice(m, when, dur, vel, bright) {
+  // the synth's vel tops out near 0.55; the samples' layers span 0–1
+  if (sampled('upright', m, when, dur, Math.min(1, vel * 1.6), bus.bass.in)) return;
   const { ctx } = bus, f = A.mtof(m), dest = bus.bass.in;
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, when);
@@ -104,7 +116,14 @@ function epNote(m, when, dur, vel) {
   const end = when + dur + 0.6;
   [car, car2, mod].forEach(o => { o.start(when); keep(o, end); });
 }
-function pianoChord(notes, when, dur, vel) { notes.forEach((m, i) => epNote(m, when + i * 0.004 + rnd(0, 0.006), dur, vel * rnd(0.9, 1.05))); }
+/* Piano: a recorded grand when loaded, else the electric-piano synth. The notes of a chord land a few
+   milliseconds apart, as a hand's fingers do. */
+function pianoChord(notes, when, dur, vel) {
+  notes.forEach((m, i) => {
+    const t = when + i * 0.004 + rnd(0, 0.006), v = vel * rnd(0.9, 1.05);
+    if (!sampled('piano', m, t, dur, v * 0.8, bus.comp.in)) epNote(m, t, dur, v);
+  });
+}
 function guitarChord(notes, when, dur, vel, tone) { A.strum(notes, when, vel, 0.012, dur, { out: bus.comp.in, tone: tone || 1900 }); }
 
 /* Drum kit */
@@ -444,6 +463,7 @@ export function Band(o) {
 
   function start() {
     getBus();
+    Samples.load('upright'); Samples.load('piano'); // the first bars may still use the synth
     if (!rideBuf) { rideBuf = buildRide(bus.ctx); chickBuf = buildChick(bus.ctx); }
     clearTimeout(stopTimer);
     live.forEach(n => { try { n.stop(); } catch (e) { /* already stopped */ } }); live.clear();

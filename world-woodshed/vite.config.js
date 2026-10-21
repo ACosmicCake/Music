@@ -37,7 +37,15 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
-        cleanupOutdatedCaches: true
+        cleanupOutdatedCaches: true,
+        // Instrument samples are too big to install with the app: each is kept the first time it is
+        // fetched (when the instrument first plays, or from Train → Display → Download all sounds).
+        // The cache name matches SAMPLE_CACHE in src/samples.js.
+        runtimeCaching: [{
+          urlPattern: /\/samples\/.+\.mp3$/,
+          handler: 'CacheFirst',
+          options: { cacheName: 'ww-samples', cacheableResponse: { statuses: [200] } }
+        }]
       }
     })
   ]
