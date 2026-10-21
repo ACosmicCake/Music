@@ -25,6 +25,8 @@ Every push to `main` builds the app and publishes it to GitHub Pages (see `.gith
 - **Android (Chrome):** tap Install when the banner appears, or menu → Install app.
 - **Mac, Windows or Linux (Chrome or Edge):** click the install icon in the address bar, or the Install banner in the app.
 
+With the microphone allowed, the app can hear your guitar: a real tuner, answering quizzes by playing, rhythm tests on the guitar, and live timing and right-note checks in warm-ups and technique ladders. The sound is analysed on the device and never recorded or sent. Wear headphones for timing tests so the mic hears only your guitar.
+
 Progress is saved on the device (localStorage, with a second copy in IndexedDB). To move it to another device, use **Backup → Export** on the Today tab and **Import** the file on the other device.
 
 ### Work on it
@@ -55,6 +57,7 @@ Code map:
 | `src/ui/routine.js`, `src/ui/session.js` | Routine editor, and the session player with its timer |
 | `src/tools/*.js` | One file per area: ear, rhythm, play, practice, learn, atlas, transcribe |
 | `src/pages.js` | The Today and Train pages |
+| `src/listen.js`, `src/ui/mic.js` | Microphone: pitch and onset detection, Listen toggle, timing meter |
 | `src/pwa.js` | Offline cache, update prompt and install button |
 | `src/stretch.js`, `src/stretch.worker.js` | Time-stretch and pitch shift for Transcribe |
 | `public/icons/` | App icons. Edit `icon.svg`, then run `npm run icons` |

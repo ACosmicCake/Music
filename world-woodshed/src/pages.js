@@ -6,6 +6,7 @@ import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
 import { startSession, runCurrent } from './ui/session.js';
 import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
+import { micSettingsCard } from './ui/mic.js';
 
 /* ======================================================
    PAGES
@@ -145,6 +146,7 @@ Object.assign(PAGES, {
     view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
     view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
+    view.append(micSettingsCard());
   }
 });
 

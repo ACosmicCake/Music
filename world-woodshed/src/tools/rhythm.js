@@ -2,6 +2,8 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz } from '../ui/core.js';
+import Mic from '../listen.js';
+import { MicToggle, micSettingsCard } from '../ui/mic.js';
 
 /* ======================================================
    RHYTHM TOOLS
@@ -114,15 +116,28 @@ function describeOffset(meanMs) {
   if (Math.abs(meanMs) < 12) return 'Right in the pocket on average.';
   return meanMs > 0 ? 'You drag by ' + Math.round(meanMs) + ' ms on average (late).' : 'You rush by ' + Math.round(-meanMs) + ' ms on average (early).';
 }
-export function TapPad(onTap, label = 'Tap here (or space bar)') {
+/* Tap input. With opts.mic, the player can switch to playing on the guitar: each attack the mic
+   hears counts as a tap, already corrected for latency (ev.micTime, audio clock). */
+export function TapPad(onTap, label = 'Tap here (or space bar)', opts = {}) {
   const pad = h('button', { class: 'tappad', type: 'button' }, label);
-  const fire = ev => { ev.preventDefault(); onTap(ev); pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 80); };
+  const flash = () => { pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 80); };
+  const fire = ev => { ev.preventDefault(); onTap(ev); flash(); };
   pad.addEventListener('pointerdown', fire);
   const key = ev => { if (ev.code === 'Space' && !ev.repeat && !(ev.target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName))) fire(ev); };
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   document.addEventListener('keydown', key);
-  return { el: pad, cleanup: () => document.removeEventListener('keydown', key) };
+  let micOff = null, micT = null;
+  if (opts.mic) {
+    micT = MicToggle({
+      label: 'Play on the guitar instead', onLabel: 'Listening: play on your guitar', hint: 'Wear headphones so the mic hears only your guitar, not the app.',
+      onOn: () => { micOff = Mic.on('onset', ev => { onTap({ micTime: ev.t - Mic.latencyMs() / 1000 }); flash(); }); pad.textContent = 'Play on your guitar (tapping still works)'; },
+      onOff: () => { if (micOff) micOff(); micOff = null; pad.textContent = label; }
+    });
+  }
+  return { el: micT ? h('div', { class: 'stack' }, pad, micT.el) : pad, cleanup: () => { document.removeEventListener('keydown', key); if (micOff) micOff(); if (micT) micT.cleanup(); } };
 }
+/* Audio-clock time of a tap or a heard note */
+const tapTime = (ev, lat) => (ev.micTime !== undefined ? ev.micTime : A.eventToAudioTime(ev) - lat);
 
 tool('rhythms', {
   tab: 'rhythm', skill: 'rhythmTap', title: 'Rhythm atlas', eyebrow: 'Rhythm · play & tap along',
@@ -189,7 +204,7 @@ tool('rhythms', {
       const muteSet = new Set(r.target === 'all' ? ['low', 'high'] : [r.target]);
       const expected = [], taps = [];
       const lat = (E.state.settings.latencyMs || 0) / 1000;
-      padObj = TapPad(ev => { taps.push(A.eventToAudioTime(ev) - lat); });
+      padObj = TapPad(ev => { taps.push(tapTime(ev, lat)); }, undefined, { mic: true });
       padHolder.append(padObj.el);
       phase.hidden = false;
       loop = A.Loop({
@@ -283,7 +298,7 @@ tool('clock', {
       stop(); A.ensure(); result.innerHTML = ''; startBtn.disabled = true;
       const bpm = +item.id, beat = 60 / bpm, taps = [], expected = [];
       const lat = (E.state.settings.latencyMs || 0) / 1000;
-      padObj = TapPad(ev => taps.push(A.eventToAudioTime(ev) - lat)); padHolder.append(padObj.el);
+      padObj = TapPad(ev => taps.push(tapTime(ev, lat)), undefined, { mic: true }); padHolder.append(padObj.el);
       const total = 8 + 16 + 4;
       loop = A.Loop({
         steps: total, stepDur: () => beat, maxSteps: total,
@@ -361,6 +376,7 @@ tool('metronome', {
     const calInfo = h('p', { class: 'small', text: 'Current correction: ' + (E.state.settings.latencyMs || 0) + ' ms.' });
     const calBtn = h('button', { class: 'btn' }, 'Calibrate');
     const calPadHolder = h('div');
+    body.append(micSettingsCard());
     cal.append(h('h2', { text: 'Tap calibration' }), h('p', { class: 'small muted', text: 'Phones and Bluetooth headphones add delay. Tap along with 12 clicks; the app measures your device and subtracts it from every timing test.' }), calInfo, calBtn, calPadHolder);
     calBtn.onclick = () => {
       stopMet(); A.ensure(); calBtn.disabled = true;

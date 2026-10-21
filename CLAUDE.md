@@ -25,6 +25,7 @@ Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to t
 - `src/tools/transcribe.js`: the Transcribe tab, a plugin that receives the `UI` object.
 - `src/pages.js`: the Today dashboard and the Train page.
 - `src/stretch.js` (phase-vocoder time-stretch with phase locking, transient resets and shared stereo phase; windowed-sinc resampler for pitch shift) and `src/stretch.worker.js` (runs it in a module Worker).
+- `src/listen.js` (pitch and onset detection, the `Mic` input and its latency calibration) and `src/ui/mic.js` (the Listen toggle, mic settings card, timing meter).
 - `src/pwa.js`: service worker registration, update banner, install banner.
 
 ## Conventions
@@ -33,4 +34,4 @@ Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to t
 - New tabs or tools can be added as a plugin: export a function that takes the `UI` object and add it to the list in `src/main.js` (pushing onto `window.WW_PLUGINS` still works too).
 - Persistence: `engine.js` saves state to `localStorage` and a copy in IndexedDB, and asks for persistent storage. When `window.claude` exists (inside a claude.ai Artifact with the `db` and `user` capabilities), it also syncs to the private database. Keep that guard.
 - Transcribe stores loaded audio in IndexedDB on the device only; song setups save with the rest of the state.
-- No microphone input: answers are given by tapping.
+- Microphone input is opt-in. `src/listen.js` analyses it on the device (pitch, note onsets with exact timing); nothing is recorded or sent. Tools subscribe with `Mic.on(type, fn)` and the mic closes when the last listener unsubscribes. Every mic feature must also work by tapping.
