@@ -253,7 +253,8 @@ export function planSession(minutes) {
   const newKind = kinds.slice().sort((a, b) => share(a) - share(b))[0];
   // fewer, longer blocks for beginners; more variety (interleaving) as the player advances
   const blockLen = { beginner: 7.5, intermediate: 6.5, advanced: 5.5 }[ctx.level];
-  const nBlocks = Math.max(3, Math.min(10, Math.round(minutes / blockLen)));
+  // every block gets at least two minutes, so a 5-minute ride has room for two, not three
+  const nBlocks = Math.min(Math.floor(minutes / 2), Math.max(3, Math.min(10, Math.round(minutes / blockLen))));
   ctx.reviewRoom = Math.floor(nBlocks / 2);
   const blocks = [];
   const add = (kind, weight, extra) => blocks.push(Object.assign({ kind, weight }, extra || {}));
@@ -294,7 +295,7 @@ export function planSession(minutes) {
   // new items and reviews first, then the rest; keep within the block count
   const rank = c => (c[2] && c[2].isNew ? 2 : 0) + (c[2] && c[2].tag === 'review' ? 1 : 0) + c[1];
   cands.sort((a, b) => rank(b) - rank(a));
-  if (rerun && used.has(rerun.id)) rerun = null;
+  if (rerun && (used.has(rerun.id) || nBlocks - blocks.length < 2)) rerun = null; // the rerun only when a core block still fits
   const room = nBlocks - blocks.length - (rerun ? 1 : 0);
   cands.slice(0, Math.max(1, room)).forEach(c => add(c[0], c[1], c[2]));
   if (rerun) add('rerun', 0.07, { item: rerun, why: 'Before sleep: a few minutes on today’s new ' + KIND_NAME[rerun.kind] + '. Sleep helps lock in what you practised today.' });
