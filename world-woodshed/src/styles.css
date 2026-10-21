@@ -89,7 +89,9 @@ main > * { min-width: 0; }
 .btn.ghost { background: transparent; }
 .btn.small { min-height: 34px; padding: 5px 12px; font-size: 0.88rem; }
 .btn[disabled] { opacity: 0.45; cursor: default; }
-button:focus-visible, select:focus-visible, input:focus-visible, .tile:focus-visible { outline: 3px solid var(--patina); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible, .tile:focus-visible { outline: 3px solid var(--patina); outline-offset: 2px; }
+/* headings get focus after a navigation (focusView) only so the next Tab starts there; they are not controls */
+h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
 
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
 .seg button { border: 0; background: transparent; padding: 7px 13px; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
@@ -783,6 +785,14 @@ html.compact select, html.compact input[type="number"], html.compact input[type=
 html.compact .prompt { font-size: 1.15rem; }
 html.compact .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 html.compact .choice { min-height: 44px; padding: 6px 5px; border-radius: 9px; }
+/* Touch targets stay at least 44 px tall on small screens: the text keeps its compact size, the hit area does not shrink */
+html.compact .btn, html.compact .btn.small, html.compact .chip, html.compact .seg button,
+html.compact select, html.compact input[type="text"], html.compact input[type="number"], html.compact input[type="password"], html.compact input[type="search"] { min-height: 44px; }
+html.compact .btn, html.compact .chip, html.compact .seg button { min-width: 44px; justify-content: center; }
+html.compact input[type="range"] { min-height: 44px; }
+html.compact summary { min-height: 44px; align-content: center; }
+html.compact .check { min-height: 44px; }
+html.compact .sr-letters { grid-template-columns: repeat(4, minmax(44px, 1fr)); }
 html.compact .feedback { padding: 8px 10px; font-size: 0.88rem; }
 html.compact .big-number { font-size: 2.2rem; }
 html.compact .sessionbar { padding: 8px; gap: 6px; }
@@ -818,7 +828,7 @@ html.compact .heromet b { white-space: nowrap; font-size: 0.88rem; }
 html.compact .seg button { flex: 1 1 auto; }
 /* sight-reading level picker: smaller chips */
 html.compact .sr-levels { gap: 4px; }
-html.compact .sr-lv { padding: 2px 6px; min-width: 32px; min-height: 28px; font-size: 0.78rem; }
+html.compact .sr-lv { padding: 2px 6px; min-width: 44px; min-height: 44px; font-size: 0.78rem; }
 .bad-text { color: var(--bad); margin: 0; }
 .ghsync { border-top: 1px solid var(--line); padding-top: 10px; }
 .ghsync p { margin: 0; }

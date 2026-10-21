@@ -11,21 +11,36 @@ import { loadScience, whenLoaded } from '../content/lazy.js';
 
 const TIMES = [10, 15, 20, 30, 45, 60, 90, 120];
 
+/* The plan for a length is kept for a while, so the card can be redrawn (Today redraws when progress
+   changes) without the plan shuffling under you. Shuffle asks for a fresh one. */
+let cachedPlan = null;
+function planFor(m, fresh) {
+  const sessionNo = Cur.context().sessionNo;
+  const c = cachedPlan;
+  if (!fresh && c && c.m === m && c.sessionNo === sessionNo && Date.now() - c.t < 15 * 60e3) return c.plan;
+  const plan = Cur.planSession(m);
+  cachedPlan = { m, sessionNo, t: Date.now(), plan };
+  return plan;
+}
+
 /* "How much time do you have right now?" → a plan for this session, explained */
 export function smartPlanner(opts = {}) {
   const card = h('div', { class: 'card smart-card' });
-  let plan = null, minutes = null;
+  // start from the length of the last session started here, already planned: one tap to go
+  let minutes = TIMES.includes(E.state.settings.lastMinutes) ? E.state.settings.lastMinutes : null;
+  let plan = minutes ? planFor(minutes) : null;
   function draw() {
     card.innerHTML = '';
     const ctx = Cur.context(), goal = Cur.prefs().goal || 30;
     const done = ctx.minutesToday;
     const status = ctx.sessionNo === 1 ? 'First session today' : 'Session ' + ctx.sessionNo + ' today · ' + fmtMin(done) + ' so far' + (ctx.sinceLast !== null ? ', last one ' + (ctx.sinceLast < 1 ? Math.round(ctx.sinceLast * 60) + ' min' : Math.round(ctx.sinceLast) + ' h') + ' ago' : '');
     card.append(
-      h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Smart practice' }), h('h2', { text: plan ? 'Your session' : 'How much time do you have right now?' })),
+      h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Smart practice' }), h('h2', { text: plan ? 'Your session' : 'How much time do you have right now?' }),
+        plan && minutes === E.state.settings.lastMinutes ? h('span', { class: 'small muted', text: 'Same length as last time. Pick another below.' }) : null),
         h('button', { class: 'btn small ghost', onclick: () => sciencePage() }, 'How it decides →')),
       h('div', { class: 'daygoal' }, h('span', { class: 'small', text: status }), h('span', { class: 'mono small muted', text: fmtMin(done) + ' / ' + fmtMin(goal) + ' goal' }),
         h('div', { class: 'bar brass' }, h('i', { style: { width: Math.min(100, 100 * done / goal) + '%' } }))));
-    const chips = h('div', { class: 'chips presets' }, TIMES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; plan = Cur.planSession(m); draw(); } }, fmtMin(m).replace(' min', 'm').replace(' h', 'h'))));
+    const chips = h('div', { class: 'chips presets' }, TIMES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; plan = planFor(m); draw(); } }, fmtMin(m).replace(' min', 'm').replace(' h', 'h'))));
     card.append(chips);
     if (!plan) {
       card.append(h('p', { class: 'small muted', text: 'Pick a length. The plan reviews what is due, brings in new material slowly from the styles you put first, and remembers what you already did today, so a second or third session picks up where the first left off.' }));
@@ -41,8 +56,8 @@ export function smartPlanner(opts = {}) {
           h('div', { class: 'stack', style: { gap: '4px', justifyItems: 'end' } }, h('span', { class: 'mono small', text: b.minutes + 'm' }),
             b.type !== 'break' ? h('button', { class: 'mbtn', 'aria-label': 'Swap ' + blockTitle(b), title: 'Swap this block', onclick: () => openSwap({ block: b, used: plan.blocks.map(x => x.cur).filter(Boolean), onPick: nb => { nb.minutes = b.minutes; plan.blocks[i] = nb; draw(); } }) }, '⇄') : null))))),
       h('div', { class: 'row' },
-        h('button', { class: 'btn brass big', onclick: () => startSession({ name: 'Smart practice', blocks: plan.blocks, autoAdvance: true }) }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
-        h('button', { class: 'btn ghost', onclick: () => { plan = Cur.planSession(minutes); draw(); } }, 'Shuffle'),
+        h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastMinutes = minutes; startSession({ name: 'Smart practice', blocks: plan.blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
+        h('button', { class: 'btn ghost', onclick: () => { plan = planFor(minutes, true); draw(); } }, 'Shuffle'),
         opts.compact ? null : h('button', { class: 'btn ghost', onclick: () => {
           const r = { id: E.uid('r'), name: 'Smart ' + fmtMin(minutes), breaks: false, autoAdvance: true, blocks: plan.blocks.filter(b => b.type !== 'break').map(b => ({ id: E.uid('b'), type: b.type, minutes: b.minutes, settings: {} })) };
           syncWeights(r); E.saveRoutine(r); E.setActiveRoutine(r.id); toast('Saved as a routine. Its content stays smart.'); go('routine');

@@ -5,8 +5,14 @@ import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, bar } fr
 import { BLOCKS, CATS, paramsFor, blockTitle, describe, fmtClock, fmtMin, totalOf } from '../routines.js';
 import Cur from '../curriculum.js';
 import { openSwap } from './swap.js';
+import Mic from '../listen.js';
 
 let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0, wake = null;
+/* Auto-advance never cuts into a phrase: when the countdown ends while the mic hears you playing, or you
+   are tapping, it waits until you have paused for this long. */
+const PAUSE_MS = 2500;
+let lastInput = 0, waitingForPause = false;
+['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { lastInput = Date.now(); }, true));
 const bars = new Set();
 const pill = h('button', { class: 'session-pill', hidden: true, onclick: () => runCurrent() });
 document.querySelector('.topbar-inner').insertBefore(pill, document.getElementById('sync'));
@@ -135,7 +141,11 @@ function tick() {
     if (saveAcc >= 10000) { E.touchSession(); saveAcc = 0; }
     if (!b.timeUp && b.elapsed >= b.minutes * 60000) timeUp(s, b);
   }
-  if (s.autoAt && now >= s.autoAt) { s.autoAt = null; if (inSessionTool()) next(); }
+  if (s.autoAt && now >= s.autoAt) {
+    waitingForPause = now - Math.max(Mic.lastHeard, lastInput) < PAUSE_MS;
+    if (waitingForPause) s.autoAt = now + 500;
+    else { s.autoAt = null; if (inSessionTool()) next(); }
+  }
   render();
 }
 function timeUp(s, b) {
@@ -147,7 +157,7 @@ function timeUp(s, b) {
   } catch (e) { /* audio unavailable */ }
   try { if (navigator.vibrate) navigator.vibrate([120, 80, 120]); } catch (e) { /* ignore */ }
   const nxt = s.blocks[s.idx + 1];
-  if (s.autoAdvance && inSessionTool() && nxt) s.autoAt = Date.now() + 10000;
+  if (s.autoAdvance && inSessionTool() && nxt) { s.autoAt = Date.now() + 10000; waitingForPause = false; }
   E.touchSession();
 }
 
@@ -190,7 +200,7 @@ function paint(el) {
           h('span', { class: 'eyebrow', text: (s.paused ? 'Paused · ' : '') + 'Block ' + (s.idx + 1) + ' of ' + s.blocks.length + ' · ' + s.name }),
           h('b', { text: blockTitle(b) }),
           h('span', { class: 'small muted', text: describe(b) })),
-        h('div', { class: 'sb-clock mono', 'aria-live': 'off' })),
+        h('div', { class: 'sb-clock mono', role: 'timer', 'aria-label': 'Time left in this block' })),
       h('div', { class: 'sb-prog' }, h('i')),
       b.reason && b.smart !== false && b.reason !== describe(b) ? h('p', { class: 'small sb-why', text: b.reason }) : '',
       b.askRating ? h('div', { class: 'sb-rate' },
@@ -206,7 +216,7 @@ function paint(el) {
         h('span', { class: 'grow' }),
         h('button', { class: 'btn small ghost', onclick: () => next(true) }, 'Skip'),
         h('button', { class: 'btn small brass', onclick: () => next(false) }, nxt ? 'Done · next →' : 'Finish ✓')),
-      b.timeUp ? h('div', { class: 'sb-up' },
+      b.timeUp ? h('div', { class: 'sb-up', role: 'status' },
         h('b', { text: 'Time\'s up.' }),
         h('span', { class: 'small sb-auto' }),
         h('span', { class: 'grow' }),
@@ -218,7 +228,7 @@ function paint(el) {
   const auto = el.querySelector('.sb-auto');
   if (auto) {
     const nxt = s.blocks[s.idx + 1];
-    auto.textContent = s.autoAt ? 'Next: ' + blockTitle(nxt) + ' in ' + Math.max(0, Math.ceil((s.autoAt - Date.now()) / 1000)) + ' s' : nxt ? 'Keep going, or move on when ready.' : 'Last block. Finish when ready.';
+    auto.textContent = s.autoAt ? 'Next: ' + blockTitle(nxt) + (waitingForPause ? ' when you pause' : ' in ' + Math.max(0, Math.ceil((s.autoAt - Date.now()) / 1000)) + ' s') : nxt ? 'Keep going, or move on when ready.' : 'Last block. Finish when ready.';
   }
 }
 function render() {

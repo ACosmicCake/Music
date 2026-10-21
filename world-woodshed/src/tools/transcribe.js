@@ -18,6 +18,9 @@ export default function transcribe(UI) {
     return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1);
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  // a saved reference link is only ever opened as a web page: a setup imported from a backup or sync file
+  // could carry anything, and a javascript: or data: link would run in the app when clicked
+  const webLink = v => (typeof v === 'string' && /^https?:\/\/[^\s]+$/i.test(v.trim()) ? v.trim() : null);
   const uid = () => 'sg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   /* ---------- audio file cache (this device only) ---------- */
@@ -505,7 +508,7 @@ export default function transcribe(UI) {
           c.append(h('h2', { text: missing.title }),
             h('p', { text: 'This song\'s setup is saved, but the audio isn\'t stored on this device. Choose the file again to load it with your loops, sections and settings.' }),
             h('p', { class: 'small muted mono', text: 'Looking for: ' + (missing.fileName || 'the original file') }));
-          if (missing.link) c.append(h('a', { href: missing.link, target: '_blank', rel: 'noopener', class: 'small' }, 'Open the saved reference link ↗'));
+          if (webLink(missing.link)) c.append(h('a', { href: webLink(missing.link), target: '_blank', rel: 'noopener', class: 'small' }, 'Open the saved reference link ↗'));
         } else {
           c.append(h('h2', { text: 'Load a song' }),
             h('p', { text: 'Pick an audio or video file from this device: MP3, M4A, WAV, AAC, FLAC, MP4, MOV or WebM. For video, the app uses the soundtrack and shows the picture in sync when it can.' }),
@@ -696,7 +699,7 @@ export default function transcribe(UI) {
         titleIn.addEventListener('input', () => { st.title = titleIn.value.trim() || 'Untitled'; persist(); msSetup(); });
         const linkIn = h('input', { type: 'text', id: 'tr-link', value: st.link || '', placeholder: 'YouTube or other reference link', 'aria-label': 'Reference link' });
         const linkA = h('a', { target: '_blank', rel: 'noopener', class: 'small' }, 'Open link ↗');
-        const syncLink = () => { const v = linkIn.value.trim(); linkA.hidden = !/^https?:\/\//i.test(v); if (!linkA.hidden) linkA.href = v; };
+        const syncLink = () => { const v = webLink(linkIn.value.trim()); linkA.hidden = !v; if (v) linkA.href = v; };
         linkIn.addEventListener('input', () => { st.link = linkIn.value.trim(); syncLink(); persist(); });
         syncLink();
         root.append(h('div', { class: 'card tr-ui' },
