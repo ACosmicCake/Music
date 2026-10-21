@@ -223,7 +223,7 @@ async function calibrate(onProgress) {
   const ctx = A.ensure(), clicks = [], heard = [];
   const off = on('onset', ev => heard.push(ev.t));
   const t0 = ctx.currentTime + 0.4;
-  try { for (let i = 0; i < 10; i++) { const t = t0 + i * 0.6; A.hit('clickHi', t, 1); clicks.push(t); } } catch (e) { off(); throw e; }
+  try { for (let i = 0; i < 10; i++) { const t = t0 + i * 0.6; A.hit('clickHi', t, 1, undefined, { synth: true }); clicks.push(t); } } catch (e) { off(); throw e; } // the synth click, so calibration never changes
   return new Promise(resolve => {
     const tick = setInterval(() => onProgress && onProgress(Math.min(1, (ctx.currentTime - t0) / 6)), 200);
     setTimeout(() => {
