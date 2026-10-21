@@ -60,7 +60,7 @@ function record(cur, lv, kind, score, bpm) {
   let p = cur.entry;
   if (!p) {
     L.n = (L.n || 0) + 1;
-    p = { id: 'p' + L.n, no: L.n, lv, kind, code: encode(cur.piece), made: now, reads: [], best: 0, gap: 0, due: null, star: false };
+    p = { id: 'p' + E.device().slice(-6) + L.n, no: L.n, lv, kind, code: encode(cur.piece), made: now, reads: [], best: 0, gap: 0, due: null, star: false };
     L.pieces[p.id] = p;
     cur.entry = p;
   }
@@ -79,7 +79,7 @@ function record(cur, lv, kind, score, bpm) {
   return p;
 }
 function star(id, on) { const p = lib().pieces[id]; if (p) { p.star = on; E.touch(); } }
-function remove(id) { delete lib().pieces[id]; E.touch(); }
+function remove(id) { delete lib().pieces[id]; E.tombstone('piece:' + id); E.touch(); }
 function dueCount(lv, kind) { return list(lv, kind).filter(p => isDue(p)).length; }
 function describe(p) {
   const days = Math.floor((Date.now() - p.made) / DAY);

@@ -172,25 +172,59 @@ function dayChart(days) {
   return wrap;
 }
 
-/* Backup: download progress as a file, or load one back (e.g. to move to another device) */
+/* Your progress on every device: a sync file that merges (nothing practised on either device is lost),
+   an exact restore, and live sync when the app runs inside claude.ai */
 function backupCard() {
-  const card = h('div', { class: 'card' });
-  const file = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async () => {
-    const f = file.files[0]; file.value = '';
-    if (!f) return;
-    try { E.importBackup(JSON.parse(await f.text())); toast('Progress restored from backup'); go('today'); }
-    catch (e) { toast(e.message.includes('backup') ? e.message : 'Could not read that file'); }
-  } });
-  const download = () => {
-    const blob = new Blob([JSON.stringify(E.exportBackup())], { type: 'application/json' });
-    const a = h('a', { href: URL.createObjectURL(blob), download: 'world-woodshed-backup-' + E.dayKey() + '.json' });
+  const card = h('div', { class: 'card sync-card' });
+  const fileFor = () => {
+    const json = JSON.stringify(E.exportBackup());
+    return new File([json], 'world-woodshed-sync-' + E.dayKey() + '.json', { type: 'application/json' });
+  };
+  const download = f => {
+    const a = h('a', { href: URL.createObjectURL(f), download: f.name });
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
-  card.append(h('div', { class: 'spread' },
-    h('div', {}, h('h3', { text: 'Backup' }), h('span', { class: 'small muted', text: 'Save your progress to a file, or load it on another device.' })),
+  const send = async () => {
+    const f = fileFor();
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'World Woodshed progress' }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    download(f); toast('Saved ' + f.name + '. Send it to your other device and load it there.');
+  };
+  const reader = mode => {
+    const inp = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async () => {
+      const f = inp.files[0]; inp.value = '';
+      if (!f) return;
+      try {
+        const obj = JSON.parse(await f.text());
+        if (mode === 'replace' && !confirm('Replace everything on this device with that file? Practice done here since it was saved will be lost.')) return;
+        const changed = E.importBackup(obj, mode);
+        toast(mode === 'replace' ? 'Restored from the file' : changed ? 'Merged: progress from both devices is kept' : 'Already up to date: nothing new in that file');
+        go('today');
+      } catch (e) { toast(e.message && e.message.includes('backup') ? e.message : 'Could not read that file'); }
+    } });
+    card.append(inp);
+    return inp;
+  };
+  const mergeIn = reader('merge'), replaceIn = reader('replace');
+  const cloud = E.cloudOn();
+  card.append(
+    h('div', { class: 'spread' }, h('h3', { text: 'Your progress on every device' }), h('span', { class: 'badge' + (cloud ? ' brass' : ''), text: E.storageNote() })),
+    h('p', { class: 'small', text: cloud
+      ? 'Progress syncs to your account by itself: open the app on your phone while signed in and it picks up where you left off, and practice on either device is merged.'
+      : 'Progress is saved on this device. To carry on on your phone (or another computer), send it a sync file and load it there. Loading merges instead of overwriting: practice done on either device is kept, so you can go back and forth and sync whenever you like.' }),
     h('div', { class: 'row' },
-      h('button', { class: 'btn small', onclick: download }, 'Export'),
-      h('button', { class: 'btn small ghost', onclick: () => file.click() }, 'Import'))), file);
+      h('button', { class: 'btn brass small', onclick: send }, 'Send my progress'),
+      h('button', { class: 'btn small', onclick: () => mergeIn.click() }, 'Load a sync file')),
+    h('details', { class: 'small' }, h('summary', { text: 'How to set up your Android phone' }),
+      h('ol', { class: 'list small' },
+        h('li', { text: 'On the phone, open the app’s web address in Chrome and choose ⋮ → Add to Home screen (or Install app). It then works offline like an app.' }),
+        h('li', { text: 'Here, tap “Send my progress”. Share it to yourself (Drive, email, a chat with yourself, Nearby Share), or save the file and copy it over.' }),
+        h('li', { text: 'On the phone, open the app, go to Today → “Load a sync file”, and pick that file.' }),
+        h('li', { text: 'Later, sync the other way the same way. Each load merges, so nothing is lost; mic and audio latency stay set per device.' }))),
+    h('details', { class: 'small' }, h('summary', { text: 'Restore a backup exactly' }),
+      h('p', { class: 'small muted', text: 'Replaces this device’s progress with the file as it was saved, instead of merging.' }),
+      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')));
   return card;
 }

@@ -1,0 +1,84 @@
+import { describe, it, expect } from 'vitest';
+import { migrate, merge, rebuildHistory, SCHEMA } from '../src/sync.js';
+
+const DAY = '2026-10-20';
+function base(extra = {}) {
+  return Object.assign({ v: 1, created: 1, updatedAt: 1, skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {}, tech: {}, settings: {}, routines: [], journal: [], lessons: {}, heard: {}, songs: {}, cur: {} }, extra);
+}
+
+describe('migrate', () => {
+  it('brings a version-1 save up to the current schema without losing anything', () => {
+    const old = { v: 1, history: { [DAY]: { sec: 600, q: 10, c: 8, by: { intervals: [10, 8, 600] } } }, skills: { intervals: { items: { P5: { n: 3 } } } },
+      readLib: { n: 2, pieces: { p1: { id: 'p1', no: 1 }, p2: { id: 'p2', no: 2 } } } };
+    const m = migrate(JSON.parse(JSON.stringify(old)), 'dabcdef123');
+    expect(m.schema).toBe(SCHEMA);
+    expect(m.hdev.legacy[DAY]).toMatchObject({ sec: 600, q: 10, c: 8 });
+    expect(m.skills).toEqual(old.skills);
+    expect(Object.keys(m.readLib.pieces)).toEqual(['pdef1231', 'pdef1232']);
+  });
+  it('is idempotent and keeps saves written by a newer app as they are', () => {
+    const m = migrate(migrate({ v: 1, history: {} }, 'd1'), 'd1');
+    expect(m.schema).toBe(SCHEMA);
+    const future = { v: 1, schema: SCHEMA + 5, newThing: { x: 1 } };
+    expect(migrate(future, 'd1')).toEqual(future);
+  });
+});
+
+describe('merge', () => {
+  it('adds up the same day practised on two devices, and does not double the shared past', () => {
+    const shared = { [DAY]: { sec: 300, q: 4, c: 3, by: {} } };
+    const laptop = migrate(base({ history: JSON.parse(JSON.stringify(shared)) }), 'laptop');
+    const phone = migrate(base({ history: JSON.parse(JSON.stringify(shared)) }), 'phone');
+    laptop.hdev.laptop = { [DAY]: { sec: 600, q: 10, c: 9, by: { intervals: [10, 9, 600] } } };
+    phone.hdev.phone = { [DAY]: { sec: 900, q: 0, c: 0, by: { technique: [0, 0, 900] } } };
+    const m = merge(laptop, phone);
+    expect(m.history[DAY].sec).toBe(300 + 600 + 900);
+    expect(m.history[DAY].q).toBe(4 + 10);
+    expect(m.history[DAY].by.intervals).toEqual([10, 9, 600]);
+    // merging again changes nothing
+    expect(merge(m, phone).history[DAY].sec).toBe(1800);
+  });
+  it('keeps the newer record of each item from either side', () => {
+    const a = base({ skills: { intervals: { items: { P5: { n: 5, last: 100, ema: 0.9 }, m3: { n: 1, last: 50 } }, conf: { 'm3>M3': 2 }, last: 100 } } });
+    const b = base({ skills: { intervals: { items: { P5: { n: 6, last: 200, ema: 0.95 }, M6: { n: 2, last: 150 } }, conf: { 'm3>M3': 3 }, last: 200 } } });
+    const m = merge(a, b);
+    expect(m.skills.intervals.items.P5.last).toBe(200);
+    expect(Object.keys(m.skills.intervals.items).sort()).toEqual(['M6', 'P5', 'm3']);
+    expect(m.skills.intervals.conf['m3>M3']).toBe(3);
+  });
+  it('joins journals, routines and reading pieces, and respects deletions', () => {
+    const a = base({ journal: [{ ts: 1, name: 'A' }], routines: [{ id: 'r1', updatedAt: 5 }, { id: 'r2', updatedAt: 5 }], readLib: { n: 1, pieces: { pa1: { id: 'pa1', last: 1, reads: [{}] } } } });
+    const b = base({ journal: [{ ts: 2, name: 'B' }, { ts: 1, name: 'A' }], routines: [{ id: 'r2', updatedAt: 9 }], tomb: { 'routine:r1': 10 }, readLib: { n: 1, pieces: { pb1: { id: 'pb1', last: 2, reads: [{}] } } } });
+    const m = merge(a, b);
+    expect(m.journal.map(j => j.ts)).toEqual([2, 1]);
+    expect(m.routines.map(r => r.id)).toEqual(['r2']);
+    expect(m.routines[0].updatedAt).toBe(9);
+    expect(Object.keys(m.readLib.pieces).sort()).toEqual(['pa1', 'pb1']);
+  });
+  it('takes settings from the newer copy but keeps this device’s latency', () => {
+    const a = base({ updatedAt: 1, settings: { latencyMs: 40, feel16: true } });
+    const b = base({ updatedAt: 2, settings: { latencyMs: 120, feel16: false, band: { who: 'bass' } } });
+    const m = merge(a, b);
+    expect(m.settings).toEqual({ latencyMs: 40, feel16: false, band: { who: 'bass' } });
+  });
+  it('keeps the best technique tempo from both devices', () => {
+    const m = merge(base({ tech: { altpick: { best: 120, bpm: 124, last: 5 } } }), base({ tech: { altpick: { best: 100, bpm: 104, last: 9 } } }));
+    expect(m.tech.altpick).toMatchObject({ best: 120, bpm: 104, last: 9 });
+  });
+  it('merges the smart curriculum day by day', () => {
+    const a = base({ cur: { items: { 'tune:autumn': { s: 2, last: 10, n: 2 } }, prefs: { styles: ['jazz'] }, days: { [DAY]: { sessions: [{ start: 1, minutes: 20 }], items: {}, fresh: [{ id: 'x', t: 1 }] } } } });
+    const b = base({ updatedAt: 5, cur: { items: { 'tune:autumn': { s: 5, last: 20, n: 3 } }, prefs: { styles: ['flamenco'] }, days: { [DAY]: { sessions: [{ start: 2, minutes: 15 }], items: {}, fresh: [] } } } });
+    const m = merge(a, b);
+    expect(m.cur.items['tune:autumn'].s).toBe(5);
+    expect(m.cur.prefs.styles).toEqual(['flamenco']);
+    expect(m.cur.days[DAY].sessions.length).toBe(2);
+  });
+});
+
+describe('rebuildHistory', () => {
+  it('keeps days that only exist in the old history', () => {
+    const s = { hdev: { d1: { '2026-10-21': { sec: 60, q: 1, c: 1, by: {} } } }, history: { '2026-01-01': { sec: 5, q: 0, c: 0, by: {} } } };
+    const h = rebuildHistory(s);
+    expect(Object.keys(h).sort()).toEqual(['2026-01-01', '2026-10-21']);
+  });
+});

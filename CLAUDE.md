@@ -2,7 +2,7 @@
 
 The app is in `world-woodshed/`, a Vite project with plain JavaScript ES modules and no framework. It is an installable PWA (vite-plugin-pwa) deployed to GitHub Pages by `.github/workflows/deploy.yml`.
 
-Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to test the service worker) inside `world-woodshed/`, and drive it with Playwright to check a change. No tests yet.
+Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to test the service worker) inside `world-woodshed/`, and drive it with Playwright to check a change. `npm test` (Vitest, `test/`) covers state migration and device merging (`src/sync.js`) and checks the content data (rhythm lengths, chord symbols, drill bars, reading generators); the deploy workflow runs it before building.
 
 ## Files
 
@@ -36,6 +36,7 @@ Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to t
 
 - No frameworks and no runtime requests to other sites; everything is bundled so it works offline.
 - New tabs or tools can be added as a plugin: export a function that takes the `UI` object and add it to the list in `src/main.js` (pushing onto `window.WW_PLUGINS` still works too).
-- Persistence: `engine.js` saves state to `localStorage` and a copy in IndexedDB, and asks for persistent storage. When `window.claude` exists (inside a claude.ai Artifact with the `db` and `user` capabilities), it also syncs to the private database. Keep that guard.
+- Persistence: `engine.js` saves state to `localStorage` and a copy in IndexedDB, and asks for persistent storage. When `window.claude` exists (inside a claude.ai Artifact with the `db` and `user` capabilities), it also syncs to the private database (chunked under `data/users/<id>/`, live across devices). Keep that guard.
+- Saved state has a `schema` number. Changing its shape means adding a migration in `src/sync.js` (`MIGRATIONS`), never dropping old data, and teaching `merge()` about any new top-level key. Every copy (IndexedDB, cloud, sync file) is merged, not overwritten: practice time is kept per device in `state.hdev` and `history` is rebuilt from it; deletions leave a tombstone (`E.tombstone`). Device-only settings (latency, mic) are listed in `DEVICE_SETTINGS`.
 - Transcribe stores loaded audio in IndexedDB on the device only; song setups save with the rest of the state.
 - Microphone input is opt-in. `src/listen.js` analyses it on the device (pitch, note onsets with exact timing); nothing is recorded or sent. Tools subscribe with `Mic.on(type, fn)` and the mic closes when the last listener unsubscribes. Every mic feature must also work by tapping.
