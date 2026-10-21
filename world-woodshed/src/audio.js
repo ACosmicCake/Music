@@ -98,10 +98,17 @@ function ksBuffer(midi) {
 
 function track(node, stopAt) { voices.add(node); node.onended = () => voices.delete(node); }
 
-/* o: { out: node, tone: lowpass Hz, detune: cents, release: seconds to fade after dur (default 0.25) } */
+/* Guitar notes. A recorded guitar (src/guitars.js) can take over a note; it returns null while its
+   samples load, or when the player chose the synth, and the plucked string below plays instead.
+   o: { out: node, tone: lowpass Hz, detune: cents, release: seconds to fade after dur (default 0.25),
+   synth: true to skip the recording } */
+let noteSampler = null;
+function setNoteSampler(fn) { noteSampler = fn; }
 function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
+  const smp = noteSampler && !o.synth ? noteSampler(midi, when, vel, dur, Object.assign({}, o, { out: o.out || chan.guitar })) : null;
+  if (smp) { track(smp); return when; }
   const base = Math.round(midi);
   const e = ksBuffer(base);
   const src = ctx.createBufferSource();
@@ -291,4 +298,4 @@ function eventToAudioTime(ev) {
 /* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
 const channel = name => { ensure(); return chan[name]; };
 
-export default { out: () => master, channel, ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, tone, Loop, Drone, stopAll, eventToAudioTime };
+export default { out: () => master, channel, ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, eventToAudioTime };

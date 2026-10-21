@@ -3,7 +3,8 @@
    Get the sources first (shallow clones are enough), then point the script at them:
      git clone --depth 1 https://github.com/sfzinstruments/dsmolken.double-bass /tmp/smolken
      GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 https://github.com/sgossner/VCSL /tmp/vcsl
-     node scripts/samples/build.mjs --source smolken=/tmp/smolken --source vcsl=/tmp/vcsl [--only piano]
+     git clone --depth 1 https://github.com/gleitz/midi-js-soundfonts /tmp/fluidr3   (about 1.5 GB; a sparse checkout of the two guitar folders is enough)
+     node scripts/samples/build.mjs --source smolken=/tmp/smolken --source vcsl=/tmp/vcsl --source fluidr3=/tmp/fluidr3 [--only piano]
 
    Each note becomes a mono 44.1 kHz MP3: leading silence removed, cut to the recipe's length with a
    fade-out. Needs ffmpeg with libmp3lame. */

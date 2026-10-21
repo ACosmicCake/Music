@@ -11,7 +11,7 @@ export default defineConfig({
     contentIndex(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png', 'samples/LICENSES.md'], // the sound credits, linked from Train → Display
       manifest: {
         name: 'World Woodshed',
         short_name: 'Woodshed',

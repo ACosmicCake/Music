@@ -22,6 +22,14 @@ export const SOURCES = {
     url: 'https://github.com/sgossner/VCSL',
     commit: 'c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e',
     note: 'Grand Piano, Steinway B (close mics, no sustain pedal) and the percussion listed in LICENSES.md.'
+  },
+  fluidr3: {
+    name: 'FluidR3 GM SoundFont, as MP3 notes from midi-js-soundfonts',
+    author: 'Frank Wen (FluidR3 GM SoundFont), rendered as notes by Benjamin Gleitzman',
+    licence: 'CC-BY-3.0',
+    url: 'https://github.com/gleitz/midi-js-soundfonts',
+    commit: '044fab8e1456bfafc5776e86dfd6bb8697149aef',
+    note: 'The rendered notes are published under CC BY 3.0; the FluidR3 GM SoundFont itself was released under the MIT licence. Both allow this use with credit.'
   }
 };
 
@@ -35,6 +43,17 @@ export const INSTRUMENTS = [
     files: ['c1', 'eb1', 'g1', 'bb1', 'd2', 'f2', 'a2', 'c3', 'e3', 'g3', 'a3'].flatMap(n =>
       ['p', 'm', 'f'].flatMap((dyn, layer) => ['a', 'b'].map((rr, r) => ({ src: `pizz/pizz_${n}_${dyn}${rr}.wav`, midi: midiOf(n), layer, rr: r }))))
   },
+  /* Guitars: every semitone from C2 to E6 (below and above the guitar's range, for drop and open tunings,
+     capos and ear training), one velocity each. The app makes soft notes darker as well as quieter. */
+  ...[
+    { id: 'guitar-nylon', name: 'Nylon-string guitar', dir: 'FluidR3_GM/acoustic_guitar_nylon-mp3', gain: 2.6 },
+    { id: 'guitar-steel', name: 'Steel-string guitar', dir: 'FluidR3_GM/acoustic_guitar_steel-mp3', gain: 2.8 }
+  ].map(({ dir, ...inst }) => ({
+    ...inst, source: 'fluidr3', maxSec: 3, fade: 0.6, release: 0.12,
+    oneLayer: 'The SoundFont renders have one velocity per note, so softer notes are made darker with a filter as well as quieter.',
+    files: Array.from({ length: 88 - 36 + 1 }, (_, i) => 36 + i).map(m => ({
+      src: dir + '/' + ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][m % 12] + (Math.floor(m / 12) - 1) + '.mp3', midi: m, layer: 0, rr: 0 }))
+  })),
   {
     id: 'piano', name: 'Piano', source: 'vcsl', maxSec: 4, fade: 0.8, release: 0.22, gain: 0.78, layerGain: [0.32, 0.6, 1],
     // whole tones from C2 to C7: no note is more than a semitone from its sample
