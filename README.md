@@ -31,6 +31,8 @@ With the microphone allowed, the app can hear your guitar: a real tuner, answeri
 
 Progress is saved on the device (localStorage, with a second copy in IndexedDB). To carry it between devices, use **Today → Your progress on every device**: **Send my progress** on one device and **Load a sync file** on the other. Loading merges, so practice done on either device is kept.
 
+**Automatic sync (optional):** the same card can sync by itself through a private GitHub repository of your own. Create a private repository (for example `woodshed-sync`), then a [fine-grained token](https://github.com/settings/personal-access-tokens/new) limited to that repository with **Contents: Read and write**, and enter both under **Today → Your progress on every device → Automatic sync** on each device. It syncs when the app opens, every few minutes while it's open, and shortly after you practise, merging like the sync file. The token stays on the device and never goes into your progress or files.
+
 ### Android app (for commutes)
 
 The same app is also packaged for Android (`world-woodshed/android`, Capacitor), built by `.github/workflows/android.yml`. Each build of `main` is published as a release: on the phone, open **Releases → latest** in this repository, tap `WorldWoodshed.apk`, and allow installs from your browser when Android asks. New versions install over the old one and keep your progress. Pull requests get the APK as a workflow artifact.

@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard } from './ui/core.js';
+import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -9,6 +9,7 @@ import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
+import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 
 /* ======================================================
@@ -115,7 +116,7 @@ Object.assign(PAGES, {
       });
       prog.append(sec);
     });
-    view.append(prog);
+    view.append(fold(prog, 'Progress'));
 
     const weak = E.weakItems(6), conf = E.confusions(4);
     if (weak.length || conf.length) {
@@ -127,15 +128,15 @@ Object.assign(PAGES, {
           CONTRAST_SKILLS.includes(c.skill) ? h('button', { class: 'btn small', onclick: () => openTool(E.SKILLS[c.skill].tool, { params: { contrast: [c.a, c.b] }, returnTab: 'today' }) }, 'Drill these two →') : ''))));
         wc.append(h('p', { class: 'small muted', text: 'A contrast drill plays only the two you mix up, back and forth, so your ear learns the difference before they go back into the mix.' }));
       }
-      view.append(wc);
+      view.append(fold(wc, 'Weak spots'));
     }
 
     const jr = E.journal().slice(0, 5);
     if (jr.length) {
-      view.append(h('div', { class: 'card' }, h('h2', { text: 'Practice journal' }),
+      view.append(foldWith('Practice journal', h('div', { class: 'card' }, h('h2', { text: 'Practice journal' }),
         h('div', { class: 'stack' }, jr.map(j => h('div', { class: 'jrow' },
           h('div', { class: 'spread' }, h('b', { text: j.name }), h('span', { class: 'mono small muted', text: new Date(j.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + fmtMin(j.sec / 60) + ' · ' + j.done + '/' + j.total + ' blocks' })),
-          j.note ? h('p', { class: 'small', text: j.note }) : null)))));
+          j.note ? h('p', { class: 'small', text: j.note }) : null))))));
     }
 
     const danger = h('div', { class: 'card' });
@@ -145,7 +146,7 @@ Object.assign(PAGES, {
           h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
         danger.append(c);
       } }, 'Reset progress')));
-    view.append(backupCard(), danger);
+    view.append(fold(backupCard(), 'Your progress on every device'), fold(danger, 'Reset progress'));
   },
   train() {
     const sec = TRAIN[ui.section.train] ? ui.section.train : 'ear';
@@ -154,7 +155,7 @@ Object.assign(PAGES, {
     view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
     view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
-    view.append(guitarCard(), micSettingsCard());
+    view.append(fold(guitarCard(), 'Your guitar'), fold(displayCard(), 'Display'), fold(micSettingsCard(), 'Microphone'));
   }
 });
 
@@ -207,6 +208,76 @@ function dayChart(days) {
   pts.forEach(p => svg.append(s('circle', { class: 'accdot', cx: p[0], cy: p[1], r: 3 })));
   const wrap = h('div', { class: 'stack' }, svg, h('p', { class: 'small muted', text: 'Bars: minutes per day. Gold line: accuracy on days you answered questions.' }));
   return wrap;
+}
+
+/* Automatic sync through a private GitHub repository the player owns (opt-in; the token stays on this device) */
+function githubSyncBox() {
+  const box = h('div', { class: 'ghsync stack' });
+  let connecting = false;
+  const ago = t => { if (!t) return 'not yet'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
+  function draw() {
+    box.innerHTML = '';
+    const st = ghStatus();
+    box.append(h('span', { class: 'eyebrow', text: 'Automatic sync' }));
+    if (st.on) {
+      box.append(h('p', { class: 'small', text: 'On, through ' + st.owner + '/' + st.repo + '. Last synced ' + ago(st.lastSync) + (st.busy ? ' · syncing…' : '') + '.' }),
+        st.lastError ? h('p', { class: 'small bad-text', text: st.lastError }) : '',
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: async () => { await ghSyncNow('button'); draw(); toast(ghStatus().lastError ? 'Sync failed' : 'Synced'); } }, 'Sync now'),
+          h('button', { class: 'btn small ghost', onclick: () => { ghDisconnect(); draw(); toast('Automatic sync is off on this device'); } }, 'Turn off')));
+      return;
+    }
+    const f = (id, label, attrs) => h('label', { class: 'stack field', for: id }, h('span', { class: 'eyebrow', text: label }), h('input', Object.assign({ id, type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' }, attrs)));
+    const err = h('p', { class: 'small bad-text', hidden: true });
+    const go = h('button', { class: 'btn brass small' }, 'Connect');
+    const form = h('div', { class: 'stack' },
+      f('gh-owner', 'GitHub username', { placeholder: 'ACosmicCake' }),
+      f('gh-repo', 'Private repository', { placeholder: 'woodshed-sync' }),
+      f('gh-token', 'Token', { type: 'password', placeholder: 'github_pat_…' }),
+      f('gh-dev', 'This device’s name', { placeholder: isNative() ? 'Phone' : 'Laptop' }),
+      h('div', { class: 'row' }, go), err);
+    go.onclick = async () => {
+      const v = id => form.querySelector('#' + id).value.trim();
+      if (!v('gh-owner') || !v('gh-repo') || !v('gh-token')) { err.hidden = false; err.textContent = 'Fill in the username, repository and token.'; return; }
+      go.disabled = true; go.textContent = 'Connecting…'; err.hidden = true; connecting = true;
+      try { await ghConnect({ owner: v('gh-owner'), repo: v('gh-repo'), token: v('gh-token'), deviceName: v('gh-dev') }); connecting = false; toast('Connected: progress now syncs by itself'); draw(); }
+      catch (e) { connecting = false; err.hidden = false; err.textContent = e.message; go.disabled = false; go.textContent = 'Connect'; }
+    };
+    box.append(h('p', { class: 'small', text: 'Sync by itself through a private GitHub repository of your own: when the app opens, every few minutes while it is open, and shortly after you practise. It merges the same way as the sync file.' }),
+      h('details', { class: 'small' }, h('summary', { text: 'Set it up (about 3 minutes)' }),
+        h('ol', { class: 'list small' },
+          h('li', {}, 'Create a private repository, for example ', h('b', { text: 'woodshed-sync' }), ': ', h('a', { href: 'https://github.com/new', target: '_blank', rel: 'noopener' }, 'github.com/new'), ' (choose Private).'),
+          h('li', {}, 'Make a token that can only touch that repository: ', h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener' }, 'new fine-grained token'), '. Repository access: Only select repositories → that one. Permissions → Contents: Read and write. Choose an expiry, generate it and copy it.'),
+          h('li', { text: 'Fill in the form below on this device and tap Connect.' }),
+          h('li', { text: 'Do the same on your other device with the same repository (the same token works). From then on both stay in step.' })),
+        h('p', { class: 'small muted', text: 'The token is kept only on this device, never in your progress, sync files or backups. It can read and write that one repository and nothing else. When it expires, make a new one and connect again.' }),
+        form));
+  }
+  draw();
+  const off = ghOnStatus(() => { if (!box.isConnected) { off(); return; } if (!connecting) draw(); });
+  return box;
+}
+
+/* On a small screen, long cards fold to a one-line summary you can open */
+function fold(card, title) {
+  if (!isCompact()) return card;
+  return h('details', { class: 'foldwrap' }, h('summary', {}, title), card);
+}
+const foldWith = (title, card) => fold(card, title);
+
+/* Display: compact layout and text size, for this device only */
+function displayCard() {
+  const card = h('div', { class: 'card' });
+  function draw() {
+    card.innerHTML = '';
+    const st = E.state.settings, seg = (opts, cur, key) => h('div', { class: 'seg' }, opts.map(([k, t]) => h('button', { 'aria-pressed': String(k === cur), onclick: () => { E.setSetting(key, k); applyDisplay(); draw(); } }, t)));
+    card.append(h('h3', { text: 'Display' }),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Layout' }), seg([['auto', 'Auto'], ['compact', 'Compact'], ['roomy', 'Roomy']], st.display || 'auto', 'display'),
+        h('span', { class: 'small muted', text: 'Compact suits small phones: a slim top bar, the tab bar tucked away inside tools, tool descriptions behind ⓘ, and long sections folded. Auto turns it on for screens under 380 × 640.' })),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Text size' }), seg([['s', 'Small'], ['m', 'Normal'], ['l', 'Large']], st.textSize || 'm', 'textSize'),
+        h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })));
+  }
+  draw();
+  return card;
 }
 
 /* Your guitar: tuning, capo and left-handed fretboard, used by every tool that shows the neck */
@@ -272,6 +343,7 @@ function backupCard() {
     h('div', { class: 'row' },
       h('button', { class: 'btn brass small', onclick: send }, 'Send my progress'),
       h('button', { class: 'btn small', onclick: () => mergeIn.click() }, 'Load a sync file')),
+    githubSyncBox(),
     h('details', { class: 'small' }, h('summary', { text: 'How to set up your Android phone' }),
       h('ol', { class: 'list small' },
         h('li', { text: 'On the phone, open the app’s web address in Chrome and choose ⋮ → Add to Home screen (or Install app). It then works offline like an app.' }),

@@ -59,7 +59,17 @@ export const TABS = [['today', 'Today'], ['routine', 'Routine'], ['train', 'Trai
 export const TAB_ALIASES = { ear: ['train', 'ear'], rhythm: ['train', 'rhythm'], play: ['train', 'play'], atlas: ['learn', 'styles'] };
 export const ui = { tab: 'today', cleanup: null, runner: null, plan: null, section: {} };
 
+/* Compact layout for small phones (e.g. 3-inch screens): automatic below 380 x 640 CSS px, or chosen in
+   Train → Display. Text size is separate. Both are per device. */
+export function isCompact() { return document.documentElement.classList.contains('compact'); }
+export function applyDisplay() {
+  const st = E.state.settings || {}, mode = st.display || 'auto';
+  const small = window.innerWidth <= 380 || window.innerHeight <= 640;
+  document.documentElement.classList.toggle('compact', mode === 'compact' || (mode === 'auto' && small));
+  document.documentElement.dataset.text = st.textSize || 'm';
+}
 export function renderTabs() {
+  document.body.classList.toggle('in-tool', !!ui.runner);
   tabsEl.innerHTML = '';
   TABS.forEach(([id, label]) => {
     const b = h('button', { class: 'tab', 'aria-current': ui.tab === id && !ui.runner ? 'page' : null, onclick: () => go(id) });
@@ -103,12 +113,15 @@ export function openTool(id, opts = {}) {
   view.innerHTML = '';
   window.scrollTo(0, 0);
   const block = opts.block || null;
+  // back, eyebrow, title, description; the compact layout puts back, title and an ⓘ (for the description) on one row
   const head = h('div', { class: 'runner-head' });
-  const backBtn = h('button', { class: 'btn ghost small', onclick: () => go(opts.returnTab || t.tab || 'today') }, '← ', opts.session ? 'Plan' : opts.block ? 'Routine' : 'Back');
-  head.append(h('div', { class: 'spread' }, backBtn, h('span', { class: 'eyebrow', text: t.eyebrow || '' })));
+  const backLabel = opts.session ? 'Plan' : opts.block ? 'Routine' : 'Back';
+  const backBtn = h('button', { class: 'btn ghost small rh-back', 'aria-label': backLabel, onclick: () => go(opts.returnTab || t.tab || 'today') }, '← ', h('span', { class: 'rh-lbl', text: backLabel }));
+  const desc = t.desc && !block && !opts.session ? h('p', { class: 'muted rh-desc', text: t.desc }) : null;
+  const info = desc ? h('button', { class: 'btn ghost small rh-info', 'aria-label': 'About this tool', 'aria-expanded': 'false', onclick: () => { const open = head.classList.toggle('desc-open'); info.setAttribute('aria-expanded', String(open)); } }, 'ⓘ') : null;
+  head.append(backBtn, h('span', { class: 'eyebrow rh-eyebrow', text: t.eyebrow || '' }), info || '', h('h1', { class: 'rh-title', text: t.title }));
   if (opts.session && hooks.sessionBar) head.append(hooks.sessionBar());
-  head.append(h('h1', { text: t.title }));
-  if (t.desc && !block && !opts.session) head.append(h('p', { class: 'muted', text: t.desc }));
+  if (desc) head.append(desc);
   const blockBar = h('div', { class: 'blockbar', hidden: !block });
   head.append(blockBar);
   const body = h('div', { class: 'section' });
@@ -334,6 +347,12 @@ export function Fretboard(opts = {}) {
       const filled = ['root', 'g3', 'good', 'bad'].includes(m.kind);
       dots.append(s('circle', { class: 'dot ' + (m.kind || 'tone'), cx: X(fretX(m.f)), cy: strY(m.s), r: 14 }));
       if (m.label) dots.append(s('text', { class: 'lbl' + (filled ? ' on' : ''), x: X(fretX(m.f)), y: strY(m.s) }, m.label));
+    });
+    // on a narrow screen the neck scrolls sideways: bring the marked notes into view
+    if (list.length) requestAnimationFrame(() => {
+      if (wrap.scrollWidth <= wrap.clientWidth + 2) return;
+      const xs = list.map(m => X(fretX(m.f))), mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+      wrap.scrollLeft = Math.max(0, mid / FB.W * wrap.scrollWidth - wrap.clientWidth / 2);
     });
   }
   svg.addEventListener('click', ev => {

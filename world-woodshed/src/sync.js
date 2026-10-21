@@ -6,8 +6,8 @@
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
 export const SCHEMA = 2;
-// Settings that belong to one device (audio and mic latency differ per phone and laptop) never sync.
-export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn'];
+// Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
+export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize'];
 
 const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 const clone = x => JSON.parse(JSON.stringify(x));
