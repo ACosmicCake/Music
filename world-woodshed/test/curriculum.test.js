@@ -132,9 +132,13 @@ describe('planSession', () => {
       blocks.forEach(b => expect(b.minutes, m + ' min ' + b.type).toBeGreaterThanOrEqual(1));
     });
   });
-  // Known bug: three blocks of at least two minutes make a 5-minute plan (the shortest On the go ride) 6 minutes long.
-  it.fails('fits a 5-minute session in 5 minutes', () => {
-    expect(total(Cur.planSession(5).blocks)).toBe(5);
+  // The shortest On the go ride: two blocks of at least two minutes, not three (which made it 6 minutes).
+  it('fits a 5-minute session in 5 minutes', () => {
+    for (let i = 0; i < 20; i++) {
+      const p = Cur.planSession(5).blocks;
+      expect(total(p)).toBe(5);
+      expect(p[0].type).toBe('scalewarm');
+    }
   });
   it('starts with a scale warm-up', () => {
     expect(Cur.planSession(30).blocks[0].type).toBe('scalewarm');
