@@ -659,3 +659,19 @@ section.card { scroll-margin-top: 110px; }
 .swapcard:hover { border-color: var(--cc); }
 .swaptext { display: grid; gap: 3px; }
 .swaptext b { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* Repertoire band */
+.bandbox { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.formcheck { display: grid; gap: 6px; }
+.formcheck p { margin: 0; }
+.cform { display: grid; gap: 10px; }
+.csection { display: grid; grid-template-columns: 2.2em 1fr; align-items: stretch; }
+.csec { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--brass); padding-top: 10px; }
+.cform.checking .cbar { cursor: pointer; }
+.cform.checking .cbar:hover { background: var(--brass-soft); }
+.cbar.right { animation: cbar-right 1.1s ease-out; }
+.cbar.wrong { animation: cbar-wrong 1.1s ease-out; }
+.cbar.truth { animation: cbar-truth 1.1s ease-out; }
+@keyframes cbar-right { from { background: var(--good-soft); outline: 2px solid var(--good); } }
+@keyframes cbar-wrong { from { background: var(--bad-soft); outline: 2px solid var(--bad); } }
+@keyframes cbar-truth { 0%, 60% { background: var(--brass-soft); outline: 2px solid var(--brass); } }
