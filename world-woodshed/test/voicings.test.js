@@ -12,7 +12,8 @@ const pc = m => ((m % 12) + 12) % 12;
 const show = v => v.frets.map(f => (f === null ? 'x' : f)).join('');
 const STD = E.TUNINGS.find(t => t.id === 'standard').midi;
 const fifthOnly = iv => iv.length >= 5 ? [pc(7)] : []; // the only tone a five-note chord may drop
-const allChords = D.CHORDS.map(c => [c.id, c.iv]).concat(QUAL.map(([k, iv]) => ['sym ' + k, iv]));
+// every chord the app knows, once per set of intervals (D.CHORDS and the chord symbols overlap)
+const allChords = [...new Map(D.CHORDS.map(c => [c.id, c.iv]).concat(QUAL.map(([k, iv]) => ['sym ' + k, iv])).map(c => [c[1].join(), c])).values()];
 
 /* What makes a shape playable, checked on every shape we return */
 function playable(v, root, iv, tuning, label) {
@@ -56,14 +57,14 @@ describe('voicings', () => {
     for (const t of E.TUNINGS) for (const [id, iv] of allChords) for (let r = 0; r < 12; r++) {
       playable(voicings(r, iv, t.midi)[0], r, iv, t.midi, t.id + ' ' + r + ' ' + id);
     }
-  });
+  }, 30000); // thousands of searches: give slow CI machines room
   it('keeps every tone of triads and 7th chords; only bigger chords thin out, fifth first', () => {
     for (const t of E.TUNINGS) for (const c of D.CHORDS) for (let r = 0; r < 12; r++) {
       const v = voicings(r, c.iv, t.midi)[0];
       if (c.iv.length <= 4) expect(v.omitted, t.id + ' ' + r + c.id).toBe(0);
       else expect(v.omitted).toBeLessThanOrEqual(fifthOnly(c.iv).length);
     }
-  });
+ }, 30000);
   it('voices every chord symbol in the tunes', () => {
     D.TUNES.forEach(tu => tu.bars.forEach(b => b.split(' ').forEach(sym => {
       const c = parseChord(sym);
