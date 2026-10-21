@@ -331,7 +331,7 @@ export default {
       ] },
       { h: 'Playing the tunes on guitar', p: [
         'Flatpicking tunes is a good way into the music. In reels, play down strokes on the beats and up strokes on the offbeats; in jigs, many players use down-up-down for each group of three, or down-down-up, and the choice changes the feel. Use hammer-ons and pull-offs to copy cuts and rolls, and slides to copy the fiddle and pipes. Let open strings ring as drones under the melody.',
-        'Fingerstyle players such as Tony McManus arrange tunes with melody and bass together. Whichever approach you take, learn the tune by ear from a fiddle, flute or pipes recording, not from the guitar alone, and aim to sound like a melody player, with lift and ornament, rather than a guitarist running scales.'
+        'Fingerstyle players such as Tony McManus arrange tunes with melody and bass together, keeping the ornaments in the melody even when the bass is moving. Start with a slow air or a hornpipe before trying reels at speed. Whichever approach you take, learn the tune by ear from a fiddle, flute or pipes recording, not from the guitar alone, and aim to sound like a melody player, with lift and ornament, rather than a guitarist running scales.'
       ] },
       { h: 'At a session', p: [
         'Go first as a listener. Learn the tunes the local players play, and when you join, sit at the edge and play quietly. Never start a tune unless invited, and check that the group welcomes guitars; many sessions prefer only one or two accompanists. Play only when you know the tune, and when in doubt, leave space. A good session guitarist is remembered for making the music feel better, not for being heard.'
