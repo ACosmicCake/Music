@@ -5,7 +5,7 @@ import { view, h, shuffle, toast, bar, ui, renderTabs, teardown, go, tool, openT
 import { parseChord, prettySym, chordMidis, degreeLabel, spell, keyPrefersFlats } from '../theory.js';
 import { RhythmGrid, playRhythmStep, stepDurFn } from './rhythm.js';
 import { CircleWidget } from './practice.js';
-import { loadEssays, whenLoaded } from '../content/lazy.js';
+import { loadEssays, loadGuides, loadLessons, whenLoaded, drawWhenLoaded } from '../content/lazy.js';
 
 /* ======================================================
    LEARN: styles library, theory course, reference tools
@@ -249,7 +249,8 @@ tool('lesson', {
   }
 });
 
-function renderLesson(root, l, opts = {}) {
+function renderLesson(root, l, opts = {}) { return drawWhenLoaded(loadLessons, root, () => drawLesson(root, l, opts)); }
+function drawLesson(root, l, opts) {
   const loops = [];
   const article = h('article', { class: 'card lesson' }, h('h1', { text: l.title }), h('p', { class: 'lede', text: l.summary }));
   root.append(article);
@@ -422,6 +423,9 @@ function techniqueIndex() {
 export function techniquePage(t, back) {
   teardown(); ui.runner = { id: 'technique-guide', opts: {} }; ui.tab = 'learn'; renderTabs();
   view.innerHTML = ''; window.scrollTo(0, 0);
+  whenLoaded(loadGuides, ui, view, toast, () => drawTechniquePage(t, back), false);
+}
+function drawTechniquePage(t, back) {
   const ex = D.EXERCISES.find(e => e.id === t.id);
   const sections = [];
   const sec = (id, title, ...kids) => { const el = h('section', { class: 'card', id: 'st-' + id }, h('h2', { text: title }), ...kids); sections.push([id, title, el]); return el; };
