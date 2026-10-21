@@ -2,9 +2,10 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { view, h, shuffle, toast, bar, ui, renderTabs, teardown, go, tool, openTool, TOOLS, PAGES, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
-import { parseChord, prettySym, chordMidis, degreeLabel, spell, keyPrefersFlats } from '../theory.js';
+import { parseChord, prettySym, degreeLabel, spell, keyPrefersFlats } from '../theory.js';
 import { RhythmGrid, playRhythmStep, stepDurFn } from './rhythm.js';
 import { CircleWidget } from './practice.js';
+import { guitarMidis, progressionMidis } from '../voicings.js';
 import { loadEssays, loadGuides, loadLessons, whenLoaded, drawWhenLoaded } from '../content/lazy.js';
 
 /* ======================================================
@@ -328,7 +329,7 @@ function example(ex, loops) {
       const c = D.CHORDS.find(x => x.id === ex.chord); if (!c) return h('span');
       const root = ex.root || 0, flats = flatsFor(root, c.iv[1] === 3);
       wrap.append(h('span', { class: 'mono small', text: c.iv.map(x => spell(root + x, flats)).join(' ') }));
-      btn.onclick = () => { A.ensure(); const ms = chordMidis(root, c.iv); const t = A.now() + 0.05; ms.forEach((m, i) => A.note(m, t + i * 0.2, 0.6, 1)); A.strum(ms, t + ms.length * 0.2 + 0.15, 0.7, 0.03, 2); };
+      btn.onclick = () => { A.ensure(); const ms = guitarMidis(root, c.iv); const t = A.now() + 0.05; ms.forEach((m, i) => A.note(m, t + i * 0.2, 0.6, 1)); A.strum(ms, t + ms.length * 0.2 + 0.15, 0.7, 0.03, 2); };
       wrap.append(fbFor(c.iv.map(x => [(root + x) % 12, x % 12]), root));
       break;
     }
@@ -344,10 +345,11 @@ function example(ex, loops) {
       wrap.append(h('div', { class: 'chips' }, chips));
       btn.onclick = () => {
         A.ensure(); const t = A.now() + 0.05, bar = 1.4;
+        const shapes = progressionMidis(chords.map(c => [c.root, c.iv]));
         chords.forEach((c, i) => {
-          const ms = chordMidis(c.root, c.iv.filter(x => x < 12));
+          const ms = shapes[i];
           A.note(28 + (((c.root - 28) % 12) + 12) % 12, t + i * bar, 0.7, bar * 0.9); // bass: that root from E1 up
-          A.strum(ms, t + i * bar, 0.55, 0.02, bar * 0.45); A.strum(ms, t + i * bar + bar / 2, 0.4, 0.02, bar * 0.4);
+          A.strum(ms, t + i * bar, 0.55, 0.02, bar * 0.45); A.strum(ms, t + i * bar + bar / 2, 0.45, 0.02, bar * 0.4, { dir: 'up' });
           setTimeout(() => chips.forEach((ch, k) => ch.setAttribute('aria-pressed', k === i ? 'true' : 'false')), (t + i * bar - A.now()) * 1000);
         });
         setTimeout(() => chips.forEach(ch => ch.setAttribute('aria-pressed', 'false')), (t + chords.length * bar - A.now()) * 1000);

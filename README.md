@@ -68,6 +68,7 @@ Code map:
 | `src/curriculum.js`, `src/ui/smart.js` | Smart practice: memory model, session planner, learning preferences |
 | `src/notation.js`, `src/tools/reading.js` | Staff notation renderer and the sight-reading trainer |
 | `src/audio.js` | Web Audio synthesis and the loop scheduler |
+| `src/voicings.js` | Guitar chord shapes for your tuning and capo |
 | `src/band.js` | The backing band for tunes: walking bass, piano comping, drums, mixer |
 | `src/samples.js`, `public/samples/` | Recorded instruments, loaded on first use (credits in `public/samples/LICENSES.md`, rebuilt by `scripts/samples/build.mjs`) |
 | `src/engine.js` | Skill model, spaced repetition, routines, saving and backup |
