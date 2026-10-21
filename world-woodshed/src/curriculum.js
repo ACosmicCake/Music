@@ -16,8 +16,8 @@ export const PACE = {
   steady: { name: 'Steady', newPerDay: 2, desc: 'Two new things a day, plus reviews. The default.' },
   fast: { name: 'Fast', newPerDay: 3, desc: 'Up to three new things a day if you practise most days for an hour or more.' }
 };
-const MOTOR = new Set(['warm', 'tech', 'rhythm', 'tune']);
-const KIND_NAME = { warm: 'scale', tech: 'technique', rhythm: 'rhythm', tune: 'tune', lesson: 'lesson' };
+const MOTOR = new Set(['warm', 'tech', 'rhythm', 'tune', 'drill']);
+const KIND_NAME = { warm: 'scale', tech: 'technique', rhythm: 'rhythm', tune: 'tune', lesson: 'lesson', drill: 'style drill' };
 
 /* ---------- state ---------- */
 function cur() {
@@ -65,6 +65,7 @@ export function catalog() {
     const tier = t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(jazzIdx++ / 3)) : 2;
     list.push({ id: 'tune:' + t.id, kind: 'tune', ref: t.id, name: t.name, tier, order: i, styles: [t.region || 'jazz'] });
   });
+  (D.DRILLS || []).forEach((d, i) => list.push({ id: 'drill:' + d.id, kind: 'drill', ref: d.id, name: d.name, tier: d.level, order: i, styles: [d.style] }));
   D.LESSONS.forEach((l, i) => list.push({ id: 'lesson:' + l.id, kind: 'lesson', ref: l.id, name: l.title, tier: 1 + ['Foundations', 'Intermediate', 'Advanced'].indexOf(l.level), order: i, styles: [] }));
   catCache = list;
   return list;
@@ -247,7 +248,7 @@ export function planSession(minutes) {
   const used = new Set();
   let newTaken = false, starters = 0;
   // which kind gets this session's one new item: the one with the least introduced so far, relative to its size
-  const kinds = ['warm', 'tech', 'rhythm', 'tune'];
+  const kinds = ['warm', 'tech', 'rhythm', 'tune'].concat((D.DRILLS || []).length ? ['drill'] : []);
   const share = k => introduced(k).length / Math.max(1, catalog().filter(x => x.kind === k).length) + Math.random() * 0.02;
   const newKind = kinds.slice().sort((a, b) => share(a) - share(b))[0];
   // fewer, longer blocks for beginners; more variety (interleaving) as the player advances
@@ -275,7 +276,11 @@ export function planSession(minutes) {
   const tech = pickItem('tech'); if (tech) cands.push(['tech', 0.17, tech]);
   const rh = pickItem('rhythm'); if (rh) cands.push(['rhythm', 0.15, rh]);
   const ear1 = earPick(ctx, new Set()); if (ear1) cands.push(['ear', 0.14, { ear: ear1 }]);
+  // tuplets and the 16th grid: spaced like the ear trainers, more often when the rhythm skill is weak
+  if (minutes >= 15) cands.push(['gym', 0.1 + (1 - E.mastery('tuplets') / 100) * 0.06, {}]);
   const tune = pickItem('tune'); if (tune) cands.push(['tune', 0.2, tune]);
+  // style drills: the deepest material for the styles you put first
+  if ((D.DRILLS || []).length && minutes >= 15) { const dr = pickItem('drill'); if (dr) cands.push(['drill', 0.16, dr]); }
   if (minutes >= 20 && E.SKILLS.reading) cands.push(['reading', 0.11, {}]);
   if (minutes >= 25) {
     const les = pickItem('lesson', { noSameDay: true });
@@ -331,9 +336,10 @@ function toBlock(b) {
     case 'rhythm': Object.assign(out, { type: 'rhythms', params: { rhythm: it.ref }, cur: it.id, reason: b.why }); break;
     case 'tune': Object.assign(out, { type: 'repertoire', params: { tune: it.ref }, cur: it.id, reason: b.why }); break;
     case 'lesson': Object.assign(out, { type: 'lesson', params: { lesson: it.ref }, cur: it.id, reason: b.why }); break;
+    case 'drill': Object.assign(out, { type: 'drill', params: { drill: it.ref }, cur: it.id, reason: b.why }); break;
     case 'rerun': {
-      const t = { warm: 'scalewarm', tech: 'technique', rhythm: 'rhythms', tune: 'repertoire' }[it.kind];
-      Object.assign(out, { type: t, params: it.kind === 'warm' ? warmDetails(it) : { exercise: it.ref, rhythm: it.ref, tune: it.ref }, cur: it.id, reason: b.why });
+      const t = { warm: 'scalewarm', tech: 'technique', rhythm: 'rhythms', tune: 'repertoire', drill: 'drill' }[it.kind];
+      Object.assign(out, { type: t, params: it.kind === 'warm' ? warmDetails(it) : { exercise: it.ref, rhythm: it.ref, tune: it.ref, drill: it.ref }, cur: it.id, reason: b.why });
       break;
     }
     case 'ear': Object.assign(out, { type: E.SKILLS[b.ear.k].tool, reason: 'Ear: ' + Math.round(b.ear.m) + '% mastered' + (b.ear.due >= 3 ? ', ' + b.ear.due + ' items due' : '') + '. Missed items come back sooner.' }); break;
@@ -344,6 +350,7 @@ function toBlock(b) {
       Object.assign(out, { type: 'sightread', params: { mode }, reason: 'Sight-reading (' + { notes: 'note reading', rhythm: 'rhythm', melody: 'melody' }[mode] + ') at your level. Notes you miss come back sooner.' });
       break;
     }
+    case 'gym': Object.assign(out, { type: 'gym', params: { auto: true }, reason: 'Rhythm gym: tuplets, polyrhythms and the 16th grid at your level (' + Math.round(E.mastery('tuplets')) + '% mastered). Silent bars make you keep time alone.' }); break;
     case 'fret': Object.assign(out, { type: 'fretboard', reason: 'Fretboard notes, spaced by how well you know each one.' }); break;
     case 'listen': { const r = focusStyle() || E.regionOfWeek(); Object.assign(out, { type: 'listening', params: { region: r.id }, reason: 'Listening: the next record from ' + r.name + '.' }); break; }
     case 'transcribe': Object.assign(out, { type: 'transcribe', params: { song: b.song.id }, reason: 'Transcribe: keep going on “' + b.song.title + '”.' }); break;
@@ -366,6 +373,45 @@ export function migrate() {
   E.setSetting('smartMigrated', true);
 }
 
+/* ---------- swapping a block ---------- */
+const KIND_OF = { scalewarm: 'warm', technique: 'tech', rhythms: 'rhythm', repertoire: 'tune', lesson: 'lesson', drill: 'drill' };
+/* A block for a chosen type and (optionally) specific content, wired for grading */
+export function blockFor(type, ref, minutes) {
+  const kind = KIND_OF[type];
+  if (kind && ref) {
+    const item = byId(kind + ':' + ref);
+    if (item) return toBlock({ kind, item, minutes, why: 'Your choice.' });
+  }
+  if (kind && !ref) {
+    const r = choose(kind, context(), new Set());
+    if (r) return toBlock({ kind, item: r.item, minutes, why: r.why, isNew: r.isNew });
+  }
+  if (type === 'gym') return Object.assign(toBlock({ kind: 'gym', minutes }), ref ? { params: { ex: ref }, reason: 'Your choice.' } : {});
+  return { id: E.uid('b'), type, minutes, settings: {}, params: {}, reason: 'Your choice.' };
+}
+/* The plan's own alternatives for a block: same kind, a style drill, or the area that needs it most */
+export function alternatives(b, usedIds = []) {
+  const ctx = context(), used = new Set(usedIds.concat(b.cur ? [b.cur] : []).filter(Boolean)), out = [];
+  const minutes = b.minutes;
+  const kind = KIND_OF[b.type];
+  if (kind) {
+    const r = choose(kind, ctx, used);
+    if (r) out.push({ title: 'Another ' + KIND_NAME[kind], block: toBlock({ kind, item: r.item, minutes, why: r.why, isNew: r.isNew }) });
+  }
+  if (b.type !== 'drill' && (D.DRILLS || []).length) {
+    const r = choose('drill', ctx, used);
+    if (r) out.push({ title: 'A style drill', block: toBlock({ kind: 'drill', item: r.item, minutes, why: r.why, isNew: r.isNew }) });
+  }
+  // the weakest area not in this session's block type
+  const areas = [];
+  const ear = earPick(ctx, new Set()); if (ear && !EAR_TOOLS.includes(b.type)) areas.push({ m: ear.m, block: toBlock({ kind: 'ear', ear, minutes }), title: 'Ear: ' + E.SKILLS[ear.k].name });
+  if (b.type !== 'gym') areas.push({ m: E.mastery('tuplets'), block: toBlock({ kind: 'gym', minutes }), title: 'Rhythm gym' });
+  if (b.type !== 'sightread' && E.SKILLS.reading) areas.push({ m: E.mastery('reading'), block: toBlock({ kind: 'reading', minutes }), title: 'Sight-reading' });
+  if (b.type !== 'fretboard') areas.push({ m: E.mastery('fretboard'), block: toBlock({ kind: 'fret', minutes }), title: 'Fretboard notes' });
+  areas.sort((a, c) => a.m - c.m).slice(0, 2).forEach(a => { a.block.reason = (a.block.reason || '') + ' Your weakest area right now (' + Math.round(a.m) + '% mastered).'; out.push(a); });
+  return out.slice(0, 4);
+}
+
 /* Sessions in the day log (called when a session ends) */
 export function logSession(s, minutes) {
   const d = today();
@@ -382,7 +428,7 @@ export function stats() {
     learned: items.length,
     due: items.filter(o => overdue(o.it, now) >= 0.9 && MOTOR.has(o.x.kind)).length,
     strong: items.filter(o => o.it.s >= 21).length,
-    byKind: ['warm', 'tech', 'rhythm', 'tune', 'lesson'].map(k => ({ kind: k, name: KIND_NAME[k], n: items.filter(o => o.x.kind === k).length, total: catalog().filter(x => x.kind === k).length }))
+    byKind: ['warm', 'tech', 'rhythm', 'tune', 'drill', 'lesson'].filter(k => k !== 'drill' || (D.DRILLS || []).length).map(k => ({ kind: k, name: KIND_NAME[k], n: items.filter(o => o.x.kind === k).length, total: catalog().filter(x => x.kind === k).length }))
   };
 }
 export function upcoming(n = 6) {
@@ -391,4 +437,4 @@ export function upcoming(n = 6) {
     .sort((a, b) => a.dueIn - b.dueIn).slice(0, n);
 }
 
-export default { migrate, PACE, prefs, setPrefs, catalog, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, recall, GRADE_LABEL, focusStyle };
+export default { alternatives, blockFor, migrate, PACE, prefs, setPrefs, catalog, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, recall, GRADE_LABEL, focusStyle };

@@ -6,6 +6,7 @@ import { view, h, toast, go, ui, renderTabs, teardown } from './core.js';
 import { BLOCKS, blockTitle, describe, totalOf, fmtMin, syncWeights } from '../routines.js';
 import { startSession } from './session.js';
 import { ribbon } from './routine.js';
+import { openSwap } from './swap.js';
 
 const TIMES = [10, 15, 20, 30, 45, 60, 90, 120];
 
@@ -32,11 +33,12 @@ export function smartPlanner(opts = {}) {
     const nNew = plan.blocks.filter(b => b.isNew).length;
     card.append(ribbon(plan.blocks),
       h('p', { class: 'small muted', text: plan.blocks.length + ' blocks · ' + (nNew ? nNew + ' new item' + (nNew > 1 ? 's' : '') : 'no new items: reviews and practice') + (ctx.dueNow ? ' · ' + ctx.dueNow + ' due for review' : '') }),
-      h('ol', { class: 'blocks static smartlist' }, plan.blocks.map(b => h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
+      h('ol', { class: 'blocks static smartlist' }, plan.blocks.map((b, i) => h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
         h('div', { class: 'bmain' }, h('span', { class: 'bicon' }),
           h('div', { class: 'btext' }, h('b', {}, blockTitle(b), b.isNew ? h('span', { class: 'badge brass', text: 'new' }) : null),
             h('span', { class: 'small', text: describe(b) !== b.reason ? describe(b) : '' }), h('span', { class: 'small muted', text: b.reason || '' })),
-          h('span', { class: 'mono small', text: b.minutes + 'm' }))))),
+          h('div', { class: 'stack', style: { gap: '4px', justifyItems: 'end' } }, h('span', { class: 'mono small', text: b.minutes + 'm' }),
+            b.type !== 'break' ? h('button', { class: 'mbtn', 'aria-label': 'Swap ' + blockTitle(b), title: 'Swap this block', onclick: () => openSwap({ block: b, used: plan.blocks.map(x => x.cur).filter(Boolean), onPick: nb => { nb.minutes = b.minutes; plan.blocks[i] = nb; draw(); } }) }, '⇄') : null))))),
       h('div', { class: 'row' },
         h('button', { class: 'btn brass big', onclick: () => startSession({ name: 'Smart practice', blocks: plan.blocks, autoAdvance: true }) }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
         h('button', { class: 'btn ghost', onclick: () => { plan = Cur.planSession(minutes); draw(); } }, 'Shuffle'),

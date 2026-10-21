@@ -366,18 +366,47 @@ tool('technique', {
         onOn: () => { meterBox.hidden = false; meter.reset(); meter.start('onset'); },
         onOff: () => { meterBox.hidden = true; meter.stop(); } });
       ctx._cleanupExtra = () => { meter.stop(); mic.cleanup(); };
-      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus), playBtn), h('div', { class: 'row' }, cleanBtn, sloppyBtn), mic.el, meterBox, note);
-      function start() {
-        A.ensure();
-        loop = A.Loop({ steps: 4 * sub, stepDur: () => 60 / t.bpm / sub, onStep: (i, tt) => { if (i === 0) A.hit('clickHi', tt, 1); else if (i % sub === 0) A.hit('click', tt, 0.85); else A.hit('click', tt, 0.3); } });
-        loop.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true);
+      // Variations rotate (variable practice); each comes with a cue about the sound, not the hand
+      const VX = ex.vars || {}, vars = VX.variations || [];
+      let vi = (E.state.settings.techVar || {})[ex.id] || 0, rotate = (E.state.settings.techRotate ?? true);
+      const varBox = h('div', { class: 'techvar' });
+      const vfb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.1) });
+      function drawVar() {
+        varBox.innerHTML = '';
+        if (!vars.length) return;
+        const v = vars[vi % vars.length];
+        varBox.append(
+          h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Variation ' + (vi % vars.length + 1) + ' of ' + vars.length }),
+            h('div', { class: 'row' }, h('button', { class: 'mbtn', 'aria-label': 'Previous variation', onclick: () => setVar(vi - 1) }, '‹'), h('button', { class: 'mbtn', 'aria-label': 'Next variation', onclick: () => setVar(vi + 1) }, '›'))),
+          h('b', { text: v.name }), h('p', { class: 'small', text: v.how }),
+          v.focus ? h('p', { class: 'small muted', text: 'Listen for: ' + v.focus }) : '',
+          v.positions && v.positions.length ? vfb.el : '',
+          h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: rotate ? true : null, onchange: e => { rotate = e.target.checked; E.setSetting('techRotate', rotate); } }), 'Change variation after each attempt'));
+        if (v.positions && v.positions.length) vfb.mark(v.positions.map(([str, fr], k) => ({ s: 6 - str, f: fr, kind: k === 0 ? 'root' : 'tone', label: String(k + 1) })));
       }
+      function setVar(i) { vi = ((i % vars.length) + vars.length) % vars.length; const o = Object.assign({}, E.state.settings.techVar || {}); o[ex.id] = vi; E.setSetting('techVar', o); drawVar(); }
+      const cueEl = VX.cue ? h('p', { class: 'small cue', text: '🎧 ' + VX.cue }) : '';
+      const burstBtn = h('button', { class: 'btn small', title: VX.burst || 'One bar at +20% tempo, then back to normal' }, '⚡ Burst');
+      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus), playBtn), varBox, cueEl, h('div', { class: 'row' }, cleanBtn, sloppyBtn, burstBtn), mic.el, meterBox, note,
+        VX.burst ? h('p', { class: 'small muted', text: 'Burst: ' + VX.burst }) : '');
+      drawVar();
+      let burstNext = false, burstOn = false; // a burst starts on the next downbeat and lasts one bar
+      function start(at) {
+        A.ensure();
+        loop = A.Loop({ steps: 4 * sub, stepDur: () => 60 / (t.bpm * (burstOn ? 1.2 : 1)) / sub, onStep: (i, tt) => {
+          if (i === 0) { burstOn = burstNext; burstNext = false; }
+          if (i === 0) A.hit('clickHi', tt, 1); else if (i % sub === 0) A.hit('click', tt, 0.85); else A.hit('click', tt, 0.3);
+        } });
+        loop.start(at); playBtn.textContent = '■ Stop'; ctx.setActive(true);
+      }
+      burstBtn.onclick = () => { burstNext = true; if (!loop) start(); toast('Burst: one bar at ' + Math.round(t.bpm * 1.2) + ' bpm, then back'); };
       function restart() { meter.reset(); if (loop) { loop.stop(); loop = null; start(); } }
       playBtn.onclick = () => { if (loop) { stopAll(); playBtn.textContent = '▶ Click'; } else { meter.reset(); start(); } };
       const sig = { clean: 0, notClean: 0 };
       const report = () => { if (hooks.signal) hooks.signal('tech:' + ex.id, sig); };
-      cleanBtn.onclick = () => { sig.clean++; report(); const before = t.bpm; E.techResult(ex.id, true); big.textContent = t.bpm; refreshStats(); restart(); toast('Clean at ' + before + '. Next: ' + t.bpm + ' bpm'); };
-      sloppyBtn.onclick = () => { sig.notClean++; report(); const before = t.bpm; E.techResult(ex.id, false); big.textContent = t.bpm; refreshStats(); restart(); toast(t.bpm < before ? 'Dropped to ' + t.bpm + ' bpm. Rebuild it clean.' : 'Stay at ' + t.bpm + ' and try again'); };
+      const afterAttempt = () => { if (rotate && vars.length > 1) setVar(vi + 1); };
+      cleanBtn.onclick = () => { sig.clean++; report(); const before = t.bpm; E.techResult(ex.id, true); big.textContent = t.bpm; refreshStats(); restart(); afterAttempt(); toast('Clean at ' + before + '. Next: ' + t.bpm + ' bpm'); };
+      sloppyBtn.onclick = () => { sig.notClean++; report(); const before = t.bpm; E.techResult(ex.id, false); big.textContent = t.bpm; refreshStats(); restart(); afterAttempt(); toast(t.bpm < before ? 'Dropped to ' + t.bpm + ' bpm. Rebuild it clean.' : 'Stay at ' + t.bpm + ' and try again'); };
       refreshStats();
     }
     if (ctx.params.exercise) open(D.EXERCISES.find(e => e.id === ctx.params.exercise)); else list();

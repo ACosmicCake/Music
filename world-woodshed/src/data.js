@@ -588,7 +588,10 @@ const LICK_ITEMS = [
   { id: 'lydian:5', scale: 'lydian', len: 5, tier: 5 }
 ];
 
+/* Style drills (src/content/drills-*.js) */
+const DRILLS = [];
+
 /* In-depth technique guides (src/content/techniques-*.js) are merged in here */
 const TECHNIQUES = [...TECH_A, ...TECH_B];
 
-export default { SCIENCE, LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
+export default { DRILLS, SCIENCE, LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };

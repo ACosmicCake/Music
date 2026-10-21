@@ -1,6 +1,7 @@
 /* World Woodshed — adaptive engine: tracking, spaced repetition, mastery, routines */
 import D from './data.js';
 import { readingItems } from './content/reading.js';
+import { gymItems } from './content/gym.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
@@ -16,6 +17,7 @@ const SKILLS = {
   rhythmTap: { name: 'Rhythm feel', cat: 'rhythm', tool: 'rhythms', qpm: 2 },
   rhythmId: { name: 'Rhythm ID', cat: 'rhythm', tool: 'rhythmid', qpm: 4 },
   clock: { name: 'Internal clock', cat: 'rhythm', tool: 'clock', qpm: 2 },
+  tuplets: { name: 'Tuplets & 16ths', cat: 'rhythm', tool: 'gym', qpm: 1 },
   fretboard: { name: 'Fretboard notes', cat: 'play', tool: 'fretboard', qpm: 10 },
   callresp: { name: 'Call & response', cat: 'play', tool: 'callresp', qpm: 4 },
   repertoire: { name: 'Repertoire', cat: 'play', tool: 'repertoire', qpm: 6 },
@@ -70,6 +72,7 @@ function universe(skill) {
     case 'repertoire': list = D.TUNES.map((t, i) => ({ id: t.id, label: t.name, tier: t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(i / 3)) : 2 })); break;
     case 'technique': list = D.EXERCISES.map(e => ({ id: e.id, label: e.name, tier: 1 })); break;
     case 'reading': list = readingItems(); break;
+    case 'tuplets': list = gymItems(); break;
     case 'atlas':
       D.REGIONS.forEach(r => r.facts.forEach((f, i) => list.push({ id: r.id + ':' + i, label: r.name + ': ' + f.q, tier: 1, region: r.id })));
       break;

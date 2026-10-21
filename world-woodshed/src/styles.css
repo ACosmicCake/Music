@@ -624,3 +624,38 @@ section.card { scroll-margin-top: 110px; }
 .sources summary { cursor: pointer; color: var(--patina); }
 .sources .list { margin-top: 8px; }
 .sources li { word-break: break-word; }
+
+/* rhythm studio, rhythm gym, variations, drills */
+.studio-now { display: grid; gap: 2px; min-height: 2.6em; padding: 8px 10px; border-radius: 10px; background: var(--sunk); }
+.studio-now:empty { display: none; }
+.studio-now.var { background: color-mix(in srgb, var(--patina) 12%, var(--sunk)); }
+.studio-now.fill { background: var(--brass-soft); }
+.studio-now.ghost { background: color-mix(in srgb, var(--ink) 8%, var(--sunk)); border: 1px dashed var(--muted); }
+.studio-next { color: var(--brass); font-weight: 700; }
+.studio-opts { display: grid; gap: 8px; }
+.studio-opts .row { align-items: flex-end; }
+.phase.ghost { color: var(--brass); font-weight: 500; }
+.gym-tl { width: 100%; height: auto; display: block; background: var(--sunk); border-radius: 12px; }
+.gym-tl .g16 { stroke: var(--line); stroke-width: 1; }
+.gym-tl .gbeat { stroke: var(--muted); stroke-width: 2; }
+.gym-tl .gcount { font-family: var(--font-mono); font-size: 10px; fill: var(--muted); text-anchor: middle; }
+.gym-tl .gclick { fill: var(--ink); opacity: 0.5; }
+.gym-tl .gclick.hi { opacity: 0.9; }
+.gym-tl .gnote { fill: var(--brass); stroke: var(--brass); stroke-width: 2; }
+.gym-tl .gnote.silent { fill: none; stroke-dasharray: 3 2; }
+.gym-tl .gtap { stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
+.gym-tl .gtap.ok { stroke: var(--good); }
+.gym-tl .gym-head { stroke: var(--patina); stroke-width: 2; opacity: 0.7; }
+.gym-label { font-size: 1.15rem; }
+.gym-stats { color: var(--muted); min-height: 1.2em; }
+.tile.dim { opacity: 0.6; }
+.techvar { display: grid; gap: 6px; background: var(--sunk); border-radius: 12px; padding: 10px 12px; }
+.techvar:empty { display: none; }
+.techvar .fretwrap { background: var(--surface); }
+.cue { color: var(--patina); margin: 0; }
+.drill-staff { background: var(--surface); border-radius: 10px; padding: 6px; overflow-x: auto; }
+.swapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.swapcard { text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--cc); border-radius: 12px; padding: 10px; cursor: pointer; }
+.swapcard:hover { border-color: var(--cc); }
+.swaptext { display: grid; gap: 3px; }
+.swaptext b { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }

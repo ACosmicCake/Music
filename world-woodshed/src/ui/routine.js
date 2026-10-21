@@ -59,7 +59,7 @@ function sessionCard() {
     status.textContent = fmtClock(el) + ' of ' + fmtMin(totalOf(st.blocks)) + (st.paused ? ' · paused' : '');
     list.querySelectorAll('[data-i]').forEach(row => {
       const b = st.blocks[+row.dataset.i];
-      row.querySelector('.t').textContent = b.done ? '✓ ' + fmtClock(b.elapsed / 1000) : b.skipped ? 'skipped' : +row.dataset.i === st.idx ? fmtClock(Math.max(0, b.minutes * 60 - b.elapsed / 1000)) + ' left' : fmtMin(b.minutes);
+      row.querySelector('.t').textContent = b.done ? '✓ ' + fmtClock(b.elapsed / 1000) : b.swapped ? 'swapped' : b.skipped ? 'skipped' : +row.dataset.i === st.idx ? fmtClock(Math.max(0, b.minutes * 60 - b.elapsed / 1000)) + ' left' : fmtMin(b.minutes);
     });
   }
   s.blocks.forEach((b, i) => list.append(h('button', { class: 'srow cat-' + BLOCKS[b.type].cat + (i === s.idx ? ' now' : '') + (b.done ? ' done' : ''), 'data-i': i, onclick: () => jump(i) },
@@ -283,6 +283,10 @@ function field(f, b, set, redraw) {
     }
     case 'lesson': return sel('Lesson', [auto('Smart choice: new lessons and reviews')].concat(['Foundations', 'Intermediate', 'Advanced'].map(lv => ({ group: lv, items: D.LESSONS.filter(l => l.level === lv).map(l => ({ value: l.id, text: l.title })) }))), st.lesson || 'auto', v => set('lesson', v));
     case 'drill': return sel('Drill', [auto('A different one each time')].concat(Object.entries(DRILLS).map(([k, v]) => ({ value: k, text: v }))), st.drill || 'auto', v => set('drill', v));
+    case 'drill': {
+      const groups = D.REGIONS.map(r => ({ group: r.name, items: (D.DRILLS || []).filter(d => d.style === r.id).map(d => ({ value: d.id, text: d.name })) })).filter(g => g.items.length);
+      return sel('Drill', [auto('Smart choice: from the styles you put first')].concat(groups), st.drill || 'auto', v => set('drill', v));
+    }
     case 'style': return sel('Style', [auto('Style of the week')].concat(D.REGIONS.map(r => ({ value: r.id, text: r.name }))), st.style || 'auto', v => set('style', v));
     case 'title': {
       const inp = h('input', { id, type: 'text', value: st.title || '', placeholder: 'e.g. Recuerdos, Blackbird, my solo' });
