@@ -89,3 +89,34 @@ describe('rebuildHistory', () => {
     expect(Object.keys(h).sort()).toEqual(['2026-01-01', '2026-10-21']);
   });
 });
+
+describe('your own tunes', () => {
+  const tune = (id, updatedAt, name = id) => ({ id, name, groove: 'swing', bpm: 140, note: '', bars: ['Dm7', 'G7', 'Cmaj7', 'Cmaj7'], updatedAt });
+  it('a schema-2 save gains an empty tune list and keeps the rest', () => {
+    const m = migrate({ v: 1, schema: 2, songs: { s1: { id: 's1' } } }, 'd1');
+    expect(m.schema).toBe(SCHEMA);
+    expect(m.tunes).toEqual({});
+    expect(m.songs.s1.id).toBe('s1');
+  });
+  it('joins the tunes of both devices, keeping the newer edit of each', () => {
+    const a = base({ tunes: { t1: tune('t1', 10, 'Old name'), t2: tune('t2', 5) } });
+    const b = base({ tunes: { t1: tune('t1', 20, 'New name'), t3: tune('t3', 7) } });
+    const m = merge(a, b);
+    expect(Object.keys(m.tunes).sort()).toEqual(['t1', 't2', 't3']);
+    expect(m.tunes.t1.name).toBe('New name');
+    expect(merge(b, a).tunes.t1.name).toBe('New name');
+  });
+  it('a deleted tune stays deleted, unless it was edited after the deletion', () => {
+    const a = base({ tunes: { t1: tune('t1', 10), t2: tune('t2', 30) } });
+    const b = base({ tunes: {}, tomb: { 'tune:t1': 20, 'tune:t2': 20 } });
+    const m = merge(a, b);
+    expect(Object.keys(m.tunes)).toEqual(['t2']);
+    expect(m.tomb['tune:t1']).toBe(20);
+    expect(Object.keys(merge(m, a).tunes)).toEqual(['t2']);
+  });
+  it('copes with copies that have no tunes at all', () => {
+    const m = merge(base(), base({ tunes: { t1: tune('t1', 1) } }));
+    expect(Object.keys(m.tunes)).toEqual(['t1']);
+    expect(merge(base(), base()).tunes).toEqual({});
+  });
+});

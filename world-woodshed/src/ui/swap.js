@@ -1,6 +1,7 @@
 /* World Woodshed — swap a block for something else: the plan's alternatives, or your own choice */
 import D from '../data.js';
 import Cur from '../curriculum.js';
+import E from '../engine.js';
 import { h } from './core.js';
 import { BLOCKS, BLOCK_ORDER, CATS, blockTitle, describe, fmtMin, warmScales } from '../routines.js';
 import { GYM } from '../content/gym.js';
@@ -11,7 +12,7 @@ function contentFor(type) {
     case 'scalewarm': return warmScales().map(x => [x.id, x.name]);
     case 'technique': return D.EXERCISES.map(x => [x.id, x.name]);
     case 'rhythms': return D.RHYTHMS.map(x => [x.id, x.name + ' · ' + ((D.REGIONS.find(r => r.id === x.region) || {}).name || '')]);
-    case 'repertoire': return D.TUNES.map(x => [x.id, x.name]);
+    case 'repertoire': return E.listTunes().map(x => [x.id, x.name + ' · your tune']).concat(D.TUNES.map(x => [x.id, x.name]));
     case 'drill': return (D.DRILLS || []).map(x => [x.id, x.name + ' · ' + ((D.REGIONS.find(r => r.id === x.style) || {}).name || x.style)]);
     case 'lesson': return D.LESSONS.map(x => [x.id, x.title]);
     case 'gym': return GYM.map(x => [x.id, x.name]);

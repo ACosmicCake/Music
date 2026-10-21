@@ -275,6 +275,8 @@ function field(f, b, set, redraw) {
     }
     case 'tune': {
       const groups = [...new Set(D.TUNES.map(t => t.group))].map(g => ({ group: g, items: D.TUNES.filter(t => t.group === g).map(t => ({ value: t.id, text: t.name })) }));
+      const mine = E.listTunes();
+      if (mine.length) groups.unshift({ group: 'Your tunes', items: mine.map(t => ({ value: t.id, text: t.name })) });
       return sel('Tune', [auto('Smart choice: rotates for you')].concat(groups), st.tune || 'auto', v => set('tune', v));
     }
     case 'song': {

@@ -388,7 +388,9 @@ export function blockFor(type, ref, minutes) {
     if (r) return toBlock({ kind, item: r.item, minutes, why: r.why, isNew: r.isNew });
   }
   if (type === 'gym') return Object.assign(toBlock({ kind: 'gym', minutes }), ref ? { params: { ex: ref }, reason: 'Your choice.' } : {});
-  return { id: E.uid('b'), type, minutes, settings: {}, params: {}, reason: 'Your choice.' };
+  // one of your own tunes: not in the catalogue, so the block just opens it, ungraded
+  const params = type === 'repertoire' && ref ? { tune: ref } : {};
+  return { id: E.uid('b'), type, minutes, settings: {}, params, reason: 'Your choice.' };
 }
 /* The plan's own alternatives for a block: same kind, a style drill, or the area that needs it most */
 export function alternatives(b, usedIds = []) {

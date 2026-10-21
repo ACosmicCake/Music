@@ -5,6 +5,7 @@ import { guitarMidis } from '../voicings.js';
 import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
 import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
+import TN from '../mytunes.js';
 import { Band } from '../band.js';
 import { techniquePage } from './learn.js';
 import Mic from '../listen.js';
@@ -168,7 +169,9 @@ tool('repertoire', {
   tab: 'play', skill: 'repertoire', title: 'Repertoire gym', eyebrow: 'Play · standards & world grooves',
   desc: 'Loop the changes in the right groove, see guide tones on the neck, and drill them until you hear the form.',
   render(body, ctx) {
-    let tune = D.TUNES.find(t => t.id === ctx.params.tune);
+    // a preset from D.TUNES, or one of your own (checked again here: it may come from another device)
+    const findTune = id => D.TUNES.find(t => t.id === id) || TN.playable(E.getTune(id));
+    let tune = findTune(ctx.params.tune);
     const listCard = h('div', { class: 'section' });
     const tuneCard = h('div', { class: 'section' });
     body.append(listCard, tuneCard);
@@ -177,15 +180,87 @@ tool('repertoire', {
     function showList() {
       stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
       tuneCard.innerHTML = ''; listCard.innerHTML = '';
+      const tile = t => {
+        const st = E.skillState('repertoire').items[t.id];
+        return h('button', { class: 'tile', onclick: () => openTune(t) }, h('span', { class: 't-title', text: t.name }), h('span', { class: 't-desc', text: (t.region ? regionName(t.region) + ' · ' : '') + D.GROOVES[t.groove].name + ' · ' + (t.note || t.bars.length + ' bars') }), h('span', { class: 't-meter', text: st ? Math.round(st.ema * 100) + '%' : 'new' }));
+      };
+      const mine = E.listTunes().map(TN.playable).filter(Boolean);
+      listCard.append(h('div', { class: 'spread' }, h('h2', { text: 'Your tunes' }), h('button', { class: 'btn small', onclick: () => editTune() }, '+ New tune')));
+      listCard.append(mine.length ? h('div', { class: 'tools' }, mine.map(tile)) : h('p', { class: 'small muted', text: 'Type a chord chart, pick a groove and a tempo, and the band plays it like the tunes below.' }));
       ['Jazz standards', 'Blues, rock & roots', 'World grooves'].forEach(g => {
         listCard.append(h('h2', { text: g }));
-        const tl = h('div', { class: 'tools' });
-        D.TUNES.filter(t => t.group === g).forEach(t => {
-          const st = E.skillState('repertoire').items[t.id];
-          tl.append(h('button', { class: 'tile', onclick: () => openTune(t) }, h('span', { class: 't-title', text: t.name }), h('span', { class: 't-desc', text: (t.region ? regionName(t.region) + ' · ' : '') + D.GROOVES[t.groove].name + ' · ' + t.note }), h('span', { class: 't-meter', text: st ? Math.round(st.ema * 100) + '%' : 'new' })));
-        });
-        listCard.append(tl);
+        listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
       });
+    }
+    /* Write a tune, edit one of yours, or start your own version of a preset (src). Saved tunes have
+       the shape of D.TUNES entries, so openTune and the band treat them the same. */
+    function editTune(src) {
+      stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
+      listCard.innerHTML = ''; tuneCard.innerHTML = '';
+      const saved = src && src.mine ? E.getTune(src.id) : null;
+      const leave = () => (src ? openTune(src) : showList());
+      const name = h('input', { type: 'text', id: 'tune-name', maxlength: 60, value: saved ? src.name : src ? src.name + ' (my version)' : '', placeholder: 'Blues in F' });
+      const chart = h('textarea', { id: 'tune-chart', rows: 6, spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', placeholder: 'Dm7 | G7 | Cmaj7 | Cmaj7\nEm7 A7 | Dm7 G7 | C | %' });
+      chart.value = src ? TN.chartText(src.bars) : '';
+      const groove = h('select', { id: 'tune-groove' }, Object.entries(D.GROOVES).map(([k, g]) => h('option', { value: k, text: g.name, selected: k === (src ? src.groove : 'swing') ? true : null })));
+      const bpmIn = h('input', { type: 'number', id: 'tune-bpm', min: TN.MIN_BPM, max: TN.MAX_BPM, step: 1, inputmode: 'numeric', value: src ? src.bpm : 120 });
+      const formIn = h('input', { type: 'text', id: 'tune-form', maxlength: 80, autocapitalize: 'characters', autocomplete: 'off', value: src ? TN.formText(src.form) : '', placeholder: 'AABA, or A8 B8' });
+      const note = h('input', { type: 'text', id: 'tune-note', maxlength: 120, value: src ? src.note : '', placeholder: 'Key, feel, what to work on' });
+      const warn = {};
+      const field = (key, label, input, hint, wide) => {
+        warn[key] = h('span', { class: 'small warn', hidden: true });
+        return h('label', { class: 'stack field' + (wide ? ' wide' : ''), for: input.id }, h('span', { class: 'eyebrow', text: label }), input, hint ? h('span', { class: 'small muted', text: hint }) : null, warn[key]);
+      };
+      const preview = h('div', { class: 'cform' }), count = h('p', { class: 'mono small muted' });
+      const draft = () => ({ name: name.value, chart: chart.value, groove: groove.value, bpm: bpmIn.value, form: formIn.value, note: note.value });
+      const showErrors = errs => Object.entries(warn).forEach(([k, el]) => { el.textContent = errs[k] || ''; el.hidden = !errs[k]; });
+      let errTimer = null;
+      // the chart as it will be played, redrawn while typing; mistakes are named after a pause, not mid-word
+      function redraw() {
+        const { bars } = TN.parseChart(chart.value), f = TN.parseForm(formIn.value, bars.length);
+        preview.innerHTML = '';
+        const form = f.form || [['', bars.length]];
+        let bi = 0;
+        form.forEach(([lbl, len]) => {
+          const grid = h('div', { class: 'cchart' });
+          for (let k = 0; k < len && bi < bars.length; k++, bi++) grid.append(h('div', { class: 'cbar' }, bars[bi].split(' ').filter(Boolean).map(c => h('span', { text: prettySym(c) }))));
+          if (grid.children.length) preview.append(lbl ? h('div', { class: 'csection' }, h('span', { class: 'csec', text: lbl }), grid) : grid);
+        });
+        count.textContent = bars.length ? bars.length + ' bar' + (bars.length === 1 ? '' : 's') + (f.form ? ' · form ' + f.form.map(x => x[0]).join(' ') : '') : '';
+        clearTimeout(errTimer);
+        errTimer = setTimeout(() => { if (!name.isConnected) return; const e = TN.checkTune(draft()).errors; delete e.name; if (!chart.value.trim()) delete e.chart; showErrors(e); }, 700);
+      }
+      chart.oninput = redraw; formIn.oninput = redraw;
+      const saveBtn = h('button', { class: 'btn primary', onclick: () => {
+        clearTimeout(errTimer);
+        const r = TN.checkTune(draft());
+        showErrors(r.errors);
+        if (!r.tune) { const first = Object.keys(warn).find(k => r.errors[k]); if (first) { const f = warn[first].closest('label'); f.scrollIntoView({ behavior: 'smooth', block: 'center' }); f.querySelector('input, textarea, select').focus({ preventScroll: true }); } return; }
+        const t = E.saveTune(saved ? Object.assign({ id: saved.id, created: saved.created }, r.tune) : r.tune);
+        toast(saved ? 'Tune saved' : 'Tune added to Your tunes');
+        openTune(TN.playable(t));
+      } }, saved ? 'Save changes' : 'Save tune');
+      const head = h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: leave }, src ? '← Back to the tune' : '← All tunes'), h('span', { class: 'eyebrow', text: 'Your tunes' }));
+      const card = h('div', { class: 'card' }, head,
+        h('h2', { text: saved ? 'Edit ' + src.name : src ? 'Your version of ' + src.name : 'New tune' }),
+        h('div', { class: 'formgrid' },
+          field('name', 'Name', name, null, true),
+          field('chart', 'Chords', chart, 'Bars split by | or new lines, chords in a bar split by spaces (up to four, one per beat). % repeats the bar before. C-7, CΔ7, Cø and C°7 work too.', true),
+          field('groove', 'Groove', groove),
+          field('bpm', 'Tempo (bpm)', bpmIn),
+          field('form', 'Form (optional)', formIn, 'Letters for equal sections, or each section with its bars.'),
+          field('note', 'Note (optional)', note)),
+        h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'How the band reads it' }), count), preview,
+        h('div', { class: 'row' }, saveBtn, h('button', { class: 'btn ghost', onclick: leave }, 'Cancel'),
+          saved ? h('button', { class: 'btn ghost', onclick: () => {
+            if (card.querySelector('.confirm')) return;
+            const c = h('div', { class: 'confirm' }, h('b', { text: 'Delete "' + saved.name + '"?' }),
+              h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep it'), h('button', { class: 'btn small danger', onclick: () => { E.deleteTune(saved.id); toast('Tune deleted'); showList(); } }, 'Delete')));
+            card.append(c); c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } }, 'Delete') : null));
+      tuneCard.append(card);
+      redraw();
+      if (!src) name.focus();
     }
     function openTune(t) {
       tune = t; listCard.innerHTML = ''; tuneCard.innerHTML = '';
@@ -281,8 +356,9 @@ tool('repertoire', {
         tally);
       const card = h('div', { class: 'card' },
         h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: g.name })),
-        h('h2', { text: t.name }), h('p', { class: 'small muted', text: t.note }),
+        h('h2', { text: t.name }), t.note ? h('p', { class: 'small muted', text: t.note }) : null,
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
+        h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => editTune(t) }, t.mine ? 'Edit this tune' : 'Make your own version')),
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
         band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl);
@@ -315,7 +391,8 @@ tool('repertoire', {
         askAt = -1;
       }
       function report() {
-        if (checks >= 3 && hooks.signal) hooks.signal('tune:' + t.id, { score: right / checks });
+        // your own tunes are not in the planner's catalogue, so only the presets report to it
+        if (!t.mine && checks >= 3 && hooks.signal) hooks.signal('tune:' + t.id, { score: right / checks });
       }
       function play() {
         band = Band({
