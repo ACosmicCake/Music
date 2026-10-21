@@ -412,7 +412,7 @@ tool('technique', {
       if (ex.mode === 'count') {
         let count = 0, left = 60;
         const big = h('div', { class: 'big-number mono', text: '0' });
-        const clock = h('div', { class: 'phase', text: '60 s' });
+        const clock = h('div', { class: 'phase', role: 'timer', 'aria-label': 'Time left', text: '60 s' });
         const startBtn = h('button', { class: 'btn primary' }, 'Start 60 seconds');
         const padObj = TapPad(() => { if (left > 0 && left < 60) { count++; big.textContent = count; } }, 'Tap once per clean change');
         card.append(best, progress, h('div', { class: 'spread' }, big, clock), startBtn, padObj.el);
