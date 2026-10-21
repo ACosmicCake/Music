@@ -13,6 +13,8 @@ import TECH_A from './content/techniques-a.js';
 import SCIENCE from './content/science.js';
 import TECH_B from './content/techniques-b.js';
 import EX_VARS from './content/exercise-vars.js';
+import RHY_VAR from './content/rhythms-var.js';
+import DRILLS_B from './content/drills-b.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const NOTE_FULL = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
 
@@ -590,7 +592,10 @@ const LICK_ITEMS = [
 ];
 
 /* Style drills (src/content/drills-*.js) */
-const DRILLS = [];
+const DRILLS = [...DRILLS_B];
+
+/* Variations, fills, longer cycles and tips for every rhythm (src/content/rhythms-var.js) */
+RHYTHMS.forEach(r => { if (RHY_VAR.rhythms[r.id]) r.var = RHY_VAR.rhythms[r.id]; });
 
 /* Technique variations, a speed-burst recipe and an external-focus cue per exercise (src/content/exercise-vars.js) */
 EXERCISES.forEach(ex => { if (EX_VARS[ex.id]) ex.vars = EX_VARS[ex.id]; });
