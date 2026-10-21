@@ -676,6 +676,8 @@ section.card { scroll-margin-top: 110px; }
 .cform { display: grid; gap: 10px; }
 .csection { display: grid; grid-template-columns: 2.2em 1fr; align-items: stretch; }
 .csec { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--brass); padding-top: 10px; }
+.cform.longlabels .csection { grid-template-columns: 1fr; }
+.cform.longlabels .csec { justify-self: start; padding: 0 0 4px; }
 .cform.checking .cbar { cursor: pointer; }
 .cform.checking .cbar:hover { background: var(--brass-soft); }
 .cbar.right { animation: cbar-right 1.1s ease-out; }

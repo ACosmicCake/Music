@@ -192,27 +192,31 @@ tool('repertoire', {
         listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
       });
     }
-    /* Write a tune, edit one of yours, or start your own version of a preset (src). Saved tunes have
-       the shape of D.TUNES entries, so openTune and the band treat them the same. */
-    function editTune(src) {
+    /* Write a tune, edit one of yours, start your own version of a preset (src), or check a draft made from
+       a Transcribe song (fromSong: an editor draft with the song's id). Saved tunes have the shape of D.TUNES
+       entries, so openTune and the band treat them the same. */
+    function editTune(src, fromSong) {
       stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
       listCard.innerHTML = ''; tuneCard.innerHTML = '';
       const saved = src && src.mine ? E.getTune(src.id) : null;
-      const leave = () => (src ? openTune(src) : showList());
-      const name = h('input', { type: 'text', id: 'tune-name', maxlength: 60, value: saved ? src.name : src ? src.name + ' (my version)' : '', placeholder: 'Blues in F' });
+      const songOf = fromSong ? fromSong.song : saved ? saved.song : null;
+      const toSong = () => openTool('transcribe', { params: { song: fromSong.song }, returnTab: 'transcribe' });
+      const leave = () => (src ? openTune(src) : fromSong && E.getSong(fromSong.song) ? toSong() : showList());
+      const d0 = fromSong || (src ? { name: saved ? src.name : src.name + ' (my version)', chart: TN.chartText(src.bars), groove: src.groove, bpm: src.bpm, form: TN.formText(src.form), note: src.note } : { groove: 'swing', bpm: 120 });
+      const name = h('input', { type: 'text', id: 'tune-name', maxlength: 60, value: d0.name || '', placeholder: 'Blues in F' });
       const chart = h('textarea', { id: 'tune-chart', rows: 6, spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', placeholder: 'Dm7 | G7 | Cmaj7 | Cmaj7\nEm7 A7 | Dm7 G7 | C | %' });
-      chart.value = src ? TN.chartText(src.bars) : '';
-      const groove = h('select', { id: 'tune-groove' }, Object.entries(D.GROOVES).map(([k, g]) => h('option', { value: k, text: g.name, selected: k === (src ? src.groove : 'swing') ? true : null })));
-      const bpmIn = h('input', { type: 'number', id: 'tune-bpm', min: TN.MIN_BPM, max: TN.MAX_BPM, step: 1, inputmode: 'numeric', value: src ? src.bpm : 120 });
-      const formIn = h('input', { type: 'text', id: 'tune-form', maxlength: 80, autocapitalize: 'characters', autocomplete: 'off', value: src ? TN.formText(src.form) : '', placeholder: 'AABA, or A8 B8' });
-      const note = h('input', { type: 'text', id: 'tune-note', maxlength: 120, value: src ? src.note : '', placeholder: 'Key, feel, what to work on' });
+      chart.value = d0.chart || '';
+      const groove = h('select', { id: 'tune-groove' }, Object.entries(D.GROOVES).map(([k, g]) => h('option', { value: k, text: g.name, selected: k === d0.groove ? true : null })));
+      const bpmIn = h('input', { type: 'number', id: 'tune-bpm', min: TN.MIN_BPM, max: TN.MAX_BPM, step: 1, inputmode: 'numeric', value: d0.bpm || 120 });
+      const formIn = h('input', { type: 'text', id: 'tune-form', maxlength: 80, autocapitalize: 'characters', autocomplete: 'off', value: d0.form || '', placeholder: 'AABA, or A8 B8' });
+      const note = h('input', { type: 'text', id: 'tune-note', maxlength: 120, value: d0.note || '', placeholder: 'Key, feel, what to work on' });
       const warn = {};
       const field = (key, label, input, hint, wide) => {
         warn[key] = h('span', { class: 'small warn', hidden: true });
         return h('label', { class: 'stack field' + (wide ? ' wide' : ''), for: input.id }, h('span', { class: 'eyebrow', text: label }), input, hint ? h('span', { class: 'small muted', text: hint }) : null, warn[key]);
       };
       const preview = h('div', { class: 'cform' }), count = h('p', { class: 'mono small muted' });
-      const draft = () => ({ name: name.value, chart: chart.value, groove: groove.value, bpm: bpmIn.value, form: formIn.value, note: note.value });
+      const draft = () => ({ name: name.value, chart: chart.value, groove: groove.value, bpm: bpmIn.value, form: formIn.value, note: note.value, song: songOf });
       const showErrors = errs => Object.entries(warn).forEach(([k, el]) => { el.textContent = errs[k] || ''; el.hidden = !errs[k]; });
       let errTimer = null;
       // the chart as it will be played, redrawn while typing; mistakes are named after a pause, not mid-word
@@ -220,6 +224,7 @@ tool('repertoire', {
         const { bars } = TN.parseChart(chart.value), f = TN.parseForm(formIn.value, bars.length);
         preview.innerHTML = '';
         const form = f.form || [['', bars.length]];
+        preview.classList.toggle('longlabels', form.some(x => x[0].length > 2));
         let bi = 0;
         form.forEach(([lbl, len]) => {
           const grid = h('div', { class: 'cchart' });
@@ -240,9 +245,11 @@ tool('repertoire', {
         toast(saved ? 'Tune saved' : 'Tune added to Your tunes');
         openTune(TN.playable(t));
       } }, saved ? 'Save changes' : 'Save tune');
-      const head = h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: leave }, src ? '← Back to the tune' : '← All tunes'), h('span', { class: 'eyebrow', text: 'Your tunes' }));
+      const head = h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: leave }, src ? '← Back to the tune' : fromSong ? '← Back to the song' : '← All tunes'), h('span', { class: 'eyebrow', text: 'Your tunes' }));
+      const FROM = { sections: 'one chart section for each of its sections', loop: 'the bars of its loop', song: 'the whole song, bar by bar' };
       const card = h('div', { class: 'card' }, head,
-        h('h2', { text: saved ? 'Edit ' + src.name : src ? 'Your version of ' + src.name : 'New tune' }),
+        h('h2', { text: saved ? 'Edit ' + src.name : src ? 'Your version of ' + src.name : fromSong ? 'A tune from ' + fromSong.title : 'New tune' }),
+        fromSong ? h('div', { class: 'callout' }, h('p', { class: 'small', text: 'The chords below are guesses from the recording, one or two per bar of your beat grid, taken from ' + (FROM[fromSong.from] || FROM.song) + (fromSong.capped ? ' (the first ' + TN.MAX_BARS + ' bars)' : '') + '. They are a start, not a transcription: play along, fix what sounds wrong, pick a groove, then save.' })) : null,
         h('div', { class: 'formgrid' },
           field('name', 'Name', name, null, true),
           field('chart', 'Chords', chart, 'Bars split by | or new lines, chords in a bar split by spaces (up to four, one per beat). % repeats the bar before. C-7, CΔ7, Cø and C°7 work too.', true),
@@ -260,7 +267,7 @@ tool('repertoire', {
           } }, 'Delete') : null));
       tuneCard.append(card);
       redraw();
-      if (!src) name.focus();
+      if (!src && !fromSong) name.focus();
     }
     function openTune(t) {
       tune = t; listCard.innerHTML = ''; tuneCard.innerHTML = '';
@@ -274,6 +281,8 @@ tool('repertoire', {
       const WHO = { full: ['Full band', { drums: true, comp: true, bass: true }], bd: ['Bass & drums', { drums: true, comp: false, bass: true }], bp: ['Bass & ' + (pref.comp === 'guitar' ? 'guitar' : 'piano'), { drums: false, comp: true, bass: true }], bass: ['Just bass', { drums: false, comp: false, bass: true }] };
       // form sections: [label, bars]; one unlabeled section when the tune has none
       const form = t.form || [['', bars.length]];
+      // AABA for letter sections (A1, A2 count as A), the names in turn for longer ones
+      const formName = f => { const l = f.map(x => x[0].replace(/^([A-Z])\d+$/, '$1')); return l.join(l.every(x => x.length <= 1) ? '' : ' '); };
       const sectionOf = bi => { let n = 0; for (const [lbl, len] of form) { if (bi < n + len) return lbl; n += len; } return ''; };
       const back = h('button', { class: 'btn ghost small', onclick: showList }, '← All tunes');
       const chartEl = h('div', { class: 'cform' });
@@ -303,9 +312,10 @@ tool('repertoire', {
           chartEl.append(lbl ? h('div', { class: 'csection' }, h('button', { class: 'csec', title: 'Loop the ' + lbl + ' section', 'aria-label': 'Loop section ' + lbl, onclick: () => setRange(range && range[0] === first && range[1] === last ? null : [first, last]) }, lbl), grid) : grid);
         });
         chartEl.classList.toggle('checking', check);
+        chartEl.classList.toggle('longlabels', form.some(f => f[0].length > 2)); // names such as Verse1 go above their bars
       }
       const nowLbl = h('div', { class: 'prompt' });
-      const where = h('p', { class: 'mono small muted', text: (t.form ? 'Form ' + t.form.map(f => f[0].replace(/\d/, '')).join('') + ' · ' : '') + bars.length + ' bars' });
+      const where = h('p', { class: 'mono small muted', text: (t.form ? 'Form ' + formName(t.form) + ' · ' : '') + bars.length + ' bars' });
       const legend = h('p', { class: 'small muted' });
       const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.2) });
       const tempo = h('input', { type: 'range', min: 50, max: 300, value: bpm, id: 'tune-tempo', 'aria-label': 'Tempo' });
@@ -358,7 +368,8 @@ tool('repertoire', {
         h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: g.name })),
         h('h2', { text: t.name }), t.note ? h('p', { class: 'small muted', text: t.note }) : null,
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
-        h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => editTune(t) }, t.mine ? 'Edit this tune' : 'Make your own version')),
+        h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => editTune(t) }, t.mine ? 'Edit this tune' : 'Make your own version'),
+          t.song && E.getSong(t.song) ? h('button', { class: 'btn small ghost', onclick: () => openTool('transcribe', { params: { song: t.song }, returnTab: 'transcribe' }) }, 'Open the song in Transcribe') : null),
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
         band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl);
@@ -448,7 +459,7 @@ tool('repertoire', {
         };
       });
     }
-    if (tune) openTune(tune); else showList();
+    if (ctx.params.draft) editTune(null, ctx.params.draft); else if (tune) openTune(tune); else showList();
     return () => { stopLoop(); if (drillCleanup) drillCleanup(); };
   }
 });

@@ -146,3 +146,71 @@ describe('saving your tunes', () => {
     expect(E.itemLabel('repertoire', 'autumn')).toBe('Autumn Leaves');
   });
 });
+
+describe('a tune from a Transcribe song', () => {
+  it('turns section names into one-word form labels', () => {
+    expect(T.shortLabel('Verse 2')).toBe('Verse2');
+    expect(T.shortLabel('Intro riff')).toBe('Intro');
+    expect(T.shortLabel('Section 12')).toBe('Sectio12');
+    expect(T.shortLabel('Solo bars 1–4')).toBe('Solo4');
+    expect(T.shortLabel('  ')).toBe('?');
+    const f = [[T.shortLabel('Verse 1'), 4], [T.shortLabel('Chorus'), 4]];
+    expect(T.parseForm(T.formText(f), 8).form).toEqual([['Verse1', 4], ['Chorus', 4]]);
+  });
+  // 120 bpm in 4: a bar is 2 s; bar lines at 0.5, 2.5, 4.5, …
+  const grid = { bpm: 120, offset: 0.5, bpb: 4, dur: 30 };
+  it('makes each section a part of the form, rounding its ends to the bar lines', () => {
+    const lay = T.songLayout(Object.assign({ sections: [{ name: 'Verse 1', a: 4.4, b: 12.6 }, { name: 'Intro', a: 0.4, b: 4.6 }] }, grid));
+    expect(lay.from).toBe('sections');
+    expect(lay.form).toEqual([['Intro', 2], ['Verse1', 4]]);
+    expect(lay.bars.map(b => b.t0)).toEqual([0.5, 2.5, 4.5, 6.5, 8.5, 10.5]);
+    expect(lay.bars[5].t1).toBe(12.5);
+  });
+  it('trims overlapping sections, leaves out gaps, and skips sections under a bar', () => {
+    const lay = T.songLayout(Object.assign({ sections: [{ name: 'A', a: 0.5, b: 8.5 }, { name: 'B', a: 6.5, b: 10.5 }, { name: 'tiny', a: 12, b: 12.6 }, { name: 'C', a: 16.5, b: 20.5 }] }, grid));
+    expect(lay.form).toEqual([['A', 4], ['B', 1], ['C', 2]]);
+    expect(lay.bars.map(b => b.t0)).toEqual([0.5, 2.5, 4.5, 6.5, 8.5, 16.5, 18.5]);
+  });
+  it('uses the loop when there are no sections, then the whole song', () => {
+    const loop = T.songLayout(Object.assign({ sections: [], loop: { a: 2.4, b: 10.6 } }, grid));
+    expect(loop).toMatchObject({ from: 'loop', form: null });
+    expect(loop.bars.map(b => b.t0)).toEqual([2.5, 4.5, 6.5, 8.5]);
+    const song = T.songLayout(Object.assign({ loop: { a: 2, b: 2.5 } }, grid)); // a loop under a bar does not count
+    expect(song.from).toBe('song');
+    expect(song.bars[0].t0).toBe(0.5);
+    expect(song.bars.length).toBe(15); // the last bar, 28.5–30.5, is mostly inside the 30 s
+    expect(T.songLayout(Object.assign({}, grid, { offset: 1.9 })).bars[0].t0).toBeCloseTo(-0.1); // a pickup of 0.1 s still counts
+  });
+  it('stops at the longest tune', () => {
+    const lay = T.songLayout({ bpm: 240, offset: 0, bpb: 4, dur: 600 });
+    expect(lay.bars.length).toBe(T.MAX_BARS);
+    expect(lay.capped).toBe(true);
+    const secs = T.songLayout({ bpm: 240, offset: 0, bpb: 4, dur: 600, sections: [{ name: 'A', a: 0, b: 100 }, { name: 'B', a: 100, b: 400 }] });
+    expect(secs.form).toEqual([['A', 100], ['B', 28]]);
+  });
+  it('needs a tempo, a downbeat and four beats to a bar', () => {
+    expect(T.songLayout({ bpm: null, offset: 0, dur: 30 }).error).toBe('tempo');
+    expect(T.songLayout({ bpm: 100, offset: null, dur: 30 }).error).toBe('tempo');
+    expect(T.songLayout({ bpm: 100, offset: 0, bpb: 3, dur: 30 }).error).toBe('meter');
+    expect(T.songLayout({ bpm: 60, offset: 0, dur: 1 }).error).toBe('short');
+  });
+  it('names guessed chords the way the band reads them', () => {
+    expect(T.chordName(10, 'm7♭5')).toBe('Bbm7b5');
+    expect(T.chordName(6, '7', false)).toBe('F#7');
+    expect(T.chordName(-1, 'maj7')).toBe('Bmaj7');
+    ['', 'm', '7', 'm7', 'maj7', 'm7♭5', 'dim', 'sus4'].forEach(q => expect(T.normChord(T.chordName(3, q)).sym).toBe(T.chordName(3, q)));
+  });
+  it('splits a bar only when a half clearly hears another chord', () => {
+    expect(T.splitBar('C', null, null)).toEqual(['C']);
+    expect(T.splitBar('C', { sym: 'C', score: 1, wScore: 1 }, { sym: 'C', score: 1, wScore: 1 })).toEqual(['C']);
+    expect(T.splitBar('C', { sym: 'C', score: 1, wScore: 1 }, { sym: 'G7', score: 0.9, wScore: 0.5 })).toEqual(['C', 'G7']);
+    expect(T.splitBar('C', { sym: 'C', score: 1, wScore: 1 }, { sym: 'Am', score: 0.9, wScore: 0.85 })).toEqual(['C']);
+    expect(T.splitBar('C', { sym: 'Dm7', score: 0.9, wScore: 0.4 }, { sym: 'G7', score: 0.9, wScore: 0.4 })).toEqual(['Dm7', 'G7']);
+  });
+  it('keeps the link to its song through saving and playing', () => {
+    const { tune } = T.checkTune({ name: 'From a song', chart: 'C | G7', groove: 'rock', song: 'sg1' });
+    expect(tune.song).toBe('sg1');
+    expect(T.playable(Object.assign({ id: 'my-s' }, tune)).song).toBe('sg1');
+    expect(T.checkTune({ name: 'Mine', chart: 'C', groove: 'rock' }).tune.song).toBeUndefined();
+  });
+});
