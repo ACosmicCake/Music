@@ -144,6 +144,9 @@ export function stylePage(r) {
     h('p', { class: 'small muted', text: 'Each opens over a drone so you can hear it and play it.' }));
   const tunes = D.TUNES.filter(t => t.region === r.id);
   if (tunes.length) play.push(h('h3', { text: 'Grooves to jam over' }), h('div', { class: 'chips' }, tunes.map(t => h('button', { class: 'chip', onclick: () => openTool('repertoire', { params: { tune: t.id }, returnTab: 'learn' }) }, t.name))));
+  const drills = (D.DRILLS || []).filter(d => d.style === r.id);
+  if (drills.length) play.push(h('h3', { text: 'Style drills' }), h('div', { class: 'chips' }, drills.map(d => h('button', { class: 'chip', onclick: () => openTool('drill', { params: { drill: d.id }, returnTab: 'learn' }) }, d.name))),
+    h('p', { class: 'small muted', text: 'Exercises a teacher of this tradition would give you, with a backing loop and variations that change as you go.' }));
   sec('play', 'On guitar', ...play);
   if (es && (es.glossary || es.respect)) sec('words', 'Words & respect',
     es.respect ? h('div', { class: 'callout patina' }, h('b', { text: 'Learning it with respect' }), h('p', { text: es.respect })) : null,
