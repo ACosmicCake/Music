@@ -270,7 +270,7 @@ function notesMode(root, lv, ctx) {
     else if (!answered && (k === '#' || k === '+')) { accSel = 1; paintAcc(); }
     else if (!answered && k === '-') { accSel = -1; paintAcc(); }
     else if (!answered && k === '=') { accSel = 0; paintAcc(); }
-    else if (answered && (k === 'Enter' || k === ' ')) { e.preventDefault(); next(); }
+    else if (answered && (k === 'Enter' || k === ' ') && e.target.tagName !== 'BUTTON') { e.preventDefault(); next(); }
   }
   document.addEventListener('keydown', onKey);
   next();
@@ -358,7 +358,7 @@ function rhythmMode(root, lv, ctx) {
   let bpm = bpmFor(lv, 'r');
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
-  const phase = h('div', { class: 'phase' });
+  const phase = h('div', { class: 'phase', role: 'status' });
   const padBox = h('div');
   const result = h('div', { class: 'stack' });
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'r', v); }, lv);
@@ -433,7 +433,7 @@ function melodyMode(root, lv, ctx) {
   const libBtn = libButton('m', lv, lib);
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
-  const phase = h('div', { class: 'phase' });
+  const phase = h('div', { class: 'phase', role: 'status' });
   const result = h('div', { class: 'stack' });
   const live = h('span', { class: 'mono small' });
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'm', v); }, lv);

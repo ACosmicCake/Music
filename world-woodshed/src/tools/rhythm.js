@@ -212,7 +212,7 @@ tool('rhythms', {
     const playBtn = h('button', { class: 'btn primary' }, '▶ Studio');
     const testBtn = h('button', { class: 'btn brass' }, 'Take the test');
     const opts = h('div', { class: 'studio-opts' });
-    const phase = h('div', { class: 'phase', hidden: true });
+    const phase = h('div', { class: 'phase', hidden: true, role: 'status' });
     const padHolder = h('div');
     const result = h('div', { class: 'stack' });
     const tipsBox = h('div');
@@ -415,7 +415,7 @@ tool('clock', {
     const card = h('div', { class: 'card' }); body.append(card);
     let loop = null, padObj = null, item = ctx.params.tempo ? E.universe('clock').find(x => x.id === ctx.params.tempo) : pickFor('clock', ctx);
     const tempoSel = h('div', { class: 'chips' });
-    const info = h('div', { class: 'phase' });
+    const info = h('div', { class: 'phase', role: 'status' });
     const startBtn = h('button', { class: 'btn brass' }, 'Start');
     const padHolder = h('div'), result = h('div', { class: 'stack' });
     card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoSel), h('div', { class: 'row' }, startBtn), info, padHolder, result);

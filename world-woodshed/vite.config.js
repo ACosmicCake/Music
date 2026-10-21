@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import contentIndex from './scripts/content-index.mjs';
 
 // BASE_PATH lets the GitHub Pages build live under /<repo>/; locally it is '/'.
 export default defineConfig({
@@ -7,6 +8,7 @@ export default defineConfig({
   build: { target: 'es2020' },
   worker: { format: 'es' },
   plugins: [
+    contentIndex(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png'],

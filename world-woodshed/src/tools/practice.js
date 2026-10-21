@@ -476,7 +476,7 @@ tool('free', {
     const card = h('div', { class: 'card' }); body.append(card);
     if (p.title && p.title !== 'Free practice') card.append(h('h2', { text: p.title }));
     if (p.notes) card.append(h('p', { class: 'notes', text: p.notes }));
-    const clock = h('div', { class: 'big-number mono', text: '0:00' });
+    const clock = h('div', { class: 'big-number mono', role: 'timer', 'aria-label': 'Time practised', text: '0:00' });
     const bpmLbl = h('b', { class: 'mono', text: bpm + ' bpm' });
     const btn = h('button', { class: 'btn' }, '▶ Click');
     const range = h('input', { type: 'range', min: 30, max: 240, value: bpm, 'aria-label': 'Tempo' });

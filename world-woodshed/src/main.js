@@ -10,7 +10,7 @@ import './styles.css';
 
 import E from './engine.js';
 import Cur from './curriculum.js';
-import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl, applyDisplay } from './ui/core.js';
+import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl, applyDisplay, watchErrors } from './ui/core.js';
 import './tools/ear.js';
 import './tools/dictation.js';
 import './tools/rhythm.js';
@@ -24,7 +24,7 @@ import './tools/learn.js';
 import { bootSession } from './ui/session.js';
 import './ui/routine.js';
 import './pages.js';
-import transcribe from './tools/transcribe.js';
+import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
 import { initGitHubSync } from './ghsync.js';
@@ -35,6 +35,7 @@ const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, not
 [transcribe, ...(window.WW_PLUGINS || [])].forEach(fn => { try { fn(UI); } catch (e) { console.error(e); } });
 
 /* ---------- boot ---------- */
+watchErrors();
 E.init();
 applyDisplay();
 initGitHubSync();
