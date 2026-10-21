@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard } from './ui/core.js';
+import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -115,7 +115,7 @@ Object.assign(PAGES, {
       });
       prog.append(sec);
     });
-    view.append(prog);
+    view.append(fold(prog, 'Progress'));
 
     const weak = E.weakItems(6), conf = E.confusions(4);
     if (weak.length || conf.length) {
@@ -127,15 +127,15 @@ Object.assign(PAGES, {
           CONTRAST_SKILLS.includes(c.skill) ? h('button', { class: 'btn small', onclick: () => openTool(E.SKILLS[c.skill].tool, { params: { contrast: [c.a, c.b] }, returnTab: 'today' }) }, 'Drill these two →') : ''))));
         wc.append(h('p', { class: 'small muted', text: 'A contrast drill plays only the two you mix up, back and forth, so your ear learns the difference before they go back into the mix.' }));
       }
-      view.append(wc);
+      view.append(fold(wc, 'Weak spots'));
     }
 
     const jr = E.journal().slice(0, 5);
     if (jr.length) {
-      view.append(h('div', { class: 'card' }, h('h2', { text: 'Practice journal' }),
+      view.append(foldWith('Practice journal', h('div', { class: 'card' }, h('h2', { text: 'Practice journal' }),
         h('div', { class: 'stack' }, jr.map(j => h('div', { class: 'jrow' },
           h('div', { class: 'spread' }, h('b', { text: j.name }), h('span', { class: 'mono small muted', text: new Date(j.ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' · ' + fmtMin(j.sec / 60) + ' · ' + j.done + '/' + j.total + ' blocks' })),
-          j.note ? h('p', { class: 'small', text: j.note }) : null)))));
+          j.note ? h('p', { class: 'small', text: j.note }) : null))))));
     }
 
     const danger = h('div', { class: 'card' });
@@ -145,7 +145,7 @@ Object.assign(PAGES, {
           h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
         danger.append(c);
       } }, 'Reset progress')));
-    view.append(backupCard(), danger);
+    view.append(fold(backupCard(), 'Your progress on every device'), fold(danger, 'Reset progress'));
   },
   train() {
     const sec = TRAIN[ui.section.train] ? ui.section.train : 'ear';
@@ -154,7 +154,7 @@ Object.assign(PAGES, {
     view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
     view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
-    view.append(guitarCard(), micSettingsCard());
+    view.append(fold(guitarCard(), 'Your guitar'), fold(displayCard(), 'Display'), fold(micSettingsCard(), 'Microphone'));
   }
 });
 
@@ -207,6 +207,29 @@ function dayChart(days) {
   pts.forEach(p => svg.append(s('circle', { class: 'accdot', cx: p[0], cy: p[1], r: 3 })));
   const wrap = h('div', { class: 'stack' }, svg, h('p', { class: 'small muted', text: 'Bars: minutes per day. Gold line: accuracy on days you answered questions.' }));
   return wrap;
+}
+
+/* On a small screen, long cards fold to a one-line summary you can open */
+function fold(card, title) {
+  if (!isCompact()) return card;
+  return h('details', { class: 'foldwrap' }, h('summary', {}, title), card);
+}
+const foldWith = (title, card) => fold(card, title);
+
+/* Display: compact layout and text size, for this device only */
+function displayCard() {
+  const card = h('div', { class: 'card' });
+  function draw() {
+    card.innerHTML = '';
+    const st = E.state.settings, seg = (opts, cur, key) => h('div', { class: 'seg' }, opts.map(([k, t]) => h('button', { 'aria-pressed': String(k === cur), onclick: () => { E.setSetting(key, k); applyDisplay(); draw(); } }, t)));
+    card.append(h('h3', { text: 'Display' }),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Layout' }), seg([['auto', 'Auto'], ['compact', 'Compact'], ['roomy', 'Roomy']], st.display || 'auto', 'display'),
+        h('span', { class: 'small muted', text: 'Compact suits small phones: a slim top bar, the tab bar tucked away inside tools, tool descriptions behind ⓘ, and long sections folded. Auto turns it on for screens under 380 × 640.' })),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Text size' }), seg([['s', 'Small'], ['m', 'Normal'], ['l', 'Large']], st.textSize || 'm', 'textSize'),
+        h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })));
+  }
+  draw();
+  return card;
 }
 
 /* Your guitar: tuning, capo and left-handed fretboard, used by every tool that shows the neck */

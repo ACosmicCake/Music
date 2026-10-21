@@ -707,3 +707,115 @@ section.card { scroll-margin-top: 110px; }
 .heatmap .hm.l4 { fill: var(--brass); }
 .confrow { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .contrast-banner { margin-bottom: 4px; }
+
+/* ---------- Tool header: back, eyebrow, title, description (one row in the compact layout) ---------- */
+.runner-head { grid-template-columns: auto 1fr; grid-template-areas: "back eye" "bar bar" "title title" "desc desc" "block block"; align-items: center; }
+.runner-head .rh-back { grid-area: back; justify-self: start; }
+.runner-head .rh-eyebrow { grid-area: eye; justify-self: end; text-align: right; }
+.runner-head .rh-info { display: none; grid-area: info; }
+.runner-head .rh-title { grid-area: title; }
+.runner-head .rh-desc { grid-area: desc; margin: 0; }
+.runner-head > .sessionbar { grid-area: bar; }
+.runner-head > .blockbar { grid-area: block; }
+
+/* ---------- Text size (per device) ---------- */
+html[data-text="s"] { font-size: 14px; }
+html[data-text="l"] { font-size: 18px; }
+html[data-text="s"] body { font-size: 14px; }
+html[data-text="l"] body { font-size: 18px; }
+
+/* ---------- Compact layout: small phones like 3-inch screens ----------
+   Slim top bar, small tab bar that hides inside tools, one-row tool header, tighter cards,
+   two-column answers, a sideways-scrolling fretboard with usable tap targets. */
+html.compact body { font-size: 15px; line-height: 1.4; }
+html.compact h1 { font-size: 1.3rem; }
+html.compact h2 { font-size: 1.08rem; }
+html.compact h3 { font-size: 0.98rem; }
+html.compact .eyebrow { font-size: 0.62rem; letter-spacing: 0.06em; }
+html.compact .small { font-size: 0.82rem; }
+html.compact .lede { font-size: 0.95rem; }
+
+html.compact .topbar-inner { padding-block: 4px; gap: 8px; }
+html.compact .brand { font-size: 0.92rem; gap: 6px; }
+html.compact .brand-mark { width: 15px; height: 15px; border-width: 2px; }
+html.compact .brand-mark::after { inset: 3px; }
+html.compact .sync { display: none; }
+
+html.compact main { padding-block: 10px 64px; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); gap: 10px; }
+html.compact body.in-tool .tabs { display: none; }
+html.compact body.in-tool main { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+html.compact .tab { padding: 4px 1px 5px; gap: 1px; border-top-width: 2px; }
+html.compact .tab svg { width: 19px; height: 19px; }
+html.compact .tab span { font-size: 0.6rem; }
+
+html.compact .runner-head { grid-template-columns: auto 1fr auto; grid-template-areas: "back title info" "bar bar bar" "desc desc desc" "block block block"; gap: 6px 8px; }
+html.compact .runner-head .rh-eyebrow { display: none; }
+html.compact .runner-head .rh-info { display: inline-flex; padding: 4px 10px; }
+html.compact .runner-head .rh-lbl { display: none; }
+html.compact .runner-head .rh-back { padding: 4px 10px; }
+html.compact .runner-head .rh-title { font-size: 1.12rem; line-height: 1.15; }
+html.compact .runner-head .rh-desc { display: none; font-size: 0.86rem; }
+html.compact .runner-head.desc-open .rh-desc { display: block; }
+
+html.compact .card { padding: 10px; gap: 8px; border-radius: 11px; }
+html.compact .section { gap: 10px; }
+html.compact .tile { padding: 9px 10px; border-radius: 10px; }
+html.compact .hero { padding: 10px 11px; gap: 8px; border-radius: 12px; }
+html.compact .hero h1 { font-size: 1.15rem; }
+html.compact .heromet { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+html.compact .heromet > div { padding: 4px 5px; border-radius: 8px; }
+html.compact .heromet b { font-size: 0.95rem; }
+html.compact .heromet span { font-size: 0.58rem; line-height: 1.15; }
+html.compact .stats { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+html.compact .stat b { font-size: 1.1rem; }
+
+html.compact .btn { min-height: 36px; padding: 6px 12px; font-size: 0.9rem; }
+html.compact .btn.small { min-height: 30px; padding: 3px 10px; font-size: 0.82rem; }
+html.compact .btn.big { min-height: 42px; padding: 8px 14px; font-size: 0.98rem; }
+html.compact .row { gap: 6px; }
+html.compact .seg { flex-wrap: wrap; border-radius: 12px; }
+html.compact .seg button { padding: 5px 9px; font-size: 0.8rem; }
+html.compact .chip { padding: 3px 9px; font-size: 0.8rem; }
+html.compact .chips { gap: 4px; }
+html.compact .formgrid { grid-template-columns: 1fr; gap: 8px; }
+html.compact select, html.compact input[type="number"], html.compact input[type="text"] { max-width: 100%; }
+
+html.compact .prompt { font-size: 1.15rem; }
+html.compact .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+html.compact .choice { min-height: 44px; padding: 6px 5px; border-radius: 9px; }
+html.compact .feedback { padding: 8px 10px; font-size: 0.88rem; }
+html.compact .big-number { font-size: 2.2rem; }
+html.compact .sessionbar { padding: 8px; gap: 6px; }
+html.compact .sb-clock { font-size: 1.3rem; }
+
+/* the neck keeps a size you can tap and scrolls sideways; it jumps to the marked notes */
+html.compact .fretboard { min-width: 470px; }
+
+/* chord charts: four bars to a line that actually fit */
+html.compact .cchart { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+html.compact .cbar { padding: 6px 3px; min-height: 34px; font-size: 0.78rem; gap: 2px 4px; overflow-wrap: anywhere; }
+html.compact .csection { grid-template-columns: 1.3em 1fr; }
+html.compact .csection .csec { font-size: 0.85rem; padding-top: 6px; }
+
+/* folded sections (compact layout) */
+details.foldwrap > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px; font-family: var(--font-display); font-weight: 700; font-size: 0.98rem; }
+details.foldwrap > summary::-webkit-details-marker { display: none; }
+details.foldwrap > summary::after { content: "▸"; color: var(--muted); }
+details.foldwrap[open] > summary { margin-bottom: 6px; }
+details.foldwrap[open] > summary::after { content: "▾"; }
+html.compact .duo, html.compact .fixes { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+html.compact .stack { grid-template-columns: minmax(0, 1fr); }
+html.compact select { width: 100%; min-width: 0; }
+@media (max-width: 300px) { .duo, .fixes { grid-template-columns: minmax(0, 1fr); } }
+/* empty header rows (no session bar, folded description) leave no gaps */
+.runner-head { row-gap: 0; }
+.runner-head > .rh-title { margin-top: 8px; }
+.runner-head > .sessionbar, .runner-head > .rh-desc, .runner-head > .blockbar { margin-top: 8px; }
+html.compact .runner-head > .rh-title { margin-top: 0; }
+html.compact .runner-head > .sessionbar, html.compact .runner-head > .rh-desc, html.compact .runner-head > .blockbar { margin-top: 6px; }
+html.compact .heromet b { white-space: nowrap; font-size: 0.88rem; }
+/* wrapped segmented controls: each option fills its row so the selected one reads clearly */
+html.compact .seg button { flex: 1 1 auto; }
+/* sight-reading level picker: smaller chips */
+html.compact .sr-levels { gap: 4px; }
+html.compact .sr-lv { padding: 2px 6px; min-width: 32px; min-height: 28px; font-size: 0.78rem; }

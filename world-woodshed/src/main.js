@@ -10,7 +10,7 @@ import './styles.css';
 
 import E from './engine.js';
 import Cur from './curriculum.js';
-import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl } from './ui/core.js';
+import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl, applyDisplay } from './ui/core.js';
 import './tools/ear.js';
 import './tools/dictation.js';
 import './tools/rhythm.js';
@@ -35,6 +35,10 @@ const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, not
 
 /* ---------- boot ---------- */
 E.init();
+applyDisplay();
+let resizeT = null;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
+E.onChange(applyDisplay);
 Cur.migrate();
 bootSession();
 syncEl.textContent = E.storageNote();
