@@ -150,4 +150,53 @@ export default [
       { cite: 'Mishra, J. (2014). Improving sightreading accuracy: A meta-analysis. Psychology of Music, 42(2), 131–156.', url: 'https://doi.org/10.1177/0305735612463770' },
     ],
   },
+  {
+    id: 'variability',
+    title: 'Vary the practice',
+    finding: 'Schema theory proposes that practising several versions of a movement (louder and softer, faster and slower, different distances) builds a general rule for that kind of movement, which then helps with versions you have never practised. A review of the early experiments found the clearest support in children and patchier support in adults. Later studies found that variations can even help the one version you care about: people who practised a target force mixed with nearby forces were more accurate on the target a day later than people who practised only the target, and slotting related variations between attempts helped while an unrelated task did not. A recent review across motor learning, language and perception reached the same broad conclusion: variety usually makes early practice harder but leads to skills that hold up in new situations. How much variety, and of what kind, still differs from task to task, and too much at once can swamp a beginner.',
+    inApp: 'Rhythms rotate through traditional variations and fills while your own part stays the same, technique ladders switch to a new variation of the exercise every few rounds, and style drills change one thing at a time so you can hear what it does.',
+    sources: [
+      { cite: 'Schmidt, R. A. (1975). A schema theory of discrete motor skill learning. Psychological Review, 82(4), 225–260.', url: 'https://doi.org/10.1037/h0076770' },
+      { cite: 'van Rossum, J. H. A. (1990). Schmidt’s schema theory: The empirical base of the variability of practice hypothesis. A critical analysis. Human Movement Science, 9(3), 387–435.', url: 'https://doi.org/10.1016/0167-9457(90)90010-B' },
+      { cite: 'Shea, C. H., & Kohl, R. M. (1990). Specificity and variability of practice. Research Quarterly for Exercise and Sport, 61(2), 169–177.', url: 'https://doi.org/10.1080/02701367.1990.10608671' },
+      { cite: 'Shea, C. H., & Kohl, R. M. (1991). Composition of practice: Influence on the retention of motor skills. Research Quarterly for Exercise and Sport, 62(2), 187–195.', url: 'https://doi.org/10.1080/02701367.1991.10608709' },
+      { cite: 'Raviv, L., Lupyan, G., & Green, S. C. (2022). How variability shapes learning and generalization. Trends in Cognitive Sciences, 26(6), 462–483.', url: 'https://doi.org/10.1016/j.tics.2022.03.007' },
+    ],
+  },
+  {
+    id: 'internal-clock',
+    title: 'Keep the pulse yourself',
+    finding: 'Timing research often uses a synchronise-then-continue task: you tap along with a metronome, then it stops and you carry on alone. While the click is there, you keep in time by making constant small corrections against it. Once it stops, your own internal timekeeper has to hold the tempo, and with nothing to check against, small errors can add up and the tempo can drift. Trained musicians are usually steadier at both. Two ideas suggest practising some bars without the click: pulling a skill from memory strengthens it (see “Test yourself”), and the guidance hypothesis holds that help given all the time becomes a crutch. But we know of no study that has tested muted bars as a way to train timing, and a recent meta-analysis found no reliable benefit from simply giving feedback less often, so treat this as a sensible idea rather than a proven method.',
+    inApp: 'Tests and the rhythm studio mix muted cycles in among the guided ones, not only at the end, so you keep finding the pulse yourself and then check it against the click. The Repertoire gym’s “Follow the form by ear” mode hides the bar marker, so you keep your place in the tune by listening (with just the bass, if you like).',
+    sources: [
+      { cite: 'Wing, A. M., & Kristofferson, A. B. (1973). Response delays and the timing of discrete motor responses. Perception & Psychophysics, 14(1), 5–12.', url: 'https://doi.org/10.3758/BF03198607' },
+      { cite: 'Repp, B. H. (2005). Sensorimotor synchronization: A review of the tapping literature. Psychonomic Bulletin & Review, 12(6), 969–992.', url: 'https://doi.org/10.3758/BF03206433' },
+      { cite: 'Repp, B. H., & Su, Y.-H. (2013). Sensorimotor synchronization: A review of recent research (2006–2012). Psychonomic Bulletin & Review, 20(3), 403–452.', url: 'https://doi.org/10.3758/s13423-012-0371-2' },
+      { cite: 'Salmoni, A. W., Schmidt, R. A., & Walter, C. B. (1984). Knowledge of results and motor learning: A review and critical reappraisal. Psychological Bulletin, 95(3), 355–386.', url: 'https://doi.org/10.1037/0033-2909.95.3.355' },
+      { cite: 'McKay, B., Hussien, J., Vinh, M.-A., Mir-Orefice, A., Brooks, H., & Ste-Marie, D. M. (2022). Meta-analysis of the reduced relative feedback frequency effect on motor learning and performance. Psychology of Sport and Exercise, 61, 102165.', url: 'https://doi.org/10.1016/j.psychsport.2022.102165' },
+    ],
+  },
+  {
+    id: 'autonomy',
+    title: 'Having a say',
+    finding: 'A number of motor-learning studies found that learners who were given choices during practice (when to get feedback, what to practise next, even small choices unrelated to the task) remembered the skill better than learners who were simply told what to do. The OPTIMAL theory explains this through motivation: feeling in control and confident helps people learn. Recent, more careful reviews are much more sceptical. A 2022 meta-analysis found that the benefit showed up mainly in published studies, that most studies were far too small, and that once this was taken into account the benefit was small and could not be told apart from zero; a 2023 reanalysis came to the same conclusion. So choice is not a proven way to learn faster. The app offers it because it costs nothing and makes a plan easier to stick with.',
+    inApp: 'You can swap any block during a session, either for one of the plan’s own alternatives or for anything you choose. The plan records what you actually did, so spacing and review dates stay correct.',
+    sources: [
+      { cite: 'Lewthwaite, R., Chiviacowsky, S., Drews, R., & Wulf, G. (2015). Choose to move: The motivational impact of autonomy support on motor learning. Psychonomic Bulletin & Review, 22(5), 1383–1388.', url: 'https://doi.org/10.3758/s13423-015-0814-7' },
+      { cite: 'Wulf, G., & Lewthwaite, R. (2016). Optimizing performance through intrinsic motivation and attention for learning: The OPTIMAL theory of motor learning. Psychonomic Bulletin & Review, 23(5), 1382–1414.', url: 'https://doi.org/10.3758/s13423-015-0999-9' },
+      { cite: 'McKay, B., Yantha, Z. D., Hussien, J., Carter, M. J., & Ste-Marie, D. M. (2022). Meta-analytic findings of the self-controlled motor learning literature: Underpowered, biased, and lacking evidential value. Meta-Psychology, 6, MP.2021.2803.', url: 'https://doi.org/10.15626/MP.2021.2803' },
+      { cite: 'McKay, B., Bacelar, M. F. B., Parma, J. O., Miller, M. W., & Carter, M. J. (2023). The combination of reporting bias and underpowered study designs has substantially exaggerated the motor learning benefits of self-controlled practice and enhanced expectancies: A meta-analysis. International Review of Sport and Exercise Psychology.', url: 'https://doi.org/10.1080/1750984X.2023.2207255' },
+    ],
+  },
+  {
+    id: 'external-focus',
+    title: 'Listen to the sound, not the hand',
+    finding: 'Many studies have found that people perform and learn movements better when they focus on the effect they want (where the ball goes, how it sounds) than on their own body (the wrist, the fingers). A 2013 review of fifteen years of this research, and a 2021 meta-analysis pooling dozens of studies, reported a consistent advantage. A 2024 reanalysis of the same literature, correcting for the tendency of positive results to get published and for very small studies, found the average benefit shrank to little or nothing, with results varying a lot from study to study. Much of this research used sport and balance tasks rather than instruments. So aiming at the sound is a sensible default, not a guaranteed shortcut, and sometimes you do need to look at what your hand is doing to fix a problem.',
+    inApp: 'Each technique variation comes with a cue about the sound to aim for rather than about what the hand should do.',
+    sources: [
+      { cite: 'Wulf, G. (2013). Attentional focus and motor learning: A review of 15 years. International Review of Sport and Exercise Psychology, 6(1), 77–104.', url: 'https://doi.org/10.1080/1750984X.2012.723728' },
+      { cite: 'Chua, L.-K., Jimenez-Diaz, J., Lewthwaite, R., Kim, T., & Wulf, G. (2021). Superiority of external attentional focus for motor performance and learning: Systematic reviews and meta-analyses. Psychological Bulletin, 147(6), 618–645.', url: 'https://doi.org/10.1037/bul0000335' },
+      { cite: 'McKay, B., Corson, A. E., Seedu, J., De Faveri, C. S., Hasan, H., Arnold, K., Adams, F. C., & Carter, M. J. (2024). Reporting bias, not external focus: A robust Bayesian meta-analysis and systematic review of the external focus of attention literature. Psychological Bulletin, 150(11), 1347–1362.', url: 'https://doi.org/10.1037/bul0000451' },
+    ],
+  },
 ];
