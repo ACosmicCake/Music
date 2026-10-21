@@ -602,19 +602,20 @@ export default [
       ] }
     ],
     mistakes: [
-      { problem: 'Downstrokes are thin and weak.', fix: 'Let the pick push through and rest on the next string. Use the weight of the hand rather than finger pressure.' },
-      { problem: 'Anchoring the hand on the guitar top.', fix: 'Practise with the hand floating. Use the wrist and forearm rotation for the motion.' },
-      { problem: 'Rest strokes on upstrokes.', fix: 'Remember the rule: rest strokes only on downstrokes when changing to a higher string.' },
-      { problem: 'Rushing repeated downstrokes.', fix: 'Practise with a click and count. Repeated downstrokes need time to recover.' },
-      { problem: 'Thin pick gives a weak sound.', fix: 'Use a thicker pick, 2–3 mm or more.' },
-      { problem: 'Tension in the wrist at speed.', fix: 'Slow down, shake out the hand, and play bursts at speed with relaxation.' }
+      { problem: 'Downstrokes are thin and weak, like ordinary picking.', fix: 'Check that the pick really stops on the next string. Play one open-string rest stroke per beat at 60 BPM and let the hand drop through the string as if it were heavy; the note should be noticeably louder and rounder than a free stroke.' },
+      { problem: 'The hand is anchored on the top or the pickguard.', fix: 'Anchoring blocks the forearm rotation the style needs. Practise with the hand floating, touching nothing but the pick, and let the wrist bend so the pick hangs into the strings from above.' },
+      { problem: 'Upstrokes also dig in and rest, so the line sounds heavy and slow.', fix: 'Keep upstrokes light and short, leaving the string on the same side they entered. The contrast between a heavy down and a light up is part of the swing.' },
+      { problem: 'Two downstrokes in a row rush or arrive late.', fix: 'Repeated downstrokes need the hand to come back up in the gap. Practise three-notes-per-string runs at 80 BPM and listen for exactly even eighths; the second downstroke is usually the one that rushes.' },
+      { problem: 'A thin or pointed pick makes the tone small and scratchy.', fix: 'Use a thick pick (2–3 mm or more) with a smooth, rounded edge, held at a slight angle so it glides through the string.' },
+      { problem: 'The wrist locks up at fast tempos.', fix: 'Slow down until the wrist feels loose, then use short bursts at the target tempo. The rotation should feel like a relaxed shake, not a push.' },
+      { problem: 'The picking rules are followed but the line does not swing.', fix: 'Accent the downstrokes that fall on beats and play the upstrokes softer and slightly late. Sing the line with the swing feel, then copy that phrasing with the pick.' }
     ],
     stages: [
-      { name: 'Stage 1: The rest stroke', goal: 'A full, loud downstroke that rests on the next string.', how: 'Open strings, quarter notes at 60–80 BPM. Listen for tone.' },
-      { name: 'Stage 2: Two notes per string', goal: 'Down-up patterns with rest strokes on string changes.', how: 'Scales ascending with two notes per string, eighths at 90–120 BPM.' },
-      { name: 'Stage 3: Three notes per string', goal: 'Down-up-down patterns with consecutive downstrokes.', how: 'Scales ascending with three notes per string, eighths at 100–140 BPM.' },
-      { name: 'Stage 4: Arpeggios', goal: 'One-note-per-string arpeggios as rest-stroke sweeps.', how: 'Major and minor 6 arpeggios, eighths at 120–160 BPM.' },
-      { name: 'Stage 5: Lines', goal: 'Gypsy jazz lines with the right picking pattern and swing.', how: 'Learn a Django solo or head, such as “Minor Swing”, at 160–200 BPM eighths.' }
+      { name: 'Stage 1: The rest stroke', goal: 'A loud, full downstroke that stops on the next string, the same every time.', how: 'Open strings, one rest stroke per beat at 60–80 BPM, starting on the 6th string and moving to the 1st. Compare each one with a free stroke so you can hear the difference.' },
+      { name: 'Stage 2: Two notes per string', goal: 'Down-up on each string, with a rest-stroke down on every change to a higher string.', how: 'A one-octave major scale with two notes per string, eighths at 90–120 BPM. Go up only at first; then add the descent with upstrokes on the string changes.' },
+      { name: 'Stage 3: Three notes per string', goal: 'Even down-up-down groups with clean consecutive downstrokes.', how: 'Ascending three-notes-per-string scales at 100–140 BPM eighths. Keep the click on 2 and 4 to feel the swing.' },
+      { name: 'Stage 4: Arpeggios as rest-stroke sweeps', goal: 'One-note-per-string arpeggios played as a series of rest strokes, each note separate.', how: 'Minor 6 and major 6 arpeggios (the core sounds of the style) over two octaves, 120–160 BPM eighths, lifting each fretting finger as the next note sounds.' },
+      { name: 'Stage 5: Real lines', goal: 'Django-style lines with the right picking, accents and swing.', how: 'Learn the head of “Minor Swing” and two phrases from Django’s solo, first at 120 BPM, then up to 160–200 BPM eighths.' }
     ],
     listen: [
       { artist: 'Quintette du Hot Club de France', work: 'Minor Swing (1937)', note: 'Django Reinhardt’s solo with rest-stroke arpeggios and a loud, punchy tone.' },
@@ -642,36 +643,36 @@ export default [
     ],
     mechanics: [
       { h: 'Strumming hand', p: [
-        'Use downstrokes on every beat. On 1 and 3, strum the lower strings or the full chord, letting it ring briefly. On 2 and 4, play a short, accented chord. In the full gypsy version, add a quick ghost upstroke just before the downstroke on 2 and 4, making an “up-down” pump.',
-        'Keep the wrist loose and the motion small. The power comes from the wrist and forearm, not the shoulder.'
+        'Every beat is a downstroke from a loose, floating wrist, the same hand position as gypsy lead playing. In the app’s version, beats 1 and 3 brush only the low strings (the bass note and maybe one more), and beats 2 and 4 strike the upper three or four strings as a short chord. This makes the “boom-chick” of a bass player and a snare drummer out of one hand.',
+        'In the full gypsy pompe, beats 2 and 4 get a tiny ghost upstroke just before the downstroke, so they sound like “ka-CHUNK”: a quick up-down that gives the pump its name. The upstroke is felt more than heard. Add it only when the plain version is steady.'
       ] },
       { h: 'Fretting hand', p: [
-        'Use compact three- or four-note voicings, often on the 6th, 4th and 3rd strings or the 5th, 4th and 3rd. Common chords include major 6, minor 6, dominant 7 and diminished.',
-        'On 2 and 4, release the pressure just after the strum to choke the chord. The fingers stay touching the strings but stop pressing.'
+        'Use compact three-note voicings with the root on the 6th or 5th string and two or three notes on the middle strings: major 6, minor 6, dominant 7, diminished 7 and 6/9. Avoid the high E string; it makes the rhythm sound bright and splashy rather than deep.',
+        'The short chord comes from the fretting hand. Strum the chord on 2 and 4, then release finger pressure almost immediately, keeping the fingers on the strings so the sound is choked. The length of the chord is controlled by how fast you release, not by the strumming hand.'
       ] },
-      { h: 'Rhythm and accent', p: [
-        'Accent 2 and 4 slightly, like a snare backbeat. The beats should be even in time but not in volume.',
-        'Practise at slow tempos first, then gradually increase. At high tempos the motion becomes smaller and quicker.'
+      { h: 'Time and accent', p: [
+        'Beats 2 and 4 are slightly louder and shorter, like a snare backbeat; 1 and 3 are rounder and a touch longer, like a bass drum. All four must be exactly even in time. Many players lean very slightly forward on 2 and 4, so the rhythm drives rather than sits.',
+        'Set the click on 2 and 4 only. If the pompe locks with that click, it will lock with a band.'
       ] },
-      { h: 'Sound', p: [
-        'The sound should be punchy, with a clear pulse. Avoid letting chords ring too long. The short chord on 2 and 4 should be crisp and percussive.',
-        'Listen to recordings and imitate the balance between bass and chord.'
+      { h: 'Body and stamina', p: [
+        'At 200 BPM and above, the motion shrinks to a small rotation of the forearm with a loose wrist. The shoulder stays quiet and low. If you feel the arm burning, the motion is too big or the grip too tight.',
+        'Think of the pompe as breathing rather than hitting: a steady, repeated motion that you could keep up for a whole evening of dancing, which is exactly what rhythm players do.'
       ] }
     ],
     mistakes: [
-      { problem: 'Chords on 2 and 4 ring too long.', fix: 'Release the fretting-hand pressure just after the strum to choke the chord.' },
-      { problem: 'Tempo drags or rushes.', fix: 'Practise with a click and record yourself. The pompe must be steady.' },
-      { problem: 'Wrist is stiff at high tempos.', fix: 'Shake out the hand and practise at a slower tempo with a loose wrist. Increase the tempo gradually.' },
-      { problem: 'Strumming too many strings.', fix: 'Focus on three- or four-note voicings and mute the unused strings.' },
-      { problem: 'Accents in the wrong place.', fix: 'Accent 2 and 4 like a snare drum. Practise with a click on 2 and 4.' },
-      { problem: 'Too loud, drowning out the soloist.', fix: 'Adjust dynamics; the pompe supports the music, not competes with it.' }
+      { problem: 'The chords on 2 and 4 ring and the pattern turns into a wash.', fix: 'Release the fretting-hand pressure right after the strum. Practise just beats 2 and 4 slowly, listening for a chord that lasts about as long as a hand clap.' },
+      { problem: 'The tempo creeps up over a chorus.', fix: 'Record yourself for two full minutes against a click on 2 and 4 and listen back. Rushing usually starts on chord changes; practise the changes alone in time.' },
+      { problem: 'The wrist stiffens at fast tempos and the sound gets harsh.', fix: 'Drop the tempo until the wrist is loose, then go up 5 BPM at a time. Shrink the motion as the tempo rises instead of pushing harder.' },
+      { problem: 'Too many strings, especially the high E, make it sound thin and bright.', fix: 'Use three-note voicings on the middle and low strings and let the fretting fingers mute the 1st string.' },
+      { problem: 'The ghost upstroke is too loud and turns into a strum.', fix: 'Barely brush the strings, or miss them entirely at first. It is a motion that sets up the downstroke, not a separate note.' },
+      { problem: 'Playing too loud under the soloist.', fix: 'The rhythm player’s job is to make the soloist sound good. Play along with recordings and match the volume of the rhythm guitars, not the lead.' }
     ],
     stages: [
-      { name: 'Stage 1: Bass and chord', goal: 'A steady bass on 1 and 3 and short chord on 2 and 4.', how: 'Quarter notes at 120 BPM on a single chord.' },
-      { name: 'Stage 2: Changes', goal: 'Smooth chord changes without breaking the rhythm.', how: 'A ii–V–I progression, 120–150 BPM.' },
-      { name: 'Stage 3: Full pompe', goal: 'The full pattern with ghost upstrokes.', how: 'Add the ghost upstroke before 2 and 4. 130–160 BPM.' },
-      { name: 'Stage 4: Tunes', goal: 'The pompe through full tunes.', how: 'Play “Minor Swing” or “Dark Eyes” at 150–180 BPM.' },
-      { name: 'Stage 5: Fast tempos', goal: 'A steady, swinging pompe at high tempos.', how: 'Play tunes at 180–220 BPM with a relaxed wrist.' }
+      { name: 'Stage 1: Boom-chick on one chord', goal: 'Bass on 1 and 3, a short choked chord on 2 and 4, perfectly steady.', how: 'Am6 or G6, quarter notes at 100–120 BPM, click on 2 and 4. Two minutes without stopping.' },
+      { name: 'Stage 2: Changes in time', goal: 'Chord changes that do not interrupt the pulse.', how: 'A minor ii–V–i (Bm7♭5–E7–Am6) and a major ii–V–I, changing every bar, then every two beats, at 120–150 BPM.' },
+      { name: 'Stage 3: The full pompe', goal: 'The quick ghost upstroke before 2 and 4, light and in time.', how: 'Add the ghost stroke on one chord at 120 BPM, then through the changes. Up to 160 BPM.' },
+      { name: 'Stage 4: Whole tunes', goal: 'A full chorus of a standard with no drops in time or energy.', how: 'Play the rhythm for “Minor Swing” and “Dark Eyes” along with recordings at 150–180 BPM.' },
+      { name: 'Stage 5: Dance-hall tempos', goal: 'A relaxed, swinging pompe at fast tempos for several minutes.', how: 'Tunes at 180–220 BPM, with a soloist or recording. Aim for five minutes with no tension.' }
     ],
     listen: [
       { artist: 'Quintette du Hot Club de France', work: 'Dinah (1934)', note: 'Two rhythm guitars and bass driving the band without drums.' },
@@ -772,19 +773,19 @@ export default [
       ] }
     ],
     mistakes: [
-      { problem: 'Syllables drift away from the click.', fix: 'Practise speaking only, with a slow click. Accent the first syllable of each group.' },
-      { problem: 'Speaking and playing do not line up.', fix: 'Slow down until both match exactly. Start with one syllable per note.' },
-      { problem: 'Losing the beat when speaking groups of three or five.', fix: 'Keep the beat with a hand gesture or foot tap. Count the cycle out loud before speaking.' },
-      { problem: 'Mumbling the syllables.', fix: 'Speak clearly and evenly. Konnakol is precise; the syllables should be crisp.' },
-      { problem: 'Treating it as a novelty.', fix: 'Use konnakol daily, as a way to learn rhythms and check timing.' },
-      { problem: 'Getting lost in long phrases.', fix: 'Break phrases into smaller groups and practise each, then combine.' }
+      { problem: 'The syllables drift ahead of the click, especially in threes.', fix: 'Speak without the guitar first, with a click at 60 BPM, and clap on every beat. Ta (the first syllable) must coincide exactly with the clap; if it does not, slow down.' },
+      { problem: 'The voice and the pick separate, so you hear two rhythms.', fix: 'Start with one syllable per picked note on a single open string. When the voice and pick sound like one event, move to a scale.' },
+      { problem: 'Ta-ki-ta against sixteenths turns into triplets, or the sixteenths turn into triplets.', fix: 'This is the hard part, and it is meant to be. Keep the click on the beat, play the sixteenths quietly, and speak ta-ki-ta while accenting the note under each ta. The accents will fall on a different sixteenth each time and line up again every three beats.' },
+      { problem: 'Mumbled or rushed syllables.', fix: 'Speak each syllable clearly with the tip of the tongue, as a percussionist would. A crisp ta-ka-di-mi sounds like a drum; a mumbled one does not keep time.' },
+      { problem: 'Losing the place in the cycle during longer phrases.', fix: 'Keep the tala with the hand (or a foot) and say the beat number at the start of each bar for a while. Shorten the phrase until you can always say where beat 1 is.' },
+      { problem: 'Treating konnakol as a party trick rather than a tool.', fix: 'Use it every day for five minutes: speak a rhythm before you play it, and speak the subdivisions when a passage feels unsteady.' }
     ],
     stages: [
-      { name: 'Stage 1: Speak in four', goal: 'Even ta-ka-di-mi with a click.', how: 'Speak sixteenths at 60–80 BPM, accent on ta.' },
-      { name: 'Stage 2: Speak in three', goal: 'Even ta-ki-ta triplets with a click.', how: 'Speak triplets at 60–80 BPM.' },
-      { name: 'Stage 3: Guitar and voice', goal: 'Sixteenths on guitar with ta-ka-di-mi, then ta-ki-ta.', how: 'Play and speak together at 60–90 BPM. Accent the groups on the guitar.' },
-      { name: 'Stage 4: Groupings', goal: 'Groupings of 3, 5 and 7 over a four-beat cycle.', how: 'Speak and play groupings at 60–100 BPM.' },
-      { name: 'Stage 5: Mora and korvai', goal: 'Phrases that repeat three times and land on beat 1.', how: 'Compose a mora and play it on the guitar at 80–120 BPM.' }
+      { name: 'Stage 1: Speak in four and two', goal: 'Even ta-ka-di-mi and ta-ka with a click, the first syllable exactly on the beat.', how: 'Speak sixteenths at 60–80 BPM while clapping the beat. Switch between ta-ka (eighths) and ta-ka-di-mi (sixteenths) every bar.' },
+      { name: 'Stage 2: Speak in three', goal: 'Even ta-ki-ta triplets, then switching between three and four without a bump.', how: 'Triplets at 60–80 BPM, then two bars of ta-ki-ta, two of ta-ka-di-mi, and back.' },
+      { name: 'Stage 3: Guitar and voice together', goal: 'Picked sixteenths with ta-ka-di-mi, then ta-ki-ta spoken against sixteenths (three against four).', how: 'One open string at 60–90 BPM. Accent the picked note under each spoken ta. The accent pattern should repeat every three beats.' },
+      { name: 'Stage 4: Groupings of 5 and 7', goal: 'Phrases in ta-di-gi-na-tom (5) and ta-ki-ta ta-ka-di-mi (7) over sixteenths, landing back on beat 1.', how: 'Speak, then play, groups of five sixteenths over a four-beat cycle until they come round to the beat (after five beats). 60–100 BPM.' },
+      { name: 'Stage 5: Mora on the guitar', goal: 'A phrase repeated three times that ends exactly on beat 1 of the next cycle.', how: 'Build a simple mora in an eight-beat cycle, for example a five-note phrase with a one-note gap, three times. Speak it, then play it on a scale at 80–120 BPM.' }
     ],
     listen: [
       { artist: 'Shakti with John McLaughlin', work: 'Shakti with John McLaughlin (1976)', note: 'Guitar, violin, tabla and ghatam playing long rhythmic phrases. Listen for phrases grouped in 3, 5 and 7 and the way they land together.' },
@@ -812,36 +813,36 @@ export default [
     ],
     mechanics: [
       { h: 'Strumming hand', p: [
-        'Move the hand down and up in constant sixteenths: down on the beat and on the “and”, up on the “e” and the “a”. The motion is from the wrist, small and loose. Keep it going even when no strings sound.',
-        'Strum only a few strings, often the top three or four. Use a light pick or a medium one held loosely.'
+        'Move the hand down and up in constant sixteenths: down on the beat and on the “and”, up on the “e” and the “a”. The motion comes from a loose wrist, a little like shaking a thermometer, with the forearm quiet. It never stops, even when no string should sound; when you want silence, the hand simply misses the strings or brushes muted ones.',
+        'Strum only the top three or four strings for most parts. A medium pick held loosely, or a thin pick, gives the bright, scratchy attack of classic funk; a heavier pick gives a rounder, more modern sound.'
       ] },
-      { h: 'Fretting hand muting', p: [
-        'For muted strokes, lift the fretting fingers slightly so they touch the strings but do not press them. This gives a percussive scratch. For accented strokes, press the chord down just for that stroke, then release.',
-        'Use small chord shapes, such as three-note ninth chords on the top strings. The fingers must be able to press and release quickly.'
+      { h: 'Fretting hand: press and release', p: [
+        'The fretting hand is the switch. For muted strokes, the fingers stay on the chord shape but stop pressing, so the strings are deadened and the pick produces a dry “chk”. For accented strokes, the fingers squeeze the chord down for just that stroke and release immediately. The rhythm comes from this squeeze-and-release, not from the strumming hand changing.',
+        'Use small chord shapes that are easy to squeeze and release: three- and four-note ninth chords (the E9 shape moved up the neck is the classic James Brown chord), minor sevenths and triads on the top strings. Barre shapes on all six strings are too heavy.'
       ] },
-      { h: 'Accents', p: [
-        'Choose a pattern of accents, for example on the “e” of 1 and the “and” of 2. Play those strokes with the chord pressed; all others are muted.',
-        'Accent strokes should be short and sharp. Release the chord quickly after the accent.'
+      { h: 'Accents and placement', p: [
+        'Choose where the accents fall in the sixteenth grid and keep every other stroke muted. Accents on the “e” and “a” (the second and fourth sixteenth of each beat) sound especially funky, because they sit between the strong beats and against the bass.',
+        'Count “1-e-and-a, 2-e-and-a” out loud until you can place an accent on any sixteenth without the hand changing its motion. Then the accents are a choice, not an accident.'
       ] },
-      { h: 'Feel', p: [
-        'Funk sixteenths can be straight or slightly swung. Listen to recordings to get the right feel.',
-        'Lock with the drums and bass. Play along with recordings and focus on the interplay.'
+      { h: 'Feel and the band', p: [
+        'Funk sixteenths can be straight, as in much James Brown, or have a slight swing, as in much later funk and neo-soul. Listen and copy; this is learned from records, not notation.',
+        'A funk guitar part only makes sense against the bass and drums. Play along with recordings and notice where your accents fall relative to the kick drum, the snare and the bass line. Often the guitar fills exactly the spaces the others leave.'
       ] }
     ],
     mistakes: [
-      { problem: 'The strumming hand stops between accents.', fix: 'Keep the hand moving in constant sixteenths, even when not strumming.' },
-      { problem: 'Muted strokes ring.', fix: 'Lift the fretting fingers just enough to stop the strings.' },
-      { problem: 'Accents in the wrong place.', fix: 'Count the sixteenths out loud and practise slowly with a click.' },
-      { problem: 'The pattern sounds stiff.', fix: 'Relax the wrist and play along with recordings.' },
-      { problem: 'Too many strings strummed.', fix: 'Focus on the top three or four strings.' },
-      { problem: 'Playing too much.', fix: 'Simplify the pattern and leave space.' }
+      { problem: 'The strumming hand stops or hesitates before accents.', fix: 'Keep the motion going in constant sixteenths for whole minutes on fully muted strings at 70 BPM. The accent must come from the fretting hand, not a change in the strum.' },
+      { problem: 'Muted strokes ring or carry pitch.', fix: 'Leave the fingers touching the strings but with zero pressure. Lay a spare finger, or the side of the index finger, across the strings to deaden them fully.' },
+      { problem: 'Accents land on the wrong sixteenth.', fix: 'Count out loud and practise one accent per beat in each of the four positions: on the beat, the “e”, the “and”, the “a”. Spend extra time on the “e” and the “a”.' },
+      { problem: 'The groove feels stiff and mechanical.', fix: 'Loosen the wrist and let the forearm be heavy. Play along with Chic or James Brown at low volume and copy not just the rhythm but the energy of the strokes.' },
+      { problem: 'The arm tires after a minute.', fix: 'The motion is too big. Shrink it until the pick just covers the top strings, and let the wrist do the work. Funk players hold these parts for ten minutes; it has to feel easy.' },
+      { problem: 'Playing too many accents and filling every space.', fix: 'Take out half the accents. A part with two accents per bar, placed well, grooves harder than one with eight.' }
     ],
     stages: [
-      { name: 'Stage 1: Muted sixteenths', goal: 'Constant muted sixteenths.', how: 'Mute all strings and strum sixteenths at 70 BPM.' },
-      { name: 'Stage 2: One accent', goal: 'One accented chord per beat.', how: 'Accent on the beat, then on the “e”, the “and”, the “a”.' },
-      { name: 'Stage 3: Patterns', goal: 'A two-bar pattern with several accents.', how: 'Choose a pattern from a funk recording and play it at 80–100 BPM.' },
-      { name: 'Stage 4: Chord changes', goal: 'Patterns with chord changes.', how: 'Two chords per bar at 90–110 BPM.' },
-      { name: 'Stage 5: Groove', goal: 'A full funk groove with a band or recording.', how: 'Play along with James Brown or Chic recordings at 100–110 BPM.' }
+      { name: 'Stage 1: The motor', goal: 'Constant, even muted sixteenths that you could keep up for five minutes.', how: 'Mute all strings with the fretting hand and strum sixteenths at 70 BPM, then 90. Count out loud.' },
+      { name: 'Stage 2: One accent per beat', goal: 'A single chord on any chosen sixteenth, everything else muted.', how: 'E9 shape at the 7th fret: accent the beat, then the “e”, then the “and”, then the “a”, one minute each, 70–90 BPM.' },
+      { name: 'Stage 3: Two-bar patterns', goal: 'A syncopated two-bar pattern played the same way every time.', how: 'Copy a pattern from “Sex Machine” or “Good Times” at 80–100 BPM, then loop it for three minutes.' },
+      { name: 'Stage 4: Chord changes inside the pattern', goal: 'Changing chords without breaking the motion or the accents.', how: 'Two chords per bar, such as Em7 and A9, at 90–110 BPM.' },
+      { name: 'Stage 5: In the band', goal: 'A part that locks with bass and drums, with space left for the others.', how: 'Play along with full recordings at 100–110 BPM, then write your own part over a drum loop and keep it going for five minutes.' }
     ],
     listen: [
       { artist: 'James Brown', work: 'Papa’s Got a Brand New Bag (1965)', note: 'Jimmy Nolen’s choppy rhythm guitar locking with the band.' },
@@ -880,25 +881,25 @@ export default [
         'For a snap, hook the finger under the string and pull it up, letting it snap against the frets. For chicken pickin’, mute the string lightly with the fretting hand or the picking hand’s palm and pluck it with the finger for a clucking sound.',
         'Mix picked notes and snapped notes to create the country sound.'
       ] },
-      { h: 'Balance', p: [
-        'Balance the volume between the pick and the fingers. The fingers are usually quieter, so pluck firmly.',
-        'Keep the hand relaxed. The fingers should move independently of the pick.'
+      { h: 'Balance and independence', p: [
+        'The fingers are usually quieter than the pick, so pluck firmly and let some nail meet the string, or pick a little lighter. In a pinch, the pick and finger should sound like one event, not a flam.',
+        'Think of the pick and the fingers as two players. The pick often keeps a bass or a line going, and the fingers answer on the higher strings. Practise loops where the pick plays steady quarter notes while the fingers play syncopated notes above, as in Travis picking. Once the pick no longer stops when the fingers move, the technique is yours.'
       ] }
     ],
     mistakes: [
-      { problem: 'Fingers too quiet compared to the pick.', fix: 'Pluck firmly, or use the nail, and pick slightly lighter.' },
-      { problem: 'Pick and fingers out of sync in pinches.', fix: 'Practise pinches slowly, listening for one sound.' },
-      { problem: 'Fingers tense or clumsy.', fix: 'Practise finger plucks alone, without the pick, to build independence.' },
-      { problem: 'Snaps too loud or too thin.', fix: 'Adjust how far you pull the string and how fast you release it.' },
-      { problem: 'Losing the pick grip.', fix: 'Keep the pick grip steady and let the other fingers move independently.' },
-      { problem: 'Muting problems.', fix: 'Use the palm and fretting hand to control unwanted strings.' }
+      { problem: 'The finger notes are much quieter than the picked notes.', fix: 'Pluck from the base knuckle into the palm, and let a little nail meet the string. At the same time pick slightly lighter. Record a pick–middle alternation and adjust until you cannot tell which is which.' },
+      { problem: 'Pinches are flammed: pick and finger arrive at different times.', fix: 'Practise pinches alone at 60 BPM, one per beat. Think of the pick and finger closing toward each other like a pair of tweezers, so they meet the strings at the same instant.' },
+      { problem: 'The pick slips or rotates when the fingers move.', fix: 'Grip the pick a little more firmly with thumb and index, and keep the middle and ring fingers relaxed and slightly curled. Many players add a little grip tape or use a pick with a textured surface.' },
+      { problem: 'The free fingers stick out stiffly or curl into the palm.', fix: 'Practise the finger plucks without the pick for a minute (m and a on the 2nd and 1st strings), then hold the pick again and repeat. The fingers should hover just above their strings.' },
+      { problem: 'Snaps are thin, or the string buzzes and rattles.', fix: 'Hook the string a little further under the fingertip, pull it straight up off the fretboard and release it cleanly. Practise snaps on one string until they sound like a pop, not a buzz.' },
+      { problem: 'Open strings ring under fast licks.', fix: 'Rest the side of the picking hand on the lower strings between pick strokes, and use the fretting hand’s spare fingers to cover the strings above. Chicken pickin’ is as much about muting as about plucking.' }
     ],
     stages: [
-      { name: 'Stage 1: Pinches', goal: 'Even pinches of pick and middle finger.', how: 'Pick on the 4th string, middle on the 2nd, quarter notes at 70 BPM.' },
-      { name: 'Stage 2: Alternation', goal: 'Pick and finger alternation.', how: 'Pick–middle–pick–ring across strings, eighths at 70–90 BPM.' },
-      { name: 'Stage 3: Arpeggios', goal: 'Four-string arpeggios.', how: 'Pick on the bass, fingers on the higher strings, eighths at 90–110 BPM.' },
-      { name: 'Stage 4: Chicken pickin’', goal: 'Snapped and muted notes in a lick.', how: 'Learn a simple country lick with snaps at 100–120 BPM.' },
-      { name: 'Stage 5: Full licks and songs', goal: 'Country solos with hybrid picking at speed.', how: 'Learn a James Burton or Albert Lee solo at 120–140 BPM.' }
+      { name: 'Stage 1: Pinches', goal: 'Pick and middle finger sounding as one, at equal volume.', how: 'Pick on the 4th string, middle on the 2nd, quarter notes at 60–70 BPM over C, G and D shapes.' },
+      { name: 'Stage 2: Alternation', goal: 'Even eighths alternating pick and fingers.', how: 'Pick (4th string) – middle (3rd) – pick (4th) – ring (2nd), eighths at 70–90 BPM. Then the same with pick on the 5th or 6th string as a bass.' },
+      { name: 'Stage 3: Arpeggios and string skips', goal: 'Rolling four-string arpeggios and wide intervals without the pick jumping.', how: 'Pick on the bass, m and a on the 2nd and 1st strings, eighths at 90–110 BPM. Then sixths: pick on the 4th string, middle on the 2nd.' },
+      { name: 'Stage 4: Chicken pickin’', goal: 'A lick that mixes picked notes, muted clucks and snapped notes.', how: 'A simple major-pentatonic lick in A with every second note muted and plucked by the middle finger, at 100–120 BPM. Exaggerate the contrast.' },
+      { name: 'Stage 5: Solos', goal: 'A full country solo with the right mix of colours at tempo.', how: 'Learn James Burton’s “Hello Mary Lou” solo, then a faster Albert Lee or Brent Mason passage, from 100 up to 140 BPM.' }
     ],
     listen: [
       { artist: 'Ricky Nelson (James Burton, guitar)', work: 'Hello Mary Lou (1961)', note: 'James Burton’s solo: pick and finger together, with snapped notes.' },
@@ -937,24 +938,25 @@ export default [
         'Bring out a melody note by playing one finger slightly stronger. Practise this with each finger.'
       ] },
       { h: 'Rhythm and stillness', p: [
-        'Keep the rhythm even. Arpeggios often rush at the top. Count and use a metronome.',
-        'Keep the hand still. Only the fingers move.'
+        'Keep the rhythm even. Arpeggios tend to rush on the way up to the 1st string and stall on the bass note. Count the notes out loud and use a metronome on every sixteenth at first.',
+        'Keep the hand still. The back of the hand stays level and quiet while the fingers move underneath it from the base knuckles. If you balanced a coin on the back of your hand, it should stay there. That stillness is what makes fast arpeggios possible later.'
       ] }
     ],
     mistakes: [
-      { problem: 'The hand bounces with each stroke.', fix: 'Keep the wrist still and let only the fingers move. Practise slowly with preparation.' },
-      { problem: 'Uneven volume or tone between fingers.', fix: 'Practise each finger alone, then pairs, listening for even sound.' },
-      { problem: 'The ring finger is weak.', fix: 'Practise a–m and a–i alternations to strengthen it.' },
-      { problem: 'The thumb collides with the index finger.', fix: 'Move the thumb slightly ahead of the fingers, toward the neck.' },
-      { problem: 'Rushing at the top of the arpeggio.', fix: 'Count and use a metronome, especially at slow tempos.' },
-      { problem: 'Nails catch or click.', fix: 'Shape and polish the nails smoothly, and adjust the contact angle.' }
+      { problem: 'The whole hand bounces with each stroke.', fix: 'The fingers move; the hand does not. Practise with full preparation (all fingers resting on their strings before the arpeggio), and watch the back of the hand: it should stay level, like a table.' },
+      { problem: 'The ring finger (a) is weak or late.', fix: 'The ring finger shares tendons with the middle finger. Practise a–m and a–i alternations on the 1st and 2nd strings at 60 BPM, then the arpeggio with a deliberately accented, as in the melody of the “Romance”.' },
+      { problem: 'Uneven tone: one finger brighter or thinner than the others.', fix: 'Play the same open string with i, m and a in turn and match the sound. Adjust the angle of attack or the nail shape of the odd finger out until all three sound alike.' },
+      { problem: 'The thumb collides with the index finger.', fix: 'Keep the thumb ahead of the fingers, toward the neck, and let it move in a small circle from its base joint rather than pushing down toward i.' },
+      { problem: 'The arpeggio rushes toward the top and stalls on the bass.', fix: 'Count out loud, one syllable per note, and put the click on every sixteenth for a while. The first finger after the thumb is where most rushing starts.' },
+      { problem: 'Nails click, catch or sound scratchy.', fix: 'File the nails into a smooth curve that follows the fingertip and polish the edges with very fine paper. The string should slide off the nail, not snag on it.' },
+      { problem: 'Tension in the forearm after a few minutes.', fix: 'Check the wrist is not bent sharply and that the arm rests lightly on the guitar’s edge. Shake out between repetitions and play softer.' }
     ],
     stages: [
-      { name: 'Stage 1: Open strings', goal: 'Even p-i-m-a on open strings.', how: 'Thumb on the 5th string, i-m-a on 3-2-1, sixteenths at 50 BPM.' },
-      { name: 'Stage 2: Variations', goal: 'p-a-m-i and p-i-m-a-m-i patterns.', how: 'On open strings, then on simple chords, 50–70 BPM.' },
-      { name: 'Stage 3: Chords', goal: 'Arpeggios through a chord progression.', how: 'Am–Dm–E–Am, 60–80 BPM.' },
-      { name: 'Stage 4: Melody', goal: 'A melody brought out of the arpeggio.', how: 'Play the “Romance”, bringing out the a finger, at 60–80 BPM.' },
-      { name: 'Stage 5: Studies', goal: 'Concert arpeggio studies.', how: 'Learn Villa-Lobos’s Étude No. 1 or a Giuliani study at 80–100 BPM.' }
+      { name: 'Stage 1: Open strings, prepared', goal: 'Even p-i-m-a on open strings with a still hand.', how: 'Thumb on the 5th string, i-m-a on strings 3-2-1, sixteenths at 50 BPM. Place all four fingers before each group, then play.' },
+      { name: 'Stage 2: Variations', goal: 'p-a-m-i, p-i-m-a-m-i and p-i-m-i played with the same evenness as p-i-m-a.', how: 'Open strings, then over C and Am shapes, 50–70 BPM. Change the bass string with the chord.' },
+      { name: 'Stage 3: Through a progression', goal: 'Arpeggios through chord changes without gaps.', how: 'Am–Dm–E–Am and C–Am–F–G, one pattern per chord, 60–80 BPM. Prepare the next chord in the fretting hand during the last notes.' },
+      { name: 'Stage 4: A melody inside the arpeggio', goal: 'One finger brought out clearly while the others stay soft.', how: 'The anonymous “Romance” (p-a-m-i triplets, melody on a), or Tárrega’s “Lágrima”, at 60–80 BPM.' },
+      { name: 'Stage 5: Concert studies', goal: 'A full arpeggio study, musical and even, at tempo.', how: 'Villa-Lobos’s Étude No. 1 or a Giuliani study from Op. 1, starting at half tempo and working toward 80–100 BPM sixteenths.' }
     ],
     listen: [
       { artist: 'Narciso Yepes', work: 'Romance (Jeux interdits soundtrack, 1952)', note: 'The melody emerges from the arpeggio. Listen for the ring finger bringing out the top line.' },
@@ -985,32 +987,33 @@ export default [
         'Push the string toward the ceiling (for the G, B and E strings) or pull toward the floor (for lower strings). The fingertips stay on the string.'
       ] },
       { h: 'Wrist and thumb', p: [
-        'Most of the motion comes from rotating the wrist, like turning a doorknob, not from the fingers alone. Hook the thumb over the top of the neck for leverage.',
-        'The hand pivots around the thumb.'
+        'Most of the motion comes from rotating the forearm and wrist, like turning a doorknob, not from the fingers curling. Hook the thumb over the top edge of the neck so the hand has something to pull against; the hand pivots around that point, and the fingers move the string as a single block.',
+        'The base of the index finger can also press lightly against the underside of the neck as a second pivot. Players who bend a lot, from B.B. King to David Gilmour, have hands that look calm while they do it, because the work is shared by the whole forearm.'
       ] },
-      { h: 'Pitch', p: [
-        'Play the target note first (two frets up for a whole-step bend), then bend to match it. Listen carefully. Then bend first and check the target.',
-        'Practise half-step, whole-step and step-and-a-half bends.'
+      { h: 'Pitch and the ear', p: [
+        'Play the target note first (two frets up for a whole step, one for a half step), let it ring in your ear, then bend to match it. Then reverse the order: bend first, then play the target and check. The second version is the real test, because in music you rarely get to hear the target first.',
+        'Practise half-step, whole-step and step-and-a-half bends, and learn how each feels in the fingers on each string and at different frets. Strings are stiffer near the nut and looser in the middle of the neck, so the same pitch needs a different push.'
       ] },
       { h: 'Vibrato and release', p: [
-        'Add vibrato to a bent note by slightly releasing and re-bending it. Keep the vibrato centred on the target pitch.',
-        'Release the bend smoothly back to the original note, controlling the pitch all the way.'
+        'Vibrato on a bent note is a small, regular release and re-push from the target pitch. Keep it centred on, or just below, the target, so the note sounds in tune at its peaks. B.B. King’s quick, shaking vibrato and Albert King’s slow, wide one show how much personality lives here.',
+        'A release is a bend in reverse and needs the same control: keep pressure on the string so that the lower note still sounds clearly when you arrive. A bend and release without picking again is one of the most voice-like sounds the guitar makes.'
       ] }
     ],
     mistakes: [
-      { problem: 'Bends go out of tune (flat or sharp).', fix: 'Play the target note first, then bend to match. Use a tuner to check.' },
-      { problem: 'Bending with one finger.', fix: 'Use three fingers together for strength and control.' },
-      { problem: 'Other strings ring when bending.', fix: 'Mute them with the fretting hand and the picking hand.' },
-      { problem: 'Bending with finger strength alone.', fix: 'Rotate the wrist and use the thumb over the neck for leverage.' },
-      { problem: 'Vibrato goes out of tune.', fix: 'Practise vibrato on bent notes slowly, staying centred on the target pitch.' },
-      { problem: 'Releases sound uncontrolled.', fix: 'Practise slow, smooth releases back to the original pitch.' }
+      { problem: 'Whole-step bends fall short and sound sour.', fix: 'This is the most common bending problem. Play the target note two frets up, then bend to it and compare, back and forth. Most players undershoot, so aim to feel slightly more push than seems necessary, then check with a tuner.' },
+      { problem: 'Bending with one finger, which is weak and wobbly.', fix: 'Line up the fingers behind the bending finger on the same string, ring finger bending with middle and index behind it, and push with all three together.' },
+      { problem: 'The bend comes from the fingers alone and the hand tires quickly.', fix: 'Hook the thumb over the top of the neck and rotate the wrist, as if turning a doorknob. The fingers mainly hold the shape; the forearm does the work.' },
+      { problem: 'Other strings ring or squeal while you bend.', fix: 'The bending fingers push the string above out of the way and can let it ring; let the side of the index finger touch it, and rest the picking hand’s palm on the lower strings.' },
+      { problem: 'Vibrato on a bent note goes flat or sharp.', fix: 'Vibrato on a bend is a small release and re-push from the target pitch, so the note dips slightly and comes back. Practise it slowly, two pulses per beat, staying at the top of the bend.' },
+      { problem: 'Releases slide down uncontrolled or stop on the wrong pitch.', fix: 'Practise a slow release over two beats, keeping pressure on the string the whole way down so the original note sounds clearly at the end.' },
+      { problem: 'Every bend is the same size and speed.', fix: 'Once bends are in tune, vary them: a slow rise, a fast snap, a quarter-tone curl, a pre-bend that falls. Copy one bend at a time from a recording.' }
     ],
     stages: [
-      { name: 'Stage 1: Half-step bends', goal: 'Accurate half-step bends on the B and G strings.', how: 'Bend and compare to the target, quarter notes at 60 BPM.' },
-      { name: 'Stage 2: Whole-step bends', goal: 'Accurate whole-step bends.', how: 'On the G and B strings, at 60–80 BPM.' },
-      { name: 'Stage 3: Bends and releases', goal: 'Bend and release in time.', how: 'Bend on the beat, release on the next beat, 70–90 BPM.' },
-      { name: 'Stage 4: Vibrato', goal: 'In-tune vibrato on bent notes.', how: 'Bend and add vibrato, keeping the pitch centred, 80–100 BPM.' },
-      { name: 'Stage 5: Expressive bends', goal: 'Bends in solos with control and expression.', how: 'Learn a B.B. King or David Gilmour solo, with in-tune bends at 100–120 BPM.' }
+      { name: 'Stage 1: Half-step bends', goal: 'Accurate half-step bends on the B and G strings.', how: 'Play the note one fret up, then bend to match it. Quarter notes at 60 BPM, ring finger with the other two behind it, at the 7th–10th frets.' },
+      { name: 'Stage 2: Whole-step bends', goal: 'Whole-step bends that land exactly on the target, every time.', how: 'Target first, then bend; then bend first and check the target. G and B strings at 60–80 BPM, then the high E string.' },
+      { name: 'Stage 3: Bends and releases in time', goal: 'A bend that reaches pitch on the beat and a release that returns on the next beat.', how: 'Bend on 1, hold through 2, release on 3, rest on 4, at 70–90 BPM. Then faster bends: up on the beat, down on the “and”.' },
+      { name: 'Stage 4: Vibrato and pre-bends', goal: 'In-tune vibrato at the top of a bend, and silent pre-bends that land on the right pitch.', how: 'Bend, add even vibrato for two beats, release. Then bend before picking and release slowly. 80–100 BPM.' },
+      { name: 'Stage 5: Expressive bends in solos', goal: 'Bends that are in tune and shaped like a voice.', how: 'Learn the bends of B.B. King’s “The Thrill Is Gone” and Gilmour’s “Comfortably Numb” solos, and match each bend’s speed, size and vibrato to the record.' }
     ],
     listen: [
       { artist: 'B.B. King', work: 'The Thrill Is Gone (Completely Well, 1969)', note: 'Expressive bends and vibrato that sound like a voice.' },
