@@ -7,6 +7,7 @@ import { BLOCKS, blockTitle, describe, totalOf, fmtMin, syncWeights } from '../r
 import { startSession } from './session.js';
 import { ribbon } from './routine.js';
 import { openSwap } from './swap.js';
+import { loadScience, whenLoaded } from '../content/lazy.js';
 
 const TIMES = [10, 15, 20, 30, 45, 60, 90, 120];
 
@@ -99,10 +100,10 @@ export function sciencePage() {
     h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: () => go(ui.tab || 'today') }, '← Back'), h('span', { class: 'eyebrow', text: 'The science' })),
     h('h1', { text: 'How the app decides what you practise' }),
     h('p', { class: 'lede', text: 'The smart plan follows what research on learning and memory has found, and says where the evidence is thin. These are the principles, what they mean for you, and the studies behind them.' })));
-  (D.SCIENCE || []).forEach((x, i) => view.append(h('section', { class: 'card science' },
+  whenLoaded(loadScience, ui, view, toast, () => (D.SCIENCE || []).forEach((x, i) => view.append(h('section', { class: 'card science' },
     h('span', { class: 'eyebrow', text: String(i + 1).padStart(2, '0') }), h('h2', { text: x.title }),
     h('p', { text: x.finding }),
     h('div', { class: 'callout patina' }, h('b', { text: 'In the app' }), h('p', { text: x.inApp })),
     h('details', { class: 'sources' }, h('summary', { class: 'small', text: 'Sources (' + x.sources.length + ')' }),
-      h('ul', { class: 'list small' }, x.sources.map(src => h('li', {}, src.cite, src.url ? [' ', h('a', { href: src.url, target: '_blank', rel: 'noopener' }, 'link ↗')] : null)))))));
+      h('ul', { class: 'list small' }, x.sources.map(src => h('li', {}, src.cite, src.url ? [' ', h('a', { href: src.url, target: '_blank', rel: 'noopener' }, 'link ↗')] : null))))))));
 }

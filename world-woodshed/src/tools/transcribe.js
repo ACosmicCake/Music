@@ -5,6 +5,7 @@ import E from '../engine.js';
 import Stretch from '../stretch.js';
 import { detectPitch } from '../listen.js';
 import './transcribe.css';
+import { TRANSCRIBE_META } from './transcribe-lazy.js';
 
 export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
@@ -440,9 +441,7 @@ export default function transcribe(UI) {
   /* ======================================================
      The Transcribe tool
      ====================================================== */
-  UI.tool('transcribe', {
-    tab: 'transcribe', skill: 'transcribe', title: 'Transcribe', eyebrow: 'Learn songs by ear',
-    desc: 'Load an audio or video file. Slow it down without changing pitch, loop sections, focus on the bass or melody, and find the notes.',
+  UI.tool('transcribe', Object.assign({}, TRANSCRIBE_META, {
     render(body, ctx) {
       const P = {
         setup: null, buffer: null, mono: null, peaks: null, dur: 0, sr: 44100, file: null, videoUrl: null,
@@ -1408,13 +1407,12 @@ export default function transcribe(UI) {
         cleanups.forEach(fn => fn());
       };
     }
-  });
+  }));
 
   /* ======================================================
      Transcribe tab: song library
      ====================================================== */
-  UI.ICONS.transcribe = '<svg viewBox="0 0 24 24"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>';
-  UI.TABS.splice(4, 0, ['transcribe', 'Transcribe']);
+  // the tab and its icon are registered at boot by transcribe-lazy.js
   UI.PAGES.transcribe = function () {
     const view = document.getElementById('view');
     view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Transcribe' }), h('h1', { text: 'Learn songs from recordings' }),
