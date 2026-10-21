@@ -4,6 +4,7 @@ import E from '../engine.js';
 import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, bar } from './core.js';
 import { BLOCKS, CATS, paramsFor, blockTitle, describe, fmtClock, fmtMin, totalOf } from '../routines.js';
 import Cur from '../curriculum.js';
+import { openSwap } from './swap.js';
 
 let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0, wake = null;
 const bars = new Set();
@@ -81,6 +82,23 @@ export function next(skip) {
   s.idx = i;
   E.sessionChanged();
   if (i >= s.blocks.length) finishScreen(); else runCurrent();
+}
+/* Replace the current block: the time already spent stays on the old one, the rest goes to the new one */
+export function swapCurrent(nb) {
+  const s = E.session(); if (!s) return;
+  const b = s.blocks[s.idx]; if (!b) return;
+  const spentMin = (b.elapsed || 0) / 60000;
+  Object.assign(nb, { elapsed: 0, done: false, skipped: false, resolved: false });
+  nb.minutes = Math.max(2, Math.round(b.minutes - spentMin));
+  if (spentMin < 1) s.blocks[s.idx] = nb;
+  else { b.skipped = true; b.swapped = true; b.minutes = Math.max(1, Math.round(spentMin)); s.blocks.splice(s.idx + 1, 0, nb); s.idx++; }
+  s.autoAt = null;
+  E.sessionChanged();
+  runCurrent();
+}
+export function swapPrompt() {
+  const s = E.session(), b = cur(); if (!s || !b) return;
+  openSwap({ block: b, used: s.blocks.map(x => x.cur).filter(Boolean), onPick: swapCurrent });
 }
 export function togglePause() {
   const s = E.session(); if (!s) return;
@@ -183,6 +201,7 @@ function paint(el) {
       h('div', { class: 'sb-ctrl' },
         h('button', { class: 'btn small', onclick: togglePause, 'aria-label': s.paused ? 'Resume' : 'Pause' }, s.paused ? '▶ Resume' : '❚❚ Pause'),
         h('button', { class: 'btn small ghost', onclick: () => addMinutes(1) }, '+1 min'),
+        h('button', { class: 'btn small ghost', onclick: swapPrompt, title: 'Swap this block for something else' }, '⇄ Swap'),
         h('button', { class: 'btn small ghost', onclick: () => go('routine') }, 'Plan'),
         h('span', { class: 'grow' }),
         h('button', { class: 'btn small ghost', onclick: () => next(true) }, 'Skip'),

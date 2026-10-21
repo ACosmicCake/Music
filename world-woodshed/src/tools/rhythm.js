@@ -76,7 +76,7 @@ export function playRhythmStep(r, i, t, mute) {
 }
 
 /* Matching taps to expected onsets */
-function scoreTaps(expected, taps, win) {
+export function scoreTaps(expected, taps, win) {
   const used = new Set(); const errs = [];
   expected.forEach(e => {
     let best = -1, bd = Infinity;
@@ -94,7 +94,7 @@ function scoreTaps(expected, taps, win) {
   const score = Math.max(0, Math.min(1, hitRate * 0.6 + precision * 0.4 - Math.min(0.3, extra * 0.04)));
   return { errs, hitRate, meanAbs, mean, sd, extra, score };
 }
-function OffsetChart(errs, win, groupFn) {
+export function OffsetChart(errs, win, groupFn) {
   const W = 640, Hh = 150, pad = 30;
   const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chart', role: 'img', 'aria-label': 'Tap timing: points above the line are late, below are early' });
   const lim = Math.ceil(win * 1000 / 20) * 20;
@@ -112,7 +112,7 @@ function OffsetChart(errs, win, groupFn) {
   });
   return svg;
 }
-function describeOffset(meanMs) {
+export function describeOffset(meanMs) {
   if (Math.abs(meanMs) < 12) return 'Right in the pocket on average.';
   return meanMs > 0 ? 'You drag by ' + Math.round(meanMs) + ' ms on average (late).' : 'You rush by ' + Math.round(-meanMs) + ' ms on average (early).';
 }
@@ -137,15 +137,65 @@ export function TapPad(onTap, label = 'Tap here (or space bar)', opts = {}) {
   return { el: micT ? h('div', { class: 'stack' }, pad, micT.el) : pad, cleanup: () => { document.removeEventListener('keydown', key); if (micOff) micOff(); if (micT) micT.cleanup(); } };
 }
 /* Audio-clock time of a tap or a heard note */
-const tapTime = (ev, lat) => (ev.micTime !== undefined ? ev.micTime : A.eventToAudioTime(ev) - lat);
+export const tapTime = (ev, lat) => (ev.micTime !== undefined ? ev.micTime : A.eventToAudioTime(ev) - lat);
+
+/* ---------- What plays in each cycle ----------
+   The player's own part (the target) stays the same; the music around it varies: the basic pattern and its
+   traditional variations rotate, a fill (tihai, remate, break) closes a phrase now and then, and in ghost
+   cycles the player's part drops out so they keep it going alone. Variable practice and retrieval of the pulse. */
+function sliceTracks(tracks, from, len) { const o = {}; Object.entries(tracks).forEach(([k, p]) => { o[k] = p.slice(from, from + len); }); return o; }
+export function cycleSchedule(r, o = {}) {
+  const V = (r.var && r.var.variations) || [], F = (r.var && r.var.fills) || [];
+  const pool = [{ name: 'Basic pattern', tracks: r.tracks, labels: r.labels, note: r.note }].concat(o.variations === false ? [] : V);
+  const plan = [];
+  let seed = 7;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  function extend() {
+    const c = plan.length;
+    if (o.fillEvery && F.length && c > 0 && (c + 1) % o.fillEvery === 0) {
+      const f = F[Math.floor(c / o.fillEvery) % F.length], n = f.cycles || 1;
+      for (let k = 0; k < n; k++) plan.push({ kind: 'fill', name: f.name + (n > 1 ? ' (' + (k + 1) + '/' + n + ')' : ''), note: f.note, tracks: sliceTracks(f.tracks, k * r.steps, r.steps), labels: f.labels ? f.labels.slice(k * r.steps, (k + 1) * r.steps) : r.labels });
+      return;
+    }
+    const v = o.fixed !== undefined && pool[o.fixed] ? pool[o.fixed] : pool[Math.floor(c / (o.varEvery || 4)) % pool.length];
+    const ghost = !!o.ghostRate && c >= 2 && rnd() < o.ghostRate;
+    plan.push(Object.assign({}, v, { kind: ghost ? 'ghost' : v === pool[0] ? 'base' : 'var', ghost }));
+  }
+  return c => { while (plan.length <= c) extend(); return plan[c]; };
+}
+const targetTracks = r => (r.target === 'all' ? ['low', 'high'] : [r.target]);
+/* "Feel the 16ths": a soft pulse of sixteenths under everything (six per beat in compound meters).
+   Steps are 16ths when spb is 4; aksak rhythms count in eighths; talas in matras (beats). */
+export const feel16On = () => E.state.settings.feel16 !== false;
+export function sixteenthsPerStep(r) { return r.spb === 4 ? 1 : r.spb === 2 ? 2 : r.spb === 3 ? 2 : r.unit === '♪' ? 2 : 4; }
+export function feelTicks(n, t, sd) { for (let k = 0; k < n; k++) A.hit('hat', t + k * sd / n, k === 0 ? 0.16 : 0.1); }
+function playCycleStep(r, plan, i, t) {
+  const mute = plan.ghost ? new Set(targetTracks(r)) : null;
+  playRhythmStep(Object.assign({}, r, { tracks: plan.tracks }), i, t, mute);
+}
+/* Guided and ghost cycles for a test: support fades step by step (1, then 2, then 3 silent cycles in a row) */
+function testPlan(n) {
+  const out = [false, false];
+  let run = 1;
+  while (out.length < n) { for (let k = 0; k < run && out.length < n; k++) out.push(true); if (out.length < n) out.push(false); run = Math.min(3, run + 1); }
+  out[n - 1] = true;
+  return out.slice(0, n);
+}
+function testCycles(r) {
+  if (r.var && r.var.cycles) return Math.max(4, Math.min(16, r.var.cycles));
+  const beats = r.groups ? r.groups.length : r.steps / r.spb;
+  return Math.max(4, Math.min(12, Math.ceil(32 / Math.max(1, beats))));
+}
 
 tool('rhythms', {
   tab: 'rhythm', skill: 'rhythmTap', title: 'Rhythm atlas', eyebrow: 'Rhythm · play & tap along',
-  desc: 'Clave, talas, iqa\'at, aksak meters and flamenco compás. Loop one, then take the tap test: two cycles with the pattern, two with it muted.',
+  desc: 'Clave, talas, iqa\'at, aksak meters, flamenco compás and more. The studio plays long passes with traditional variations, fills and silent cycles; the test checks your time with the support fading out.',
   render(body, ctx) {
     const regionFilter = (x, region) => D.RHYTHMS.find(r => r.id === x.id).region === region;
     let r = D.RHYTHMS.find(x => x.id === ctx.params.rhythm) || D.RHYTHMS.find(x => x.id === (pickFor('rhythmTap', ctx, regionFilter) || {}).id) || D.RHYTHMS[0];
     let bpm = r.bpm, loop = null, testing = false, padObj = null;
+    const opt = Object.assign({ varEvery: 4, fills: 8, ghost: 'some', laya: false, fixed: undefined }, E.state.settings.rhythmStudio || {}, { feel16: feel16On() });
+    const saveOpt = () => E.setSetting('rhythmStudio', { varEvery: opt.varEvery, fills: opt.fills, ghost: opt.ghost });
     const card = h('div', { class: 'card' }); body.append(card);
     const sel = h('select', { id: 'rhythm-pick', 'aria-label': 'Rhythm' });
     D.REGIONS.forEach(reg => {
@@ -156,69 +206,148 @@ tool('rhythms', {
     });
     const head = h('div', { class: 'stack' });
     const gridHolder = h('div');
+    const now = h('div', { class: 'studio-now' });
     const tempo = h('input', { type: 'range', min: 40, max: 400, id: 'rhythm-tempo', 'aria-label': 'Tempo' });
     const tempoLbl = h('span', { class: 'mono small' });
-    const playBtn = h('button', { class: 'btn primary' }, '▶ Loop');
-    const testBtn = h('button', { class: 'btn brass' }, 'Take the tap test');
+    const playBtn = h('button', { class: 'btn primary' }, '▶ Studio');
+    const testBtn = h('button', { class: 'btn brass' }, 'Take the test');
+    const opts = h('div', { class: 'studio-opts' });
     const phase = h('div', { class: 'phase', hidden: true });
     const padHolder = h('div');
     const result = h('div', { class: 'stack' });
-    card.append(h('label', { class: 'stack', for: 'rhythm-pick' }, h('span', { class: 'eyebrow', text: 'Rhythm' }), sel), head, gridHolder,
+    const tipsBox = h('div');
+    card.append(h('label', { class: 'stack', for: 'rhythm-pick' }, h('span', { class: 'eyebrow', text: 'Rhythm' }), sel), head, gridHolder, now,
       h('label', { class: 'stack', for: 'rhythm-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
-      h('div', { class: 'row' }, playBtn, testBtn), phase, padHolder, result);
-    let grid = null;
+      h('div', { class: 'row' }, playBtn, testBtn), opts, phase, padHolder, result, tipsBox);
+    let grid = null, shownTracks = null;
+    const unitLbl = () => (r.unit ? r.unit + '/min' : 'bpm');
+    function showGrid(plan) {
+      const tracks = plan ? plan.tracks : r.tracks;
+      if (tracks === shownTracks && grid) return;
+      shownTracks = tracks;
+      gridHolder.innerHTML = '';
+      grid = RhythmGrid(Object.assign({}, r, { tracks, labels: (plan && plan.labels) || r.labels }));
+      gridHolder.append(grid.el);
+    }
+    const seg = (label, key, vals, fmt, after) => {
+      const w = h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: label }));
+      const sg = h('div', { class: 'seg' });
+      vals.forEach(v => sg.append(h('button', { 'aria-pressed': opt[key] === v ? 'true' : 'false', onclick: e => { opt[key] = v; sg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b === e.currentTarget ? 'true' : 'false')); saveOpt(); if (after) after(); if (loop && !testing) { stop(); play(); } } }, fmt ? fmt(v) : String(v))));
+      w.append(sg); return w;
+    };
+    function drawOpts() {
+      opts.innerHTML = '';
+      const V = (r.var && r.var.variations) || [], F = (r.var && r.var.fills) || [];
+      const varSel = h('select', { 'aria-label': 'Variation', id: 'rhythm-var' });
+      varSel.append(h('option', { value: '', text: 'Rotate through all ' + (V.length + 1) }));
+      [{ name: 'Basic pattern' }].concat(V).forEach((v, i) => varSel.append(h('option', { value: String(i), selected: opt.fixed === i ? true : null, text: v.name })));
+      varSel.onchange = () => { opt.fixed = varSel.value === '' ? undefined : +varSel.value; if (loop && !testing) { stop(); play(); } };
+      opts.append(
+        V.length ? h('label', { class: 'stack field', for: 'rhythm-var' }, h('span', { class: 'eyebrow', text: 'Variation' }), varSel) : '',
+        h('div', { class: 'row' },
+          V.length ? seg('Change every', 'varEvery', [2, 4, 8], v => v + ' cycles') : '',
+          F.length ? seg('Fills', 'fills', [0, 4, 8], v => (v ? 'every ' + v : 'off')) : '',
+          seg('Silent cycles', 'ghost', ['off', 'some', 'many']),
+          seg('Tempo', 'laya', [false, true], v => (v ? 'speed up' : 'steady')),
+          seg('Feel the 16ths', 'feel16', [true, false], v => (v ? 'on' : 'off'), () => E.setSetting('feel16', opt.feel16))),
+        h('p', { class: 'small muted', text: 'Silent cycles drop your part out so you keep it going alone. ' + (r.var && r.var.layaRamp ? 'This tradition speeds up as a piece builds: try “speed up”.' : '') }));
+    }
     function setR(nr) {
-      stop(); r = nr; bpm = r.bpm; sel.value = r.id;
-      tempo.min = Math.round(r.bpm * 0.45); tempo.max = Math.round(r.bpm * 1.6); tempo.value = bpm;
-      tempoLbl.textContent = bpm + ' ' + (r.unit ? r.unit + '/min' : 'bpm');
+      stop(); r = nr; bpm = r.bpm; sel.value = r.id; opt.fixed = undefined;
+      if (r.var && r.var.layaRamp) opt.laya = true;
+      const lo = r.var && r.var.tempo ? r.var.tempo[0] : Math.round(r.bpm * 0.45), hi = r.var && r.var.tempo ? r.var.tempo[1] : Math.round(r.bpm * 1.6);
+      tempo.min = Math.min(lo, r.bpm); tempo.max = Math.max(hi, r.bpm); tempo.value = bpm;
+      tempoLbl.textContent = bpm + ' ' + unitLbl();
       head.innerHTML = '';
       const st = E.skillState('rhythmTap').items[r.id];
-      head.append(h('h2', { text: r.name }), h('p', { class: 'small muted', text: regionName(r.region) + ' · ' + r.meter + (st ? ' · best recent score ' + Math.round(st.ema * 100) + '%' : '') }), h('p', { class: 'small', text: r.note }),
-        h('p', { class: 'small muted', text: 'Outlined cells are what you tap in the test: ' + (r.target === 'all' ? 'every dum and tek' : r.target) + '.' }));
-      gridHolder.innerHTML = ''; grid = RhythmGrid(r); gridHolder.append(grid.el);
+      const nv = r.var ? (r.var.variations || []).length : 0, nf = r.var ? (r.var.fills || []).length : 0;
+      head.append(h('h2', { text: r.name }), h('p', { class: 'small muted', text: regionName(r.region) + ' · ' + r.meter + (nv ? ' · ' + nv + ' variations' : '') + (nf ? ' · ' + nf + ' fills' : '') + (st ? ' · best recent score ' + Math.round(st.ema * 100) + '%' : '') }), h('p', { class: 'small', text: r.note }),
+        h('p', { class: 'small muted', text: 'Outlined cells are your part: ' + (r.target === 'all' ? 'every dum and tek' : r.target) + '. It stays the same while the rest varies.' }));
+      shownTracks = null; showGrid(null); now.innerHTML = '';
+      tipsBox.innerHTML = '';
+      if (r.var && r.var.tips && r.var.tips.length) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Practice tips for ' + r.name }), h('ul', { class: 'list small' }, r.var.tips.map(t => h('li', { text: t })))));
+      drawOpts();
       result.innerHTML = '';
     }
     function stop() {
       if (loop) loop.stop(); loop = null; testing = false;
-      playBtn.textContent = '▶ Loop'; ctx.setActive(false);
+      playBtn.textContent = '▶ Studio'; ctx.setActive(false);
       grid && grid.setNow(-1);
       if (padObj) { padObj.cleanup(); padObj = null; } padHolder.innerHTML = ''; phase.hidden = true;
       testBtn.disabled = false;
     }
+    // Studio: an open-ended pass through the rhythm and its variations
     function play() {
       A.ensure();
-      loop = A.Loop({ steps: r.steps, stepDur: stepDurFn(r, bpm), onStep: (i, t) => playRhythmStep(r, i, t), onVisual: i => grid.setNow(i) });
+      const sched = cycleSchedule(r, { varEvery: opt.varEvery, fillEvery: opt.fills, ghostRate: { off: 0, some: 0.2, many: 0.4 }[opt.ghost], fixed: opt.fixed });
+      const top = +tempo.max;
+      let cur = sched(0), cyc = -1;
+      const beats = new Set(beatSteps(r));
+      loop = A.Loop({
+        steps: r.steps, stepDur: () => 60 / bpm / r.spb,
+        onStep: (i, t, cycle) => {
+          if (i === 0) {
+            cur = sched(cycle);
+            if (opt.laya && cycle > 0) { bpm = Math.min(top, Math.round(bpm * 1.02 * 10) / 10); }
+          }
+          playCycleStep(r, cur, i, t);
+          if (cur.ghost && beats.has(i)) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.35);
+          if (opt.feel16) feelTicks(sixteenthsPerStep(r), t, 60 / bpm / r.spb);
+        },
+        onVisual: (i, cycle) => {
+          if (i === 0 && cycle !== cyc) {
+            cyc = cycle;
+            const p = sched(cycle), nx = sched(cycle + 1);
+            showGrid(p);
+            tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl();
+            now.innerHTML = '';
+            now.className = 'studio-now ' + p.kind;
+            now.append(h('span', { class: 'mono small', text: 'Cycle ' + (cycle + 1) }),
+              h('b', { text: p.kind === 'ghost' ? 'Your part is silent: keep it going' : p.kind === 'fill' ? 'Fill: ' + p.name : p.name }),
+              p.note && p.kind !== 'ghost' ? h('span', { class: 'small muted', text: p.note }) : '',
+              nx.kind === 'fill' && p.kind !== 'fill' ? h('span', { class: 'small studio-next', text: 'Next cycle: ' + nx.name }) : '');
+          }
+          grid.setNow(i);
+        }
+      });
       loop.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true);
     }
     playBtn.onclick = () => (loop ? stop() : play());
-    tempo.oninput = () => { bpm = +tempo.value; tempoLbl.textContent = bpm + ' ' + (r.unit ? r.unit + '/min' : 'bpm'); if (loop && !testing) { stop(); play(); } };
+    tempo.oninput = () => { bpm = +tempo.value; tempoLbl.textContent = bpm + ' ' + unitLbl(); if (loop && !testing) { stop(); play(); } };
     sel.onchange = () => setR(D.RHYTHMS.find(x => x.id === sel.value));
     testBtn.onclick = () => runTest();
 
+    // Test: a count-in, then longer than before, with the accompaniment varying and the support fading out
     function runTest() {
       stop(); A.ensure(); testing = true; testBtn.disabled = true; result.innerHTML = '';
-      const CYCLES = 5; // 1 count-in, 2 guided, 2 ghost
+      const N = testCycles(r), ghosts = testPlan(N);
+      const sched = cycleSchedule(r, { varEvery: 2 });
       const tgt = new Set(targetSteps(r));
       const beats = new Set(beatSteps(r));
       const sd = 60 / bpm / r.spb;
-      const muteSet = new Set(r.target === 'all' ? ['low', 'high'] : [r.target]);
       const expected = [], taps = [];
       const lat = (E.state.settings.latencyMs || 0) / 1000;
       padObj = TapPad(ev => { taps.push(tapTime(ev, lat)); }, undefined, { mic: true });
       padHolder.append(padObj.el);
       phase.hidden = false;
       loop = A.Loop({
-        steps: r.steps, stepDur: () => sd, maxSteps: r.steps * CYCLES,
+        steps: r.steps, stepDur: () => sd, maxSteps: r.steps * (N + 1),
         onStep: (i, t, cycle) => {
-          const ghost = cycle >= 3;
-          playRhythmStep(r, i, t, ghost ? muteSet : null);
-          if (cycle === 0 && beats.has(i)) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8);
-          if (ghost && beats.has(i)) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.45);
+          const k = cycle - 1, ghost = k >= 0 && ghosts[k];
+          const plan = Object.assign({}, sched(Math.max(0, k)), { ghost });
+          if (cycle === 0) playRhythmStep(r, i, t, new Set(targetTracks(r)));
+          else playCycleStep(r, plan, i, t);
+          if ((cycle === 0 || ghost) && beats.has(i)) A.hit(i === 0 ? 'clickHi' : 'click', t, cycle === 0 ? 0.8 : 0.45);
+          if (feel16On()) feelTicks(sixteenthsPerStep(r), t, sd);
           if (cycle >= 1 && tgt.has(i)) expected.push({ t, cycle, ghost });
         },
         onVisual: (i, cycle) => {
           grid.setNow(i);
-          phase.textContent = cycle === 0 ? 'Count-in: listen…' : cycle <= 2 ? 'Cycle ' + cycle + ' of 4: tap with the pattern' : 'Cycle ' + cycle + ' of 4: pattern muted, keep tapping';
+          if (i === 0) {
+            const k = cycle - 1;
+            phase.textContent = cycle === 0 ? 'Count-in: listen…' : 'Cycle ' + cycle + ' of ' + N + ': ' + (ghosts[k] ? 'your part is silent, keep going' : 'play with the pattern' + (sched(k).kind === 'var' ? ' (' + sched(k).name + ')' : ''));
+            phase.className = 'phase' + (ghosts[k] ? ' ghost' : '');
+          }
         },
         onEnd: finish
       });
@@ -230,15 +359,17 @@ tool('rhythms', {
         const win = Math.max(0.05, Math.min(0.15, sd * minGap * 0.45));
         const res = scoreTaps(expected, taps, win);
         const ghostRes = scoreTaps(expected.filter(e => e.ghost), taps, win);
+        const guidedRes = scoreTaps(expected.filter(e => !e.ghost), taps, win);
         const ok = res.score >= 0.7;
         E.record('rhythmTap', r.id, ok, { score: res.score });
         if (hooks.signal) hooks.signal('rhythm:' + r.id, { score: res.score });
         ctx.tick(1);
         stop();
         result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },
-          h('div', { class: 'spread' }, h('b', { text: 'Score ' + Math.round(res.score * 100) + '%' }), h('span', { class: 'mono small', text: Math.round(res.hitRate * 100) + '% hit · ±' + Math.round(res.sd * 1000) + ' ms spread' })),
+          h('div', { class: 'spread' }, h('b', { text: 'Score ' + Math.round(res.score * 100) + '%' }), h('span', { class: 'mono small', text: N + ' cycles · ' + Math.round(res.hitRate * 100) + '% hit · ±' + Math.round(res.sd * 1000) + ' ms spread' })),
           h('span', { text: describeOffset(res.mean * 1000) }),
-          h('span', { class: 'small', text: 'With the pattern muted you hit ' + Math.round(ghostRes.hitRate * 100) + '% of notes' + (res.extra ? '; ' + res.extra + ' extra taps' : '') + '.' })),
+          h('span', { class: 'small', text: 'With the pattern playing you hit ' + Math.round(guidedRes.hitRate * 100) + '%; on your own, ' + Math.round(ghostRes.hitRate * 100) + '%' + (res.extra ? '. ' + res.extra + ' extra taps' : '') + '.' }),
+          ghostRes.hitRate + 0.15 < guidedRes.hitRate ? h('span', { class: 'small', text: 'You lean on the pattern: more silent cycles in the studio will help.' }) : ''),
           OffsetChart(res.errs, win),
           h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: runTest }, 'Try again'),
             h('button', { class: 'btn primary small', onclick: () => { const nx = pickFor('rhythmTap', ctx, regionFilter); setR(D.RHYTHMS.find(x => x.id === nx.id)); } }, 'Next rhythm →')));
@@ -336,7 +467,7 @@ tool('metronome', {
   tab: 'rhythm', skill: 'clock', title: 'Metronome & calibration', eyebrow: 'Rhythm · tools',
   desc: 'A metronome with gap bars and subdivisions, plus a tap calibration that makes every timing score fair on your device.',
   render(body, ctx) {
-    const st = { bpm: 90, beats: 4, sub: 1, play: 4, mute: 0 };
+    const st = { bpm: 90, beats: 4, sub: feel16On() ? 4 : 1, play: 4, mute: 0 };
     let loop = null, calLoop = null, calPad = null;
     const card = h('div', { class: 'card' }); body.append(card);
     const big = h('div', { class: 'big-number mono', text: st.bpm });

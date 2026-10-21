@@ -22,6 +22,7 @@ export const BLOCKS = {
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', skill: 'technique', minutes: 10, fields: ['exercise'], desc: 'A tempo ladder for one exercise: picking, legato, rasgueado, travis and more.' },
   callresp: { name: 'Call & response', cat: 'tech', tool: 'callresp', skill: 'callresp', minutes: 8, fields: [], desc: 'Hear a phrase, play it back on the fretboard.' },
   rhythms: { name: 'Rhythm & groove', cat: 'rhythm', tool: 'rhythms', skill: 'rhythmTap', minutes: 10, fields: ['rhythm'], desc: 'Loop a rhythm from anywhere in the world and take the tap-along test.' },
+  gym: { name: 'Rhythm gym', cat: 'rhythm', tool: 'gym', skill: 'tuplets', minutes: 8, fields: [], desc: 'Tuplets, polyrhythms, the 16th grid, displaced clicks and echo, over a felt 16th pulse.' },
   metronome: { name: 'Metronome practice', cat: 'rhythm', tool: 'metronome', skill: 'clock', minutes: 10, fields: ['bpm'], desc: 'Play anything against the click, with gap bars to test your time.' },
   clock: { name: 'Internal clock', cat: 'rhythm', tool: 'clock', skill: 'clock', minutes: 5, fields: [], desc: 'Keep the beat when the click drops out.' },
   rhythmid: { name: 'Rhythm ID', cat: 'rhythm', tool: 'rhythmid', skill: 'rhythmId', minutes: 5, fields: [], desc: 'Name rhythms by ear.' },
@@ -34,6 +35,7 @@ export const BLOCKS = {
   sightread: { name: 'Sight-reading', cat: 'fret', tool: 'sightread', skill: 'reading', minutes: 8, fields: [], desc: 'Read notes, rhythms and melodies from the staff, level by level.' },
   fretboard: { name: 'Fretboard notes', cat: 'fret', tool: 'fretboard', skill: 'fretboard', minutes: 6, fields: [], desc: 'Find any note on any string, fast.' },
   explorer: { name: 'Chords & scales on the neck', cat: 'fret', tool: 'explorer', skill: 'fretboard', minutes: 8, fields: [], desc: 'Map a scale or chord across the whole neck and play through it.' },
+  drill: { name: 'Style drill', cat: 'music', tool: 'drill', skill: null, minutes: 10, fields: ['drill'], desc: 'An exercise from one of the styles: a backing loop, rotating variations and a tempo ladder.' },
   repertoire: { name: 'Repertoire & improvising', cat: 'music', tool: 'repertoire', skill: 'repertoire', minutes: 15, fields: ['tune'], desc: 'Loop a tune\'s changes in its groove and improvise over them.' },
   transcribe: { name: 'Transcribe a song', cat: 'music', tool: 'transcribe', skill: 'transcribe', minutes: 15, fields: ['song'], desc: 'Slow down and loop a recording, then work out the notes.' },
   free: { name: 'Free practice', cat: 'music', tool: 'free', skill: null, minutes: 10, fields: ['title', 'notes', 'bpm'], desc: 'Your own item: songs, pieces, anything. A timer, notes and an optional click.' },
@@ -43,7 +45,7 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
-export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone', 'sightread', 'fretboard', 'explorer', 'repertoire', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'drone', 'sightread', 'fretboard', 'explorer', 'drill', 'repertoire', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',
@@ -93,6 +95,7 @@ export function describe(b) {
     case 'technique': { const ex = st.exercise || (b.params && b.params.exercise); parts.push(ex && ex !== 'auto' ? (D.EXERCISES.find(e => e.id === ex) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'rhythms': { const rid = st.rhythm || (b.params && b.params.rhythm); parts.push(rid && rid !== 'auto' ? (D.RHYTHMS.find(r => r.id === rid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || {}).name : 'Smart choice: rotates for you'); break; }
+    case 'drill': { const did = st.drill && st.drill !== 'auto' ? st.drill : b.params && b.params.drill; const dd = did && (D.DRILLS || []).find(x => x.id === did); parts.push(dd ? dd.name + ' (' + ((D.REGIONS.find(r => r.id === dd.style) || {}).name || dd.style) + ')' : 'Smart choice: from the styles you put first'); break; }
     case 'transcribe': { const sg = st.song && st.song !== 'auto' ? E.getSong(st.song) : null; parts.push(sg ? sg.title : 'Your most recent song'); break; }
     case 'lesson': { const lid = st.lesson && st.lesson !== 'auto' ? st.lesson : b.params && b.params.lesson; parts.push(lid ? (D.LESSONS.find(l => l.id === lid) || {}).title : 'Smart choice: new lessons and reviews'); break; }
     case 'listening': case 'atlasquiz': parts.push(st.style && st.style !== 'auto' ? (D.REGIONS.find(r => r.id === st.style) || {}).name : 'Style of the week'); break;
@@ -143,6 +146,11 @@ export function paramsFor(b, used = new Set()) {
       else if (!out.tune) { const it = smart('tune'); if (it) out.tune = it.ref; }
       break;
     }
+    case 'drill': {
+      if (!auto(st.drill)) out.drill = st.drill;
+      else if (!out.drill) { const it = smart('drill'); if (it) out.drill = it.ref; }
+      break;
+    }
     case 'transcribe': {
       const id = st.song && st.song !== 'auto' ? st.song : out.song || (E.listSongs()[0] || {}).id;
       if (id) out.song = id;
@@ -156,6 +164,7 @@ export function paramsFor(b, used = new Set()) {
     case 'listening': case 'atlasquiz': out.region = st.style && st.style !== 'auto' ? st.style : (out.region || rw.id); break;
     case 'free': Object.assign(out, { title: st.title || 'Free practice', notes: st.notes || '', bpm: st.bpm || 0 }); break;
     case 'metronome': if (st.bpm) out.bpm = st.bpm; break;
+    case 'gym': if (!out.ex) out.auto = true; break;
     case 'away': Object.assign(out, { drill: st.drill || Object.keys(DRILLS)[Math.floor(Math.random() * 4)] }); if (st.scale) out.scale = st.scale; if (st.tonic !== undefined) out.tonic = st.tonic; break;
   }
   return out;
