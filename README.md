@@ -25,6 +25,8 @@ Every push to `main` builds the app and publishes it to GitHub Pages (see `.gith
 - **Android (Chrome):** tap Install when the banner appears, or menu → Install app.
 - **Mac, Windows or Linux (Chrome or Edge):** click the install icon in the address bar, or the Install banner in the app.
 
+Smart practice plans each session for the time you have right now, whether it is your first session of the day or your third. It reviews what is due (spaced repetition), brings in new material slowly from the styles you rank first, and rotates scales, keys, patterns, techniques, rhythms and tunes for you. The research it follows is explained in the app. A Sight-reading module takes you from open strings to syncopation in 6/8 and fifth position across 16 levels.
+
 With the microphone allowed, the app can hear your guitar: a real tuner, answering quizzes by playing, rhythm tests on the guitar, and live timing and right-note checks in warm-ups and technique ladders. The sound is analysed on the device and never recorded or sent. Wear headphones for timing tests so the mic hears only your guitar.
 
 Progress is saved on the device (localStorage, with a second copy in IndexedDB). To move it to another device, use **Backup → Export** on the Today tab and **Import** the file on the other device.
@@ -51,6 +53,8 @@ Code map:
 | `src/data.js` | Content: intervals, chords, scales, rhythms, tunes, styles; merges in `src/content/` |
 | `src/content/` | Style deep-dives (history, listening paths, players, books) and the theory course |
 | `src/routines.js` | Routine blocks, templates, time fitting and no-guitar swaps |
+| `src/curriculum.js`, `src/ui/smart.js` | Smart practice: memory model, session planner, learning preferences |
+| `src/notation.js`, `src/tools/reading.js` | Staff notation renderer and the sight-reading trainer |
 | `src/audio.js` | Web Audio synthesis and the loop scheduler |
 | `src/engine.js` | Skill model, spaced repetition, routines, saving and backup |
 | `src/ui/core.js` | DOM helpers, tabs and routing, tool runner, quiz, fretboard |

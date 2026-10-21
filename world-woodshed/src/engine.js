@@ -1,5 +1,6 @@
 /* World Woodshed — adaptive engine: tracking, spaced repetition, mastery, routines */
 import D from './data.js';
+import { readingItems } from './content/reading.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
@@ -19,9 +20,10 @@ const SKILLS = {
   callresp: { name: 'Call & response', cat: 'play', tool: 'callresp', qpm: 4 },
   repertoire: { name: 'Repertoire', cat: 'play', tool: 'repertoire', qpm: 6 },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', qpm: 1 },
+  reading: { name: 'Sight-reading', cat: 'play', tool: 'sightread', qpm: 4 },
   atlas: { name: 'World knowledge', cat: 'know', tool: 'atlasquiz', qpm: 6 }
 };
-const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard & repertoire', tech: 'Technique', know: 'Knowledge' };
+const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard, reading & repertoire', tech: 'Technique', know: 'Knowledge' };
 
 const STRINGS = [
   { id: 'E', name: 'low E', midi: 40 }, { id: 'A', name: 'A', midi: 45 }, { id: 'D', name: 'D', midi: 50 },
@@ -67,6 +69,7 @@ function universe(skill) {
     case 'callresp': list = D.LICK_ITEMS.map(l => ({ id: l.id, label: scaleName(l.scale) + ', ' + l.len + ' notes', tier: l.tier })); break;
     case 'repertoire': list = D.TUNES.map((t, i) => ({ id: t.id, label: t.name, tier: t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(i / 3)) : 2 })); break;
     case 'technique': list = D.EXERCISES.map(e => ({ id: e.id, label: e.name, tier: 1 })); break;
+    case 'reading': list = readingItems(); break;
     case 'atlas':
       D.REGIONS.forEach(r => r.facts.forEach((f, i) => list.push({ id: r.id + ':' + i, label: r.name + ': ' + f.q, tier: 1, region: r.id })));
       break;

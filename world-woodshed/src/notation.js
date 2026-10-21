@@ -148,15 +148,17 @@ const LEFT = 9, RIGHT = 5;                         // padding inside each bar
 const STEM = 34;
 
 /* opts: { bars: [[note…]…], key, time, width (CSS px of the container), barsPerLine (max, default 4),
-           scale (CSS px per unit; default 1, or 0.76 below 480 px), lyrics: [text per note], label } */
+           scale (CSS px per unit; default 1; below 480 px the largest of 1 to 0.76 that fits 2 bars a line), lyrics: [text per note], label,
+           showTime (default true), endBar: 'final' | 'single' | 'none' }
+   returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null) };
+   i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
   const bars = opts.bars || [];
   const key = KEYS[opts.key] ? opts.key : 'C', K = KEYS[key];
   const ts = parseTime(opts.time || '4/4');
   const widthPx = opts.width || 600;
-  const scale = opts.scale || (widthPx < 480 ? 0.76 : 1);
-  const W = Math.round(widthPx / scale);
-  const maxPer = opts.barsPerLine || 4;
+  const narrow = widthPx < 480;
+  const maxPer = opts.barsPerLine || (narrow ? 2 : 4);
   const keyAlt = keyAlters(K.fifths), nKey = Math.abs(K.fifths);
 
   /* 1. flatten, spell, decide accidentals, measure */
@@ -191,18 +193,29 @@ export function renderStaff(opts) {
 
   /* 2. systems: the fewest lines that fit, with bars spread evenly */
   const header = first => 4 + 32 + (nKey ? nKey * 8 + 6 : 0) + (first && opts.showTime !== false ? 24 : 0);
-  let systems = null;
-  for (let n = Math.ceil(bars.length / maxPer) || 1; n <= Math.max(1, bars.length) && !systems; n++) {
-    const sizes = []; let left = bars.length;
-    for (let k = 0; k < n; k++) { const sz = Math.ceil(left / (n - k)); sizes.push(sz); left -= sz; }
-    let start = 0, ok = true; const sys = [];
-    sizes.forEach((sz, k) => {
-      const bs = barInfo.slice(start, start + sz);
-      const need = header(k === 0) + bs.reduce((a, b) => a + b.min, 0) + 4;
-      if (need > W) ok = false;
-      sys.push({ bars: bs, first: start, need }); start += sz;
-    });
-    if (ok || n === Math.max(1, bars.length)) systems = sys;
+  function pack(W) {
+    for (let n = Math.ceil(bars.length / maxPer) || 1; n <= Math.max(1, bars.length); n++) {
+      const sizes = []; let left = bars.length;
+      for (let k = 0; k < n; k++) { const sz = Math.ceil(left / (n - k)); sizes.push(sz); left -= sz; }
+      let start = 0, ok = true; const sys = [];
+      sizes.forEach((sz, k) => {
+        const bs = barInfo.slice(start, start + sz);
+        const need = header(k === 0) + bs.reduce((a, b) => a + b.min, 0) + 4;
+        if (need > W) ok = false;
+        sys.push({ bars: bs, first: start, need }); start += sz;
+      });
+      if (ok || n === Math.max(1, bars.length)) return sys;
+    }
+    return [];
+  }
+  // on narrow screens, the largest staff that still fits maxPer bars a line (down to 0.76 px per unit)
+  let scale = opts.scale || 1, W = Math.round(widthPx / scale), systems = pack(W);
+  if (!opts.scale && narrow) {
+    const want = Math.ceil(bars.length / maxPer) || 1;
+    for (const sc of [1, 0.92, 0.84, 0.76]) {
+      scale = sc; W = Math.round(widthPx / sc); systems = pack(W);
+      if (systems.length <= want) break;
+    }
   }
   const VW = Math.max(W, ...systems.map(s => s.need));
 
@@ -294,15 +307,17 @@ export function renderStaff(opts) {
     }
     // bar lines
     sy.bars.forEach((b, k) => {
-      const last = sy.first + k === bars.length - 1 && opts.final !== false;
-      if (last) {
+      const isLast = sy.first + k === bars.length - 1;
+      const end = isLast ? (opts.endBar || (opts.final === false ? 'single' : 'final')) : 'single';
+      if (end === 'none') return;
+      if (end === 'final') {
         el('rect', { class: 'st-bar', x: f1(b.x1 - 4), y: 0, width: 4, height: 40 }, g);
         el('rect', { class: 'st-bar', x: f1(b.x1 - 8.5), y: 0, width: 1.3, height: 40 }, g);
       } else el('rect', { class: 'st-bar', x: f1(b.x1 - 1.3), y: 0, width: 1.3, height: 40 }, g);
     });
     // notes
     sy.bars.forEach(b => b.list.forEach(it => {
-      const ng = el('g', { class: 'nt' + (it.rest ? ' rest' : '') }, g);
+      const ng = el('g', { class: 'nt' + (it.rest ? ' rest' : ''), 'data-i': it.i, 'data-midi': it.rest ? null : it.n.midi }, g);
       noteEls[it.i] = ng;
       const n = it.n, x = it.x;
       if (it.rest) {
