@@ -58,8 +58,8 @@ function getBus() {
 /* ---------- instruments ---------- */
 /* A recorded note when the instrument's samples have loaded (they start loading with the band),
    else null and the synth voice plays. */
-function sampled(id, m, when, dur, vel, dest) {
-  const n = Samples.play(id, m, when, vel, dur, dest);
+function sampled(id, m, when, dur, vel, dest, o) {
+  const n = Samples.play(id, m, when, vel, dur, dest, o);
   if (n) { live.add(n); n.onended = () => live.delete(n); }
   return n;
 }
@@ -162,15 +162,20 @@ function sample(buf, when, vel, rate = 1, pan = 0) {
   s.connect(g); head.connect(bus.drums.in);
   s.start(when); keep(s, when + buf.duration / rate);
 }
-const ride = (t, v) => sample(rideBuf, t, v * 0.55, rnd(0.995, 1.005), 0.3);
-const chick = (t, v) => sample(chickBuf, t, v * 0.7, 1, -0.2);
+/* The swing kit: recorded once its samples load (they start with the band), synthesized until then.
+   Each recording plays to its own end; gain matches it to the synth voice it replaces. */
+const drum = (id, t, v, gain, pan) => sampled(id, 60, t, 10, v, bus.drums.in, { gain, pan });
+const ride = (t, v) => drum('ride', t, v, 2.06, 0.3) || sample(rideBuf, t, v * 0.55, rnd(0.995, 1.005), 0.3);
+const chick = (t, v) => drum('hatfoot', t, v, 1, -0.2) || sample(chickBuf, t, v * 0.7, 1, -0.2);
 function kick(t, v) {
+  if (drum('kick', t, v, 0.72)) return;
   const { ctx } = bus, o = ctx.createOscillator(), g = ctx.createGain();
   o.frequency.setValueAtTime(72, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.12);
   g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
   o.connect(g); g.connect(bus.drums.in); o.start(t); keep(o, t + 0.32);
 }
 function snare(t, v) {
+  if (drum('snare', t, v, 1)) return;
   const { ctx } = bus;
   const n = ctx.createBufferSource(); n.buffer = noise;
   const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 0.7;
@@ -316,12 +321,16 @@ const SWING_2 = [
 ];
 
 /* ---------- the band ---------- */
+/* Hand drums for the grooves that have them (src/drumkit.js); the others play the drum kit */
+const GROOVE_KIT = { son: { kit: 'congas', region: 'cuba' }, highlife: { kit: 'congas', region: 'westafrica' }, flamenco: { kit: 'cajon', region: 'flamenco' } };
+
 export function Band(o) {
   // o: { bars: [[chord]], barsFor(chorus)?, range: [firstBar, lastBar]?, groove, grooveId, bpm(), parts: {drums, comp, bass},
   //      comp: 'piano'|'guitar', feel: 'walk'|'two', countIn, onBeat, onCount, onChorus(chorus) }
   // barsFor gives each pass its own chords (e.g. a new key every chorus); range loops a section of the form.
   const g = o.groove, gid = o.grooveId;
   const engine = gid === 'swing' ? 'swing' : gid === 'bossa' ? 'bossa' : 'pattern';
+  const kit = GROOVE_KIT[gid] || {};
   const nb = o.bars.length;
   const lo = o.range ? Math.max(0, o.range[0]) : 0, hi = o.range ? Math.min(nb - 1, o.range[1]) : nb - 1;
   const barsOf = ch => (o.barsFor ? o.barsFor(ch) : o.bars);
@@ -456,7 +465,7 @@ export function Band(o) {
         case 'snare': snare(when, e.vel); break;
         case 'xstick': crossStick(when, e.vel); break;
         case 'hat': A.hit('hat', when, e.vel, bus.drums.in); break;
-        case 'hit': A.hit(e.name, when, e.vel, bus.drums.in); break;
+        case 'hit': A.hit(e.name, when, e.vel, bus.drums.in, kit); break;
         default: break;
       }
     });
@@ -465,7 +474,8 @@ export function Band(o) {
   function start() {
     getBus();
     Samples.load('upright'); Samples.load('piano'); // the first bars may still use the synth
-    prepare(['hat'].concat(Object.keys(g.perc || {})));
+    prepare(['hat'].concat(Object.keys(g.perc || {})), kit.kit, kit.region);
+    if (engine !== 'pattern') ['ride', 'hatfoot', 'kick', 'snare'].forEach(id => Samples.load(id));
     if (!rideBuf) { rideBuf = buildRide(bus.ctx); chickBuf = buildChick(bus.ctx); }
     clearTimeout(stopTimer);
     live.forEach(n => { try { n.stop(); } catch (e) { /* already stopped */ } }); live.clear();

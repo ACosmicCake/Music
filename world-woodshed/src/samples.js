@@ -64,6 +64,7 @@ export const ready = id => !!(state[id] && state[id].status === 'ready');
 
 /* Play one note. vel 0–1 picks the velocity layer and the level within it. Starts loading the
    instrument and returns null if it isn't ready, so the caller can play its synth voice instead.
+   o: { gain, detune (cents), release (seconds), pan (-1 left to 1 right) }.
    Returns the source node (already scheduled to stop). */
 export function play(id, midi, when, vel = 0.8, dur = 1, out = null, o = {}) {
   const st = state[id], set = SAMPLE_SETS[id];
@@ -92,7 +93,10 @@ export function play(id, midi, when, vel = 0.8, dur = 1, out = null, o = {}) {
   g.gain.setValueAtTime(level, when);
   g.gain.setValueAtTime(level, when + dur);
   g.gain.setTargetAtTime(0, when + dur, rel / 3); // the damper: down to silence in about one release time
-  src.connect(g); g.connect(out || A.out());
+  src.connect(g);
+  let head = g;
+  if (o.pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = o.pan; g.connect(p); head = p; }
+  head.connect(out || A.out());
   const left = (smp.buf.duration - smp.onset) / src.playbackRate.value;
   src.start(when, smp.onset);
   src.stop(when + Math.min(left, dur + rel * 1.5));

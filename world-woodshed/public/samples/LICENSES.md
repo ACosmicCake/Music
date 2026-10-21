@@ -59,6 +59,11 @@ Every percussion sound below comes from one library:
 - **From:** `Idiophones/Struck Idiophones/Hi-Hat Cymbal/`
 - **What:** `HiHat_HitC_<v2|v3|v4>_rr<1|2>_Mid.wav`: closed, three dynamics, two round-robins.
 
+## hatfoot — Hi-hat pedal
+
+- **From:** `Idiophones/Struck Idiophones/Hi-Hat Cymbal/`
+- **What:** `HiHat_Close_rr<1|2>_Mid.wav`: the hi-hat closed with the pedal (the band's "chick" on 2 and 4), two round-robins.
+
 ## ride — Ride cymbal
 
 - **From:** `Idiophones/Struck Idiophones/Suspended Cymbal 1/`
