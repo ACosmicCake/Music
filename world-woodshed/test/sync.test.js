@@ -61,6 +61,13 @@ describe('merge', () => {
     const m = merge(a, b);
     expect(m.settings).toEqual({ latencyMs: 40, feel16: false, band: { who: 'bass' } });
   });
+  it('keeps the session length last chosen on each device to that device', () => {
+    const phone = base({ updatedAt: 1, settings: { lastMinutes: 15, lastRide: 20 } });
+    const desk = base({ updatedAt: 2, settings: { lastMinutes: 60 } });
+    expect(merge(phone, desk).settings).toMatchObject({ lastMinutes: 15, lastRide: 20 });
+    expect(merge(desk, phone).settings.lastMinutes).toBe(60);
+    expect(merge(desk, phone).settings).not.toHaveProperty('lastRide');
+  });
   it('keeps the best technique tempo from both devices', () => {
     const m = merge(base({ tech: { altpick: { best: 120, bpm: 124, last: 5 } } }), base({ tech: { altpick: { best: 100, bpm: 104, last: 9 } } }));
     expect(m.tech.altpick).toMatchObject({ best: 120, bpm: 104, last: 9 });

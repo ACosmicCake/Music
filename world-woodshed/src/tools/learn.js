@@ -5,6 +5,7 @@ import { view, h, shuffle, toast, bar, ui, renderTabs, teardown, go, tool, openT
 import { parseChord, prettySym, chordMidis, degreeLabel, spell, keyPrefersFlats } from '../theory.js';
 import { RhythmGrid, playRhythmStep, stepDurFn } from './rhythm.js';
 import { CircleWidget } from './practice.js';
+import { loadEssays, loadGuides, loadLessons, whenLoaded, drawWhenLoaded } from '../content/lazy.js';
 
 /* ======================================================
    LEARN: styles library, theory course, reference tools
@@ -79,6 +80,9 @@ function tile(id, params) {
 export function stylePage(r) {
   teardown(); ui.runner = { id: 'style', opts: {} }; ui.tab = 'learn'; renderTabs();
   view.innerHTML = ''; window.scrollTo(0, 0);
+  whenLoaded(loadEssays, ui, view, toast, () => drawStylePage(r));
+}
+function drawStylePage(r) {
   const rw = E.regionOfWeek();
   const score = Math.round(E.regionScore(r) * 100);
   const n = (r.essential || []).length;
@@ -245,7 +249,8 @@ tool('lesson', {
   }
 });
 
-function renderLesson(root, l, opts = {}) {
+function renderLesson(root, l, opts = {}) { return drawWhenLoaded(loadLessons, root, () => drawLesson(root, l, opts)); }
+function drawLesson(root, l, opts) {
   const loops = [];
   const article = h('article', { class: 'card lesson' }, h('h1', { text: l.title }), h('p', { class: 'lede', text: l.summary }));
   root.append(article);
@@ -341,7 +346,7 @@ function example(ex, loops) {
         A.ensure(); const t = A.now() + 0.05, bar = 1.4;
         chords.forEach((c, i) => {
           const ms = chordMidis(c.root, c.iv.filter(x => x < 12));
-          A.note(28 + c.root + (c.root < 4 ? 12 : 0), t + i * bar, 0.7, bar * 0.9);
+          A.note(28 + (((c.root - 28) % 12) + 12) % 12, t + i * bar, 0.7, bar * 0.9); // bass: that root from E1 up
           A.strum(ms, t + i * bar, 0.55, 0.02, bar * 0.45); A.strum(ms, t + i * bar + bar / 2, 0.4, 0.02, bar * 0.4);
           setTimeout(() => chips.forEach((ch, k) => ch.setAttribute('aria-pressed', k === i ? 'true' : 'false')), (t + i * bar - A.now()) * 1000);
         });
@@ -418,6 +423,9 @@ function techniqueIndex() {
 export function techniquePage(t, back) {
   teardown(); ui.runner = { id: 'technique-guide', opts: {} }; ui.tab = 'learn'; renderTabs();
   view.innerHTML = ''; window.scrollTo(0, 0);
+  whenLoaded(loadGuides, ui, view, toast, () => drawTechniquePage(t, back), false);
+}
+function drawTechniquePage(t, back) {
   const ex = D.EXERCISES.find(e => e.id === t.id);
   const sections = [];
   const sec = (id, title, ...kids) => { const el = h('section', { class: 'card', id: 'st-' + id }, h('h2', { text: title }), ...kids); sections.push([id, title, el]); return el; };

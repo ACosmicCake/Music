@@ -1,22 +1,11 @@
 /* World Woodshed — content library */
-import LESSONS from './content/lessons.js';
+import INDEX from 'virtual:content-index';
 import STYLES_A from './content/styles-a.js';
 import STYLES_B from './content/styles-b.js';
 import STYLES_NEW from './content/styles-new.js';
-import ESSAYS_1 from './content/essays-1.js';
-import ESSAYS_2 from './content/essays-2.js';
-import ESSAYS_3 from './content/essays-3.js';
-import ESSAYS_4 from './content/essays-4.js';
-import ESSAYS_5 from './content/essays-5.js';
-import ESSAYS_6 from './content/essays-6.js';
-import TECH_A from './content/techniques-a.js';
-import SCIENCE from './content/science.js';
-import TECH_B from './content/techniques-b.js';
 import EX_VARS from './content/exercise-vars.js';
 import RHY_VAR from './content/rhythms-var.js';
 import RHY_NEW from './content/rhythms-new.js';
-import DRILLS_A from './content/drills-a.js';
-import DRILLS_B from './content/drills-b.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const NOTE_FULL = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
 
@@ -467,9 +456,7 @@ const REGIONS = [
    Existing regions get them merged in; new styles are appended whole. */
 Object.values(STYLES_NEW).forEach(st => REGIONS.push(st));
 REGIONS.forEach(r => Object.assign(r, STYLES_A[r.id] || {}, STYLES_B[r.id] || {}));
-// Long-form essays: philosophy and meaning, how it works, guitar approach, glossary
-const ESSAYS = Object.assign({}, ESSAYS_1, ESSAYS_2, ESSAYS_3, ESSAYS_4, ESSAYS_5, ESSAYS_6);
-REGIONS.forEach(r => { if (ESSAYS[r.id]) r.essay = ESSAYS[r.id]; });
+// Long-form essays (r.essay) and the science page (SCIENCE) load on demand: see src/content/lazy.js
 const AREA = {
   cuba: 'Americas', brazil: 'Americas', latam: 'Americas', caribbean: 'Americas', jazz: 'Americas', blues: 'Americas', rock: 'Americas', funksoul: 'Americas', country: 'Americas', hawaii: 'Americas',
   flamenco: 'Europe', manouche: 'Europe', klezmer: 'Europe', celtic: 'Europe', classical: 'Europe', fado: 'Europe', turkbalkan: 'Europe',
@@ -593,8 +580,11 @@ const LICK_ITEMS = [
   { id: 'lydian:5', scale: 'lydian', len: 5, tier: 5 }
 ];
 
-/* Style drills (src/content/drills-*.js) */
-const DRILLS = [...DRILLS_A, ...DRILLS_B];
+/* Technique guides, style drills and theory lessons: their short fields (ids, names, styles, levels) come
+   from a build-time index (scripts/content-index.mjs); the long texts are merged into the same objects when
+   a guide, drill or lesson is opened (src/content/lazy.js). */
+const DRILLS = INDEX.drills;
+const LESSONS = INDEX.lessons;
 
 /* More rhythms for every style (src/content/rhythms-new.js), and variations, fills, longer cycles and tips
    for every rhythm (src/content/rhythms-var.js). New rhythms are listed on their style's page too. */
@@ -609,7 +599,6 @@ RHYTHMS.forEach(r => {
 /* Technique variations, a speed-burst recipe and an external-focus cue per exercise (src/content/exercise-vars.js) */
 EXERCISES.forEach(ex => { if (EX_VARS[ex.id]) ex.vars = EX_VARS[ex.id]; });
 
-/* In-depth technique guides (src/content/techniques-*.js) are merged in here */
-const TECHNIQUES = [...TECH_A, ...TECH_B];
+const TECHNIQUES = INDEX.techniques;
 
-export default { DRILLS, SCIENCE, LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
+export default { DRILLS, SCIENCE: null, LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };

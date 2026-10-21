@@ -5,6 +5,7 @@ import E from '../engine.js';
 import Stretch from '../stretch.js';
 import { detectPitch } from '../listen.js';
 import './transcribe.css';
+import { TRANSCRIBE_META } from './transcribe-lazy.js';
 
 export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
@@ -17,6 +18,9 @@ export default function transcribe(UI) {
     return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1);
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  // a saved reference link is only ever opened as a web page: a setup imported from a backup or sync file
+  // could carry anything, and a javascript: or data: link would run in the app when clicked
+  const webLink = v => (typeof v === 'string' && /^https?:\/\/[^\s]+$/i.test(v.trim()) ? v.trim() : null);
   const uid = () => 'sg' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   /* ---------- audio file cache (this device only) ---------- */
@@ -440,9 +444,7 @@ export default function transcribe(UI) {
   /* ======================================================
      The Transcribe tool
      ====================================================== */
-  UI.tool('transcribe', {
-    tab: 'transcribe', skill: 'transcribe', title: 'Transcribe', eyebrow: 'Learn songs by ear',
-    desc: 'Load an audio or video file. Slow it down without changing pitch, loop sections, focus on the bass or melody, and find the notes.',
+  UI.tool('transcribe', Object.assign({}, TRANSCRIBE_META, {
     render(body, ctx) {
       const P = {
         setup: null, buffer: null, mono: null, peaks: null, dur: 0, sr: 44100, file: null, videoUrl: null,
@@ -497,7 +499,7 @@ export default function transcribe(UI) {
           c.append(h('h2', { text: missing.title }),
             h('p', { text: 'This song\'s setup is saved, but the audio isn\'t stored on this device. Choose the file again to load it with your loops, sections and settings.' }),
             h('p', { class: 'small muted mono', text: 'Looking for: ' + (missing.fileName || 'the original file') }));
-          if (missing.link) c.append(h('a', { href: missing.link, target: '_blank', rel: 'noopener', class: 'small' }, 'Open the saved reference link ↗'));
+          if (webLink(missing.link)) c.append(h('a', { href: webLink(missing.link), target: '_blank', rel: 'noopener', class: 'small' }, 'Open the saved reference link ↗'));
         } else {
           c.append(h('h2', { text: 'Load a song' }),
             h('p', { text: 'Pick an audio or video file from this device: MP3, M4A, WAV, AAC, FLAC, MP4, MOV or WebM. For video, the app uses the soundtrack and shows the picture in sync when it can.' }),
@@ -688,7 +690,7 @@ export default function transcribe(UI) {
         titleIn.addEventListener('input', () => { st.title = titleIn.value.trim() || 'Untitled'; persist(); msSetup(); });
         const linkIn = h('input', { type: 'text', id: 'tr-link', value: st.link || '', placeholder: 'YouTube or other reference link', 'aria-label': 'Reference link' });
         const linkA = h('a', { target: '_blank', rel: 'noopener', class: 'small' }, 'Open link ↗');
-        const syncLink = () => { const v = linkIn.value.trim(); linkA.hidden = !/^https?:\/\//i.test(v); if (!linkA.hidden) linkA.href = v; };
+        const syncLink = () => { const v = webLink(linkIn.value.trim()); linkA.hidden = !v; if (v) linkA.href = v; };
         linkIn.addEventListener('input', () => { st.link = linkIn.value.trim(); syncLink(); persist(); });
         syncLink();
         root.append(h('div', { class: 'card tr-ui' },
@@ -1408,13 +1410,12 @@ export default function transcribe(UI) {
         cleanups.forEach(fn => fn());
       };
     }
-  });
+  }));
 
   /* ======================================================
      Transcribe tab: song library
      ====================================================== */
-  UI.ICONS.transcribe = '<svg viewBox="0 0 24 24"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>';
-  UI.TABS.splice(4, 0, ['transcribe', 'Transcribe']);
+  // the tab and its icon are registered at boot by transcribe-lazy.js
   UI.PAGES.transcribe = function () {
     const view = document.getElementById('view');
     view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Transcribe' }), h('h1', { text: 'Learn songs from recordings' }),

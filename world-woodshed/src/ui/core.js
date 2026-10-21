@@ -41,6 +41,38 @@ export function toast(msg) {
   const t = h('div', { class: 'toast', role: 'status', text: msg });
   document.body.append(t); setTimeout(() => t.remove(), 2200);
 }
+/* ---------- when something breaks ----------
+   A failure while drawing a page or a tool should never leave a blank screen with no way out: it is logged,
+   said briefly, and the view offers the way back (or a reload, when Today itself failed). */
+export function failure(el, e, what) {
+  console.error(e);
+  toast(what + ' could not open');
+  const home = ui.tab === 'today' && !ui.runner
+    ? h('button', { class: 'btn brass', onclick: () => location.reload() }, 'Reload the app')
+    : h('button', { class: 'btn brass', onclick: () => go('today') }, 'Back to Today');
+  const card = h('div', { class: 'card', role: 'alert' },
+    h('h2', { text: 'Something went wrong' }),
+    h('p', { class: 'small muted', text: what + ' hit an error and could not be shown' + (e && e.message ? ' (' + e.message + ').' : '.') }),
+    h('div', { class: 'row' }, home));
+  el.append(card);
+  home.focus();
+}
+/* Errors nothing else caught (an event handler, a timer, a promise): one short note, at most every few
+   seconds, so a repeating error can't flood the screen. The error still reaches the console as usual. */
+export function watchErrors() {
+  let last = 0;
+  const note = msg => {
+    const now = Date.now();
+    if (now - last < 8000) return;
+    last = now;
+    toast('Something went wrong' + (msg ? ': ' + String(msg).slice(0, 80) : '') + '. If a screen looks stuck, go back to Today.');
+  };
+  window.addEventListener('error', e => {
+    if (/ResizeObserver loop/.test(e.message || '')) return; // harmless browser notice, not an app error
+    note(e.error && e.error.message || e.message);
+  });
+  window.addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
+}
 export function bar(pct, cls) { return h('div', { class: 'bar ' + (cls || '') }, h('i', { style: { width: Math.max(0, Math.min(100, pct)) + '%' } })); }
 export function regionName(id) { const r = D.REGIONS.find(x => x.id === id); return r ? r.name : id; }
 
@@ -83,6 +115,23 @@ export function teardown() {
   ui.cleanup = null;
   A.stopAll();
 }
+/* After a navigation, move keyboard and screen-reader focus to the new view's heading (without scrolling),
+   so the next Tab starts in the new content instead of on the button that was just removed. */
+export function focusView() {
+  const hd = view.querySelector('h1') || view.querySelector('h2');
+  if (!hd) return;
+  if (!hd.hasAttribute('tabindex')) hd.setAttribute('tabindex', '-1');
+  hd.focus({ preventScroll: true });
+}
+/* Escape leaves a tool or a sub-page, like its back button; it leaves open sheets and dialogs to close
+   themselves, and never fires while typing in a field. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e.defaultPrevented || !ui.runner) return;
+  if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (document.querySelector('[role="dialog"]')) return;
+  const back = view.querySelector('.rh-back');
+  if (back) back.click(); else go(ui.tab || 'today');
+});
 export function go(tab, section) {
   if (TAB_ALIASES[tab]) { section = TAB_ALIASES[tab][1]; tab = TAB_ALIASES[tab][0]; }
   if (section) ui.section[tab] = section;
@@ -92,12 +141,16 @@ export function go(tab, section) {
   renderTabs();
   view.innerHTML = '';
   window.scrollTo(0, 0);
-  PAGES[tab]();
+  try { PAGES[tab](); focusView(); } catch (e) { view.innerHTML = ''; failure(view, e, (TABS.find(t => t[0] === tab) || [, 'This page'])[1]); }
   if (hooks.afterNav) hooks.afterNav();
 }
 E.onChange(() => {
   syncEl.textContent = E.storageNote();
-  if (!ui.runner && ui.tab === 'today') { const y = window.scrollY; view.innerHTML = ''; PAGES.today(); window.scrollTo(0, y); }
+  if (!ui.runner && ui.tab === 'today') {
+    const y = window.scrollY; view.innerHTML = '';
+    try { PAGES.today(); } catch (e) { view.innerHTML = ''; failure(view, e, 'Today'); }
+    window.scrollTo(0, y);
+  }
 });
 
 /* ---------- tool registry ---------- */
@@ -187,7 +240,8 @@ export function openTool(id, opts = {}) {
   renderBlockBar();
   if (hooks.afterNav) hooks.afterNav();
   let toolCleanup = null;
-  try { toolCleanup = t.render(body, ctx); } catch (e) { console.error(e); body.append(h('p', { text: 'Something went wrong loading this tool: ' + e.message })); }
+  // a tool that failed keeps focus on its way back (failure() focuses it); otherwise focus the tool's title
+  try { toolCleanup = t.render(body, ctx); focusView(); } catch (e) { failure(body, e, t.title || 'This tool'); }
   ui.cleanup = () => {
     clearInterval(timer);
     document.removeEventListener('pointerdown', markAct, true);
@@ -243,6 +297,7 @@ export function Quiz(container, ctx, gen, opts = {}) {
   function next() {
     clearTimeout(autoTimer);
     if (!alive) return;
+    const keepFocus = q !== null && card.contains(document.activeElement);
     answered = false;
     q = gen();
     const pair = ctx.params && Array.isArray(ctx.params.contrast) ? ctx.params.contrast : null;
@@ -272,9 +327,11 @@ export function Quiz(container, ctx, gen, opts = {}) {
       grid.append(b);
     });
     card.append(grid);
-    const fb = h('div', { class: 'feedback', hidden: true });
+    const fb = h('div', { class: 'feedback', hidden: true, role: 'status', 'aria-live': 'polite' });
     card.append(fb);
     if (q.after) card.append(q.after);
+    // keyboard users keep their place: the next question starts on its first answer
+    if (keepFocus) { const first = grid.querySelector('.choice'); if (first) first.focus({ preventScroll: true }); }
     A.ensure();
     setTimeout(() => { if (alive && q.play && !q.noAutoplay) q.play(); t0 = performance.now(); }, 120);
     t0 = performance.now();
@@ -282,6 +339,7 @@ export function Quiz(container, ctx, gen, opts = {}) {
   function answer(id) {
     if (answered) return;
     answered = true;
+    const wasInCard = card.contains(document.activeElement);
     const rt = performance.now() - t0;
     const correct = id === q.answer;
     card.querySelectorAll('.choice').forEach(b => {
@@ -302,12 +360,17 @@ export function Quiz(container, ctx, gen, opts = {}) {
       row.append(h('button', { class: 'btn small', onclick: () => q.compare(id) }, 'Hear yours'));
       if (q.play) row.append(h('button', { class: 'btn small', onclick: () => q.play() }, 'Hear correct'));
     }
-    row.append(h('button', { class: 'btn primary small', onclick: next }, 'Next →'));
+    const nextBtn = h('button', { class: 'btn primary small', onclick: next }, 'Next →');
+    row.append(nextBtn);
     fb.append(row);
+    // the answer buttons are now disabled, which would drop keyboard focus to the page: put it on Next
+    if (wasInCard) nextBtn.focus({ preventScroll: true });
     if (correct && !opts.noAuto) autoTimer = setTimeout(next, q.autoDelay || 1300);
   }
   function onKey(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
+    // Enter and Space on a focused button (an answer, Next, Hear yours) belong to that button
+    if (e.target && e.target.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
     const n = parseInt(e.key, 10);
     if (!answered && n >= 1 && q && n <= q.choices.length) answer(q.choices[n - 1].id);
     else if (answered && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); }
