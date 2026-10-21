@@ -268,7 +268,9 @@ function displayCard() {
     card.append(h('h3', { text: 'Display' }),
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Layout' }), seg([['auto', 'Auto'], ['compact', 'Compact'], ['roomy', 'Roomy']], st.display || 'auto', 'display'),
         h('span', { class: 'small muted', text: 'Compact suits small phones: a slim top bar, the tab bar tucked away inside tools, tool descriptions behind ⓘ, and long sections folded. Auto turns it on for screens under 380 × 640.' })),
-      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Text size' }), seg([['s', 'Small'], ['m', 'Normal'], ['l', 'Large']], st.textSize || 'm', 'textSize'),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Text size' }), seg([['s', 'Small'], ['m', 'Normal'], ['l', 'Large']], st.textSize || 'm', 'textSize')),
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Sound output' }), seg([['auto', 'Auto'], ['smooth', 'Smooth'], ['fast', 'Low latency']], st.audioOutput || 'auto', 'audioOutput'),
+        h('span', { class: 'small muted', text: 'Low latency answers a tap a little sooner, but on some Android phones it crackles. Smooth avoids that, and the rhythm tools allow for the extra delay. Auto picks Smooth on Android.' + (A.outputUsed() && A.outputUsed() !== A.outputFor(st.audioOutput) ? ' The change applies the next time the app opens.' : '') }),
         h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })),
       sounds);
   }

@@ -9,6 +9,7 @@ import '@fontsource/ibm-plex-mono/latin-500.css';
 import './styles.css';
 
 import E from './engine.js';
+import A from './audio.js';
 import Cur from './curriculum.js';
 import './drumkit.js';
 import Guitars from './guitars.js';
@@ -46,6 +47,9 @@ initGitHubSync();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);
+// which output path the audio asks for (Train → Display → Sound output), read when the audio first starts
+A.setOutput(E.state.settings.audioOutput);
+E.onChange(st => A.setOutput(st.settings.audioOutput));
 // the recorded guitar the player chose (Train → Display → Sounds), loaded on the first tap
 Guitars.setVoice(E.state.settings.guitarSound);
 E.onChange(st => Guitars.setVoice(st.settings.guitarSound));

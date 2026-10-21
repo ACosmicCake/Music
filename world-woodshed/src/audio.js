@@ -18,18 +18,36 @@ function roomImpulse(secs) {
   return buf;
 }
 
-/* The last stage: unchanged below -3 dBFS, then a smooth curve that reaches full scale only in the limit,
-   so a pile-up of loud hits saturates gently instead of clipping. A WaveShaper adds no delay. */
-function softClip() {
-  const n = 2048, curve = new Float32Array(n), knee = 0.708; // -3 dBFS
+/* The last stage: unchanged below -3 dBFS, then a smooth curve towards full scale, so a pile-up of loud
+   hits saturates gently instead of clipping. A WaveShaper only reads its input between -1 and 1 and holds
+   the end of its curve beyond that, so the signal goes in at a quarter and the curve covers ±4: peaks up
+   to four times full scale still bend instead of being cut flat. A WaveShaper adds no delay. */
+const HEADROOM = 4;
+export function clipCurve(n = 8193, knee = 0.708) { // knee: -3 dBFS
+  const curve = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x);
+    const x = ((i / (n - 1)) * 2 - 1) * HEADROOM, a = Math.abs(x);
     const y = a <= knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee));
     curve[i] = Math.sign(x) * y;
   }
-  const ws = ctx.createWaveShaper(); ws.curve = curve; ws.oversample = 'none';
-  return ws;
+  return curve;
 }
+function softClip() {
+  const pre = ctx.createGain(); pre.gain.value = 1 / HEADROOM;
+  const ws = ctx.createWaveShaper(); ws.curve = clipCurve(); ws.oversample = 'none';
+  pre.connect(ws);
+  return { in: pre, out: ws };
+}
+
+/* Which output path to ask the browser for. On Android the default (lowest-latency) path keeps only a few
+   milliseconds of audio in hand, and on some phones it crackles even with a single note playing. 'smooth'
+   asks for the ordinary playback path: sounds start a few tens of milliseconds later, which the timing
+   tools already allow for (latency() includes the reported output latency). 'fast' keeps the low-latency
+   path, and 'auto' picks smooth on Android only. Read when the audio starts (settings.audioOutput, per device). */
+let outputPref = 'auto', outputUsed = null;
+function setOutput(v) { outputPref = v || 'auto'; }
+export function latencyHintFor(pref, android) { return pref === 'smooth' || (pref !== 'fast' && android) ? 'playback' : 'interactive'; }
+const onAndroid = () => typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
 
 /* Output chain. Each instrument has a channel: its level, its place in the stereo field and how much
    of it goes to a shared short room reverb. Everything meets at master, then the compressor (as
@@ -37,12 +55,13 @@ function softClip() {
 function ensure() {
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
-    ctx = new AC();
+    const hint = latencyHintFor(outputPref, onAndroid());
+    try { ctx = new AC({ latencyHint: hint }); outputUsed = hint; } catch (e) { ctx = new AC(); outputUsed = 'interactive'; } // older Safari takes no options
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
     const limit = softClip();
     master = ctx.createGain(); master.gain.value = 0.85;
-    master.connect(comp); comp.connect(limit); limit.connect(ctx.destination);
+    master.connect(comp); comp.connect(limit.in); limit.out.connect(ctx.destination);
     const room = ctx.createConvolver(); room.buffer = roomImpulse(0.5);
     room.connect(master);
     const channel = (gain, pan, send) => {
@@ -298,4 +317,4 @@ function eventToAudioTime(ev) {
 /* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
 const channel = name => { ensure(); return chan[name]; };
 
-export default { out: () => master, channel, ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, eventToAudioTime };
+export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, eventToAudioTime };
