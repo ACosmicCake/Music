@@ -12,6 +12,7 @@ import ESSAYS_6 from './content/essays-6.js';
 import TECH_A from './content/techniques-a.js';
 import SCIENCE from './content/science.js';
 import TECH_B from './content/techniques-b.js';
+import EX_VARS from './content/exercise-vars.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const NOTE_FULL = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
 
@@ -590,6 +591,9 @@ const LICK_ITEMS = [
 
 /* Style drills (src/content/drills-*.js) */
 const DRILLS = [];
+
+/* Technique variations, a speed-burst recipe and an external-focus cue per exercise (src/content/exercise-vars.js) */
+EXERCISES.forEach(ex => { if (EX_VARS[ex.id]) ex.vars = EX_VARS[ex.id]; });
 
 /* In-depth technique guides (src/content/techniques-*.js) are merged in here */
 const TECHNIQUES = [...TECH_A, ...TECH_B];
