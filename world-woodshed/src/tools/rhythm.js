@@ -7,7 +7,7 @@ import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz } from '../u
    RHYTHM TOOLS
    ====================================================== */
 export const SOUND_FOR = { clave: 'clave', bell: 'bell', low: 'low', mid: 'mid', high: 'high', shaker: 'shaker', clap: 'clap', chick: 'chick', hat: 'hat', ride: 'ride' };
-function stepDurFn(r, bpm) { const sd = 60 / bpm / r.spb; return () => sd; }
+export function stepDurFn(r, bpm) { const sd = 60 / bpm / r.spb; return () => sd; }
 function targetSteps(r) {
   const out = [];
   for (let i = 0; i < r.steps; i++) {
@@ -20,7 +20,7 @@ function beatSteps(r) {
   if (r.groups) { const out = []; let acc = 0; r.groups.forEach(g => { out.push(acc); acc += g; }); return out; }
   const out = []; for (let i = 0; i < r.steps; i += r.spb) out.push(i); return out;
 }
-function RhythmGrid(r) {
+export function RhythmGrid(r) {
   const wrap = h('div', { class: 'rgrid-wrap' });
   const grid = h('div', { class: 'rgrid' });
   const cols = `56px repeat(${r.steps}, minmax(12px, 1fr))`;
@@ -65,7 +65,7 @@ function RhythmGrid(r) {
     }
   };
 }
-function playRhythmStep(r, i, t, mute) {
+export function playRhythmStep(r, i, t, mute) {
   Object.entries(r.tracks).forEach(([name, pat]) => {
     if (mute && mute.has(name)) return;
     const ch = pat[i];

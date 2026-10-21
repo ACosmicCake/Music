@@ -4,6 +4,8 @@ import A from '../audio.js';
 import E from '../engine.js';
 
 export const PAGES = {};
+// filled in by other modules (session.js) to avoid import cycles
+export const hooks = { sessionBar: null, onSessionTick: null, afterNav: null };
 
 export const view = document.getElementById('view');
 const tabsEl = document.getElementById('tabs');
@@ -45,13 +47,17 @@ export function regionName(id) { const r = D.REGIONS.find(x => x.id === id); ret
 /* ---------- tabs & routing ---------- */
 export const ICONS = {
   today: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>',
+  routine: '<svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h16M4 18h7"/><circle cx="18" cy="6" r="2"/><circle cx="15" cy="18" r="2"/></svg>',
+  train: '<svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9a3 3 0 0 1-4-4l7-11z"/><path d="M4 20l3-3"/><path d="M16 6l2 2"/></svg>',
+  learn: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
   ear: '<svg viewBox="0 0 24 24"><path d="M7 15c0-6 2-10 6-10s5 3 5 6-3 4-3 6-1 4-3 4-2-1-2-2"/><path d="M11 11a2 2 0 1 1 4 0"/></svg>',
   rhythm: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="8" ry="3"/><path d="M4 8v8c0 1.7 3.6 3 8 3s8-1.3 8-3V8"/><path d="M15 3l3-1M9 3L6 2"/></svg>',
-  play: '<svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9a3 3 0 0 1-4-4l7-11z"/><path d="M4 20l3-3"/><path d="M16 6l2 2"/></svg>',
-  atlas: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>'
+  play: '<svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9a3 3 0 0 1-4-4l7-11z"/><path d="M4 20l3-3"/><path d="M16 6l2 2"/></svg>'
 };
-export const TABS = [['today', 'Today'], ['ear', 'Ear'], ['rhythm', 'Rhythm'], ['play', 'Play'], ['atlas', 'Atlas']];
-export const ui = { tab: 'today', cleanup: null, runner: null, plan: null };
+export const TABS = [['today', 'Today'], ['routine', 'Routine'], ['train', 'Train'], ['learn', 'Learn']];
+// old tab names still work in links: #ear opens Train on its Ear section, #atlas opens Learn
+export const TAB_ALIASES = { ear: ['train', 'ear'], rhythm: ['train', 'rhythm'], play: ['train', 'play'], atlas: ['learn', 'styles'] };
+export const ui = { tab: 'today', cleanup: null, runner: null, plan: null, section: {} };
 
 export function renderTabs() {
   tabsEl.innerHTML = '';
@@ -67,7 +73,9 @@ export function teardown() {
   ui.cleanup = null;
   A.stopAll();
 }
-export function go(tab) {
+export function go(tab, section) {
+  if (TAB_ALIASES[tab]) { section = TAB_ALIASES[tab][1]; tab = TAB_ALIASES[tab][0]; }
+  if (section) ui.section[tab] = section;
   teardown();
   ui.tab = tab; ui.runner = null;
   try { history.replaceState(null, '', '#' + tab); } catch (e) { /* ignore */ }
@@ -75,6 +83,7 @@ export function go(tab) {
   view.innerHTML = '';
   window.scrollTo(0, 0);
   PAGES[tab]();
+  if (hooks.afterNav) hooks.afterNav();
 }
 E.onChange(() => {
   syncEl.textContent = E.storageNote();
@@ -95,10 +104,11 @@ export function openTool(id, opts = {}) {
   window.scrollTo(0, 0);
   const block = opts.block || null;
   const head = h('div', { class: 'runner-head' });
-  const backBtn = h('button', { class: 'btn ghost small', onclick: () => go(opts.returnTab || t.tab || 'today') }, '← ', opts.block ? 'Routine' : 'Back');
+  const backBtn = h('button', { class: 'btn ghost small', onclick: () => go(opts.returnTab || t.tab || 'today') }, '← ', opts.session ? 'Plan' : opts.block ? 'Routine' : 'Back');
   head.append(h('div', { class: 'spread' }, backBtn, h('span', { class: 'eyebrow', text: t.eyebrow || '' })));
+  if (opts.session && hooks.sessionBar) head.append(hooks.sessionBar());
   head.append(h('h1', { text: t.title }));
-  if (t.desc && !block) head.append(h('p', { class: 'muted', text: t.desc }));
+  if (t.desc && !block && !opts.session) head.append(h('p', { class: 'muted', text: t.desc }));
   const blockBar = h('div', { class: 'blockbar', hidden: !block });
   head.append(blockBar);
   const body = h('div', { class: 'section' });
@@ -154,7 +164,7 @@ export function openTool(id, opts = {}) {
     if (document.visibilityState !== 'visible') return;
     if (!active && Date.now() - lastAct > 45000) return;
     const skill = (ctx.timeSkill) || t.skill;
-    E.addTime(5, skill);
+    if (!opts.session) E.addTime(5, skill); // a session counts its own wall-clock time
     if (block && unitIsTime) {
       block.progress = (block.progress || 0) + 5;
       if (ui.plan && ui.plan.kind === 'routine' && block.progress % 30 === 0) E.blockProgress(block.id, block.progress, false);
@@ -162,6 +172,7 @@ export function openTool(id, opts = {}) {
     }
   }, 5000);
   renderBlockBar();
+  if (hooks.afterNav) hooks.afterNav();
   let toolCleanup = null;
   try { toolCleanup = t.render(body, ctx); } catch (e) { console.error(e); body.append(h('p', { text: 'Something went wrong loading this tool: ' + e.message })); }
   ui.cleanup = () => {

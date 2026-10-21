@@ -181,6 +181,29 @@ function Drone(tonicMidi, fifth = 7) {
   return loop;
 }
 
+/* Sustained, organ-like reference tone (for tuning). Returns a function that stops it. */
+function tone(midi, when, dur = 4, vel = 0.35) {
+  ensure();
+  when = Math.max(when || 0, ctx.currentTime);
+  const f = mtof(midi), g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(vel, when + 0.06);
+  g.gain.setValueAtTime(vel, when + dur);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + dur + 0.4);
+  g.connect(master);
+  const oscs = [[1, 1], [2, 0.35], [3, 0.18], [4, 0.08]].map(([k, a]) => {
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.frequency.value = f * k; og.gain.value = a;
+    o.connect(og); og.connect(g); o.start(when); o.stop(when + dur + 0.45); track(o);
+    return o;
+  });
+  return () => {
+    const t = ctx.currentTime;
+    g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    oscs.forEach(o => { try { o.stop(t + 0.2); } catch (e) { /* already stopped */ } });
+  };
+}
+
 function stopAll() {
   voices.forEach(v => { try { v.stop(); } catch (e) { /* already stopped */ } });
   voices.clear();
@@ -193,4 +216,4 @@ function eventToAudioTime(ev) {
   return ctx.currentTime - ageMs / 1000 - latency();
 }
 
-export default { ensure, now, latency, mtof, note, strum, hit, Loop, Drone, stopAll, eventToAudioTime };
+export default { ensure, now, latency, mtof, note, strum, hit, tone, Loop, Drone, stopAll, eventToAudioTime };

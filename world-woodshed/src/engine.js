@@ -84,7 +84,8 @@ function freshState() {
     skills: {}, history: {}, anchors: {},
     tech: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
-    routine: null, placementDone: false, songs: {}
+    routine: null, placementDone: false, songs: {},
+    routines: [], session: null, lessons: {}, heard: {}, journal: []
   };
 }
 let state = freshState();
@@ -417,7 +418,8 @@ const FOCUS = {
 function techPick() {
   // exercise with lowest best/target, nudged toward the region of the week
   const rw = regionOfWeek();
-  const regional = { flamenco: ['rasg', 'picado'], manouche: ['reststroke', 'pompe'], brazil: ['bossarh'], carnatic: ['konnakol'], hindustani: ['konnakol'], cuba: ['strskip'], westafrica: ['travis'], centraleast: ['altpick', 'tremolo'] }[rw.id] || [];
+  const regional = { flamenco: ['rasg', 'picado'], manouche: ['reststroke', 'pompe'], brazil: ['bossarh'], carnatic: ['konnakol'], hindustani: ['konnakol'], cuba: ['strskip'], westafrica: ['travis'], centraleast: ['altpick', 'tremolo'],
+    blues: ['bends'], rock: ['altpick', 'legato', 'bends'], funksoul: ['funkstrum'], country: ['hybrid', 'travis'], classical: ['pima'], fado: ['tremolo'], hawaii: ['travis'], persian: ['tremolo'] }[rw.id] || [];
   const ranked = D.EXERCISES.map(e => {
     const t = state.tech[e.id];
     const ratio = t && t.best ? t.best / e.target : 0;
@@ -603,7 +605,81 @@ function saveSong(setup) {
 }
 function deleteSong(id) { delete songsObj()[id]; scheduleSave(); emit(); }
 
+/* ---------- Custom routines ---------- */
+function routines() { if (!Array.isArray(state.routines)) state.routines = []; return state.routines; }
+function getRoutine(id) { return routines().find(r => r.id === id) || null; }
+function saveRoutine(r) {
+  r.updatedAt = Date.now();
+  const list = routines(), i = list.findIndex(x => x.id === r.id);
+  const copy = JSON.parse(JSON.stringify(r));
+  if (i >= 0) list[i] = copy; else list.push(copy);
+  scheduleSave(); emit();
+  return copy;
+}
+function deleteRoutine(id) {
+  state.routines = routines().filter(r => r.id !== id);
+  if (state.settings.activeRoutine === id) state.settings.activeRoutine = state.routines.length ? state.routines[0].id : 'smart';
+  scheduleSave(); emit();
+}
+function activeRoutineId() {
+  const id = state.settings.activeRoutine;
+  if (id === 'smart' || getRoutine(id)) return id;
+  return routines().length ? routines()[0].id : 'smart';
+}
+function setActiveRoutine(id) { state.settings.activeRoutine = id; scheduleSave(); emit(); }
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+/* ---------- Practice session (a routine being played through) ----------
+   Elapsed time is wall-clock while not paused, so it keeps counting while you play with the screen off. */
+function session() {
+  const s = state.session;
+  if (!s) return null;
+  if (Date.now() - (s.lastTick || s.started) > 12 * 3600 * 1000) { state.session = null; return null; }
+  return s;
+}
+function startSession(src) {
+  state.session = {
+    id: uid('s'), routineId: src.id || null, name: src.name, started: Date.now(), lastTick: Date.now(),
+    paused: false, idx: 0, autoAdvance: src.autoAdvance !== false,
+    blocks: src.blocks.map(b => Object.assign(JSON.parse(JSON.stringify(b)), { elapsed: 0, done: false, skipped: false }))
+  };
+  scheduleSave(); emit();
+  return state.session;
+}
+// Called often by the session ticker; saves without re-rendering pages.
+function touchSession() { if (state.session) { state.session.lastTick = Date.now(); scheduleSave(4000); } }
+function sessionChanged() { if (state.session) state.session.lastTick = Date.now(); scheduleSave(); emit(); }
+function endSession(note) {
+  const s = state.session; if (!s) return null;
+  const sec = Math.round(s.blocks.reduce((a, b) => a + (b.elapsed || 0), 0) / 1000);
+  const entry = { ts: Date.now(), date: dayKey(), name: s.name, sec, done: s.blocks.filter(b => b.done).length, total: s.blocks.length, note: (note || '').trim() };
+  if (!Array.isArray(state.journal)) state.journal = [];
+  if (sec >= 30 || entry.note) state.journal.unshift(entry);
+  if (state.journal.length > 300) state.journal.length = 300;
+  state.session = null;
+  scheduleSave(); emit();
+  return entry;
+}
+function journal() { return Array.isArray(state.journal) ? state.journal : []; }
+
+/* ---------- Lessons read and recordings heard ---------- */
+function lessonDone(id) { return !!(state.lessons && state.lessons[id]); }
+function setLessonDone(id, done) {
+  if (!state.lessons) state.lessons = {};
+  if (done) state.lessons[id] = Date.now(); else delete state.lessons[id];
+  scheduleSave(); emit();
+}
+function heard(key) { return !!(state.heard && state.heard[key]); }
+function setHeard(key, on) {
+  if (!state.heard) state.heard = {};
+  if (on) state.heard[key] = Date.now(); else delete state.heard[key];
+  scheduleSave(); emit();
+}
+
 export default {
+  routines, getRoutine, saveRoutine, deleteRoutine, activeRoutineId, setActiveRoutine, uid,
+  session, startSession, touchSession, sessionChanged, endSession, journal,
+  lessonDone, setLessonDone, heard, setHeard, techPick,
   listSongs, getSong, saveSong, deleteSong,
   SKILLS, CAT_NAMES, STRINGS, FOCUS, init, get state() { return state; }, onChange, emit,
   universe, unlocked, unlockedTier, pick, record, mastery, dueCount, daysSince, itemLabel,
