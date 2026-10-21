@@ -227,7 +227,7 @@ export function warmDetails(item) {
   starts.sort((a, b) => a - b);
   const start = s < 5 ? starts.find(x => x >= 0 && x <= 7) ?? starts[0] : starts[Math.floor(Math.random() * starts.length)];
   const bpm = Math.round((it && it.bpm) || (pattern === 'updown' ? 66 : 60));
-  return { scale: item.ref, tonic: key, pattern, start, bpm, smart: true };
+  return { scale: item.ref, tonic: key, pattern, start, bpm, smart: true, autoPos: s >= 10 };
 }
 
 /* ---------- planning a session ---------- */

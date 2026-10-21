@@ -30,7 +30,8 @@ function scaleOptions(list) {
   return [1, 2, 3, 4, 5].map(t => ({ group: ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5'][t - 1], items: list.filter(x => x.tier === t).map(x => ({ value: x.id, text: x.name })) })).filter(g => g.items.length);
 }
 
-/* Notes of a scale in one 5-fret position, low to high, no repeated pitches */
+/* Notes of a scale in one 5-fret position, low to high, no repeated pitches,
+   trimmed so they run from the lowest root to the highest root in the position */
 export function positionNotes(steps, tonicPc, start) {
   const pcs = steps.map(st => (tonicPc + st) % 12);
   const out = [];
@@ -42,7 +43,19 @@ export function positionNotes(steps, tonicPc, start) {
       out.push({ s: si, f, m, p, deg: steps[pcs.indexOf(p)] });
     }
   });
-  return out;
+  const first = out.findIndex(n => n.deg === 0), last = out.map(n => n.deg).lastIndexOf(0);
+  return first >= 0 && last > first ? out.slice(first, last + 1) : out;
+}
+/* Positions up the neck for a key: the root under the first finger on the 6th, 5th or 4th string,
+   or under the little finger on the 6th or 5th string (roughly the five CAGED shapes), frets 0–12 */
+export function rootPositions(tonicPc) {
+  const out = [];
+  [[40, 1], [45, 1], [50, 1], [40, 4], [45, 4]].forEach(([open, back]) => {
+    const f = ((tonicPc - open) % 12 + 12) % 12;
+    [f, f + 12].forEach(ff => { const st = ff - back; if (st >= 0 && st <= 8) out.push(st); });
+  });
+  if (!out.length) out.push(0);
+  return [...new Set(out)].sort((a, b) => a - b).filter((x, i, a) => i === 0 || x - a[i - 1] >= 2);
 }
 export function patternSeq(L, pattern) {
   const n = L.length, seq = [];
@@ -66,8 +79,10 @@ export function patternSeq(L, pattern) {
       break;
     default:
       for (let i = 0; i < n; i++) seq.push(L[i]);
-      for (let i = n - 2; i > 0; i--) seq.push(L[i]);
+      for (let i = n - 2; i >= 0; i--) seq.push(L[i]);
   }
+  // every pattern starts on the root and lands back on it
+  if (seq.length && seq[seq.length - 1] !== L[0] && L[0].deg === 0) seq.push(L[0]);
   return seq.length ? seq : L.slice();
 }
 
@@ -79,7 +94,8 @@ tool('scalewarm', {
     const saved = E.state.settings.warm || {};
     const st = {
       scale: p.scale || saved.scale || 'major', tonic: p.tonic ?? saved.tonic ?? 7, pattern: p.pattern || saved.pattern || 'updown',
-      sub: saved.sub || 2, guide: saved.guide !== false, climb: saved.climb !== false, start: null
+      sub: saved.sub || 2, guide: saved.guide !== false, climb: saved.climb !== false, start: null,
+      autoPos: p.autoPos ?? saved.autoPos ?? false, posEvery: saved.posEvery || 2
     };
     const bpmKey = () => st.scale + ':' + st.pattern;
     const bpms = E.state.settings.warmBpm || {};
@@ -120,8 +136,8 @@ tool('scalewarm', {
           const t = ev.t - Mic.latencyMs() / 1000;
           let near = steps[0];
           steps.forEach(x => { if (Math.abs(x.t - t) < Math.abs(near.t - t)) near = x; });
-          if (Math.abs(near.t - t) > 60 / bpm / st.sub * 0.6 || near.i >= seq.length) return;
-          const want = seq[near.i], got = Math.round(ev.midi), ok = got === want.m;
+          if (Math.abs(near.t - t) > 60 / bpm / st.sub * 0.6 || near.m === null) return;
+          const want = { m: near.m }, got = Math.round(ev.midi), ok = got === want.m;
           tries++; if (ok) hits++;
           report({ micAcc: hits / tries, micN: tries });
           paintHeard(noteLabel(ev.midi) + (ok ? ' ✓' : ' ✗ (wanted ' + noteLabel(want.m).split(' ')[0] + ')'));
@@ -131,7 +147,7 @@ tool('scalewarm', {
     card.append(mic.el, listenBox);
 
     const posSel = h('div');
-    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb }); }
+    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));
       bpmLbl.textContent = bpm;
@@ -150,48 +166,68 @@ tool('scalewarm', {
       seq = patternSeq(notes, st.pattern);
       const flats = keyPrefersFlats(st.tonic, sc.steps[2] === 3);
       fb.mark(notes.map(n => ({ s: n.s, f: n.f, kind: n.deg === 0 ? 'root' : 'tone', label: degreeLabel(n.deg) })));
-      info.textContent = spell(st.tonic, flats) + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4) + ' · ' + PATTERNS[st.pattern].toLowerCase() + ' · ' + seq.length + ' notes per round. ' +
-        'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.';
+      const ps = rootPositions(st.tonic), pi = ps.indexOf(st.start);
+      info.textContent = spell(st.tonic, flats) + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4) + (pi >= 0 ? ' (position ' + (pi + 1) + ' of ' + ps.length + ')' : '') + ' · ' + PATTERNS[st.pattern].toLowerCase() + ' · ' + seq.length + ' notes per round, root to root. ' +
+        'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.' + (st.autoPos ? ' The position moves every ' + st.posEvery + ' round' + (st.posEvery > 1 ? 's' : '') + '.' : '');
       const best = (E.state.settings.warmBest || {})[bpmKey()];
       roundLbl.textContent = best ? 'Best clean: ' + best + ' bpm' : '';
       renderCtl();
     }
-    function highlight(i) {
-      const n = seq[i]; if (!n) return;
-      fb.mark(notes.map(x => ({ s: x.s, f: x.f, kind: x === n ? 'good' : x.deg === 0 ? 'root' : 'tone', label: degreeLabel(x.deg) })));
+    function highlight(i, rs = seq, rn = notes) {
+      const n = rs[i]; if (!n) return;
+      fb.mark(rn.map(x => ({ s: x.s, f: x.f, kind: x === n ? 'good' : x.deg === 0 ? 'root' : 'tone', label: degreeLabel(x.deg) })));
       now.textContent = spell(n.p, keyPrefersFlats(st.tonic, scaleOf(st.scale).steps[2] === 3));
     }
-    let countTimers = [];
+    let countTimers = [], loops = [], posDir = 1;
     function start() {
-      A.ensure(); rounds = 0; steps.length = 0; lastStep = null;
-      const len = seq.length, beat = 60 / bpm;
-      // one bar of count-in, then the pattern loops (steps are subdivisions)
+      A.ensure(); rounds = 0; steps.length = 0; lastStep = null; posDir = 1;
+      const beat = 60 / bpm;
+      // one bar of count-in, then rounds of the pattern
       const t0 = A.now() + 0.1;
       for (let k = 0; k < 4; k++) {
         A.hit(k === 0 ? 'clickHi' : 'click', t0 + k * beat, 1);
         countTimers.push(setTimeout(() => { now.textContent = (k + 1) + '…'; }, Math.max(0, (t0 + k * beat - A.now() + A.latency()) * 1000)));
       }
-      loop = A.Loop({
-        steps: Math.ceil(len / st.sub) * st.sub,
-        stepDur: () => 60 / bpm / st.sub,
+      playRound(t0 + 4 * beat);
+      playBtn.textContent = '■ Stop'; ctx.setActive(true);
+    }
+    // One round of the pattern. Its last step schedules the next round exactly on time, so the tempo
+    // and the position can change between rounds without a gap.
+    function playRound(at) {
+      const rs = seq, rn = notes, len = rs.length, n = Math.ceil(len / st.sub) * st.sub, sd = 60 / bpm / st.sub;
+      const round = rounds, label = st.autoPos ? 'frets ' + st.start + '–' + (st.start + 4) : '';
+      const lp = A.Loop({
+        steps: n, maxSteps: n, stepDur: () => sd,
         onStep: (i, t) => {
           if (i % st.sub === 0) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8);
           // guide notes would confuse the mic, so they stay off while it listens
-          if (i < len && st.guide && !mic.on) A.note(seq[i].m, t, 0.32, 0.25);
-          lastStep = { t, i }; steps.push(lastStep); if (steps.length > 16) steps.shift();
+          if (i < len && st.guide && !mic.on) A.note(rs[i].m, t, 0.32, 0.25);
+          lastStep = { t, i, m: i < len ? rs[i].m : null }; steps.push(lastStep); if (steps.length > 16) steps.shift();
+          if (i === n - 1 && loop === lp) nextRound(t + sd);
         },
-        onVisual: (i, cycle) => {
-          if (i < len) highlight(i);
-          if (i === 0 && cycle > 0) {
-            rounds++;
-            if (st.climb && rounds % 2 === 0) { bpm = Math.min(260, bpm + 2); bpmLbl.textContent = bpm; }
-            roundLbl.textContent = 'Round ' + (rounds + 1);
-          }
+        onVisual: i => {
+          if (i < len) highlight(i, rs, rn);
+          if (i === 0) { bpmLbl.textContent = Math.round(60 / sd / st.sub); roundLbl.textContent = 'Round ' + (round + 1) + (label ? ' · ' + label : ''); }
         }
       });
-      loop.start(t0 + 4 * beat); playBtn.textContent = '■ Stop'; ctx.setActive(true);
+      loop = lp; loops.push(lp); if (loops.length > 3) loops.shift();
+      lp.start(at);
     }
-    function stop() { countTimers.forEach(clearTimeout); countTimers = []; if (loop) loop.stop(); loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
+    function nextRound(at) {
+      rounds++;
+      if (st.climb && rounds % 2 === 0) bpm = Math.min(260, bpm + 2);
+      if (st.autoPos && rounds % st.posEvery === 0) {
+        // climb the neck one position at a time, then come back down
+        const ps = rootPositions(st.tonic), i = ps.indexOf(st.start);
+        if (i < 0) st.start = ps[0];
+        else { if (i + posDir < 0 || i + posDir >= ps.length) posDir = -posDir; st.start = ps[Math.max(0, Math.min(ps.length - 1, i + posDir))]; }
+        const sc = scaleOf(st.scale);
+        notes = positionNotes(sc.steps, st.tonic, st.start);
+        seq = patternSeq(notes, st.pattern);
+      }
+      playRound(at);
+    }
+    function stop() { countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
     playBtn.onclick = () => (loop ? stop() : start());
 
     function renderCtl() {
@@ -206,10 +242,14 @@ tool('scalewarm', {
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.tonic, i => { st.tonic = i; restart(); })),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.guide ? true : null, onchange: e => { st.guide = e.target.checked; persist(); } }), 'Play the notes with me'),
-          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; persist(); } }), 'Speed up 2 bpm every 2 rounds')));
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; persist(); } }), 'Speed up 2 bpm every 2 rounds')),
+        h('div', { class: 'row' },
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.autoPos ? true : null, onchange: e => { st.autoPos = e.target.checked; persist(); build(); } }), 'Move up the neck to a new position every'),
+          (() => { const sel = h('select', { 'aria-label': 'Rounds per position' }); [1, 2, 4].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.posEvery ? true : null, text: v + (v === 1 ? ' round' : ' rounds') }))); sel.onchange = () => { st.posEvery = +sel.value; persist(); build(); }; return sel; })()),
+        h('p', { class: 'small muted', text: 'Positions follow the root on the 6th, 5th and 4th strings, so you cover the neck in a few rounds. Each round starts and ends on the root.' }));
     }
     build();
-    return () => { countTimers.forEach(clearTimeout); if (loop) loop.stop(); loop = null; meter.stop(); mic.cleanup(); };
+    return () => { countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
   }
 });
 
