@@ -2,10 +2,17 @@
 import D from './data.js';
 import { readingItems } from './content/reading.js';
 import { gymItems } from './content/gym.js';
+import { SCHEMA, migrate, merge, digest } from './sync.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
 const BOX_MS = [0, 10 * 60 * 1000, DAY, 3 * DAY, 7 * DAY, 21 * DAY, 45 * DAY];
+/* This install's id: practice time is kept per device so two devices' days add up when they sync.
+   Lives outside the synced state on purpose. */
+const DEV = (() => {
+  try { let d = localStorage.getItem('ww-device'); if (!d) { d = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); localStorage.setItem('ww-device', d); } return d; }
+  catch (e) { return 'd-local'; }
+})();
 
 /* ---------- Skill definitions ---------- */
 const SKILLS = {
@@ -86,8 +93,8 @@ function itemLabel(skill, id) { const it = universe(skill).find(x => x.id === id
 /* ---------- State ---------- */
 function freshState() {
   return {
-    v: 1, created: Date.now(), updatedAt: 0,
-    skills: {}, history: {}, anchors: {},
+    v: 1, schema: SCHEMA, created: Date.now(), updatedAt: 0,
+    skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
     tech: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
     routine: null, placementDone: false, songs: {},
@@ -110,7 +117,7 @@ let storageNote = 'Saved on this device';
 function loadLocal() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) state = Object.assign(freshState(), s); }
+    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) state = Object.assign(freshState(), migrate(s, DEV)); }
   } catch (e) { /* storage unavailable */ }
 }
 function saveLocal() {
@@ -143,24 +150,50 @@ async function loadIdb() {
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
     const s = json ? JSON.parse(json) : null;
-    if (s && s.v === 1 && (s.updatedAt || 0) > (state.updatedAt || 0)) {
-      state = Object.assign(freshState(), s);
-      try { localStorage.setItem(LS_KEY, json); } catch (e) { /* ignore */ }
-      emit();
-    }
+    if (s && s.v === 1) adopt(migrate(s, DEV), false);
   } catch (e) { /* IndexedDB unavailable */ }
 }
 
-/* ---------- Backup file: export and import ---------- */
-function exportBackup() {
-  return { app: 'world-woodshed', exportedAt: new Date().toISOString(), state };
+/* Fold another copy of the progress (IndexedDB, the cloud, a sync file) into this one.
+   Nothing practised on either side is lost; returns true when anything changed. */
+function adopt(other, save = true) {
+  const before = digest(state);
+  state = Object.assign(freshState(), merge(state, other));
+  const changed = digest(state) !== before;
+  if (changed) { saveLocal(); emit(); }
+  if (save && changed) scheduleSave(300);
+  return changed;
 }
-function importBackup(obj) {
+function tombstone(key) { if (!state.tomb) state.tomb = {}; state.tomb[key] = Date.now(); }
+
+/* ---------- Backup and sync file: export and import ---------- */
+function exportBackup() {
+  return { app: 'world-woodshed', exportedAt: new Date().toISOString(), device: DEV, schema: SCHEMA, state };
+}
+/* mode 'merge' (default) combines the file with this device's progress; 'replace' restores it as it was */
+function importBackup(obj, mode = 'merge') {
   const s = obj && obj.app === 'world-woodshed' ? obj.state : obj;
   if (!s || s.v !== 1 || typeof s.skills !== 'object') throw new Error('This file is not a World Woodshed backup');
-  state = Object.assign(freshState(), s);
-  scheduleSave(100);
-  emit();
+  const m = migrate(JSON.parse(JSON.stringify(s)), obj.device || 'file');
+  if (mode === 'replace') { state = Object.assign(freshState(), m); scheduleSave(100); emit(); return true; }
+  return adopt(m);
+}
+
+/* ---------- Cloud: the private database inside a claude.ai Artifact ----------
+   The state is stored in chunks (a document holds at most 256 KiB) under data/users/<id>/, written chunks first
+   and the index last, so a reader never sees half a save. Other devices' saves arrive live and are merged in. */
+const CHUNK = 180000;
+let cloudBase = '', cloudVer = '', unsubCloud = null, lastPulled = '';
+async function cloudRead() {
+  const snap = await docRef.get();
+  if (!snap.exists) return null;
+  const meta = snap.data();
+  if (typeof meta.json === 'string') return JSON.parse(meta.json); // the old single-document format
+  if (!meta.n) return null;
+  const parts = await Promise.all(Array.from({ length: meta.n }, (_, i) => db.doc(cloudBase + '/chunks/c' + i).get()));
+  if (parts.some(p => !p.exists || p.data().ver !== meta.ver)) return null; // another device is mid-save; its snapshot will come
+  lastPulled = meta.ver;
+  return JSON.parse(parts.map(p => p.data().part).join(''));
 }
 async function connectCloud() {
   try {
@@ -170,24 +203,21 @@ async function connectCloud() {
     const uid = await userNs.id();
     if (!uid) return;
     db = dbNs;
-    docRef = db.doc('data/users/' + uid + '/progress');
-    const snap = await docRef.get();
-    if (snap.exists) {
-      const body = snap.data();
-      let remote = null;
-      try { remote = JSON.parse(body.json); } catch (e) { remote = null; }
-      if (remote && remote.v === 1 && (remote.updatedAt || 0) > (state.updatedAt || 0)) {
-        state = Object.assign(freshState(), remote);
-        saveLocal();
-        emit();
-      } else if ((state.updatedAt || 0) > ((remote && remote.updatedAt) || 0)) {
-        scheduleSave(200);
-      }
-    } else if (state.updatedAt) {
-      scheduleSave(200);
-    }
+    cloudBase = 'data/users/' + uid;
+    docRef = db.doc(cloudBase + '/progress');
+    const remote = await cloudRead();
+    const changedHere = remote && remote.v === 1 ? adopt(migrate(remote, 'cloud'), false) : false;
+    // push if this device has anything the cloud copy lacks
+    if (!remote || changedHere || digest(state) !== digest(Object.assign(freshState(), migrate(remote, 'cloud')))) scheduleSave(200);
     storageNote = 'Synced to your account';
     emit();
+    if (unsubCloud) unsubCloud();
+    unsubCloud = docRef.onSnapshot(snap => {
+      if (!snap.exists) return;
+      const meta = snap.data();
+      if (!meta || meta.ver === cloudVer || meta.ver === lastPulled || meta.dev === DEV) return;
+      cloudRead().then(r => { if (r && r.v === 1) adopt(migrate(r, 'cloud'), false); }).catch(() => {});
+    }, () => {});
   } catch (e) {
     docRef = null;
   }
@@ -204,7 +234,10 @@ async function flush() {
   if (saving) { pendingSave = true; return; }
   saving = true;
   try {
-    await docRef.set({ json: JSON.stringify(state), updatedAt: state.updatedAt });
+    const json = JSON.stringify(state), n = Math.max(1, Math.ceil(json.length / CHUNK)), ver = uid('v');
+    for (let i = 0; i < n; i++) await db.doc(cloudBase + '/chunks/c' + i).set({ ver, i, part: json.slice(i * CHUNK, (i + 1) * CHUNK) });
+    cloudVer = ver;
+    await docRef.set({ ver, n, dev: DEV, schema: SCHEMA, updatedAt: state.updatedAt });
     storageNote = 'Synced to your account';
   } catch (e) {
     if (e && e.code === 'unavailable') { setTimeout(flush, 1500 + Math.random() * 1000); }
@@ -225,16 +258,29 @@ function today() {
   if (!state.history[k]) state.history[k] = { sec: 0, q: 0, c: 0, by: {} };
   return state.history[k];
 }
+/* this device's own record of today (the totals above add up every device's) */
+function todayDev() {
+  const k = dayKey();
+  if (!state.hdev) state.hdev = {};
+  const d = state.hdev[DEV] || (state.hdev[DEV] = {});
+  if (!d[k]) d[k] = { sec: 0, q: 0, c: 0, by: {} };
+  return d[k];
+}
+function bump(rec, skill, q, c, sec) {
+  rec.q += q; rec.c += c; rec.sec += sec;
+  if (skill) { const b = rec.by[skill] || (rec.by[skill] = [0, 0, 0]); b[0] += q; b[1] += c; b[2] = (b[2] || 0) + sec; }
+}
 function addTime(sec, skill) {
   if (!(sec > 0)) return;
-  const h = today();
-  h.sec += Math.min(sec, 600);
-  if (skill) { h.by[skill] = h.by[skill] || [0, 0, 0]; h.by[skill][2] = (h.by[skill][2] || 0) + Math.min(sec, 600); }
+  const add = Math.min(sec, 600);
+  bump(today(), skill, 0, 0, add); bump(todayDev(), skill, 0, 0, add);
   scheduleSave();
 }
 function pruneHistory() {
   const keys = Object.keys(state.history).sort();
   while (keys.length > 180) delete state.history[keys.shift()];
+  const oldest = keys[0];
+  Object.values(state.hdev || {}).forEach(d => Object.keys(d).forEach(k => { if (k < oldest) delete d[k]; }));
 }
 
 /* ---------- Recording results ---------- */
@@ -254,9 +300,7 @@ function record(skill, itemId, correct, opts = {}) {
   }
   ss.last = Date.now();
   const h = today();
-  h.q++; if (correct) h.c++;
-  h.by[skill] = h.by[skill] || [0, 0, 0];
-  h.by[skill][0]++; if (correct) h.by[skill][1]++;
+  bump(h, skill, 1, correct ? 1 : 0, 0); bump(todayDev(), skill, 1, correct ? 1 : 0, 0);
   h.mastery = h.mastery || {};
   h.mastery[skill] = Math.round(mastery(skill));
   pruneHistory();
@@ -613,7 +657,7 @@ function saveSong(setup) {
   while (ids.length > 150) delete state.songs[ids.pop()];
   scheduleSave();
 }
-function deleteSong(id) { delete songsObj()[id]; scheduleSave(); emit(); }
+function deleteSong(id) { delete songsObj()[id]; tombstone('song:' + id); scheduleSave(); emit(); }
 
 /* ---------- Custom routines ---------- */
 function routines() { if (!Array.isArray(state.routines)) state.routines = []; return state.routines; }
@@ -628,6 +672,7 @@ function saveRoutine(r) {
 }
 function deleteRoutine(id) {
   state.routines = routines().filter(r => r.id !== id);
+  tombstone('routine:' + id);
   if (state.settings.activeRoutine === id) state.settings.activeRoutine = state.routines.length ? state.routines[0].id : 'smart';
   scheduleSave(); emit();
 }
@@ -696,5 +741,5 @@ export default {
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
   techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, resetAll, exportBackup, importBackup,
-  storageNote: () => storageNote, skillState, dayKey
+  storageNote: () => storageNote, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };
