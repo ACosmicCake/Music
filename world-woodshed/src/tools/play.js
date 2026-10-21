@@ -2,8 +2,9 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
-import { SOUND_FOR, TapPad } from './rhythm.js';
+import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
+import { Band } from '../band.js';
 import { techniquePage } from './learn.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
@@ -164,8 +165,8 @@ tool('repertoire', {
     const listCard = h('div', { class: 'section' });
     const tuneCard = h('div', { class: 'section' });
     body.append(listCard, tuneCard);
-    let loop = null, drillCleanup = null;
-    function stopLoop() { if (loop) loop.stop(); loop = null; ctx.setActive(false); }
+    let band = null, drillCleanup = null, stopTune = null;
+    function stopLoop() { if (band) { band.stop(); if (stopTune) stopTune(); } band = null; ctx.setActive(false); }
     function showList() {
       stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
       tuneCard.innerHTML = ''; listCard.innerHTML = '';
@@ -182,16 +183,35 @@ tool('repertoire', {
     function openTune(t) {
       tune = t; listCard.innerHTML = ''; tuneCard.innerHTML = '';
       const g = D.GROOVES[t.groove];
+      const engine = t.groove === 'swing' ? 'swing' : t.groove === 'bossa' ? 'bossa' : 'pattern';
       let bpm = t.bpm, blind = false;
       const bars = t.bars.map(b => b.split(' ').map(parseChord));
+      const pref = Object.assign({ who: 'full', comp: 'piano', feel: 'walk', countIn: true }, E.state.settings.band || {});
+      const savePref = patch => { Object.assign(pref, patch); E.setSetting('band', Object.assign({}, pref)); };
+      const WHO = { full: ['Full band', { drums: true, comp: true, bass: true }], bd: ['Bass & drums', { drums: true, comp: false, bass: true }], bp: ['Bass & ' + (pref.comp === 'guitar' ? 'guitar' : 'piano'), { drums: false, comp: true, bass: true }], bass: ['Just bass', { drums: false, comp: false, bass: true }] };
+      // form sections: [label, bars]; one unlabeled section when the tune has none
+      const form = t.form || [['', bars.length]];
+      const sectionOf = bi => { let n = 0; for (const [lbl, len] of form) { if (bi < n + len) return lbl; n += len; } return ''; };
       const back = h('button', { class: 'btn ghost small', onclick: showList }, '← All tunes');
-      const chartEl = h('div', { class: 'cchart' });
+      const chartEl = h('div', { class: 'cform' });
       const barEls = [];
+      let check = false, checks = 0, right = 0, askAt = -1, curBar = 0;
       function drawChart() {
         chartEl.innerHTML = ''; barEls.length = 0;
-        bars.forEach(b => { const el = h('div', { class: 'cbar' }, b.map(c => blind ? h('span', { class: 'blind', text: '?' }) : h('span', { text: prettySym(c.sym) }))); chartEl.append(el); barEls.push(el); });
+        let bi = 0;
+        form.forEach(([lbl, len]) => {
+          const grid = h('div', { class: 'cchart' });
+          for (let k = 0; k < len && bi < bars.length; k++, bi++) {
+            const b = bars[bi], idx = bi;
+            const el = h('div', { class: 'cbar', onclick: ev => guess(idx, ev) }, b.map(c => blind ? h('span', { class: 'blind', text: '?' }) : h('span', { text: prettySym(c.sym) })));
+            grid.append(el); barEls.push(el);
+          }
+          chartEl.append(lbl ? h('div', { class: 'csection' }, h('span', { class: 'csec', text: lbl }), grid) : grid);
+        });
+        chartEl.classList.toggle('checking', check);
       }
       const nowLbl = h('div', { class: 'prompt' });
+      const where = h('p', { class: 'mono small muted', text: (t.form ? 'Form ' + t.form.map(f => f[0].replace(/\d/, '')).join('') + ' · ' : '') + bars.length + ' bars' });
       const legend = h('p', { class: 'small muted' });
       const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.2) });
       const tempo = h('input', { type: 'range', min: 50, max: 300, value: bpm, id: 'tune-tempo', 'aria-label': 'Tempo' });
@@ -200,72 +220,85 @@ tool('repertoire', {
       const blindBtn = h('button', { class: 'btn small', 'aria-pressed': 'false' }, 'Hide chord names');
       const drillBtn = h('button', { class: 'btn brass' }, 'Drill guide tones');
       const drillHolder = h('div');
+      const seg = (opts, cur, on) => h('div', { class: 'seg' }, opts.map(([k, lbl]) => h('button', { 'aria-pressed': k === cur ? 'true' : 'false', onclick: e => { [...e.target.parentNode.children].forEach(b => b.setAttribute('aria-pressed', String(b === e.target))); on(k); } }, lbl)));
+      const whoSeg = seg(Object.entries(WHO).map(([k, v]) => [k, v[0]]), pref.who, k => { savePref({ who: k }); if (band) band.set({ parts: WHO[k][1] }); });
+      const compSeg = engine === 'pattern' ? null : seg([['piano', 'Piano'], ['guitar', 'Guitar']], pref.comp, k => { savePref({ comp: k }); whoSeg.children[2].textContent = 'Bass & ' + (k === 'guitar' ? 'guitar' : 'piano'); if (band) band.set({ comp: k }); });
+      const feelSeg = engine === 'swing' ? seg([['walk', 'Walking'], ['two', 'Two-feel']], pref.feel, k => { savePref({ feel: k }); if (band) band.set({ feel: k }); }) : null;
+      const tally = h('span', { class: 'small mono' });
+      const checkBox = h('input', { type: 'checkbox', onchange: e => { check = e.target.checked; checks = 0; right = 0; tally.textContent = ''; askAt = -1; drawChart(); if (band) highlight(curBar); showChord(check ? null : bars[curBar][0]); } });
+      const band_ = h('div', { class: 'bandbox' },
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Who plays' }), whoSeg),
+        compSeg ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Comping' }), compSeg) : null,
+        feelSeg ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Bass' }), feelSeg) : null,
+        h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: pref.countIn ? true : null, onchange: e => savePref({ countIn: e.target.checked }) }), 'Two-bar count-in'));
+      const checkCard = h('div', { class: 'callout patina formcheck' },
+        h('label', { class: 'check' }, checkBox, h('b', { text: 'Follow the form by ear' })),
+        h('p', { class: 'small', text: 'The bar marker and chord readout go dark. Keep your place by listening, best with just the bass. When asked, or whenever you like, tap the bar the band is in. Play over it at the same time if you can: soloing without losing the form is the skill.' }),
+        tally);
       const card = h('div', { class: 'card' },
         h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: g.name })),
         h('h2', { text: t.name }), h('p', { class: 'small muted', text: t.note }),
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
-        nowLbl, fb.el, legend, chartEl);
+        band_, checkCard,
+        h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl);
       tuneCard.append(card, drillHolder);
       function showChord(c) {
-        if (!c) return;
+        if (!c) { nowLbl.textContent = check ? 'Listen…' : ''; fb.clear(); legend.textContent = ''; return; }
         nowLbl.textContent = blind ? 'Listen: what is this chord?' : prettySym(c.sym);
         const tones = [{ p: c.root, kind: 'root' }, { p: (c.root + c.third) % 12, kind: 'g3' }, { p: (c.root + (c.seventh !== null ? c.seventh : c.fifth)) % 12, kind: 'g7' }];
         if (blind) { fb.clear(); return; }
         fb.mark(positionsOfPc(tones.map(x => x.p)).map(m => Object.assign(m, { kind: tones.find(x => x.p === m.p).kind, label: m.p === c.root ? 'R' : m.p === (c.root + c.third) % 12 ? '3' : (c.seventh !== null ? c.label7 : '5') })));
         legend.textContent = 'Gold R = root · filled 3 = third · outlined ' + (c.seventh !== null ? c.label7 : '5') + ' = ' + (c.seventh !== null ? 'seventh' : 'fifth') + '. Connect the 3rds and 7ths by the nearest step.';
       }
+      function highlight(bi) { barEls.forEach((el, k) => el.classList.toggle('now', !check && k === bi)); }
       drawChart(); showChord(bars[0][0]);
-      function chordAt(bi, step) { const b = bars[bi]; return b.length === 1 ? b[0] : b[step < g.steps / 2 ? 0 : 1]; }
-      function voicing(c) {
-        let r = 43 + c.root; if (r > 50) r -= 12;
-        // shell voicing: root, 7th, 3rd above (or a triad when there is no 7th)
-        return c.seventh !== null ? [r, r + c.seventh, r + c.third + 12] : [r, r + c.fifth, r + 12, r + c.third + 12];
+      function flash(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 1100); }
+      function guess(bi, ev) {
+        if (!check || !band) return;
+        const at = band.barAt(A.eventToAudioTime(ev));
+        if (!at) return;
+        const into = (A.eventToAudioTime(ev) - at.t) / band.beatDur();
+        const prevBar = (at.bi - 1 + bars.length) % bars.length;
+        const ok = bi === at.bi || (bi === prevBar && into < 0.6);
+        checks++; if (ok) right++;
+        E.record('repertoire', t.id, ok);
+        flash(barEls[bi], ok ? 'right' : 'wrong');
+        if (!ok) flash(barEls[at.bi], 'truth');
+        const sec = sectionOf(at.bi);
+        nowLbl.textContent = ok ? '✓ Bar ' + (at.bi + 1) + (sec ? ' · ' + sec : '') : 'The band is in bar ' + (at.bi + 1) + (sec ? ' (' + sec + ')' : '') + '. Find your place.';
+        tally.textContent = 'Form check: ' + right + ' of ' + checks;
+        askAt = -1;
       }
-      function bassNote(c, kind, nextC, beat) {
-        let r = 33 + c.root; if (r > 40) r -= 12;
-        if (kind === 'r') return r;
-        if (kind === '5') return r + c.fifth;
-        if (kind === '3') return r + c.third;
-        if (kind === '6') return r + 9;
-        if (kind === '7') return r + 10;
-        if (kind === '8') return r + 12;
-        // walking: beat 0 root, 1 third, 2 fifth, 3 approach to next root
-        if (beat === 0) return r;
-        if (beat === 1) return r + c.third;
-        if (beat === 2) return r + c.fifth;
-        let nr = 33 + nextC.root; if (nr > 40) nr -= 12;
-        return nr + (Math.random() < 0.5 ? 1 : -1);
+      function report() {
+        if (checks >= 3 && hooks.signal) hooks.signal('tune:' + t.id, { score: right / checks });
       }
-      const sdur = () => 60 / bpm / g.spb;
       function play() {
-        A.ensure();
-        const total = g.steps * bars.length;
-        let lastChord = null;
-        loop = A.Loop({
-          steps: total, stepDur: sdur,
-          onStep: (i, tt) => {
-            const bi = Math.floor(i / g.steps), st = i % g.steps;
-            const c = chordAt(bi, st);
-            Object.entries(g.perc).forEach(([name, pat]) => { if (pat[st] !== '.') A.hit(SOUND_FOR[name], tt, pat[st] === 'X' ? 0.9 : 0.55); });
-            if (g.comp[st] !== '.') A.strum(voicing(c), tt, g.comp[st] === 'X' ? 0.6 : 0.42, 0.012, t.groove === 'funk' ? 0.1 : ['pompe', 'reggae', 'boomchick', 'shuffle'].includes(t.groove) ? 0.18 : ['swing', 'rock', 'fado'].includes(t.groove) ? 0.35 : 0.6);
-            if (g.bass === 'walk') { if (st % g.spb === 0) { const nb = bars[(bi + (st / g.spb === 3 ? 1 : 0)) % bars.length]; const nextC = st / g.spb === 3 ? nb[0] : c; A.note(bassNote(c, 'walk', nextC, st / g.spb), tt, 0.75, 0.55); } }
-            else if (g.bass[st] !== '.') A.note(bassNote(c, g.bass[st]), tt, 0.75, 0.6);
-          },
-          onVisual: i => {
-            const bi = Math.floor(i / g.steps), st = i % g.steps;
-            const c = chordAt(bi, st);
-            if (st === 0 || (bars[bi].length > 1 && st === g.steps / 2)) {
-              barEls.forEach((el, k) => el.classList.toggle('now', k === bi));
-              if (c !== lastChord) { showChord(c); lastChord = c; }
+        band = Band({
+          bars, groove: g, grooveId: t.groove, bpm: () => bpm, parts: WHO[pref.who][1], comp: pref.comp, feel: pref.feel, countIn: pref.countIn,
+          onCount: n => { nowLbl.textContent = n; },
+          onBeat: ({ bar: bi, beat, chorus, chord }) => {
+            if (beat === 0) {
+              curBar = bi;
+              highlight(bi);
+              const sec = sectionOf(bi);
+              where.textContent = 'Chorus ' + (chorus + 1) + ' · ' + (check ? '?' : 'bar ' + (bi + 1)) + ' / ' + bars.length + (sec && !check ? ' · ' + sec : '');
+              if (check) {
+                if (askAt < 0 && chorus + bi > 0 && Math.random() < 0.18) { askAt = bi; nowLbl.textContent = 'Where are we? Tap the bar.'; }
+                else if (askAt >= 0 && bi !== askAt && (bi - askAt + bars.length) % bars.length > 2) { askAt = -1; nowLbl.textContent = 'Listen…'; }
+              }
             }
+            if (!check && (beat === 0 || chord !== lastChord)) { if (chord !== lastChord) showChord(chord); lastChord = chord; }
           }
         });
-        loop.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true); ctx.timeSkill = 'repertoire';
+        let lastChord = null;
+        band.start();
+        playBtn.textContent = '■ Stop'; ctx.setActive(true); ctx.timeSkill = 'repertoire';
       }
-      playBtn.onclick = () => { if (loop) { stopLoop(); playBtn.textContent = '▶ Play changes'; } else play(); };
+      stopTune = () => { report(); checks = 0; right = 0; };
+      playBtn.onclick = () => { if (band) { stopLoop(); playBtn.textContent = '▶ Play changes'; } else play(); };
       tempo.oninput = () => { bpm = +tempo.value; tempoLbl.textContent = bpm + ' bpm'; };
-      blindBtn.onclick = () => { blind = !blind; blindBtn.setAttribute('aria-pressed', String(blind)); blindBtn.textContent = blind ? 'Show chord names' : 'Hide chord names'; drawChart(); showChord(bars[0][0]); };
+      blindBtn.onclick = () => { blind = !blind; blindBtn.setAttribute('aria-pressed', String(blind)); blindBtn.textContent = blind ? 'Show chord names' : 'Hide chord names'; drawChart(); highlight(curBar); showChord(check ? null : bars[curBar][0]); };
       drillBtn.onclick = () => { if (drillCleanup) drillCleanup(); drillHolder.innerHTML = ''; drillCleanup = drill(drillHolder, t, bars); drillHolder.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
     }
     function drill(holder, t, bars) {
