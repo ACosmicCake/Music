@@ -5,6 +5,7 @@
    Parts mix on a small bus with a room reverb, so any of them can be muted, e.g. bass alone. */
 import A from './audio.js';
 import Samples from './samples.js';
+import { prepare } from './drumkit.js';
 
 const pcOf = m => ((m % 12) + 12) % 12;
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -464,6 +465,7 @@ export function Band(o) {
   function start() {
     getBus();
     Samples.load('upright'); Samples.load('piano'); // the first bars may still use the synth
+    prepare(['hat'].concat(Object.keys(g.perc || {})));
     if (!rideBuf) { rideBuf = buildRide(bus.ctx); chickBuf = buildChick(bus.ctx); }
     clearTimeout(stopTimer);
     live.forEach(n => { try { n.stop(); } catch (e) { /* already stopped */ } }); live.clear();

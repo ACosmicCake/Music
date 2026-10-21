@@ -124,10 +124,15 @@ function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
   o.start(when); o.stop(when + decay + 0.05); track(o);
 }
 
-/* Percussion voices */
-function hit(type, when, vel = 0.8, out) {
+/* Percussion voices. A recorded kit (src/drumkit.js) can take over a hit; it returns false while its
+   samples load, or for sounds it has no recording of, and the synth voice below plays instead.
+   o: { kit: which recorded instruments play low, mid and high (see drumkit.js), synth: true to skip them } */
+let hitSampler = null;
+function setHitSampler(fn) { hitSampler = fn; }
+function hit(type, when, vel = 0.8, out, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
+  if (hitSampler && !o.synth && hitSampler(type, when, vel, out, o)) return;
   switch (type) {
     case 'low': toneHit(when, 0.95 * vel, 'sine', 140, 52, 0.42, 0.12, out); break;
     case 'mid': toneHit(when, 0.6 * vel, 'sine', 260, 200, 0.22, undefined, out); noiseHit(when, 0.08 * vel, 'bandpass', 900, 1, 0.05, out); break;
@@ -238,4 +243,4 @@ function eventToAudioTime(ev) {
   return ctx.currentTime - ageMs / 1000 - latency();
 }
 
-export default { out: () => master, ensure, now, latency, mtof, note, strum, strumPlan, hit, tone, Loop, Drone, stopAll, eventToAudioTime };
+export default { out: () => master, ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, tone, Loop, Drone, stopAll, eventToAudioTime };

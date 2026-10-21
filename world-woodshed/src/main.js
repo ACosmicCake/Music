@@ -10,6 +10,7 @@ import './styles.css';
 
 import E from './engine.js';
 import Cur from './curriculum.js';
+import './drumkit.js';
 import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl, applyDisplay, watchErrors } from './ui/core.js';
 import './tools/ear.js';
 import './tools/dictation.js';

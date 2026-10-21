@@ -1,5 +1,6 @@
 import D from '../data.js';
 import A from '../audio.js';
+import { kitFor, prepare } from '../drumkit.js';
 import E from '../engine.js';
 import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz, hooks } from '../ui/core.js';
 import Mic from '../listen.js';
@@ -23,6 +24,7 @@ function beatSteps(r) {
   const out = []; for (let i = 0; i < r.steps; i += r.spb) out.push(i); return out;
 }
 export function RhythmGrid(r) {
+  prepare(Object.keys(r.tracks).map(n => SOUND_FOR[n] || 'mid').concat('hat'), kitFor(r.region), r.region); // its drums (and the hi-hat that marks the subdivisions) load before it plays
   const wrap = h('div', { class: 'rgrid-wrap' });
   const grid = h('div', { class: 'rgrid' });
   const cols = `56px repeat(${r.steps}, minmax(12px, 1fr))`;
@@ -68,10 +70,11 @@ export function RhythmGrid(r) {
   };
 }
 export function playRhythmStep(r, i, t, mute) {
+  const o = { kit: kitFor(r.region), region: r.region };
   Object.entries(r.tracks).forEach(([name, pat]) => {
     if (mute && mute.has(name)) return;
     const ch = pat[i];
-    if (ch !== '.') A.hit(SOUND_FOR[name] || 'mid', t, ch === 'X' ? 1 : 0.7);
+    if (ch !== '.') A.hit(SOUND_FOR[name] || 'mid', t, ch === 'X' ? 1 : 0.7, undefined, o);
   });
 }
 

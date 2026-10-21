@@ -15,7 +15,7 @@ export const SAMPLE_SOURCES = {
     "licence": "CC0-1.0",
     "url": "https://github.com/sgossner/VCSL",
     "commit": "c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e",
-    "note": "Grand Piano, Steinway B (close mics, no sustain pedal)."
+    "note": "Grand Piano, Steinway B (close mics, no sustain pedal) and the percussion listed in LICENSES.md."
   }
 };
 
@@ -185,6 +185,166 @@ export const SAMPLE_SETS = {
       ["96-0-0.mp3",96,0,0,30829],
       ["96-1-0.mp3",96,1,0,17963],
       ["96-2-0.mp3",96,2,0,15572]
+    ]
+  }),
+  kick: Object.assign({"name":"Bass drum","source":"vcsl","gain":1,"release":0.05,"layers":3,"layerGain":null,"bytes":30293}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,4546],
+      ["60-0-1.mp3",60,0,1,4389],
+      ["60-1-0.mp3",60,1,0,5092],
+      ["60-1-1.mp3",60,1,1,4988],
+      ["60-2-0.mp3",60,2,0,5691],
+      ["60-2-1.mp3",60,2,1,5587]
+    ]
+  }),
+  snare: Object.assign({"name":"Snare drum","source":"vcsl","gain":0.124,"release":0.05,"layers":3,"layerGain":null,"bytes":30327}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,4863],
+      ["60-0-1.mp3",60,0,1,4915],
+      ["60-1-0.mp3",60,1,0,5124],
+      ["60-1-1.mp3",60,1,1,5098],
+      ["60-2-0.mp3",60,2,0,5151],
+      ["60-2-1.mp3",60,2,1,5176]
+    ]
+  }),
+  tom: Object.assign({"name":"Tom","source":"vcsl","gain":1.22,"release":0.05,"layers":3,"layerGain":null,"bytes":28240}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,4208],
+      ["60-0-1.mp3",60,0,1,4234],
+      ["60-1-0.mp3",60,1,0,4702],
+      ["60-1-1.mp3",60,1,1,4676],
+      ["60-2-0.mp3",60,2,0,5197],
+      ["60-2-1.mp3",60,2,1,5223]
+    ]
+  }),
+  hat: Object.assign({"name":"Hi-hat","source":"vcsl","gain":0.174,"release":0.05,"layers":3,"layerGain":null,"bytes":22637}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3484],
+      ["60-0-1.mp3",60,0,1,3564],
+      ["60-1-0.mp3",60,1,0,3799],
+      ["60-1-1.mp3",60,1,1,3798],
+      ["60-2-0.mp3",60,2,0,3957],
+      ["60-2-1.mp3",60,2,1,4035]
+    ]
+  }),
+  ride: Object.assign({"name":"Ride cymbal","source":"vcsl","gain":1.15,"release":0.05,"layers":3,"layerGain":null,"bytes":36973}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,11697],
+      ["60-1-0.mp3",60,1,0,12194],
+      ["60-2-0.mp3",60,2,0,13082]
+    ]
+  }),
+  clave: Object.assign({"name":"Claves","source":"vcsl","gain":3.6,"release":0.05,"layers":3,"layerGain":null,"bytes":8101}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,2309],
+      ["60-1-0.mp3",60,1,0,2622],
+      ["60-2-0.mp3",60,2,0,3170]
+    ]
+  }),
+  cowbell: Object.assign({"name":"Cowbell","source":"vcsl","gain":1,"release":0.05,"layers":3,"layerGain":null,"bytes":11407}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3611],
+      ["60-1-0.mp3",60,1,0,3820],
+      ["60-2-0.mp3",60,2,0,3976]
+    ]
+  }),
+  agogo: Object.assign({"name":"Agogô bell","source":"vcsl","gain":4.5,"release":0.05,"layers":3,"layerGain":null,"bytes":12145}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3613],
+      ["60-1-0.mp3",60,1,0,4267],
+      ["60-2-0.mp3",60,2,0,4265]
+    ]
+  }),
+  shaker: Object.assign({"name":"Shaker","source":"vcsl","gain":1.57,"release":0.05,"layers":1,"layerGain":null,"bytes":6298}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3618],
+      ["60-0-1.mp3",60,0,1,2680]
+    ]
+  }),
+  clap: Object.assign({"name":"Hand clap","source":"vcsl","gain":0.153,"release":0.05,"layers":1,"layerGain":null,"bytes":24148}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,4007],
+      ["60-0-1.mp3",60,0,1,3955],
+      ["60-0-2.mp3",60,0,2,3746],
+      ["60-0-3.mp3",60,0,3,4269],
+      ["60-0-4.mp3",60,0,4,4085],
+      ["60-0-5.mp3",60,0,5,4086]
+    ]
+  }),
+  wood: Object.assign({"name":"Woodblock (metronome)","source":"vcsl","gain":0.65,"release":0.05,"layers":3,"layerGain":null,"bytes":13135}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,1841],
+      ["60-0-1.mp3",60,0,1,1815],
+      ["60-0-2.mp3",60,0,2,2128],
+      ["60-1-0.mp3",60,1,0,1998],
+      ["60-2-0.mp3",60,2,0,2650],
+      ["60-2-1.mp3",60,2,1,2703]
+    ]
+  }),
+  "conga-low": Object.assign({"name":"Tumba (low conga)","source":"vcsl","gain":6.1,"release":0.05,"layers":3,"layerGain":null,"bytes":23795}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3662],
+      ["60-0-1.mp3",60,0,1,3688],
+      ["60-1-0.mp3",60,1,0,3870],
+      ["60-1-1.mp3",60,1,1,3949],
+      ["60-2-0.mp3",60,2,0,4131],
+      ["60-2-1.mp3",60,2,1,4495]
+    ]
+  }),
+  "conga-mid": Object.assign({"name":"Conga","source":"vcsl","gain":2,"release":0.05,"layers":3,"layerGain":null,"bytes":22909}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3479],
+      ["60-0-1.mp3",60,0,1,3453],
+      ["60-1-0.mp3",60,1,0,3870],
+      ["60-1-1.mp3",60,1,1,3949],
+      ["60-2-0.mp3",60,2,0,3975],
+      ["60-2-1.mp3",60,2,1,4183]
+    ]
+  }),
+  "conga-high": Object.assign({"name":"Quinto (high conga)","source":"vcsl","gain":0.275,"release":0.05,"layers":3,"layerGain":null,"bytes":22107}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3298],
+      ["60-0-1.mp3",60,0,1,3429],
+      ["60-1-0.mp3",60,1,0,3611],
+      ["60-1-1.mp3",60,1,1,3689],
+      ["60-2-0.mp3",60,2,0,4131],
+      ["60-2-1.mp3",60,2,1,3949]
+    ]
+  }),
+  "darbuka-doum": Object.assign({"name":"Darbuka doum","source":"vcsl","gain":0.62,"release":0.05,"layers":2,"layerGain":null,"bytes":20843}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,4964],
+      ["60-0-1.mp3",60,0,1,4885],
+      ["60-1-0.mp3",60,1,0,5615],
+      ["60-1-1.mp3",60,1,1,5379]
+    ]
+  }),
+  "darbuka-tek": Object.assign({"name":"Darbuka tek","source":"vcsl","gain":0.34,"release":0.05,"layers":2,"layerGain":null,"bytes":11897}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,2883],
+      ["60-0-1.mp3",60,0,1,2909],
+      ["60-1-0.mp3",60,1,0,3039],
+      ["60-1-1.mp3",60,1,1,3066]
+    ]
+  }),
+  "cajon-bass": Object.assign({"name":"Cajón bass","source":"vcsl","gain":1.06,"release":0.05,"layers":3,"layerGain":null,"bytes":23090}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3429],
+      ["60-0-1.mp3",60,0,1,3587],
+      ["60-1-0.mp3",60,1,0,3770],
+      ["60-1-1.mp3",60,1,1,3901],
+      ["60-2-0.mp3",60,2,0,4110],
+      ["60-2-1.mp3",60,2,1,4293]
+    ]
+  }),
+  "cajon-slap": Object.assign({"name":"Cajón slap","source":"vcsl","gain":0.66,"release":0.05,"layers":3,"layerGain":null,"bytes":22366}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3484],
+      ["60-0-1.mp3",60,0,1,3484],
+      ["60-1-0.mp3",60,1,0,3536],
+      ["60-1-1.mp3",60,1,1,3641],
+      ["60-2-0.mp3",60,2,0,4398],
+      ["60-2-1.mp3",60,2,1,3823]
     ]
   })
 };

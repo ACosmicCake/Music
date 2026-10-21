@@ -61,6 +61,6 @@ writeFileSync(join(ROOT, 'src', 'content', 'samples.js'),
   'export const SAMPLE_SOURCES = ' + JSON.stringify(used, null, 2) + ';\n\n' +
   'export const SAMPLE_SETS = {\n' + Object.entries(sets).map(([id, s]) => {
     const { files, ...meta } = s;
-    return `  ${id}: Object.assign(${JSON.stringify(meta)}, {\n    files: [\n${files.map(f => '      ' + JSON.stringify(f)).join(',\n')}\n    ]\n  })`;
+    return `  ${/^[a-z_]\w*$/i.test(id) ? id : JSON.stringify(id)}: Object.assign(${JSON.stringify(meta)}, {\n    files: [\n${files.map(f => '      ' + JSON.stringify(f)).join(',\n')}\n    ]\n  })`;
   }).join(',\n') + '\n};\n');
 console.log('manifest:', Object.entries(sets).map(([id, s]) => `${id} ${(s.bytes / 1e6).toFixed(2)} MB`).join(', '));

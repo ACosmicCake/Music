@@ -21,7 +21,7 @@ export const SOURCES = {
     licence: 'CC0-1.0',
     url: 'https://github.com/sgossner/VCSL',
     commit: 'c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e',
-    note: 'Grand Piano, Steinway B (close mics, no sustain pedal).'
+    note: 'Grand Piano, Steinway B (close mics, no sustain pedal) and the percussion listed in LICENSES.md.'
   }
 };
 
@@ -46,5 +46,53 @@ export const INSTRUMENTS = [
       }
       return out;
     })()
-  }
+  },
+
+  /* Percussion, all VCSL: one sound per instrument, recorded at its own pitch, so every file is "MIDI 60"
+     (the app shifts pitch only for the metronome's accented click). The recordings keep their natural
+     levels, so no layer gain is needed; gain matches each sound's loudness to the synth voice it replaces. layers: the file for each dynamic, soft to loud, each with its
+     round-robins (rr). oneLayer: why a sound has a single dynamic. */
+  ...[
+    { id: 'kick', name: 'Bass drum', maxSec: 0.8, fade: 0.35, gain: 1, dir: 'Membranophones/Struck Membranophones/Bass Drum 1',
+      layers: ['v3', 'v5', 'v7'].map(v => [1, 2].map(r => `BDrumNew_hit_${v}_rr${r}_Sum.wav`)) },
+    { id: 'snare', name: 'Snare drum', maxSec: 0.5, fade: 0.2, gain: 0.124, dir: 'Membranophones/Struck Membranophones/Snare Drum, Modern 1',
+      layers: ['v6', 'v7', 'v9'].map(v => [1, 2].map(r => `Snare2_HitSN_${v}_rr${r}_Mid.wav`)) },
+    { id: 'tom', name: 'Tom', maxSec: 0.7, fade: 0.3, gain: 1.22, dir: 'Membranophones/Struck Membranophones/Tom 1/Stick',
+      layers: ['v2', 'v3', 'v4'].map(v => [1, 2].map(r => `TomH_HitS_${v}_rr${r}_Mid.wav`)) },
+    { id: 'hat', name: 'Hi-hat', maxSec: 0.3, fade: 0.12, gain: 0.174, dir: 'Idiophones/Struck Idiophones/Hi-Hat Cymbal',
+      layers: ['v2', 'v3', 'v4'].map(v => [1, 2].map(r => `HiHat_HitC_${v}_rr${r}_Mid.wav`)) },
+    { id: 'ride', name: 'Ride cymbal', maxSec: 1.6, fade: 0.9, gain: 1.15, dir: 'Idiophones/Struck Idiophones/Suspended Cymbal 1',
+      layers: ['pp', 'mp', 'f'].map(v => [`susCymb1_hit_stick_${v}1.wav`]) },
+    { id: 'clave', name: 'Claves', maxSec: 0.3, fade: 0.12, gain: 3.6, dir: 'Idiophones/Struck Idiophones/Claves',
+      layers: ['v1', 'v2', 'v3'].map(v => [`Claves1_Hit_${v}_rr1_Mid.wav`]) },
+    { id: 'cowbell', name: 'Cowbell', maxSec: 0.4, fade: 0.15, gain: 1, dir: 'Idiophones/Struck Idiophones/Cowbells',
+      layers: ['v2', 'v3', 'v4'].map(v => [`Cowbell1_Hit_${v}_rr1_Mid.wav`]) },
+    { id: 'agogo', name: 'Agogô bell', maxSec: 0.4, fade: 0.15, gain: 4.5, dir: 'Idiophones/Struck Idiophones/Agogo Bells',
+      layers: ['v1', 'v2', 'v3'].map(v => [`Agogo_High_${v}_rr1_Mid.wav`]) },
+    { id: 'shaker', name: 'Shaker', maxSec: 0.2, fade: 0.06, gain: 1.57, dir: 'Idiophones/Struck Idiophones/Shaker, Small',
+      oneLayer: 'The softer down-strokes swell in over about 40 ms and would sound late, so only the crisp up-strokes are used.',
+      layers: [[1, 2].map(r => `Mid_ShakerHighFaster_Up_rr${r}.wav`)] },
+    { id: 'clap', name: 'Hand clap', maxSec: 0.3, fade: 0.12, gain: 0.153, dir: 'Idiophones/Struck Idiophones/Claps',
+      oneLayer: 'The library has velocity layers only for a studio clap with no round-robins; six round-robins of one clap sound more like a person clapping.',
+      layers: [[1, 2, 3, 4, 5, 6].map(r => `Clap_rr${r}.wav`)] },
+    { id: 'wood', name: 'Woodblock (metronome)', maxSec: 0.2, fade: 0.08, gain: 0.65, dir: 'Idiophones/Struck Idiophones/Woodblock',
+      layers: [['wood_click_pp_rr1.wav', 'wood_click_pp_rr2.wav', 'wood_click_pp_rr3.wav'], ['wood_click_mp.wav'], ['wood_click_f_rr1.wav', 'wood_click_f_rr2.wav']] },
+    { id: 'conga-low', name: 'Tumba (low conga)', maxSec: 0.6, fade: 0.25, gain: 6.1, dir: 'Membranophones/Struck Membranophones/Conga',
+      layers: ['v2', 'v3', 'v4'].map(v => [1, 2].map(r => `Tumba_HitN_${v}_rr${r}_Sum.wav`)) },
+    { id: 'conga-mid', name: 'Conga', maxSec: 0.6, fade: 0.25, gain: 2.0, dir: 'Membranophones/Struck Membranophones/Conga',
+      layers: ['v1', 'v2', 'v3'].map(v => [1, 2].map(r => `Conga_HitN_${v}_rr${r}_Sum.wav`)) },
+    { id: 'conga-high', name: 'Quinto (high conga)', maxSec: 0.5, fade: 0.2, gain: 0.275, dir: 'Membranophones/Struck Membranophones/Conga',
+      layers: ['v1', 'v2', 'v3'].map(v => [1, 2].map(r => `Quinto_HitN_${v}_rr${r}_Sum.wav`)) },
+    { id: 'darbuka-doum', name: 'Darbuka doum', maxSec: 0.7, fade: 0.3, gain: 0.62, dir: 'Membranophones/Struck Membranophones/Darbuka',
+      layers: ['vl1', 'vl2'].map(v => [1, 2].map(r => `Darbuka_1_hit_${v}_rr${r}.wav`)) },
+    { id: 'darbuka-tek', name: 'Darbuka tek', maxSec: 0.3, fade: 0.12, gain: 0.34, dir: 'Membranophones/Struck Membranophones/Darbuka',
+      layers: ['vl1', 'vl2'].map(v => [1, 2].map(r => `Darbuka_2_hit_${v}_rr${r}.wav`)) },
+    { id: 'cajon-bass', name: 'Cajón bass', maxSec: 0.4, fade: 0.18, gain: 1.06, dir: 'Idiophones/Struck Idiophones/Cajon',
+      layers: ['pp', 'mp', 'f'].map(v => [1, 2].map(r => `Cajon_hit2_${v}_rr${r}.wav`)) },
+    { id: 'cajon-slap', name: 'Cajón slap', maxSec: 0.35, fade: 0.15, gain: 0.66, dir: 'Idiophones/Struck Idiophones/Cajon',
+      layers: ['mp', 'f', 'fff'].map(v => [1, 2].map(r => `Cajon_hit1_${v}_rr${r}.wav`)) }
+  ].map(({ dir, layers, ...inst }) => ({
+    ...inst, source: 'vcsl', release: 0.05,
+    files: layers.flatMap((rrs, layer) => rrs.map((f, rr) => ({ src: dir + '/' + f, midi: 60, layer, rr })))
+  }))
 ];

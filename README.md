@@ -70,6 +70,7 @@ Code map:
 | `src/audio.js` | Web Audio synthesis and the loop scheduler |
 | `src/voicings.js` | Guitar chord shapes for your tuning and capo |
 | `src/band.js` | The backing band for tunes: walking bass, piano comping, drums, mixer |
+| `src/drumkit.js` | Which recorded drum plays each percussion voice, per style |
 | `src/samples.js`, `public/samples/` | Recorded instruments, loaded on first use (credits in `public/samples/LICENSES.md`, rebuilt by `scripts/samples/build.mjs`) |
 | `src/engine.js` | Skill model, spaced repetition, routines, saving and backup |
 | `src/ui/core.js` | DOM helpers, tabs and routing, tool runner, quiz, fretboard |
