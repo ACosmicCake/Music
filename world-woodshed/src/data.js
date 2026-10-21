@@ -9,6 +9,7 @@ import ESSAYS_3 from './content/essays-3.js';
 import ESSAYS_4 from './content/essays-4.js';
 import ESSAYS_5 from './content/essays-5.js';
 import ESSAYS_6 from './content/essays-6.js';
+import TECH_B from './content/techniques-b.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 const NOTE_FULL = ['C', 'C♯/D♭', 'D', 'D♯/E♭', 'E', 'F', 'F♯/G♭', 'G', 'G♯/A♭', 'A', 'A♯/B♭', 'B'];
 
@@ -586,6 +587,6 @@ const LICK_ITEMS = [
 ];
 
 /* In-depth technique guides (src/content/techniques-*.js) are merged in here */
-const TECHNIQUES = [];
+const TECHNIQUES = [...TECH_B];
 
 export default { LESSONS, TECHNIQUES, NOTE_NAMES, NOTE_FULL, INTERVALS, CHORDS, DEGREES, NUMERALS, SCALES, RHYTHMS, REGIONS, GROOVES, TUNES, EXERCISES, LICK_ITEMS };
