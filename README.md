@@ -39,7 +39,7 @@ It opens with **On the go**: a smart session sized to your ride that needs only 
 
 **Build it on your own computer instead** (no GitHub Actions needed): install [Android Studio](https://developer.android.com/studio), then in `world-woodshed/` run `npm install` and `npm run android:sync`, open the `android` folder in Android Studio and choose **Build → Build App Bundle(s) / APK(s) → Build APK(s)** (or run `./gradlew assembleRelease` inside `android/`). The APK lands in `android/app/build/outputs/apk/`. Copy it to the phone, or plug the phone in with USB debugging on and press Run.
 
-Builds are signed with the sideload key in `android/app` so updates install over each other. To sign with your own key instead, add the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` (switching keys means uninstalling once, so sync your progress to a file first).
+Releases are signed with your own private key, kept only in the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` (Settings → Secrets and variables → Actions). Updates only install over the old app when they are signed with the same key, so keep a copy of the keystore somewhere safe. Without the secrets, the workflow still builds a test APK (signed with a throwaway debug key) but doesn't publish a release.
 
 ### Work on it
 

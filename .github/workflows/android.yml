@@ -41,7 +41,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx cap sync android
-      - name: Use the repository's own signing key, if one is set
+      - name: Use your signing key from the repository secrets
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -54,8 +54,10 @@ jobs:
             echo "WW_KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
             echo "WW_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
             echo "WW_KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+            echo "SIGNED=true" >> "$GITHUB_ENV"
           else
-            echo "No signing secrets: using the sideload key in android/app."
+            echo "::warning::No signing secrets set: this is a test build signed with a throwaway debug key, and it is not published as a release."
+            echo "SIGNED=false" >> "$GITHUB_ENV"
           fi
       - name: Build the APK
         working-directory: world-woodshed/android
@@ -68,7 +70,7 @@ jobs:
           name: WorldWoodshed-android-${{ github.run_number }}
           path: world-woodshed/android/app/build/outputs/apk/release/WorldWoodshed.apk
       - name: Publish the release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.SIGNED == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-v1.${{ github.run_number }}
@@ -76,6 +78,6 @@ jobs:
           make_latest: true
           files: world-woodshed/android/app/build/outputs/apk/release/WorldWoodshed.apk
           body: |
-            Install on your phone: open this page on the phone, tap **WorldWoodshed.apk**, and allow installs from your browser when Android asks. Later versions install over this one and keep your progress.
+            Install on your phone: open this page on the phone, tap **WorldWoodshed.apk**, and allow installs from your browser when Android asks. Later versions install over this one and keep your progress (they are all signed with your own key).
 
             To carry progress between the phone and your computer: Today → "Your progress on every device" → **Send my progress** on one, **Load a sync file** on the other. Loading merges, so practice on either device is kept.

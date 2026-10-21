@@ -17,23 +17,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // Sideload signing. Updates only install over the old app (keeping your progress) when every build is
-    // signed with the same key. The key in this folder is for sideloading only; to use your own, set the
-    // repository secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+    // Release signing uses your private key, which never lives in the repository: CI decodes it from the
+    // repository secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS,
+    // ANDROID_KEY_PASSWORD) and passes it in through WW_* variables. Every release must use the same key, or
+    // an update won't install over the old app. Without a key (test builds, Android Studio) the build is
+    // signed with this machine's debug key instead.
+    def releaseKey = System.getenv('WW_KEYSTORE')
     signingConfigs {
-        sideload {
-            storeFile file(System.getenv('WW_KEYSTORE') ?: 'woodshed-sideload.keystore')
-            storePassword System.getenv('WW_KEYSTORE_PASSWORD') ?: 'woodshed'
-            keyAlias System.getenv('WW_KEY_ALIAS') ?: 'woodshed'
-            keyPassword System.getenv('WW_KEY_PASSWORD') ?: 'woodshed'
+        if (releaseKey) {
+            release {
+                storeFile file(releaseKey)
+                storePassword System.getenv('WW_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('WW_KEY_ALIAS')
+                keyPassword System.getenv('WW_KEY_PASSWORD')
+            }
         }
     }
     buildTypes {
-        debug {
-            signingConfig signingConfigs.sideload
-        }
         release {
-            signingConfig signingConfigs.sideload
+            signingConfig releaseKey ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
