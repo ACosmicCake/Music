@@ -117,11 +117,14 @@ export function teardown() {
 }
 /* After a navigation, move keyboard and screen-reader focus to the new view's heading (without scrolling),
    so the next Tab starts in the new content instead of on the button that was just removed. */
-export function focusView() {
+function viewHeading() {
   const hd = view.querySelector('h1') || view.querySelector('h2');
-  if (!hd) return;
-  if (!hd.hasAttribute('tabindex')) hd.setAttribute('tabindex', '-1');
-  hd.focus({ preventScroll: true });
+  if (hd && !hd.hasAttribute('tabindex')) hd.setAttribute('tabindex', '-1');
+  return hd;
+}
+export function focusView() {
+  const hd = viewHeading();
+  if (hd) hd.focus({ preventScroll: true });
 }
 /* Escape leaves a tool or a sub-page, like its back button; it leaves open sheets and dialogs to close
    themselves, and never fires while typing in a field. */
@@ -144,13 +147,43 @@ export function go(tab, section) {
   try { PAGES[tab](); focusView(); } catch (e) { view.innerHTML = ''; failure(view, e, (TABS.find(t => t[0] === tab) || [null, 'This page'])[1]); }
   if (hooks.afterNav) hooks.afterNav();
 }
+/* Today redraws when progress changes: a setting tapped on the page, a synced copy arriving, the saved
+   copy loading after the first paint. It is rebuilt, then every top-level section that came out the same
+   is kept as it was, so it doesn't flash, lose focus or fold shut. A section that changed keeps its
+   folds open or shut, and focus goes back to the same place in it. Several changes in a frame redraw once. */
+let todayQueued = false;
+const nextFrame = fn => (window.requestAnimationFrame ? requestAnimationFrame(fn) : setTimeout(fn, 16));
+function pathTo(el) {
+  const path = [];
+  for (let n = el; n && n !== view; n = n.parentElement) { if (!n.parentElement) return null; path.unshift([...n.parentElement.children].indexOf(n)); }
+  return path;
+}
+function redrawToday() {
+  todayQueued = false;
+  if (ui.runner || ui.tab !== 'today') return;
+  const y = window.scrollY, old = [...view.children];
+  const focused = view.contains(document.activeElement) ? document.activeElement : null, fpath = focused && pathTo(focused);
+  view.innerHTML = '';
+  try { PAGES.today(); } catch (e) { view.innerHTML = ''; failure(view, e, 'Today'); window.scrollTo(0, y); return; }
+  viewHeading(); // as the first draw left it, so an unchanged heading compares equal
+  [...view.children].forEach((n, i) => {
+    const o = old[i];
+    if (!o || o.tagName !== n.tagName) return;
+    const od = [...o.querySelectorAll('details')].concat(o.tagName === 'DETAILS' ? [o] : []);
+    const nd = [...n.querySelectorAll('details')].concat(n.tagName === 'DETAILS' ? [n] : []);
+    if (od.length === nd.length) nd.forEach((d, k) => { d.open = od[k].open; });
+    if (o.isEqualNode(n)) view.replaceChild(o, n);
+  });
+  if (focused && !focused.isConnected && fpath) {
+    let t = view;
+    for (const i of fpath) { t = t && t.children[i]; }
+    if (t && t.tagName === focused.tagName && typeof t.focus === 'function') t.focus({ preventScroll: true });
+  }
+  window.scrollTo(0, y);
+}
 E.onChange(() => {
   syncEl.textContent = E.storageNote();
-  if (!ui.runner && ui.tab === 'today') {
-    const y = window.scrollY; view.innerHTML = '';
-    try { PAGES.today(); } catch (e) { view.innerHTML = ''; failure(view, e, 'Today'); }
-    window.scrollTo(0, y);
-  }
+  if (!ui.runner && ui.tab === 'today' && !todayQueued) { todayQueued = true; nextFrame(redrawToday); }
 });
 
 /* ---------- tool registry ---------- */
