@@ -2,15 +2,60 @@
 let ctx = null, master = null, noiseBuf = null;
 const ksCache = new Map();
 const voices = new Set();
+const chan = {}; // per-instrument channel inputs: guitar, perc
 
+/* A small room: 0.5 s of decaying noise, a little darker as it fades, slightly different in each ear */
+function roomImpulse(secs) {
+  const sr = ctx.sampleRate, len = Math.floor(sr * secs), buf = ctx.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch); let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / sr, k = 0.6 - 0.4 * (i / len);
+      lp += k * ((Math.random() * 2 - 1) - lp);
+      d[i] = t < 0.006 ? 0 : lp * Math.exp(-t * 9); // the first reflection after 6 ms, -60 dB by about 0.75 s
+    }
+  }
+  return buf;
+}
+
+/* The last stage: unchanged below -3 dBFS, then a smooth curve that reaches full scale only in the limit,
+   so a pile-up of loud hits saturates gently instead of clipping. A WaveShaper adds no delay. */
+function softClip() {
+  const n = 2048, curve = new Float32Array(n), knee = 0.708; // -3 dBFS
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x);
+    const y = a <= knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee));
+    curve[i] = Math.sign(x) * y;
+  }
+  const ws = ctx.createWaveShaper(); ws.curve = curve; ws.oversample = 'none';
+  return ws;
+}
+
+/* Output chain. Each instrument has a channel: its level, its place in the stereo field and how much
+   of it goes to a shared short room reverb. Everything meets at master, then the compressor (as
+   before: it alone looks ahead, so output latency is what it was) and a soft limiter. */
 function ensure() {
   if (!ctx) {
     const AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC();
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4;
+    const limit = softClip();
     master = ctx.createGain(); master.gain.value = 0.85;
-    master.connect(comp); comp.connect(ctx.destination);
+    master.connect(comp); comp.connect(limit); limit.connect(ctx.destination);
+    const room = ctx.createConvolver(); room.buffer = roomImpulse(0.5);
+    room.connect(master);
+    const channel = (gain, pan, send) => {
+      // an equal-power panner gives a centred mono sound 3 dB less in each ear than it had before; give it back
+      const g = ctx.createGain(); g.gain.value = gain * (ctx.createStereoPanner ? Math.SQRT2 : 1);
+      let head = g;
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); head = p; }
+      head.connect(master);
+      const s = ctx.createGain(); s.gain.value = send; head.connect(s); s.connect(room);
+      return g;
+    };
+    chan.guitar = channel(1, -0.12, 0.16); // a touch left, as if across the room from the drums
+    chan.perc = channel(1, 0.12, 0.1);
     const len = ctx.sampleRate;
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);
@@ -69,7 +114,7 @@ function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   g.gain.exponentialRampToValueAtTime(0.0008, when + dur + rel);
   const tone = ctx.createBiquadFilter();
   tone.type = 'lowpass'; tone.frequency.value = o.tone || 4200;
-  src.connect(tone); tone.connect(g); g.connect(o.out || master);
+  src.connect(tone); tone.connect(g); g.connect(o.out || chan.guitar);
   src.start(when); src.stop(when + dur + rel + 0.05);
   track(src);
   return when;
@@ -112,7 +157,7 @@ function noiseHit(when, vel, type, freq, q, decay, out) {
   s.playbackRate.value = 0.8 + Math.random() * 0.4;
   const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
   const g = ctx.createGain(); env(g, when, vel, decay);
-  s.connect(f); f.connect(g); g.connect(out || master);
+  s.connect(f); f.connect(g); g.connect(out || chan.perc);
   s.start(when, Math.random() * 0.5); s.stop(when + decay + 0.05); track(s);
 }
 function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
@@ -120,7 +165,7 @@ function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
   o.frequency.setValueAtTime(f0, when);
   if (f1) o.frequency.exponentialRampToValueAtTime(f1, when + (glide || decay * 0.6));
   const g = ctx.createGain(); env(g, when, vel, decay);
-  o.connect(g); g.connect(out || master);
+  o.connect(g); g.connect(out || chan.perc);
   o.start(when); o.stop(when + decay + 0.05); track(o);
 }
 
@@ -132,7 +177,7 @@ function setHitSampler(fn) { hitSampler = fn; }
 function hit(type, when, vel = 0.8, out, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
-  if (hitSampler && !o.synth && hitSampler(type, when, vel, out, o)) return;
+  if (hitSampler && !o.synth && hitSampler(type, when, vel, out || chan.perc, o)) return;
   switch (type) {
     case 'low': toneHit(when, 0.95 * vel, 'sine', 140, 52, 0.42, 0.12, out); break;
     case 'mid': toneHit(when, 0.6 * vel, 'sine', 260, 200, 0.22, undefined, out); noiseHit(when, 0.08 * vel, 'bandpass', 900, 1, 0.05, out); break;
@@ -243,4 +288,7 @@ function eventToAudioTime(ev) {
   return ctx.currentTime - ageMs / 1000 - latency();
 }
 
-export default { out: () => master, ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, tone, Loop, Drone, stopAll, eventToAudioTime };
+/* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
+const channel = name => { ensure(); return chan[name]; };
+
+export default { out: () => master, channel, ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, tone, Loop, Drone, stopAll, eventToAudioTime };
