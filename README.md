@@ -80,3 +80,26 @@ Code map:
 | `public/icons/` | App icons. Edit `icon.svg`, then run `npm run icons` |
 
 To add a trainer, call `tool('my-id', { title, desc, skill, render(body, ctx) { … } })` in one of the `src/tools/` files and add a `toolTile('my-id')` to its page in `src/pages.js`.
+
+### Contributing
+
+Changes come in as pull requests against `main`, one focused change each, small enough to review in about ten minutes. Say in the description what changed, why, how you checked it, and show before and after (numbers or screenshots).
+
+Before you open one, in `world-woodshed/`:
+
+```sh
+npm run lint      # ESLint, recommended rules: must show no errors
+npm test          # Vitest, everything in test/
+npm run build     # must build with no new warnings
+```
+
+Then try the change in the app (`npm run dev`) on a phone-sized window, at 240 px wide (the compact layout for small phones) and on a desktop, in light and dark mode. If it touches loading or caching, also run `npm run preview`, load the app once, go offline and reload. The same lint, tests and build run on every pull request (`android.yml`) and before each deploy (`deploy.yml`).
+
+House rules:
+
+- **No frameworks and nothing fetched at runtime.** Plain ES modules, everything bundled, so the app works offline. The only network use is the opt-in GitHub sync.
+- **Build the DOM with `h()` and `s()`**, setting text with `text:`. Don't put strings into `innerHTML`; `test/safety.test.js` checks this.
+- **Saved progress is never lost.** If you change the shape of the saved state, raise `SCHEMA`, add a step to `MIGRATIONS` and a rule to `merge()` in `src/sync.js`, and add tests in `test/sync.test.js` and `test/persistence.test.js`. Deletions leave a tombstone. Settings that belong to one device go in `DEVICE_SETTINGS`.
+- **Content must be accurate:** recordings, years, books and theory. When you add or change content, extend `test/content.test.js`.
+- **The microphone is opt-in.** Sound is analysed on the device, never recorded or sent, and every mic feature must also work by tapping.
+- **Match the code around you:** one file per tool, small functions, and comments that explain the music or the maths rather than the code.

@@ -282,8 +282,9 @@ function field(f, b, set, redraw) {
       return sel('Song', [auto(songs.length ? 'Most recent song' : 'Load a song in Transcribe first')].concat(songs.map(sg => ({ value: sg.id, text: sg.title }))), st.song || 'auto', v => set('song', v));
     }
     case 'lesson': return sel('Lesson', [auto('Smart choice: new lessons and reviews')].concat(['Foundations', 'Intermediate', 'Advanced'].map(lv => ({ group: lv, items: D.LESSONS.filter(l => l.level === lv).map(l => ({ value: l.id, text: l.title })) }))), st.lesson || 'auto', v => set('lesson', v));
-    case 'drill': return sel('Drill', [auto('A different one each time')].concat(Object.entries(DRILLS).map(([k, v]) => ({ value: k, text: v }))), st.drill || 'auto', v => set('drill', v));
     case 'drill': {
+      // two block types share this field: a no-guitar drill, or a style drill
+      if (b.type === 'away') return sel('Drill', [auto('A different one each time')].concat(Object.entries(DRILLS).map(([k, v]) => ({ value: k, text: v }))), st.drill || 'auto', v => set('drill', v));
       const groups = D.REGIONS.map(r => ({ group: r.name, items: (D.DRILLS || []).filter(d => d.style === r.id).map(d => ({ value: d.id, text: d.name })) })).filter(g => g.items.length);
       return sel('Drill', [auto('Smart choice: from the styles you put first')].concat(groups), st.drill || 'auto', v => set('drill', v));
     }

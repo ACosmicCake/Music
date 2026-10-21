@@ -217,13 +217,14 @@ function latencyMs() {
 }
 
 /* Play clicks through the speakers and time when the mic hears them. Resolves to ms, or null. */
-function calibrate(onProgress) {
-  return new Promise(async resolve => {
-    if (!(await start())) { resolve(null); return; }
-    const ctx = A.ensure(), clicks = [], heard = [];
-    const off = on('onset', ev => heard.push(ev.t));
-    const t0 = ctx.currentTime + 0.4;
-    for (let i = 0; i < 10; i++) { const t = t0 + i * 0.6; A.hit('clickHi', t, 1); clicks.push(t); }
+async function calibrate(onProgress) {
+  if (!(await start())) return null;
+  // set up outside the promise, so an error here reaches the caller instead of leaving it waiting forever
+  const ctx = A.ensure(), clicks = [], heard = [];
+  const off = on('onset', ev => heard.push(ev.t));
+  const t0 = ctx.currentTime + 0.4;
+  try { for (let i = 0; i < 10; i++) { const t = t0 + i * 0.6; A.hit('clickHi', t, 1); clicks.push(t); } } catch (e) { off(); throw e; }
+  return new Promise(resolve => {
     const tick = setInterval(() => onProgress && onProgress(Math.min(1, (ctx.currentTime - t0) / 6)), 200);
     setTimeout(() => {
       clearInterval(tick); off();
