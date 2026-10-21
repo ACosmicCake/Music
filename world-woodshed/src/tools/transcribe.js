@@ -329,14 +329,16 @@ export default function transcribe(UI) {
         const key = [rg.a.toFixed(3), rg.b.toFixed(3), P.speed, P.semis].join('|');
         const hit = P.cache.find(c => c.key === key);
         if (hit) return hit;
-        const s0 = Math.floor(rg.a * P.sr), s1 = Math.min(P.buffer.length, Math.ceil(rg.b * P.sr));
+        // Stretch a little audio either side of the loop so its edges sound like the middle.
+        const pad = Math.round(P.sr * 0.25);
+        const s0 = Math.max(0, Math.floor(rg.a * P.sr) - pad), s1 = Math.min(P.buffer.length, Math.ceil(rg.b * P.sr) + pad);
         const chans = [];
         for (let c = 0; c < P.buffer.numberOfChannels; c++) chans.push(P.buffer.getChannelData(c).slice(s0, s1));
         const res = await stretch(chans, P.sr, P.speed, P.semis, onProgress);
         const ac = A.ensure();
         const out = ac.createBuffer(res.length, res[0].length, P.sr);
         res.forEach((ch, i) => out.copyToChannel(ch, i));
-        const entry = { key, buffer: out, a: rg.a };
+        const entry = { key, buffer: out, a: s0 / P.sr };
         P.cache.unshift(entry); if (P.cache.length > 3) P.cache.pop();
         return entry;
       }
@@ -373,17 +375,24 @@ export default function transcribe(UI) {
         P.chain = buildChain(ac, P.mode, P.eq);
         const src = ac.createBufferSource();
         src.buffer = entry.buffer;
-        src.connect(P.chain.input);
         const rate = needs ? P.speed : 1;
         const offset = (from - entry.a) / rate;
-        const length = (rg.b - from) / rate;
+        const length = Math.max(0.01, (rg.b - from) / rate);
         let when = ac.currentTime + 0.06;
         if (P.countIn && P.bpm) {
           const beat = 60 / (P.bpm * P.speed);
           for (let i = 0; i < 4; i++) A.hit(i === 0 ? 'clickHi' : 'click', when + i * beat, 0.9);
           when += 4 * beat;
         }
-        src.start(when, Math.max(0, offset), Math.max(0.01, length));
+        // short fades so loop starts and ends don't click
+        const fade = ac.createGain(), f = Math.min(0.008, length / 4);
+        fade.gain.setValueAtTime(0, when);
+        fade.gain.linearRampToValueAtTime(1, when + f);
+        fade.gain.setValueAtTime(1, when + length - f);
+        fade.gain.linearRampToValueAtTime(0, when + length);
+        src.connect(fade); fade.connect(P.chain.input);
+        P.chain.nodes.push(fade);
+        src.start(when, Math.max(0, offset), length);
         P.src = src; P.startCtx = when; P.startOrig = from; P.playing = true;
         ctx.setActive(true);
         src.onended = () => { if (P.src !== src) return; passEnded(); };
