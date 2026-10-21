@@ -1,0 +1,13 @@
+/* On the go: the hands-free "pocket" screen is near-black to save battery and stay discreet */
+.pocket { position: fixed; inset: 0; z-index: 1000; background: #050605; color: #9aa59e; display: grid; grid-template-rows: auto 1fr minmax(45%, 1fr); font-family: var(--font-body); }
+.pocket .pk-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: max(12px, env(safe-area-inset-top)) 16px 8px; }
+.pocket .pk-status { font-size: 0.85rem; color: #6f7a73; }
+.pocket .pk-stop { background: transparent; color: #9aa59e; border: 1px solid #2a312d; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.85rem; }
+.pocket .pk-mid { display: grid; place-content: center; text-align: center; gap: 10px; padding: 0 20px; }
+.pocket .pk-big { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.6rem, 7vw, 2.6rem); color: #d8a548; }
+.pocket .pk-sub { font-size: 1rem; color: #6f7a73; min-height: 1.4em; }
+.pocket .pk-halves { display: grid; grid-template-columns: 1fr 1fr; }
+.pocket .pk-half { border: 0; background: transparent; color: #3b4440; font: inherit; font-size: 1.05rem; display: grid; place-items: end center; padding-bottom: max(28px, env(safe-area-inset-bottom)); }
+.pocket .pk-half:active { background: #0e110f; }
+.pocket .pk-miss { border-right: 1px solid #141816; }
+.pocket .pk-got span { color: #4f6b62; }

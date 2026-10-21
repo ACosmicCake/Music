@@ -26,6 +26,8 @@ import './ui/routine.js';
 import './pages.js';
 import transcribe from './tools/transcribe.js';
 import { registerApp } from './pwa.js';
+import { isNative, onBack } from './native.js';
+import './tools/commute.js';
 
 /* ---------- plugins (e.g. Transcribe) ---------- */
 const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, ICONS, renderTabs, get ui() { return ui; } };
@@ -37,7 +39,11 @@ Cur.migrate();
 bootSession();
 syncEl.textContent = E.storageNote();
 const hashTab = () => { const t = (location.hash || '').replace('#', ''); return TABS.some(x => x[0] === t) || TAB_ALIASES[t] ? t : null; };
+const startHash = location.hash;
 go(hashTab() || 'today');
+if (startHash === '#go') openTool('commute', { returnTab: 'today' }); // the 'On the go' shortcut
 // Links and app shortcuts like #transcribe switch tabs without a reload.
-window.addEventListener('hashchange', () => { const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
-registerApp(toast);
+window.addEventListener('hashchange', () => { if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
+// The Android app has no service worker (it is already offline); its back button closes tools first.
+if (!isNative()) registerApp(toast);
+onBack(() => { if (ui.runner) { go(ui.tab || 'today'); return true; } if (ui.tab !== 'today') { go('today'); return true; } return false; });
