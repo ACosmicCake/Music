@@ -11,6 +11,7 @@ import './styles.css';
 import E from './engine.js';
 import Cur from './curriculum.js';
 import './drumkit.js';
+import Guitars from './guitars.js';
 import { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, TAB_ALIASES, ICONS, renderTabs, ui, syncEl, applyDisplay, watchErrors } from './ui/core.js';
 import './tools/ear.js';
 import './tools/dictation.js';
@@ -45,6 +46,9 @@ initGitHubSync();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);
+// the recorded guitar the player chose (Train → Display → Sounds), loaded on the first tap
+Guitars.setVoice(E.state.settings.guitarSound);
+E.onChange(st => Guitars.setVoice(st.settings.guitarSound));
 Cur.migrate();
 bootSession();
 syncEl.textContent = E.storageNote();

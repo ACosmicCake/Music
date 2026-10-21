@@ -12,6 +12,9 @@ import { shareFile, isNative } from './native.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import Samples from './samples.js';
+import A from './audio.js';
+import { VOICES } from './guitars.js';
+import { SAMPLE_SOURCES } from './content/samples.js';
 import { statsPage, heatmap, dayChart } from './ui/stats.js';
 
 /* ======================================================
@@ -221,11 +224,22 @@ const foldWith = (title, card) => fold(card, title);
 function soundsSection() {
   const el = h('div', { class: 'stack' });
   const mb = b => (b / 1e6).toFixed(b < 1e7 ? 1 : 0) + ' MB';
-  const total = Samples.totalBytes(), names = Samples.instruments().map(x => x.name.toLowerCase()).join(' and ');
+  const total = Samples.totalBytes();
   const status = h('span', { class: 'small muted', role: 'status' });
   const btn = h('button', { class: 'btn small' }, 'Download all sounds · ' + mb(total));
-  el.append(h('span', { class: 'eyebrow', text: 'Sounds' }),
-    h('span', { class: 'small muted', text: 'Recorded instruments (' + names + ') load the first time they play, and the synthesized sound fills in until they do. Download them now to have them all offline.' }));
+  // the guitar heard everywhere: a recording or the synthesized plucked string; choosing one plays a chord in it
+  const gtr = E.state.settings.guitarSound in VOICES ? E.state.settings.guitarSound : 'nylon';
+  const demo = k => { const strum = () => A.strum([40, 47, 52, 56, 59, 64], A.now() + 0.05, 0.75, 0.02, 1.8); if (VOICES[k]) Samples.load(VOICES[k]).then(strum); else strum(); };
+  const gtrSeg = h('div', { class: 'seg' }, [['nylon', 'Nylon'], ['steel', 'Steel-string'], ['synth', 'Synth']].map(([k, t]) => h('button', { 'aria-pressed': String(k === gtr), onclick: e => {
+    [...gtrSeg.children].forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget)));
+    E.setSetting('guitarSound', k); demo(k);
+  } }, t)));
+  const credits = Object.values(SAMPLE_SOURCES).map(s => s.author + ' (' + s.licence.replace(/-1\.0$/, '').replace('CC-BY-', 'CC BY ') + ')').join('; ');
+  el.append(h('span', { class: 'eyebrow', text: 'Guitar sound' }), gtrSeg,
+    h('span', { class: 'small muted', text: 'Recorded nylon- or steel-string guitar for everything the app plays on guitar, or the lighter synthesized string.' }),
+    h('span', { class: 'eyebrow', text: 'Sounds' }),
+    h('span', { class: 'small muted', text: 'Recorded instruments (guitars, upright bass, piano and percussion) load the first time they play, and the synthesized sound fills in until they do. Download them now to have them all offline.' }),
+    h('span', { class: 'small muted' }, 'Recordings by ' + credits + '. ', h('a', { href: (import.meta.env.BASE_URL || '/') + 'samples/LICENSES.md', target: '_blank', rel: 'noopener' }, 'Credits and licences')));
   if (isNative()) { el.append(h('span', { class: 'small', text: 'Included in the app: ' + mb(total) + '.' })); return el; }
   el.append(h('div', { class: 'row' }, btn), status);
   const show = have => {
