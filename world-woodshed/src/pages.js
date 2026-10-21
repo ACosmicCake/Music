@@ -9,6 +9,7 @@ import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
+import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 
 /* ======================================================
@@ -209,6 +210,53 @@ function dayChart(days) {
   return wrap;
 }
 
+/* Automatic sync through a private GitHub repository the player owns (opt-in; the token stays on this device) */
+function githubSyncBox() {
+  const box = h('div', { class: 'ghsync stack' });
+  let connecting = false;
+  const ago = t => { if (!t) return 'not yet'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
+  function draw() {
+    box.innerHTML = '';
+    const st = ghStatus();
+    box.append(h('span', { class: 'eyebrow', text: 'Automatic sync' }));
+    if (st.on) {
+      box.append(h('p', { class: 'small', text: 'On, through ' + st.owner + '/' + st.repo + '. Last synced ' + ago(st.lastSync) + (st.busy ? ' · syncing…' : '') + '.' }),
+        st.lastError ? h('p', { class: 'small bad-text', text: st.lastError }) : '',
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: async () => { await ghSyncNow('button'); draw(); toast(ghStatus().lastError ? 'Sync failed' : 'Synced'); } }, 'Sync now'),
+          h('button', { class: 'btn small ghost', onclick: () => { ghDisconnect(); draw(); toast('Automatic sync is off on this device'); } }, 'Turn off')));
+      return;
+    }
+    const f = (id, label, attrs) => h('label', { class: 'stack field', for: id }, h('span', { class: 'eyebrow', text: label }), h('input', Object.assign({ id, type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' }, attrs)));
+    const err = h('p', { class: 'small bad-text', hidden: true });
+    const go = h('button', { class: 'btn brass small' }, 'Connect');
+    const form = h('div', { class: 'stack' },
+      f('gh-owner', 'GitHub username', { placeholder: 'ACosmicCake' }),
+      f('gh-repo', 'Private repository', { placeholder: 'woodshed-sync' }),
+      f('gh-token', 'Token', { type: 'password', placeholder: 'github_pat_…' }),
+      f('gh-dev', 'This device’s name', { placeholder: isNative() ? 'Phone' : 'Laptop' }),
+      h('div', { class: 'row' }, go), err);
+    go.onclick = async () => {
+      const v = id => form.querySelector('#' + id).value.trim();
+      if (!v('gh-owner') || !v('gh-repo') || !v('gh-token')) { err.hidden = false; err.textContent = 'Fill in the username, repository and token.'; return; }
+      go.disabled = true; go.textContent = 'Connecting…'; err.hidden = true; connecting = true;
+      try { await ghConnect({ owner: v('gh-owner'), repo: v('gh-repo'), token: v('gh-token'), deviceName: v('gh-dev') }); connecting = false; toast('Connected: progress now syncs by itself'); draw(); }
+      catch (e) { connecting = false; err.hidden = false; err.textContent = e.message; go.disabled = false; go.textContent = 'Connect'; }
+    };
+    box.append(h('p', { class: 'small', text: 'Sync by itself through a private GitHub repository of your own: when the app opens, every few minutes while it is open, and shortly after you practise. It merges the same way as the sync file.' }),
+      h('details', { class: 'small' }, h('summary', { text: 'Set it up (about 3 minutes)' }),
+        h('ol', { class: 'list small' },
+          h('li', {}, 'Create a private repository, for example ', h('b', { text: 'woodshed-sync' }), ': ', h('a', { href: 'https://github.com/new', target: '_blank', rel: 'noopener' }, 'github.com/new'), ' (choose Private).'),
+          h('li', {}, 'Make a token that can only touch that repository: ', h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener' }, 'new fine-grained token'), '. Repository access: Only select repositories → that one. Permissions → Contents: Read and write. Choose an expiry, generate it and copy it.'),
+          h('li', { text: 'Fill in the form below on this device and tap Connect.' }),
+          h('li', { text: 'Do the same on your other device with the same repository (the same token works). From then on both stay in step.' })),
+        h('p', { class: 'small muted', text: 'The token is kept only on this device, never in your progress, sync files or backups. It can read and write that one repository and nothing else. When it expires, make a new one and connect again.' }),
+        form));
+  }
+  draw();
+  const off = ghOnStatus(() => { if (!box.isConnected) { off(); return; } if (!connecting) draw(); });
+  return box;
+}
+
 /* On a small screen, long cards fold to a one-line summary you can open */
 function fold(card, title) {
   if (!isCompact()) return card;
@@ -295,6 +343,7 @@ function backupCard() {
     h('div', { class: 'row' },
       h('button', { class: 'btn brass small', onclick: send }, 'Send my progress'),
       h('button', { class: 'btn small', onclick: () => mergeIn.click() }, 'Load a sync file')),
+    githubSyncBox(),
     h('details', { class: 'small' }, h('summary', { text: 'How to set up your Android phone' }),
       h('ol', { class: 'list small' },
         h('li', { text: 'On the phone, open the app’s web address in Chrome and choose ⋮ → Add to Home screen (or Install app). It then works offline like an app.' }),

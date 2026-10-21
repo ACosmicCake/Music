@@ -37,7 +37,7 @@ Run `npm install` then `npm run dev` (or `npm run build && npm run preview` to t
 
 ## Conventions
 
-- No frameworks and no runtime requests to other sites; everything is bundled so it works offline.
+- No frameworks and no runtime requests to other sites; everything is bundled so it works offline. The one exception is opt-in: automatic sync through the player's own private GitHub repository (`src/ghsync.js`), which talks only to `api.github.com` with a fine-grained token kept in this device's `localStorage` (key `ww-gh-sync`), never in the state, sync files or backups.
 - New tabs or tools can be added as a plugin: export a function that takes the `UI` object and add it to the list in `src/main.js` (pushing onto `window.WW_PLUGINS` still works too).
 - Persistence: `engine.js` saves state to `localStorage` and a copy in IndexedDB, and asks for persistent storage. When `window.claude` exists (inside a claude.ai Artifact with the `db` and `user` capabilities), it also syncs to the private database (chunked under `data/users/<id>/`, live across devices). Keep that guard.
 - Saved state has a `schema` number. Changing its shape means adding a migration in `src/sync.js` (`MIGRATIONS`), never dropping old data, and teaching `merge()` about any new top-level key. Every copy (IndexedDB, cloud, sync file) is merged, not overwritten: practice time is kept per device in `state.hdev` and `history` is rebuilt from it; deletions leave a tombstone (`E.tombstone`). Device-only settings (latency, mic) are listed in `DEVICE_SETTINGS`.

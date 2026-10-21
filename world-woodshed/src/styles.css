@@ -819,3 +819,6 @@ html.compact .seg button { flex: 1 1 auto; }
 /* sight-reading level picker: smaller chips */
 html.compact .sr-levels { gap: 4px; }
 html.compact .sr-lv { padding: 2px 6px; min-width: 32px; min-height: 28px; font-size: 0.78rem; }
+.bad-text { color: var(--bad); margin: 0; }
+.ghsync { border-top: 1px solid var(--line); padding-top: 10px; }
+.ghsync p { margin: 0; }

@@ -27,6 +27,7 @@ import './pages.js';
 import transcribe from './tools/transcribe.js';
 import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
+import { initGitHubSync } from './ghsync.js';
 import './tools/commute.js';
 
 /* ---------- plugins (e.g. Transcribe) ---------- */
@@ -36,6 +37,7 @@ const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, not
 /* ---------- boot ---------- */
 E.init();
 applyDisplay();
+initGitHubSync();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);
