@@ -148,7 +148,8 @@ export function paramsFor(b, used = new Set()) {
       break;
     }
     case 'drill': {
-      if (!auto(st.drill)) out.drill = st.drill;
+      // a no-guitar drill saved here by the old editor (it showed that list for style drills too) means the smart choice
+      if (!auto(st.drill) && (D.DRILLS || []).some(d => d.id === st.drill)) out.drill = st.drill;
       else if (!out.drill) { const it = smart('drill'); if (it) out.drill = it.ref; }
       break;
     }

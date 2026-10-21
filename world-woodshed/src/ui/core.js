@@ -144,7 +144,7 @@ export function go(tab, section) {
   renderTabs();
   view.innerHTML = '';
   window.scrollTo(0, 0);
-  try { PAGES[tab](); focusView(); } catch (e) { view.innerHTML = ''; failure(view, e, (TABS.find(t => t[0] === tab) || [, 'This page'])[1]); }
+  try { PAGES[tab](); focusView(); } catch (e) { view.innerHTML = ''; failure(view, e, (TABS.find(t => t[0] === tab) || [null, 'This page'])[1]); }
   if (hooks.afterNav) hooks.afterNav();
 }
 /* Today redraws when progress changes: a setting tapped on the page, a synced copy arriving, the saved

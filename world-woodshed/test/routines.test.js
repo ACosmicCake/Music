@@ -1,7 +1,8 @@
 import './env.js';
 import { describe, it, expect, beforeEach } from 'vitest';
 import E from '../src/engine.js';
-import { BLOCKS, TEMPLATES, fitTo, placeBreaks, setTotal, totalOf, fromTemplate, newBlock, awayBlocks, needsGuitar, fmtMin, fmtClock } from '../src/routines.js';
+import D from '../src/data.js';
+import { BLOCKS, TEMPLATES, paramsFor, fitTo, placeBreaks, setTotal, totalOf, fromTemplate, newBlock, awayBlocks, needsGuitar, fmtMin, fmtClock } from '../src/routines.js';
 
 /* Routines (src/routines.js): fitting blocks to a total length, automatic breaks, and swapping
    guitar blocks for no-guitar drills. */
@@ -110,5 +111,19 @@ describe('formatting', () => {
   it('writes minutes and clock times', () => {
     expect([5, 60, 75, 120].map(fmtMin)).toEqual(['5 min', '1 h', '1 h 15 min', '2 h']);
     expect([0, 65, 3725, -3].map(fmtClock)).toEqual(['0:00', '1:05', '1:02:05', '0:00']);
+  });
+});
+
+describe('paramsFor', () => {
+  it('plays the style drill a block names', () => {
+    const id = D.DRILLS[0].id;
+    expect(paramsFor(blk('drill', 10, { settings: { drill: id } })).drill).toBe(id);
+  });
+  // The routine editor once offered the no-guitar drills for style-drill blocks too, so saved
+  // routines can name one there; that means "smart choice", not a drill that doesn't exist.
+  it('treats a no-guitar drill saved on a style-drill block as the smart choice', () => {
+    const p = paramsFor(blk('drill', 10, { settings: { drill: 'konnakol' } }));
+    expect(p.drill).not.toBe('konnakol');
+    expect(D.DRILLS.some(d => d.id === p.drill)).toBe(true);
   });
 });
