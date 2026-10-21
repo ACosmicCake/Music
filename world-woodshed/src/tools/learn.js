@@ -341,7 +341,7 @@ function example(ex, loops) {
         A.ensure(); const t = A.now() + 0.05, bar = 1.4;
         chords.forEach((c, i) => {
           const ms = chordMidis(c.root, c.iv.filter(x => x < 12));
-          A.note(28 + c.root + (c.root < 4 ? 12 : 0), t + i * bar, 0.7, bar * 0.9);
+          A.note(28 + (((c.root - 28) % 12) + 12) % 12, t + i * bar, 0.7, bar * 0.9); // bass: that root from E1 up
           A.strum(ms, t + i * bar, 0.55, 0.02, bar * 0.45); A.strum(ms, t + i * bar + bar / 2, 0.4, 0.02, bar * 0.4);
           setTimeout(() => chips.forEach((ch, k) => ch.setAttribute('aria-pressed', k === i ? 'true' : 'false')), (t + i * bar - A.now()) * 1000);
         });

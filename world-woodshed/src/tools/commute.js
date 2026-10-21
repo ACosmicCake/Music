@@ -8,7 +8,6 @@ import A from '../audio.js';
 import E from '../engine.js';
 import Cur from '../curriculum.js';
 import { h, tool, toast, openTool } from '../ui/core.js';
-import { chordMidis } from '../theory.js';
 import { BLOCKS, blockTitle, describe, totalOf, fmtMin } from '../routines.js';
 import { startSession } from '../ui/session.js';
 import { ribbon } from '../ui/routine.js';
@@ -73,7 +72,7 @@ function question(skill) {
     return {
       skill, id: c.id, prompt: 'Which chord quality?', answer: c.name, say: c.name,
       play() {
-        const t = A.now() + 0.08, ms = chordMidis(root, c.iv);
+        const t = A.now() + 0.08, ms = c.iv.map(x => root + x); // root here is already a MIDI note
         ms.forEach((m, i) => A.note(m, t + i * 0.16, 0.55, 0.9));
         A.strum(ms, t + ms.length * 0.16 + 0.35, 0.8, 0.02, 1.8);
         return ms.length * 0.16 + 2.2;
