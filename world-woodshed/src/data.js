@@ -3,6 +3,7 @@ import LESSONS from './content/lessons.js';
 import STYLES_A from './content/styles-a.js';
 import STYLES_B from './content/styles-b.js';
 import STYLES_NEW from './content/styles-new.js';
+import ESSAYS_1 from './content/essays-1.js';
 import ESSAYS_2 from './content/essays-2.js';
 import ESSAYS_4 from './content/essays-4.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -456,7 +457,7 @@ const REGIONS = [
 Object.values(STYLES_NEW).forEach(st => REGIONS.push(st));
 REGIONS.forEach(r => Object.assign(r, STYLES_A[r.id] || {}, STYLES_B[r.id] || {}));
 // Long-form essays: philosophy and meaning, how it works, guitar approach, glossary
-const ESSAYS = Object.assign({}, ESSAYS_2, ESSAYS_4);
+const ESSAYS = Object.assign({}, ESSAYS_1, ESSAYS_2, ESSAYS_4);
 REGIONS.forEach(r => { if (ESSAYS[r.id]) r.essay = ESSAYS[r.id]; });
 const AREA = {
   cuba: 'Americas', brazil: 'Americas', latam: 'Americas', caribbean: 'Americas', jazz: 'Americas', blues: 'Americas', rock: 'Americas', funksoul: 'Americas', country: 'Americas', hawaii: 'Americas',
