@@ -68,7 +68,7 @@ const L = {
   chautal: ['Dha', 'Dha', 'Din', 'Ta', 'KiTa', 'Dha', 'Din', 'Ta', 'TiTa', 'KaTa', 'GaDi', 'GaNa'],
   bulerias: ['12', '', '1', '', '2', '', '3', '', '4', '', '5', '', '6', '', '7', '', '8', '', '9', '', '10', '', '11', ''],
   gamelan: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'],
-  taiko: ['Don', '', 'Do', 'Ko', 'Don', '', 'Ka', 'Ka', 'Don', '', 'Don', '', 'Don', '', 'Ka', 'Ka'],
+  taiko: ['Don', '', '', '', 'Don', '', 'Ka', '', 'Don', '', 'Don', '', 'Don', '', 'Ka', ''],
 };
 
 const extra = [
@@ -577,53 +577,393 @@ const rhythms = {
     tips: ['Short and dry on every beat.', '1 and 3 a little heavier.', 'Then try marcato en dos: only 1 and 3.'],
   },
   cumbia: {
-    cycles: 8, tempo: [80, 110],
+    cycles: 8, tempo: [80, 112],
     variations: [
-      { name: 'Guacharaca alone', tracks: pick('cumbia', 'chick', 'shaker'), note: 'Just the scraper and your offbeats.' },
-      { name: 'Alegre drum', tracks: v('cumbia', { mid: '......x.......x.' }), note: 'The alegre drum adds an open tone on 2&4 “and”.' },
-      { name: 'Bass with pickup', tracks: v('cumbia', { low: 'x.......x.....x.' }), note: 'A short pickup before 1.' },
+      { name: 'Guacharaca and chords only', tracks: pick('cumbia', 'chick', 'shaker'), note: 'No bass: just the scraper’s long–short–short and your offbeats.' },
+      { name: 'Alegre drum answers', tracks: v('cumbia', { mid: '......x.......x.' }), note: 'The alegre drum adds an open tone on the “and” of 2 and 4, doubling two of your chords.' },
+      { name: 'Bass with a pickup', tracks: v('cumbia', { low: 'x.......x.....x.' }), note: 'A short bass note on the last “and” pulls into 1.' },
+      { name: 'Maracas instead of guacharaca', tracks: v('cumbia', { shaker: 'x.x.x.x.x.x.x.x.' }), note: 'Straight eighths replace the scrape. Keep your chords on the offbeats.' },
     ],
     fills: [
-      { name: 'Break on 4', cycles: 1, tracks: { chick: '..x...x...x.....', shaker: 'X.xxX.xxX.xxX...', low: 'x.......x...X...' }, note: 'Everyone hits beat 4 and stops before 1.' },
+      { name: 'Break on 4', cycles: 1, tracks: { chick: '..x...x...x.....', shaker: 'X.xxX.xxX.xxX...', low: 'x.......x...X...' }, note: 'Everyone hits beat 4 and stops for half a beat; the groove returns on 1.' },
     ],
-    tips: ['Count “1 & 2 & 3 & 4 &”, play the “&”s.', 'Keep your chord short.', 'Relax: cumbia walks.'],
+    tips: ['Count “1 & 2 & 3 & 4 &” and strum only the “&”s.', 'Keep the chord short so the guacharaca comes through.', 'Cumbia walks, never rushes: sit back on the offbeats.'],
   },
   huayno: {
     cycles: 16, tempo: [80, 130],
     variations: [
-      { name: 'Bombo on 1 only', tracks: v('huayno', { low: 'x.......' }), note: 'The bass drum plays once a bar.' },
-      { name: 'Quena melody feel', tracks: v('huayno', { shaker: 'xxxxxxxx' }), note: 'A shaker on sixteenths.' },
-      { name: 'Stamped steps', tracks: v('huayno', { mid: 'x...x...' }), note: 'The dancers stamp on each beat.' },
+      { name: 'Bombo on 1 only', tracks: v('huayno', { low: 'x.......' }), note: 'The bass drum plays once a bar. Beat 2 is yours to keep.' },
+      { name: 'Chajchas rattle on sixteenths', tracks: v('huayno', { shaker: 'xxxxxxxx' }), note: 'A goat-hoof rattle on every sixteenth: your two short notes fall on the last two of each beat.' },
+      { name: 'Dancers stamp on the beat', tracks: v('huayno', { mid: 'x...x...' }), note: 'Stamped steps double the bombo. Keep the short notes tight against them.' },
     ],
     fills: [
-      { name: 'Fuga ending', cycles: 1, tracks: { clap: 'X.xxX...', low: 'x...X...' }, note: 'The bar ends on beat 2.' },
+      { name: 'Phrase end on beat 2', cycles: 1, tracks: { clap: 'X.xxX...', low: 'x...X...' }, note: 'The phrase closes on beat 2 with one long strum; the figure restarts on 1.' },
     ],
-    tips: ['“Long, short-short” on every beat.', 'The two short notes are sixteenths: tight.', 'Stamp your foot on each beat.'],
+    tips: ['Long, short-short on every beat.', 'The two short notes are sixteenths: tight, not triplets.', 'Stamp a foot on each beat while you strum.'],
   },
   // ================= Caribbean
   steppers: {
     cycles: 8, tempo: [60, 90],
     variations: [
-      { name: 'Hi-hat on offbeats', tracks: v('steppers', { hat: '..x...x...x...x.' }), note: 'Open hi-hat on the “and”s.' },
-      { name: 'Bass line', tracks: v('steppers', { mid: 'x..x..x.....x...' }), note: 'A bass line around the kick.' },
-      { name: 'Organ bubble', tracks: v('steppers', { clap: '..xx..xx..xx..xx' }), note: 'The organ “bubble” on the offbeats.' },
+      { name: 'Open hi-hat on the offbeats', tracks: v('steppers', { hat: '..x...x...x...x.' }), note: 'The hi-hat moves to the “and”s, between your kicks.' },
+      { name: 'Bass guitar line', tracks: v('steppers', { mid: 'x..x..x.....x...' }), note: 'A bass line that leaves space. Your kicks stay even underneath.' },
+      { name: 'Shaker on sixteenths', tracks: v('steppers', { shaker: 'xxxxxxxxxxxxxxxx' }), note: 'A shaker fills the grid; it helps you place the kick exactly.' },
     ],
     fills: [
-      { name: 'Drop', cycles: 1, tracks: { low: 'X...X...X.......', high: '........x.......', chick: '....x...........' }, note: 'The band drops out for beat 4.' },
+      { name: 'Dub drop on beat 4', cycles: 1, tracks: { low: 'X...X...X.......', high: '........x.......', chick: '....x...........', hat: 'x.x.x.x.x.x.....' }, note: 'The whole band cuts out on beat 4 and comes back on 1.' },
     ],
-    tips: ['Kick even on every beat.', 'Relax; reggae tempos are slow.', 'Listen to the skank on 2 and 4.'],
+    tips: ['All four kicks the same weight.', 'Reggae tempos are slow: relax between the beats.', 'Listen for the skank on 2 and 4 against your kicks.'],
   },
   rockers: {
     cycles: 8, tempo: [60, 95],
     variations: [
-      { name: 'Hi-hat with 16th accents', tracks: v('rockers', { shaker: 'x.x.x.x.x.x.x.x.' }), note: 'A shaker on eighths.' },
-      { name: 'Double skank', tracks: v('rockers', { chick: '....xx......xx..' }), note: 'The guitar chops twice on 2 and 4.' },
-      { name: 'Kick on 1 only', tracks: v('rockers', { low: 'x...............' }), note: 'Only beat 1.' },
+      { name: 'Shaker on eighths', tracks: v('rockers', { shaker: 'x.x.x.x.x.x.x.x.' }), note: 'The shaker marks the beats your hi-hat skips.' },
+      { name: 'Double skank', tracks: v('rockers', { chick: '....xx......xx..' }), note: 'The guitar chops twice on 2 and 4, a sixteenth apart.' },
+      { name: 'Kick on 1 only', tracks: v('rockers', { low: 'x...............' }), note: 'Fewer kicks: the groove still feels full if your hi-hat stays even.' },
     ],
     fills: [
-      { name: 'Snare roll', cycles: 1, tracks: { hat: '..x...x...x.....', low: 'x.......x.......', high: '........x...xxxx' }, note: 'A roll into 1.' },
+      { name: 'Snare roll into 1', cycles: 1, tracks: { hat: '..x...x...x.....', low: 'x.......x.......', high: '........x...xxxx' }, note: 'A sixteenth roll over beat 4 leads back to 1.' },
     ],
-    tips: ['Tap the “and”s.', 'Keep relaxed.', 'Listen to the kick.'],
+    tips: ['Count “1 & 2 & 3 & 4 &” and tap the “&”s.', 'Open hi-hat: let each note ring a little.', 'Compare with the one-drop: rockers has a kick on 1.'],
+  },
+  ska: {
+    cycles: 8, tempo: [100, 150],
+    variations: [
+      { name: 'Handclaps on 2 and 4', tracks: v('ska', { clap: '....x.......x...' }), note: 'Claps join the snare on the backbeat.' },
+      { name: 'Kick on 1 and 3', tracks: v('ska', { low: 'x.......x.......' }), note: 'The bass walks less; your offbeats carry the time.' },
+      { name: 'Hi-hat on eighths', tracks: v('ska', { hat: 'x.x.x.x.x.x.x.x.' }), note: 'The hi-hat plays every eighth, half of them with you.' },
+    ],
+    fills: [
+      { name: 'Stop on 4', cycles: 1, tracks: { chick: '..x...x...x.....', low: 'x...x...x...X...', high: '....x.......X...' }, note: 'The band hits beat 4 together and stops; the offbeats restart after 1.' },
+    ],
+    tips: ['Short, choked up-strokes on the “and”.', 'Count out loud: “1 AND 2 AND”.', 'Ska is dance music: keep it light at speed.'],
+  },
+  // ================= Jazz
+  jazzwaltz: {
+    cycles: 12, tempo: [100, 220],
+    variations: [
+      { name: 'Ride skip on 3', tracks: v('jazzwaltz', { ride: 'x..x..x.x' }), note: 'The ride’s skip note moves to the end of the bar.' },
+      { name: 'Bass in one', tracks: v('jazzwaltz', { low: 'x........' }), note: 'One bass note per bar: the waltz floats; keep your 2 and 3 exact.' },
+      { name: 'Hi-hat on 2 and 3', tracks: v('jazzwaltz', { hat: '...x..x..' }), note: 'The hi-hat doubles your comping.' },
+    ],
+    fills: [
+      { name: 'Triplet fill on 3', cycles: 1, tracks: { chick: '...x.....', ride: 'x..x.....', low: 'x..x..x..', high: '......xxx' }, note: 'A snare triplet on beat 3 leads into the next 1.' },
+    ],
+    tips: ['Count “1 2 3” and feel the triplet under each beat.', 'Keep the chords short; leave beat 1 to the bass.', 'At fast tempos feel one big beat per bar.'],
+  },
+  charleston: {
+    cycles: 12, tempo: [90, 240],
+    variations: [
+      { name: 'Bass in two', tracks: v('charleston', { low: 'x.....x.....' }), note: 'A two-feel: the bass plays 1 and 3 only.' },
+      { name: 'No hi-hat', tracks: pick('charleston', 'chick', 'ride', 'low'), note: 'Without 2 and 4 you must place the swung “and” yourself.' },
+      { name: 'Snare answers on the “and” of 4', tracks: v('charleston', { high: '...........x' }), note: 'The drummer’s snare answers your figure at the end of the bar.' },
+    ],
+    fills: [
+      { name: 'Drum fill over beat 4', cycles: 1, tracks: { chick: 'X....x......', ride: 'X..x.xx.....', low: 'x..x..x..x..', high: '.........xxx' }, note: 'A triplet fill on beat 4 leads back to 1.' },
+    ],
+    tips: ['Say “bah – bop”: 1, then the swung “and” of 2.', 'Release the chords at once.', 'Then try the reverse Charleston: the “and” of 1 and beat 3.'],
+  },
+  // ================= Manouche
+  valsemusette: {
+    cycles: 16, tempo: [120, 230],
+    variations: [
+      { name: 'Walking bass in quarters', tracks: v('valsemusette', { low: 'x.x.x.' }), note: 'The bass walks on every beat; your chords still sit on 2 and 3.' },
+      { name: 'Brushes on eighths', tracks: v('valsemusette', { shaker: 'xxxxxx' }), note: 'Running eighths underneath. Keep the chords short.' },
+      { name: 'Bass pickup', tracks: v('valsemusette', { low: 'x....x' }), note: 'A pickup bass note on the last “and” leads into 1.' },
+    ],
+    fills: [
+      { name: 'Bass run into 1', cycles: 1, tracks: { low: 'x.x.xx', chick: '......' }, note: 'The guitar rests while the bass runs up to the next 1.' },
+    ],
+    tips: ['Bass long on 1, chords short on 2 and 3.', 'At speed, feel one beat per bar.', 'Keep the right hand loose: musette runs past 200.'],
+  },
+  rumbamanouche: {
+    cycles: 16, tempo: [90, 160],
+    variations: [
+      { name: 'Bass on the tresillo', tracks: v('rumbamanouche', { low: 'x..x..x.' }), note: 'The bass locks with your strum.' },
+      { name: 'Maracas', tracks: v('rumbamanouche', { shaker: 'xxxxxxxx' }), note: 'Even eighths under the 3+3+2.' },
+      { name: 'Bongó on the offbeats', tracks: v('rumbamanouche', { mid: '.x.x.x.x' }), note: 'Offbeat tones push against your accents.' },
+    ],
+    fills: [
+      { name: 'Stop on 4', cycles: 1, tracks: { chick: 'X..x..X.', low: 'x...x.x.' }, note: 'Band hit on beat 4, then back to 1.' },
+    ],
+    tips: ['Count “1 2 3 1 2 3 1 2”.', 'Accent the first of each group.', 'Keep the pompe snap on each strum.'],
+  },
+  // ================= Klezmer
+  hora: {
+    cycles: 16, tempo: [80, 150],
+    variations: [
+      { name: 'Tsimbl on eighths', tracks: v('hora', { mid: 'xxxxxx' }), note: 'The dulcimer runs eighths; your chord stays on 3.' },
+      { name: 'Drum on 1 and 3', tracks: v('hora', { high: 'x...x.' }), note: 'The poyk (drum) marks the lopsided beats.' },
+      { name: 'Bass doubles the chord', tracks: v('hora', { low: 'X...x.' }), note: 'The bass plays 1 and 3 too: oom – oom-pah.' },
+    ],
+    fills: [
+      { name: 'Drum roll into 1', cycles: 1, tracks: { low: 'X.....', high: '..xxxx', chick: '....x.' }, note: 'A short roll across 2 and 3 leads to the next 1.' },
+    ],
+    tips: ['Say “oom – pah”, silence on 2.', 'Beat 2 is felt, not played.', 'Lean on the chord on 3: it lifts into the next bar.'],
+  },
+  terkish: {
+    cycles: 16, tempo: [70, 120],
+    variations: [
+      { name: 'Bass doubles the figure', tracks: v('terkish', { low: 'X..xX.x.' }), note: 'The bass plays the terkish rhythm with you.' },
+      { name: 'Chords on 2 and 4', tracks: v('terkish', { chick: '..x...x.' }), note: 'Afterbeat chords. Your “x” before 3 rubs against them.' },
+      { name: 'Drum on eighths', tracks: v('terkish', { hat: 'xxxxxxxx' }), note: 'Even eighths: place the short note exactly.' },
+    ],
+    fills: [
+      { name: 'Stop on 3', cycles: 1, tracks: { clap: 'X..xX...', low: 'x...X...' }, note: 'The phrase ends on beat 3; rest until 1.' },
+    ],
+    tips: ['Long, short, long, long: dotted quarter, eighth, quarter, quarter.', 'Slow and heavy, not rushed.', 'Compare with the habanera: the same shape, twice as slow.'],
+  },
+  // ================= East & Southeast Asia
+  gamelan: {
+    cycles: 6, tempo: [50, 140], layaRamp: true,
+    variations: [
+      { name: 'Saron balungan on every beat', tracks: v('gamelan', { ride: 'xxxxxxxxxxxxxxxx' }), note: 'The core melody on every beat (shown as a steady pulse). Kenong still every fourth.' },
+      { name: 'Ketuk silent', tracks: pick('gamelan', 'mid', 'bell', 'low'), note: 'Without the ketuk ticks you hold the beat between the kenong strokes.' },
+      { name: 'Gong and kenong only', tracks: pick('gamelan', 'mid', 'low'), note: 'Only the largest punctuation. Count 1–16 silently.' },
+    ],
+    fills: [
+      { name: 'Kendhang signal toward the gong', cycles: 1, tracks: { mid: B.gamelan.mid, bell: B.gamelan.bell, high: B.gamelan.high, low: B.gamelan.low, clap: '........x.x.xxx.' }, note: 'The drummer plays a busier phrase leading to the gong; in a piece this cues a change of tempo or the ending.' },
+    ],
+    tips: ['The strongest beat is the last one (16), where the gong sounds.', 'Hear four groups of four, each closed by the kenong.', 'Gamelan speeds up and slows down together: try the speed-up.'],
+  },
+  taiko: {
+    cycles: 8, tempo: [70, 140], layaRamp: true,
+    variations: [
+      { name: 'Ji in “don-ko” (long–short)', tracks: v('taiko', { high: 'x..xx..xx..xx..x' }), note: 'The base switches to a dotted long–short feel. Your main part doesn’t change.' },
+      { name: 'Ji on eighths', tracks: v('taiko', { high: 'x.x.x.x.x.x.x.x.' }), note: 'A plain eighth-note base.' },
+      { name: 'Rim clicks on the offbeats', tracks: v('taiko', { clave: '..x...x...x...x.' }), note: 'Ka strokes on every “and”.' },
+    ],
+    fills: [
+      { name: 'Roll into 1', cycles: 1, tracks: { low: 'X...X...xxxxxxxx', high: 'x.xxx.xxx.xxx.xx' }, note: 'The second half becomes a sixteenth roll into the next 1.' },
+    ],
+    tips: ['Say the kuchi-shōga aloud: “don – – – don – ka – don – don – don – ka –”.', 'Strike from the hips; keep the arms relaxed.', 'The ji must stay steady when the main part rests.'],
+  },
+  // ================= Persian
+  reng: {
+    cycles: 8, tempo: [56, 110],
+    variations: [
+      { name: 'Claps on the big beats', tracks: v('reng', { clap: 'x..x..x..x..' }), note: 'Claps on each dotted quarter, with your toms.' },
+      { name: 'Daf on the downbeats', tracks: v('reng', { mid: 'x.....x.....' }), note: 'A frame drum marks the start of each bar.' },
+      { name: 'Finger snaps (pelang)', tracks: v('reng', { hat: '.x..x..x..x.' }), note: 'Snaps fill the middle eighth of each beat.' },
+    ],
+    fills: [
+      { name: 'Riz (roll) into 1', cycles: 1, tracks: { low: 'X..x..X.....', high: '..x..x..xxxx' }, note: 'A rolled ending to the second bar leads back to 1.' },
+    ],
+    tips: ['Feel two big beats per bar, three eighths in each.', 'Tom deep and round, bak bright and short.', 'Reng is a dance: keep it light.'],
+  },
+  tasnif: {
+    cycles: 16, tempo: [60, 120],
+    variations: [
+      { name: 'Finger snaps (pelang)', tracks: v('tasnif', { hat: '.x...x..' }), note: 'A snap just after each tom.' },
+      { name: 'Riz through beat 2', tracks: v('tasnif', { mid: '.....xxx' }), note: 'A soft roll fills the second half of the bar.' },
+      { name: 'Handclaps on the beats', tracks: v('tasnif', { clap: 'x...x...' }), note: 'Claps double the toms.' },
+    ],
+    fills: [
+      { name: 'Riz into 1', cycles: 1, tracks: { low: 'x.......', high: '..xxxxxx' }, note: 'After the first tom, a roll of baks into the next 1.' },
+    ],
+    tips: ['Tom on the beat, bak on the “and”.', 'Sing the melody while you play: a tasnif is a song.', 'Keep the hands soft so the tombak rings.'],
+  },
+  // ================= Fado
+  fadomarcha: {
+    cycles: 16, tempo: [70, 130],
+    variations: [
+      { name: 'Bass on 1 only', tracks: v('fadomarcha', { low: 'x...x...' }), note: 'The bass thins out; keep your chords on every “and”.' },
+      { name: 'Marcha: claps on the beat', tracks: v('fadomarcha', { clap: 'x.x.x.x.' }), note: 'As in the Santo António marchas, the crowd claps the beat.' },
+      { name: 'Bass once per two bars', tracks: v('fadomarcha', { low: 'x.......' }), note: 'Almost no bass: you keep the pulse with your offbeats alone.' },
+    ],
+    fills: [
+      { name: 'Cadence stop', cycles: 1, tracks: { chick: '.x.x.x..', low: 'x.x.x.X.' }, note: 'The phrase ends with a bass note on the last beat; the chords restart after 1.' },
+    ],
+    tips: ['Thumb for the bass, a quick stroke for the chord.', 'Chord short, bass ringing.', 'In slow fados the viola follows the singer’s rubato: listen first.'],
+  },
+  // ================= Blues
+  slowblues: {
+    cycles: 8, tempo: [44, 80],
+    variations: [
+      { name: 'Ride on the shuffle', tracks: v('slowblues', { ride: 'x.xx.xx.xx.x' }), note: 'The ride drops the middle triplet. Your backbeat stays.' },
+      { name: 'Walking bass on the beats', tracks: v('slowblues', { low: 'x..x..x..x..' }), note: 'The bass walks quarters.' },
+      { name: 'Ride on quarters only', tracks: v('slowblues', { ride: 'x..x..x..x..' }), note: 'Fewer triplets around you: feel them yourself.' },
+    ],
+    fills: [
+      { name: 'Triplet fill into 1', cycles: 1, tracks: { high: '...X.....xxx', ride: 'xxxxxxxxx...', low: 'x.....x.....' }, note: 'A snare triplet on beat 4 rolls into the next 1.' },
+    ],
+    tips: ['Count “1-trip-let 2-trip-let”.', 'Lay the backbeat a hair late for weight.', 'At 56 bpm the gaps are long: keep counting.'],
+  },
+  boogie: {
+    cycles: 12, tempo: [90, 180],
+    variations: [
+      { name: 'Shuffle ride', tracks: v('boogie', { ride: 'x.xx.xx.xx.x' }), note: 'The ride doubles your rhythm.' },
+      { name: 'Right-hand stabs', tracks: v('boogie', { chick: '..x.....x...' }), note: 'Short chords on the swung “and” of 1 and 3.' },
+      { name: 'Drums: backbeat only', tracks: pick('boogie', 'low', 'high'), note: 'No hi-hat on the beat: keep the long–short yourself.' },
+    ],
+    fills: [
+      { name: 'Stop time', cycles: 1, tracks: { low: 'X...........', high: 'X...........' }, note: 'One hit on 1, three beats of silence. Come back exactly on the next 1.' },
+    ],
+    tips: ['Long–short on every beat: “DOO-ba DOO-ba”.', 'On guitar, palm-mute the low strings.', 'Don’t let the short note creep toward the next beat.'],
+  },
+  // ================= Rock
+  halftime: {
+    cycles: 8, tempo: [100, 180],
+    variations: [
+      { name: 'Busier kick', tracks: v('halftime', { low: 'x..x......x.....' }), note: 'A kick on the “a” of 1 pushes into the snare.' },
+      { name: 'Ride on quarters', tracks: { high: B.halftime.high, low: B.halftime.low, ride: 'x...x...x...x...' }, note: 'The ride plays the original beat; the snare on 3 halves it.' },
+      { name: 'Hi-hat on sixteenths', tracks: v('halftime', { hat: 'xxxxxxxxxxxxxxxx' }), note: 'The hat doubles up while the snare stays on 3.' },
+    ],
+    fills: [
+      { name: 'Fill on beat 4', cycles: 1, tracks: { high: '........X...xxxx', hat: 'x.x.x.x.x.x.....', low: 'x.........x.....' }, note: 'A sixteenth fill on beat 4 leads into 1.' },
+    ],
+    tips: ['Count “1 & 2 & 3 & 4 &” and hit only 3.', 'Feel two slow beats per bar.', 'Swap with the normal backbeat every four bars.'],
+  },
+  fourfloor: {
+    cycles: 8, tempo: [100, 135],
+    variations: [
+      { name: 'Claps on 2 and 4', tracks: v('fourfloor', { clap: '....x.......x...' }), note: 'Handclaps join the snare.' },
+      { name: 'Shaker on sixteenths', tracks: v('fourfloor', { shaker: 'xxxxxxxxxxxxxxxx' }), note: 'A sixteenth shaker; your offbeat still sits halfway between kicks.' },
+      { name: 'Disco octave bass', tracks: v('fourfloor', { mid: 'x.x.x.x.x.x.x.x.' }), note: 'Octave bass on every eighth.' },
+      { name: 'Kick only', tracks: pick('fourfloor', 'hat', 'low'), note: 'Just kick and hat.' },
+    ],
+    fills: [
+      { name: 'Snare build into 1', cycles: 1, tracks: { hat: '..x...x...x.....', low: 'X...X...X...X...', high: '....x...xxxxxxxx' }, note: 'Sixteenth snares over beats 3–4 build into the next 1.' },
+    ],
+    tips: ['Tap exactly between the kicks.', 'Keep the open hat short: it closes on the next kick.', 'Relax at 120; it’s a dance tempo.'],
+  },
+  bodiddley: {
+    cycles: 8, tempo: [80, 140],
+    variations: [
+      { name: 'Tom-toms on the beat', tracks: v('bodiddley', { mid: 'x..x..x...x.x...' }), note: 'The drummer doubles the beat on toms, as on the record.' },
+      { name: 'Maracas only', tracks: pick('bodiddley', 'clap', 'shaker'), note: 'Just your strum and the maracas.' },
+      { name: 'Bass on every beat', tracks: v('bodiddley', { low: 'x.x.x.x.x.x.x.x.' }), note: 'A straight quarter-note bass under the clave.' },
+    ],
+    fills: [
+      { name: 'Break on the 2-side', cycles: 1, tracks: { clap: 'X..x..x...X.X...', shaker: 'xxxxxxxxxxx.....', low: 'x...x...x.x.x...' }, note: 'Everyone hits the last two notes and stops before 1.' },
+    ],
+    tips: ['It is often compared to “shave and a haircut, two bits”.', 'Strum muted, with tremolo if you have it.', 'Accent the first note of each bar.'],
+  },
+  // ================= Funk & soul
+  purdie: {
+    cycles: 8, tempo: [70, 110],
+    variations: [
+      { name: 'Without kick', tracks: pick('purdie', 'high', 'hat'), note: 'Snare and hat alone: hear the ghost notes between the hat strokes.' },
+      { name: 'Ride on the beat', tracks: v('purdie', { ride: 'x..x..x..x..' }), note: 'A ride bell marks the four beats.' },
+      { name: 'Bass line', tracks: v('purdie', { mid: 'x.....x..x..' }), note: 'A bass line around beats 1, 3 and 4.' },
+    ],
+    fills: [
+      { name: 'Fill into 1', cycles: 1, tracks: { high: '.x..x.X..xxx', hat: 'x.xx.xx.....', low: 'x....x......' }, note: 'A triplet fill on beat 4 replaces the last ghost.' },
+    ],
+    tips: ['Ghosts barely audible: the backbeat is four or five times louder.', 'Start without ghosts, then add them one at a time.', 'Half-time: count four slow beats, backbeat on 3.'],
+  },
+  motown: {
+    cycles: 8, tempo: [100, 140],
+    variations: [
+      { name: 'Handclaps on 2 and 4', tracks: v('motown', { clap: '....x.......x...' }), note: 'Claps join the tambourine.' },
+      { name: 'Tambourine on eighths', tracks: v('motown', { shaker: 'x.x.x.x.x.x.x.x.' }), note: 'The tambourine plays eighths.' },
+      { name: 'Busier bass', tracks: v('motown', { low: 'x..x..x.x.....x.' }), note: 'A pushing bass pattern; your snare stays even.' },
+    ],
+    fills: [
+      { name: 'Snare fill into 1', cycles: 1, tracks: { high: 'X...X...X.x.xxxx', shaker: '....x...........', low: 'x.....x.x.......' }, note: 'Eighths then sixteenths over beats 3–4.' },
+    ],
+    tips: ['All four snares even: no backbeat accent.', 'Hear the tambourine pop on 2 and 4.', 'This feel lives around 120–130 bpm.'],
+  },
+  // ================= Country
+  trainbeat: {
+    cycles: 8, tempo: [90, 180],
+    variations: [
+      { name: 'Brushes unaccented', tracks: v('trainbeat', { high: 'xxxxxxxxxxxxxxxx' }), note: 'Even sixteenths: the 2 and 4 come from your chicka now.' },
+      { name: 'Snare on 2 and 4 only', tracks: v('trainbeat', { high: '....x.......x...' }), note: 'A plain backbeat under your boom-chicka.' },
+      { name: 'Walking bass', tracks: v('trainbeat', { low: 'x...x...x...x...' }), note: 'The bass walks on every beat.' },
+    ],
+    fills: [
+      { name: 'Stop on 4', cycles: 1, tracks: { chick: '....x.x.........', high: 'xxxxXxxxxxxxX...', low: 'x.......x.......' }, note: 'Everyone stops on beat 4; the train restarts on 1.' },
+    ],
+    tips: ['Palm-mute everything: boom on a bass string, chicka on the top strings.', 'Say “boom chick-a boom chick-a”.', 'The brushes are the train: never let them stop.'],
+  },
+  travisbeat: {
+    cycles: 16, tempo: [70, 140],
+    variations: [
+      { name: 'Bass guitar on 1 and 3', tracks: v('travisbeat', { mid: 'x...x...' }), note: 'A bass doubles every other thumb note.' },
+      { name: 'Shaker on eighths', tracks: v('travisbeat', { shaker: 'xxxxxxxx' }), note: 'Even eighths: thumb and fingers alternate exactly.' },
+      { name: 'Brushes on 2 and 4', tracks: v('travisbeat', { hat: '..x...x.' }), note: 'A backbeat from a drummer.' },
+    ],
+    fills: [
+      { name: 'Bass run into 1', cycles: 1, tracks: { low: 'x.x.xxxx', high: '.x.x....' }, note: 'The fingers stop and the thumb runs to the next 1.' },
+    ],
+    tips: ['Thumb first: it must run on its own before the fingers join.', 'Palm-mute the bass strings lightly.', 'Then move a finger note onto beat 1 for a pinch.'],
+  },
+  // ================= Hawaii
+  slackkey2: {
+    cycles: 16, tempo: [60, 120],
+    variations: [
+      { name: 'Melody on the offbeats', tracks: v('slackkey2', { high: '.x.x.x.x' }), note: 'The fingers play only between thumb notes.' },
+      { name: 'Hammer-on decorations', tracks: v('slackkey2', { high: 'x.xx.x.x' }), note: 'Quick hammer-ons add notes; the thumb doesn’t care.' },
+      { name: 'Ukulele strum', tracks: v('slackkey2', { chick: 'x.xx.xxx' }), note: 'A ukulele joins with the island strum.' },
+      { name: 'Sparse melody', tracks: v('slackkey2', { high: 'x.......' }), note: 'One melody note: the thumb carries the music.' },
+    ],
+    fills: [
+      { name: 'Vamp ending', cycles: 1, tracks: { low: 'x.x.x...', high: 'x..x.xX.' }, note: 'The thumb rests on the last beat while the melody closes the phrase.' },
+    ],
+    tips: ['The thumb never stops: it is your metronome.', 'Mute the bass lightly with the palm.', 'Play the melody softer than you think.'],
+  },
+  islandstrum: {
+    cycles: 16, tempo: [70, 140],
+    variations: [
+      { name: 'Bass on every beat', tracks: v('islandstrum', { low: 'x.x.x.x.' }), note: 'The bass walks under your strum; note it hits beat 3, where you miss.' },
+      { name: 'Shaker on eighths', tracks: v('islandstrum', { shaker: 'xxxxxxxx' }), note: 'Your hand moves on every eighth too, touching the strings on six.' },
+      { name: 'Backbeat clap', tracks: v('islandstrum', { clap: '..x...x.' }), note: 'Claps on 2 and 4.' },
+    ],
+    fills: [
+      { name: 'Final strum on 4', cycles: 1, tracks: { chick: 'x.xx.xX.', low: 'x...x.x.' }, note: 'The bar closes on beat 4; the strum restarts on 1.' },
+    ],
+    tips: ['Keep the hand moving down and up even when it misses.', 'Down on the beat, up on the “and”.', 'Accent the down-strokes on 2 and 4.'],
+  },
+  // ================= Classical
+  arpeggio34: {
+    cycles: 16, tempo: [60, 140],
+    variations: [
+      { name: 'Clap the beats', tracks: v('arpeggio34', { clap: 'x.x.x.' }), note: 'A clap on each quarter: your thumb and fingers line up with 1, 2, 3.' },
+      { name: 'Second guitar plays the waltz', tracks: v('arpeggio34', { chick: '..x.x.' }), note: 'A duet partner chords on 2 and 3.' },
+      { name: 'Click on 1 only', tracks: v('arpeggio34', { hat: 'x.....' }), note: 'Only the downbeat is given. Keep the eighths even across the bar.' },
+    ],
+    fills: [
+      { name: 'Cadence chord', cycles: 1, tracks: { low: 'X.....', high: 'x.....' }, note: 'A closing chord on 1, held for the bar. The arpeggio restarts on the next 1.' },
+    ],
+    tips: ['Every eighth exactly even.', 'Thumb slightly louder than the fingers.', 'Prepare the next finger on its string before you play.'],
+  },
+  // ================= Celtic
+  jig: {
+    cycles: 16, tempo: [80, 130],
+    variations: [
+      { name: 'Bodhrán lifts the third eighth', tracks: v('jig', { mid: 'xxXxxXxxXxxX' }), note: 'The drummer accents the last eighth of each beat, pushing into the next.' },
+      { name: 'Bass on the beats', tracks: v('jig', { low: 'x..x..x..x..' }), note: 'A bass note on each dotted quarter.' },
+      { name: 'Tune in running eighths', tracks: v('jig', { shaker: 'xxxxxxxxxxxx' }), note: 'All six eighths sound, as in the melody.' },
+    ],
+    fills: [
+      { name: 'End of the part', cycles: 1, tracks: { chick: 'X.xX.xX.....', mid: 'XxxXxxX.....', low: 'x.....x.....' }, note: 'The part closes on beat 1 of the second bar; the tune restarts on 1.' },
+    ],
+    tips: ['Say “jig-gi-ty jig-gi-ty”.', 'Down-stroke on the beat, up-stroke on the third eighth.', 'Feel two beats per bar, not six.'],
+  },
+  reel: {
+    cycles: 16, tempo: [80, 125],
+    variations: [
+      { name: 'Bodhrán on the offbeats', tracks: v('reel', { mid: 'xXxXxXxX' }), note: 'The drum accents every “and”.' },
+      { name: 'Bass on all four', tracks: v('reel', { low: 'x.x.x.x.' }), note: 'A bass note on every beat.' },
+      { name: 'Tune in running eighths', tracks: v('reel', { shaker: 'xxxxxxxx' }), note: 'The melody’s even eighths.' },
+    ],
+    fills: [
+      { name: 'Stop on 4', cycles: 1, tracks: { chick: '..x...X.', mid: 'xxXxxxX.', low: 'x...x.x.' }, note: 'A hit on beat 4 closes the part.' },
+    ],
+    tips: ['Feel two big beats per bar.', 'Crisp, short chord on 2 and 4.', 'Reels are fast: practise at 90, play at 110+.'],
+  },
+  slipjig: {
+    cycles: 12, tempo: [70, 120],
+    variations: [
+      { name: 'Bass on the three beats', tracks: v('slipjig', { low: 'x..x..x..' }), note: 'A bass note on every beat.' },
+      { name: 'Bodhrán lifts the third eighth', tracks: v('slipjig', { mid: 'xxXxxXxxX' }), note: 'Accents at the end of each beat.' },
+      { name: 'Tune in running eighths', tracks: v('slipjig', { shaker: 'xxxxxxxxx' }), note: 'All nine eighths.' },
+    ],
+    fills: [
+      { name: 'Phrase end on beat 3', cycles: 1, tracks: { chick: 'X.xX.xX..', mid: 'XxxXxxX..', low: 'x.....x..' }, note: 'The phrase stops on beat 3; the tune restarts on 1.' },
+    ],
+    tips: ['Count “1-2-3, 2-2-3, 3-2-3”.', 'Long–short in each beat, like a jig with an extra beat.', 'Let beat 3 float into the next bar.'],
   },
 };
 
