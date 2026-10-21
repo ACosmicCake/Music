@@ -5,6 +5,7 @@ import { view, h, shuffle, toast, bar, ui, renderTabs, teardown, go, tool, openT
 import { parseChord, prettySym, chordMidis, degreeLabel, spell, keyPrefersFlats } from '../theory.js';
 import { RhythmGrid, playRhythmStep, stepDurFn } from './rhythm.js';
 import { CircleWidget } from './practice.js';
+import { loadEssays, whenLoaded } from '../content/lazy.js';
 
 /* ======================================================
    LEARN: styles library, theory course, reference tools
@@ -79,6 +80,9 @@ function tile(id, params) {
 export function stylePage(r) {
   teardown(); ui.runner = { id: 'style', opts: {} }; ui.tab = 'learn'; renderTabs();
   view.innerHTML = ''; window.scrollTo(0, 0);
+  whenLoaded(loadEssays, ui, view, toast, () => drawStylePage(r));
+}
+function drawStylePage(r) {
   const rw = E.regionOfWeek();
   const score = Math.round(E.regionScore(r) * 100);
   const n = (r.essential || []).length;
