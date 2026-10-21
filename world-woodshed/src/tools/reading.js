@@ -7,6 +7,7 @@ import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
 import { LEVELS, HOW_TO, readingItems, genMelody, rhythmPiece, noteCard, attacks, pieceLength } from '../content/reading.js';
+import Lib from '../readlib.js';
 
 const SKILL = 'reading';
 const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -280,6 +281,58 @@ function notesMode(root, lv, ctx) {
 }
 
 /* ======================================================
+   THE LIBRARY: every piece you read is kept. New ones never run out; missed ones come back for a re-read.
+   ====================================================== */
+const KIND_NAME = { r: 'Rhythm', m: 'Melody' }, KIND_PLURAL = { r: 'rhythms', m: 'melodies' };
+function sourceLine(el, cur, kind) {
+  el.innerHTML = '';
+  if (cur.entry) {
+    const d = Lib.describe(cur.entry);
+    el.append(h('span', { class: 'badge ' + (cur.review ? 'brass' : ''), text: cur.review ? 'Re-read' : 'From your library' }),
+      ' ' + KIND_NAME[kind] + ' ' + cur.entry.no + ' · first read ' + d.when + (d.last != null ? ' · last time ' + d.last + '%' : ''));
+  } else el.append(h('span', { class: 'badge', text: 'New' }), ' Unseen piece, made just now');
+}
+/* The list of kept pieces for this level, with filters; onOpen(entryId) loads one */
+function libraryPanel(kind, lv, onOpen) {
+  const box = h('div', { class: 'sr-lib', hidden: true });
+  let filter = 'all';
+  function draw() {
+    box.innerHTML = '';
+    const all = Lib.list(lv.id, kind).sort((a, b) => b.last - a.last);
+    const due = all.filter(p => Lib.isDue(p));
+    const pick = { all, due, missed: all.filter(p => p.best < 0.9), star: all.filter(p => p.star) }[filter];
+    box.append(h('div', { class: 'spread' }, h('b', { text: 'Your ' + KIND_PLURAL[kind] + ' at level ' + lv.id }), h('span', { class: 'small muted', text: all.length + ' kept · ' + due.length + ' due' })),
+      h('p', { class: 'small muted', text: 'Every piece you read is kept here. A clean first read is done; anything less comes back after a day, then at longer gaps, until you read it cleanly. A retry straight away doesn’t count: by then you are partly playing from memory.' }),
+      h('div', { class: 'chips' }, [['all', 'All'], ['due', 'Due (' + due.length + ')'], ['missed', 'Not clean yet'], ['star', '★ Starred']].map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': k === filter ? 'true' : 'false', onclick: () => { filter = k; draw(); } }, t))));
+    if (!pick.length) { box.append(h('p', { class: 'small', text: all.length ? 'Nothing here.' : 'Nothing kept yet: read a piece to the end and it lands here.' })); return; }
+    box.append(h('ul', { class: 'sr-liblist' }, pick.slice(0, 40).map(p => {
+      const d = Lib.describe(p), pc = Lib.decode(p.code);
+      return h('li', {},
+        h('button', { class: 'sr-libopen', onclick: () => onOpen(p.id) },
+          h('b', { text: KIND_NAME[kind] + ' ' + p.no }),
+          h('span', { class: 'small muted', text: (kind === 'm' ? keyName(pc.key) + ' · ' : '') + pc.time + ' · ' + d.reads + ' read' + (d.reads === 1 ? '' : 's') + ' · best ' + d.best + '% · ' + d.when }),
+          Lib.isDue(p) ? h('span', { class: 'badge brass', text: 'due' }) : p.due ? h('span', { class: 'small muted', text: 'back in ' + Math.max(1, Math.ceil((p.due - Date.now()) / 864e5)) + ' d' }) : ''),
+        h('button', { class: 'mbtn', 'aria-label': p.star ? 'Unstar' : 'Star', title: p.star ? 'Starred: kept for good' : 'Star to keep it for good', onclick: () => { Lib.star(p.id, !p.star); draw(); } }, p.star ? '★' : '☆'),
+        h('button', { class: 'mbtn', 'aria-label': 'Delete', title: 'Delete', onclick: () => { Lib.remove(p.id); draw(); } }, '✕'));
+    })));
+  }
+  return { el: box, toggle() { box.hidden = !box.hidden; if (!box.hidden) draw(); }, draw };
+}
+function libButton(kind, lv, panel) {
+  const b = h('button', { class: 'btn ghost small', onclick: () => panel.toggle() });
+  const paint = () => { const n = Lib.list(lv.id, kind).length, d = Lib.dueCount(lv.id, kind); b.textContent = 'Library (' + n + (d ? ' · ' + d + ' due' : '') + ')'; };
+  paint();
+  return { el: b, paint };
+}
+function starButton(cur) {
+  if (!cur.entry) return '';
+  const b = h('button', { class: 'btn small ghost', onclick: () => { Lib.star(cur.entry.id, !cur.entry.star); paint(); } });
+  const paint = () => { b.textContent = cur.entry.star ? '★ Starred' : '☆ Keep this one'; };
+  paint();
+  return b;
+}
+
+/* ======================================================
    RHYTHM: read and tap a two-bar rhythm
    ====================================================== */
 function bpmFor(lv, kind) {
@@ -298,7 +351,10 @@ function tempoControl(get, set, lv) {
 
 function rhythmMode(root, lv, ctx) {
   const card = h('div', { class: 'card' }); root.append(card);
-  let piece = rhythmPiece(lv), staff = null, run = null, pad = null, showCounts = !!E.state.settings.readingCounts;
+  let cur = Lib.next(lv.id, 'r', () => rhythmPiece(lv)), piece = cur.piece, staff = null, run = null, pad = null, showCounts = !!E.state.settings.readingCounts;
+  const src = h('p', { class: 'small sr-src' });
+  const lib = libraryPanel('r', lv, id => { stop(); cur = Lib.open(id); piece = cur.piece; result.innerHTML = ''; draw(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+  const libBtn = libButton('r', lv, lib);
   let bpm = bpmFor(lv, 'r');
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
@@ -308,15 +364,16 @@ function rhythmMode(root, lv, ctx) {
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'r', v); }, lv);
   const startBtn = h('button', { class: 'btn brass' }, 'Start: count-in, then tap');
   const hearBtn = h('button', { class: 'btn' }, '▶ Hear it');
-  const newBtn = h('button', { class: 'btn ghost' }, 'New rhythm');
+  const newBtn = h('button', { class: 'btn ghost' }, 'Next rhythm');
   const stopBtn = h('button', { class: 'btn', hidden: true, onclick: () => stop() }, '■ Stop');
   const countBox = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: showCounts ? true : null, onchange: e => { showCounts = e.target.checked; E.setSetting('readingCounts', showCounts); draw(); } }), 'Show the counts');
-  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Read this rhythm' }), info), staffBox, countBox, tempo.el,
-    h('div', { class: 'row' }, startBtn, stopBtn, hearBtn, newBtn), phase, padBox, result);
+  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Read this rhythm' }), info), src, staffBox, countBox, tempo.el,
+    h('div', { class: 'row' }, startBtn, stopBtn, hearBtn, newBtn, libBtn.el), phase, padBox, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
     staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), barsPerLine: 2, lyrics: showCounts ? countLabels(piece) : null, label: 'A two-bar rhythm' });
     staffBox.append(staff.el);
+    sourceLine(src, cur, 'r'); libBtn.paint();
     info.textContent = piece.time + ' · ' + (parseTime(piece.time).compound ? 'beat = dotted quarter' : 'beat = quarter');
   }
   function stop() {
@@ -328,7 +385,7 @@ function rhythmMode(root, lv, ctx) {
     stop(); draw(); ctx.setActive(true); hearBtn.disabled = true; stopBtn.hidden = false;
     run = playPiece({ piece, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
   };
-  newBtn.onclick = () => { stop(); piece = rhythmPiece(lv); result.innerHTML = ''; draw(); };
+  newBtn.onclick = () => { stop(); cur = Lib.next(lv.id, 'r', () => rhythmPiece(lv)); piece = cur.piece; result.innerHTML = ''; draw(); };
   startBtn.onclick = () => {
     stop(); draw(); result.innerHTML = '';
     A.ensure(); ctx.setActive(true);
@@ -346,6 +403,7 @@ function rhythmMode(root, lv, ctx) {
         res.errs.forEach(x => markAttack(staff, piece, x.e, x.d !== null && Math.abs(x.d) <= Math.max(0.035, win * 0.55) ? 'good' : 'bad'));
         const ok = res.score >= 0.7;
         E.record(SKILL, 'L' + lv.id + ':rhythm', ok, { score: res.score });
+        Lib.record(cur, lv.id, 'r', res.score, bpm); sourceLine(src, cur, 'r'); libBtn.paint(); if (!lib.el.hidden) lib.draw();
         ctx.tick(1);
         run = null; stop();
         result.innerHTML = '';
@@ -354,7 +412,8 @@ function rhythmMode(root, lv, ctx) {
           h('span', { text: describeOffset(res.mean * 1000) }),
           h('span', { class: 'small', text: 'Green notes landed on time; red ones were early, late or missed.' }),
           h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => startBtn.onclick() }, 'Try again'),
-            ok && res.score >= 0.85 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm, new rhythm') : '',
+            ok && res.score >= 0.85 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm, next rhythm') : '',
+            starButton(cur),
             h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'Next rhythm →'))));
       }, 150)
     });
@@ -368,7 +427,10 @@ function rhythmMode(root, lv, ctx) {
    ====================================================== */
 function melodyMode(root, lv, ctx) {
   const card = h('div', { class: 'card' }); root.append(card);
-  let piece = genMelody(lv), staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
+  let cur = Lib.next(lv.id, 'm', () => genMelody(lv)), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
+  const src = h('p', { class: 'small sr-src' });
+  const lib = libraryPanel('m', lv, id => { cur = Lib.open(id); piece = cur.piece; fresh(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+  const libBtn = libButton('m', lv, lib);
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
   const phase = h('div', { class: 'phase' });
@@ -377,18 +439,19 @@ function melodyMode(root, lv, ctx) {
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'm', v); }, lv);
   const startBtn = h('button', { class: 'btn brass' }, '▶ Start reading');
   const hearBtn = h('button', { class: 'btn' }, 'Hear it');
-  const newBtn = h('button', { class: 'btn ghost' }, 'New melody');
+  const newBtn = h('button', { class: 'btn ghost' }, 'Next melody');
   const stopBtn = h('button', { class: 'btn', hidden: true, onclick: () => stop() }, '■ Stop');
   let micNoteOff = null;
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
-  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Play this at sight' }), info), staffBox, tempo.el,
-    h('div', { class: 'row' }, startBtn, stopBtn, hearBtn, newBtn), mic.el, phase, live, result);
+  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Play this at sight' }), info), src, staffBox, tempo.el,
+    h('div', { class: 'row' }, startBtn, stopBtn, hearBtn, newBtn, libBtn.el), mic.el, phase, live, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
     staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: 'A four-bar melody in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
     info.textContent = keyName(piece.key) + ' · ' + piece.time;
+    sourceLine(src, cur, 'm'); libBtn.paint();
   }
   function stop() {
     if (run) run.stop(); run = null;
@@ -401,7 +464,7 @@ function melodyMode(root, lv, ctx) {
     run = playPiece({ piece, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
     if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + pieceLength(piece)) * 60 / bpm / parseTime(piece.time).beatQ + 1.5);
   };
-  newBtn.onclick = () => { piece = genMelody(lv); fresh(); };
+  newBtn.onclick = () => { cur = Lib.next(lv.id, 'm', () => genMelody(lv)); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
     fresh(); A.ensure(); ctx.setActive(true);
     startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; stopBtn.hidden = false;
@@ -465,6 +528,7 @@ function melodyMode(root, lv, ctx) {
       stop();
       const ok = score >= 0.75;
       E.record(SKILL, 'L' + lv.id + ':melody', ok, { score });
+      Lib.record(cur, lv.id, 'm', score, bpm); sourceLine(src, cur, 'm'); libBtn.paint(); if (!lib.el.hidden) lib.draw();
       ctx.tick(1);
       result.innerHTML = '';
       result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },
@@ -475,7 +539,8 @@ function melodyMode(root, lv, ctx) {
           !listening ? null : h('button', { class: 'btn small', onclick: () => hearBtn.onclick() }, '▶ Hear it'),
           clean ? h('button', { class: 'btn brass small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm') : '',
           !ok && score < 0.5 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(-8); toast('Down to ' + bpm + ' bpm'); } }, '−8 bpm') : null,
-          h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'New melody →'))));
+          starButton(cur),
+          h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'Next melody →'))));
     }
   };
   draw();
