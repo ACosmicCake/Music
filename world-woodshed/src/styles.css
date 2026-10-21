@@ -573,3 +573,15 @@ section.card { scroll-margin-top: 110px; }
 .sung { font-family: var(--font-display); font-size: 1.2rem; min-height: 1.5em; }
 .sung.near { color: var(--brass); }
 .sung.ok { color: var(--good); }
+
+/* sight-reading */
+.ww-staff { display: block; color: var(--ink); overflow: visible; margin-inline: auto; }
+.ww-staff .st-line { stroke: var(--muted); stroke-width: 1; opacity: 0.75; }
+.ww-staff .st-bar { fill: var(--ink); }
+.ww-staff .st-time { font-family: var(--font-display); font-weight: 800; font-size: 27px; fill: currentColor; }
+.ww-staff .st-lyr { font-family: var(--font-mono); font-size: 10px; fill: var(--muted); }
+.ww-staff .st-cur { fill: var(--brass); opacity: 0.2; transition: transform 0.08s linear; }
+.ww-staff .nt { transition: color 0.12s; }
+.ww-staff .nt.now { color: var(--brass); }
+.ww-staff .nt.good { color: var(--good); }
+.ww-staff .nt.bad { color: var(--bad); }
