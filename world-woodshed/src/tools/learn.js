@@ -1,7 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { view, h, shuffle, toast, bar, ui, renderTabs, teardown, go, tool, openTool, TOOLS, PAGES, Fretboard, positionsOfPc } from '../ui/core.js';
+import { view, h, shuffle, toast, bar, ui, renderTabs, teardown, go, tool, openTool, TOOLS, PAGES, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
 import { parseChord, prettySym, chordMidis, degreeLabel, spell, keyPrefersFlats } from '../theory.js';
 import { RhythmGrid, playRhythmStep, stepDurFn } from './rhythm.js';
 import { CircleWidget } from './practice.js';
@@ -270,6 +270,7 @@ function renderLesson(root, l, opts = {}) {
         if (!ok) ev.currentTarget.classList.add('wrong');
         fb.hidden = false; fb.textContent = ok ? 'Correct.' : 'The answer is: ' + c.a + '.';
         score.textContent = right + ' of ' + answered + ' right' + (answered === l.check.length ? (right === answered ? '. Lesson marked complete.' : '. Mark it complete when you\'re ready.') : '');
+        if (answered === l.check.length && hooks.signal) hooks.signal('lesson:' + l.id, { score: right / answered });
         if (answered === l.check.length && right === answered && !E.lessonDone(l.id)) { E.setLessonDone(l.id, true); drawDone(); }
       } }, h('b', { text: o }))));
       qc.append(h('div', { class: 'stack' }, h('b', { text: (qi + 1) + '. ' + c.q }), grid, fb));

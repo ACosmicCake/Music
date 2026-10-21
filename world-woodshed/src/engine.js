@@ -385,10 +385,12 @@ function regionScore(r) {
 }
 function regionOfWeek() {
   const rw = state.settings.regionWeek;
-  if (rw && Date.now() - rw.start < 7 * DAY && D.REGIONS.find(r => r.id === rw.id)) return D.REGIONS.find(r => r.id === rw.id);
+  const pri = (state.cur && state.cur.prefs && state.cur.prefs.styles) || [];
+  if (rw && Date.now() - rw.start < 7 * DAY && D.REGIONS.find(r => r.id === rw.id) && (!pri.length || pri.includes(rw.id) || rw.manual)) return D.REGIONS.find(r => r.id === rw.id);
   const visited = (state.settings.visitedRegions || []);
-  const candidates = D.REGIONS.filter(r => r.rhythms.length || r.scales.length);
-  const ranked = candidates.map(r => ({ r, s: regionScore(r) + (visited.includes(r.id) ? 0.3 : 0) + Math.random() * 0.05 })).sort((a, b) => a.s - b.s);
+  // with style priorities set, the weekly focus rotates through them, favouring the top of the list
+  const candidates = pri.length ? pri.map(id => D.REGIONS.find(r => r.id === id)).filter(Boolean) : D.REGIONS.filter(r => r.rhythms.length || r.scales.length);
+  const ranked = candidates.map((r, i) => ({ r, s: regionScore(r) + (visited.includes(r.id) ? 0.3 : 0) + (pri.length ? i * 0.12 : 0) + Math.random() * 0.05 })).sort((a, b) => a.s - b.s);
   const chosen = ranked[0].r;
   state.settings.regionWeek = { id: chosen.id, start: Date.now() };
   const v = state.settings.visitedRegions || (state.settings.visitedRegions = []);
@@ -398,7 +400,7 @@ function regionOfWeek() {
   return chosen;
 }
 function setRegionWeek(id) {
-  state.settings.regionWeek = { id, start: Date.now() };
+  state.settings.regionWeek = { id, start: Date.now(), manual: true };
   const v = state.settings.visitedRegions || (state.settings.visitedRegions = []);
   if (!v.includes(id)) v.push(id);
   if (v.length >= D.REGIONS.length) state.settings.visitedRegions = [id];
@@ -583,6 +585,8 @@ function anchor(ivId, dir) {
 }
 function setAnchor(ivId, dir, text) { state.anchors[ivId + ':' + dir] = text; scheduleSave(); }
 function setSetting(k, v) { state.settings[k] = v; scheduleSave(); emit(); }
+// save and notify after changing state in place (used by the curriculum)
+function touch() { scheduleSave(); emit(); }
 function resetAll() { state = freshState(); scheduleSave(100); emit(); }
 
 function init() {
@@ -624,7 +628,7 @@ function deleteRoutine(id) {
 function activeRoutineId() {
   const id = state.settings.activeRoutine;
   if (id === 'smart' || getRoutine(id)) return id;
-  return routines().length ? routines()[0].id : 'smart';
+  return 'smart';
 }
 function setActiveRoutine(id) { state.settings.activeRoutine = id; scheduleSave(); emit(); }
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -685,6 +689,6 @@ export default {
   universe, unlocked, unlockedTier, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
-  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, addTime, resetAll, exportBackup, importBackup,
+  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, resetAll, exportBackup, importBackup,
   storageNote: () => storageNote, skillState, dayKey
 };

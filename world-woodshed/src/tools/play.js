@@ -1,7 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
+import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
 import { SOUND_FOR, TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
 import { techniquePage } from './learn.js';
@@ -374,8 +374,10 @@ tool('technique', {
       }
       function restart() { meter.reset(); if (loop) { loop.stop(); loop = null; start(); } }
       playBtn.onclick = () => { if (loop) { stopAll(); playBtn.textContent = '▶ Click'; } else { meter.reset(); start(); } };
-      cleanBtn.onclick = () => { const before = t.bpm; E.techResult(ex.id, true); big.textContent = t.bpm; refreshStats(); restart(); toast('Clean at ' + before + '. Next: ' + t.bpm + ' bpm'); };
-      sloppyBtn.onclick = () => { const before = t.bpm; E.techResult(ex.id, false); big.textContent = t.bpm; refreshStats(); restart(); toast(t.bpm < before ? 'Dropped to ' + t.bpm + ' bpm. Rebuild it clean.' : 'Stay at ' + t.bpm + ' and try again'); };
+      const sig = { clean: 0, notClean: 0 };
+      const report = () => { if (hooks.signal) hooks.signal('tech:' + ex.id, sig); };
+      cleanBtn.onclick = () => { sig.clean++; report(); const before = t.bpm; E.techResult(ex.id, true); big.textContent = t.bpm; refreshStats(); restart(); toast('Clean at ' + before + '. Next: ' + t.bpm + ' bpm'); };
+      sloppyBtn.onclick = () => { sig.notClean++; report(); const before = t.bpm; E.techResult(ex.id, false); big.textContent = t.bpm; refreshStats(); restart(); toast(t.bpm < before ? 'Dropped to ' + t.bpm + ' bpm. Rebuild it clean.' : 'Stay at ' + t.bpm + ' and try again'); };
       refreshStats();
     }
     if (ctx.params.exercise) open(D.EXERCISES.find(e => e.id === ctx.params.exercise)); else list();
