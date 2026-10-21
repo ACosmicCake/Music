@@ -14,6 +14,7 @@ import SCIENCE from './content/science.js';
 import TECH_B from './content/techniques-b.js';
 import EX_VARS from './content/exercise-vars.js';
 import RHY_VAR from './content/rhythms-var.js';
+import RHY_NEW from './content/rhythms-new.js';
 import DRILLS_A from './content/drills-a.js';
 import DRILLS_B from './content/drills-b.js';
 const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -595,8 +596,15 @@ const LICK_ITEMS = [
 /* Style drills (src/content/drills-*.js) */
 const DRILLS = [...DRILLS_A, ...DRILLS_B];
 
-/* Variations, fills, longer cycles and tips for every rhythm (src/content/rhythms-var.js) */
-RHYTHMS.forEach(r => { if (RHY_VAR.rhythms[r.id]) r.var = RHY_VAR.rhythms[r.id]; });
+/* More rhythms for every style (src/content/rhythms-new.js), and variations, fills, longer cycles and tips
+   for every rhythm (src/content/rhythms-var.js). New rhythms are listed on their style's page too. */
+RHY_NEW.extra.forEach(x => { if (!RHYTHMS.some(r => r.id === x.id)) RHYTHMS.push(x); });
+RHYTHMS.forEach(r => {
+  const v = RHY_VAR.rhythms[r.id] || RHY_NEW.rhythms[r.id];
+  if (v) r.var = v;
+  const reg = REGIONS.find(g => g.id === r.region);
+  if (reg && !(reg.rhythms = reg.rhythms || []).includes(r.id)) reg.rhythms.push(r.id);
+});
 
 /* Technique variations, a speed-burst recipe and an external-focus cue per exercise (src/content/exercise-vars.js) */
 EXERCISES.forEach(ex => { if (EX_VARS[ex.id]) ex.vars = EX_VARS[ex.id]; });

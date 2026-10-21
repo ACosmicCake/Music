@@ -175,7 +175,9 @@ input[type="range"] { accent-color: var(--brass); width: 100%; }
 .fretboard .lbl.on { fill: var(--bg); }
 
 /* rhythm grid */
-.rgrid-wrap { overflow-x: auto; }
+.rgrid-wrap { overflow-x: auto; max-width: 100%; min-width: 0; }
+.card, .section, .card > *, .section > * { min-width: 0; }
+.card select { max-width: 100%; }
 .rgrid { display: grid; gap: 3px; min-width: 0; }
 .rrow { display: grid; gap: 3px; align-items: center; }
 .rname { font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
