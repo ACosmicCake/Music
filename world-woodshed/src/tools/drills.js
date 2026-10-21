@@ -2,12 +2,13 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { h, toast, tool, openTool, Fretboard, hooks } from '../ui/core.js';
-import { SOUND_FOR, playRhythmStep, RhythmGrid } from './rhythm.js';
+import { playRhythmStep, RhythmGrid } from './rhythm.js';
 import { parseChord, prettySym } from '../theory.js';
 import { renderStaff } from '../notation.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter } from '../ui/mic.js';
 import Cur from '../curriculum.js';
+import { Band } from '../band.js';
 
 /* ======================================================
    STYLE DRILLS: the exercises a teacher of each tradition would give, with a backing loop,
@@ -20,13 +21,11 @@ const yt = q => 'https://www.youtube.com/results?search_query=' + encodeURICompo
 /* A backing loop for a drill. Each pass through it is a "round". */
 function Backing(d, getBpm, onRound) {
   const b = d.backing || {};
-  let loop = null;
+  let loop = null, band = null;
   const r = b.rhythm ? D.RHYTHMS.find(x => x.id === b.rhythm) : null;
   const g = b.groove ? D.GROOVES[b.groove] : null;
   const bars = g ? (b.bars && b.bars.length ? b.bars : ['C']).map(x => x.split(' ').map(parseChord).filter(Boolean)) : null;
   const click = !r && !g ? Object.assign({ beats: 4, sub: 2 }, b.click || {}) : null;
-  const voicing = c => { let rt = 43 + c.root; if (rt > 50) rt -= 12; return c.seventh !== null ? [rt, rt + c.seventh, rt + c.third + 12] : [rt, rt + c.fifth, rt + 12, rt + c.third + 12]; };
-  const bassOf = (c, k) => { let rt = 33 + c.root; if (rt > 40) rt -= 12; return k === '5' ? rt + c.fifth : k === '3' ? rt + c.third : k === '8' ? rt + 12 : rt; };
   const spec = r ? { steps: r.steps, spb: r.spb } : g ? { steps: g.steps * bars.length, spb: g.spb } : { steps: click.beats * click.sub, spb: click.sub };
   return {
     spec, rhythm: r, bars,
@@ -34,18 +33,17 @@ function Backing(d, getBpm, onRound) {
     start() {
       A.ensure();
       let lastCycle = -1;
+      if (g) { // chord backings play on the band: walking or pattern bass, voice-led comping, drums
+        band = Band({ bars, groove: g, grooveId: b.groove, bpm: getBpm, parts: { drums: true, comp: true, bass: true }, comp: 'piano', feel: 'walk', countIn: false,
+          onBeat: ({ bar, beat, chorus }) => { if (bar === 0 && beat === 0 && chorus !== lastCycle) { lastCycle = chorus; onRound(chorus); } if (this.onStepVisual) this.onStepVisual(bar * g.steps + beat * g.spb); } });
+        loop = { startTime: band.start(), stop: () => band.stop() };
+        return;
+      }
       loop = A.Loop({
         steps: spec.steps, stepDur: () => 60 / getBpm() / spec.spb,
         onStep: (i, t, cycle) => {
           if (r) playRhythmStep(r, i, t);
-          else if (g) {
-            const bi = Math.floor(i / g.steps), st = i % g.steps, bar = bars[bi];
-            const c = bar.length === 1 ? bar[0] : bar[st < g.steps / 2 ? 0 : 1];
-            Object.entries(g.perc).forEach(([name, pat]) => { if (pat[st] !== '.') A.hit(SOUND_FOR[name] || 'mid', t, pat[st] === 'X' ? 0.9 : 0.55); });
-            if (g.comp[st] !== '.') A.strum(voicing(c), t, g.comp[st] === 'X' ? 0.55 : 0.4, 0.012, 0.3);
-            if (g.bass !== 'walk' && g.bass[st] && g.bass[st] !== '.') A.note(bassOf(c, g.bass[st]), t, 0.7, 0.5);
-            else if (g.bass === 'walk' && st % g.spb === 0) A.note(bassOf(c, ['r', '3', '5', 'r'][(st / g.spb) % 4]), t, 0.7, 0.5);
-          } else {
+          else {
             const beat = i % click.sub === 0;
             A.hit(i === 0 ? 'clickHi' : 'click', t, beat ? 0.85 : 0.3);
           }
