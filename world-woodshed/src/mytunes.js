@@ -6,7 +6,9 @@
    Common spellings are accepted (C-7, CΔ7, Cø, C°7, Cmin7, C7(b9), lower-case roots) and stored the way
    src/theory.js writes them, so the band, the guide-tone drill and transposition treat them like the
    preset tunes. A form is either one letter per equal section (AABA) or labels with bar counts (A8 B8, or
-   Intro 4, A 8). Pure functions: no DOM and no saved state. */
+   Intro 4, A 8). A song worked out in Transcribe becomes a draft too: songLayout turns its beat grid and
+   sections into bars, and the Transcribe tool guesses a chord for each (splitBar, chordName).
+   Pure functions: no DOM and no saved state. */
 import D from './data.js';
 import { QUAL } from './theory.js';
 
@@ -114,6 +116,7 @@ export function checkTune(d) {
   if (Object.keys(errors).length) return { errors };
   const tune = { name, groove, bpm, note: String(d.note || '').trim().slice(0, 120), bars: chart.bars };
   if (d.id) tune.id = d.id;
+  if (d.song) tune.song = String(d.song).slice(0, 60); // the Transcribe song it came from
   if (form) tune.form = form;
   return { tune, errors };
 }
@@ -130,8 +133,73 @@ export function playable(t) {
   return {
     id: String(t.id), name: String(t.name || 'Untitled'), group: 'Your tunes', mine: true, groove: t.groove,
     bpm: Math.round(Math.min(MAX_BPM, Math.max(MIN_BPM, +t.bpm || 120))), note: String(t.note || ''),
-    form, bars: chart.bars
+    form, bars: chart.bars, song: t.song ? String(t.song) : undefined
   };
 }
 
-export default { normChord, parseChart, chartText, parseForm, formText, checkTune, playable, MAX_BARS, MIN_BPM, MAX_BPM };
+/* ---------- from a Transcribe song ---------- */
+
+/* A section name as a form label: one word of up to 8 characters (the form is typed with spaces between
+   sections), keeping a trailing number. Verse 2 → Verse2, Intro riff → Intro, Section 12 → Sectio12 */
+export function shortLabel(name) {
+  const str = String(name || '').trim(), m = /^(.*?)\s*(\d+)$/.exec(str);
+  const word = (m ? m[1] : str).split(/\s+/)[0].replace(/[^\p{L}\p{N}'#-]/gu, '');
+  const num = m ? m[2].slice(-3) : '';
+  return (word.slice(0, 8 - num.length) + num) || '?';
+}
+
+/* The bars of a song, from its beat grid: { bars: [{ t0, t1 }], form, from, capped } or { error }.
+   With sections, each becomes a section of the form (in time order, overlaps trimmed, gaps between them
+   left out); otherwise the loop, if it is a bar or longer; otherwise the whole song. Bar lines are rounded to
+   the grid, so a section marked a little early or late still gets whole bars. The band plays 4/4 only. */
+export function songLayout({ bpm, offset, bpb = 4, dur, sections = [], loop = null }) {
+  if (!(bpm > 0) || offset === null || offset === undefined || !(dur > 0)) return { error: 'tempo' };
+  if (bpb !== 4) return { error: 'meter' };
+  const L = 60 / bpm * bpb, at = t => Math.round((t - offset) / L);
+  const first = Math.ceil((0 - offset) / L - 0.25), last = Math.floor((dur - offset) / L + 0.25); // bars mostly inside the audio
+  const spans = [];
+  let from = 'song';
+  const secs = (sections || []).filter(x => x && x.b > x.a).slice().sort((x, y) => x.a - y.a);
+  if (secs.length) {
+    let end = -Infinity;
+    secs.forEach(x => {
+      const k0 = Math.max(at(x.a), end, first), k1 = Math.min(at(x.b), last);
+      if (k1 - k0 >= 1) { spans.push([shortLabel(x.name), k0, k1]); end = k1; }
+    });
+    if (spans.length) from = 'sections';
+  }
+  if (!spans.length && loop && loop.a !== null && loop.b !== null && loop.b - loop.a >= 0.75 * L) {
+    const k0 = Math.max(at(loop.a), first), k1 = Math.min(Math.max(at(loop.b), k0 + 1), last);
+    if (k1 > k0) { spans.push(['', k0, k1]); from = 'loop'; }
+  }
+  if (!spans.length && last > first) spans.push(['', first, last]);
+  if (!spans.length) return { error: 'short' };
+  const bars = [], form = [];
+  let capped = false;
+  for (const [lbl, k0, k1] of spans) {
+    const n = Math.min(k1 - k0, MAX_BARS - bars.length);
+    if (n < k1 - k0) capped = true;
+    for (let k = k0; k < k0 + n; k++) bars.push({ t0: offset + k * L, t1: offset + (k + 1) * L });
+    if (n) form.push([lbl, n]);
+    if (bars.length >= MAX_BARS) break;
+  }
+  return { bars, form: from === 'sections' ? form : null, from, capped };
+}
+
+const FLAT_ROOTS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'], SHARP_ROOTS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+/* A guessed chord (root pitch class, Transcribe's quality) in the app's spelling */
+export function chordName(root, q, flats = true) {
+  return (flats ? FLAT_ROOTS : SHARP_ROOTS)[((root % 12) + 12) % 12] + String(q || '').replace('♭', 'b');
+}
+
+/* One or two chords for a bar: the whole bar's guess, unless a half clearly hears something else.
+   whole: the bar's best chord; first, second: each half's best { sym, score } and how the whole bar's chord
+   scores on that half (wScore). A half changes chord only when its own guess beats the bar's by margin. */
+export function splitBar(whole, first, second, margin = 0.12) {
+  if (!first || !second) return [whole];
+  const pick = x => (x.sym !== whole && x.score - x.wScore > margin ? x.sym : whole);
+  const a = pick(first), b = pick(second);
+  return a === b ? [a] : [a, b];
+}
+
+export default { normChord, parseChart, chartText, parseForm, formText, checkTune, playable, shortLabel, songLayout, chordName, splitBar, MAX_BARS, MIN_BPM, MAX_BPM };

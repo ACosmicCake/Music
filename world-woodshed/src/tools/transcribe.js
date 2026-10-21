@@ -6,6 +6,7 @@ import Stretch from '../stretch.js';
 import { detectPitch } from '../listen.js';
 import './transcribe.css';
 import { TRANSCRIBE_META } from './transcribe-lazy.js';
+import TN from '../mytunes.js';
 
 export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
@@ -155,32 +156,61 @@ export default function transcribe(UI) {
     }
     return tot;
   }
-  function chroma(mono, sr, a, b, fLo, fHi) {
+  function chroma(mono, sr, a, b, fLo, fHi, tune) {
     const N = 8192, hop = 4096;
     const start = Math.floor(a * sr), end = Math.min(mono.length, Math.floor(b * sr));
     const pcs = new Float64Array(12);
     const low = new Float64Array(12);
     let frames = 0;
     for (let p = start; p + N <= Math.max(end, start + N) && p + N <= mono.length && frames < 60; p += hop) {
-      foldPeaks(magAt(mono, p, N), sr, N, fLo, fHi, pcs, low, { pow: 2 });
+      foldPeaks(magAt(mono, p, N), sr, N, fLo, fHi, pcs, low, { pow: 2, tune });
       frames++;
     }
     const norm = arr => { const m = Math.max(...arr); return Array.from(arr, v => (m > 0 ? v / m : 0)); };
     return { pcs: norm(pcs), low: norm(low), frames };
   }
   const CHORD_TEMPLATES = [['', [0, 4, 7]], ['m', [0, 3, 7]], ['7', [0, 4, 7, 10]], ['m7', [0, 3, 7, 10]], ['maj7', [0, 4, 7, 11]], ['m7♭5', [0, 3, 6, 10]], ['dim', [0, 3, 6]], ['sus4', [0, 5, 7]]];
+  /* how well a chord (root r, intervals iv) fits the notes heard */
+  function chordScore(pcs, low, r, iv) {
+    const tones = iv.map(x => (r + x) % 12);
+    let inS = 0, outS = 0;
+    for (let p = 0; p < 12; p++) (tones.includes(p) ? (inS += pcs[p]) : (outS += pcs[p]));
+    return inS / Math.sqrt(iv.length) - 0.45 * outS / Math.sqrt(12 - iv.length) + 0.25 * (low[r] || 0) - (iv.length > 3 ? 0.06 : 0);
+  }
   function guessChord(pcs, low) {
     let best = null;
     for (let r = 0; r < 12; r++) {
       CHORD_TEMPLATES.forEach(([q, iv]) => {
-        const tones = iv.map(x => (r + x) % 12);
-        let inS = 0, outS = 0;
-        for (let p = 0; p < 12; p++) (tones.includes(p) ? (inS += pcs[p]) : (outS += pcs[p]));
-        const score = inS / Math.sqrt(iv.length) - 0.45 * outS / Math.sqrt(12 - iv.length) + 0.25 * (low[r] || 0) - (iv.length > 3 ? 0.06 : 0);
-        if (!best || score > best.score) best = { root: r, q, score, tones };
+        const score = chordScore(pcs, low, r, iv);
+        if (!best || score > best.score) best = { root: r, q, iv, score, tones: iv.map(x => (r + x) % 12) };
       });
     }
     return best;
+  }
+  /* A chord guess for each bar of a song (bars from TN.songLayout), for a Repertoire tune: the whole bar's
+     best chord, or one per half when a half clearly hears another (TN.splitBar). Each half is heard once and
+     the bar is the two together. A bar with nothing pitched in it repeats the one before. Null if no bar
+     has anything pitched. */
+  function* songChords(sig, sr, bars, tune, flats, p0, p1) {
+    const heard = (a, b) => { const c = chroma(sig, sr, a, b, 45, 2200, tune); return c.frames && Math.max(...c.pcs) > 0 ? c : null; };
+    const sum = (x, y) => { const v = x.map((n, i) => n + y[i]), m = Math.max(...v); return v.map(n => (m > 0 ? n / m : 0)); };
+    const out = [];
+    for (let i = 0; i < bars.length; i++) {
+      const { t0, t1 } = bars[i], mid = (t0 + t1) / 2;
+      const h1 = heard(t0, mid), h2 = heard(mid, t1);
+      const whole = h1 && h2 ? { pcs: sum(h1.pcs, h2.pcs), low: sum(h1.low, h2.low) } : h1 || h2;
+      if (!whole) out.push(null);
+      else {
+        const gw = guessChord(whole.pcs, whole.low), sym = TN.chordName(gw.root, gw.q, flats);
+        const half = c => { if (!c) return null; const g = guessChord(c.pcs, c.low); return { sym: TN.chordName(g.root, g.q, flats), score: g.score, wScore: chordScore(c.pcs, c.low, gw.root, gw.iv) }; };
+        out.push(TN.splitBar(sym, half(h1), half(h2)).join(' '));
+      }
+      yield lerpP(p0, p1, (i + 1) / bars.length);
+    }
+    const firstHeard = out.find(Boolean);
+    if (!firstHeard) return null;
+    let prev = firstHeard;
+    return out.map(b => (prev = b || prev));
   }
 
   /* ---------- whole-song analysis: tuning, key, tempo, beat phase ----------
@@ -837,7 +867,36 @@ export default function transcribe(UI) {
           st.sections.sort((x, y) => x.a - y.a);
           secName.value = ''; renderSections(); drawStatic(); persist();
         } }, 'Save loop as section');
-        secCard.append(h('h3', { text: 'Sections' }), h('div', { class: 'row' }, secName, addSec), sectionsList);
+        // the song as a tune for the Repertoire gym's band: chords guessed bar by bar on the beat grid
+        const toTuneBtn = h('button', { class: 'btn small', onclick: makeTune }, 'Make a tune for the band →');
+        const linkedTune = () => E.listTunes().find(t => t.song === st.id);
+        const openTuneBtn = h('button', { class: 'btn small ghost', onclick: () => { const t = linkedTune(); if (t) UI.openTool('repertoire', { params: { tune: t.id } }); } }, 'Open its tune');
+        openTuneBtn.hidden = !linkedTune();
+        let tuneTok = 0;
+        async function makeTune() {
+          if (!gridOn()) { toast('Set a tempo and a downbeat first (Key, tempo & beat grid)'); return; }
+          const lay = TN.songLayout({ bpm: P.bpm, offset: P.grid.offset, bpb: P.grid.bpb, dur: P.dur, sections: st.sections, loop: { a: P.a, b: P.b } });
+          if (lay.error) { toast(lay.error === 'meter' ? 'The band plays four beats to a bar: set the beat grid to 4 beats' : 'Not enough of the song on the beat grid for a bar'); return; }
+          const k = P.est && P.est.key, rel = k ? (k.minor ? k.tonic + 3 : k.tonic) % 12 : 0;
+          const my = ++tuneTok;
+          toTuneBtn.disabled = true; toTuneBtn.textContent = 'Listening… 0%';
+          let bars = null;
+          try { bars = await drive(songChords(P.mono, P.sr, lay.bars, P.est ? P.est.tune || 0 : 0, ![7, 2, 9, 4, 11].includes(rel), 0, 1), () => P.alive && my === tuneTok, p => { toTuneBtn.textContent = 'Listening… ' + Math.round(p * 100) + '%'; }); }
+          catch (e) { console.error(e); bars = null; }
+          if (!P.alive || my !== tuneTok) return;
+          toTuneBtn.disabled = false; toTuneBtn.textContent = 'Make a tune for the band →';
+          if (!bars) { toast('No chords heard on the beat grid'); return; }
+          persist(true);
+          UI.openTool('repertoire', { params: { draft: {
+            name: st.title || 'My song', chart: TN.chartText(bars), form: TN.formText(lay.form), groove: 'rock', bpm: Math.round(P.bpm), song: st.id,
+            note: 'Chords guessed from the recording' + (k ? ' (' + keyName(k) + ')' : '') + '. Check them by ear.',
+            from: lay.from, capped: lay.capped, title: st.title || 'your song'
+          } } });
+        }
+        secCard.append(h('h3', { text: 'Sections' }), h('div', { class: 'row' }, secName, addSec), sectionsList,
+          h('div', { class: 'tr-sub' }, h('span', { class: 'eyebrow', text: 'Play it with the band' }),
+            h('p', { class: 'small muted', text: 'Turn the sections (or the loop, or the whole song) into a chord chart for the Repertoire gym: a chord guess for every bar of the beat grid, for you to check by ear and correct. Needs a tempo and a downbeat.' }),
+            h('div', { class: 'row' }, toTuneBtn, openTuneBtn)));
         root.append(secCard);
         renderSections();
 
