@@ -113,7 +113,7 @@ describe('loading a save from every past format', () => {
     expect(s.settings).toMatchObject({ tuning: 'dropd', capo: 2, focus: 'jazz', latencyMs: 35 });
     expect(E.STRINGS[0].midi).toBe(38 + 2); // drop D with a capo on 2, applied on load
   });
-  it('schema 2 (current): loads as it was saved', async () => {
+  it('schema 2 (before your own tunes): everything is kept, with an empty tune list', async () => {
     const saved = JSON.parse(fixture(2));
     localStorage.setItem(LS_KEY, fixture(2));
     const E = await boot();
@@ -123,6 +123,20 @@ describe('loading a save from every past format', () => {
     expect(s.cur.prefs.styles).toEqual(['flamenco', 'jazz']);
     expect(s.readLib.pieces).toEqual(saved.readLib.pieces);
     expect(s.history['2025-10-20'].sec).toBe(600);
+    expect(s.tunes).toEqual({});
+    expect(E.listTunes()).toEqual([]);
+  });
+  it('schema 3 (current): loads as it was saved, your tunes and their deletions included', async () => {
+    const saved = JSON.parse(fixture(3));
+    localStorage.setItem(LS_KEY, fixture(3));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.skills).toEqual(saved.skills);
+    expect(s.tunes).toEqual(saved.tunes);
+    expect(s.tomb['tune:my-ab12mgx0aa']).toBe(1760870000000);
+    expect(E.listTunes().map(t => t.name)).toEqual(['Montuno sketch', 'Rainy-day blues']);
+    expect(E.getTune('my-ab12mgx1k2').form).toEqual([['A', 4], ['B', 4], ['C', 4]]);
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

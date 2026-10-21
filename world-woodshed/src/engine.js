@@ -131,7 +131,11 @@ function universe(skill) {
   return list;
 }
 function scaleName(id) { const s = D.SCALES.find(x => x.id === id); return s ? s.name : id; }
-function itemLabel(skill, id) { const it = universe(skill).find(x => x.id === id); return it ? it.label : id; }
+function itemLabel(skill, id) {
+  const it = universe(skill).find(x => x.id === id);
+  if (!it && skill === 'repertoire' && state.tunes && state.tunes[id]) return state.tunes[id].name;
+  return it ? it.label : id;
+}
 
 /* ---------- State ---------- */
 function freshState() {
@@ -140,7 +144,7 @@ function freshState() {
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
     tech: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
-    routine: null, placementDone: false, songs: {},
+    routine: null, placementDone: false, songs: {}, tunes: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
   };
 }
@@ -741,6 +745,21 @@ function saveSong(setup) {
 }
 function deleteSong(id) { delete songsObj()[id]; tombstone('song:' + id); scheduleSave(); emit(); }
 
+/* ---------- Your own tunes (Repertoire gym): checked by src/mytunes.js, played like D.TUNES ---------- */
+function tunesObj() { if (!state.tunes) state.tunes = {}; return state.tunes; }
+function listTunes() { return Object.values(tunesObj()).filter(t => t && Array.isArray(t.bars)).sort((a, b) => String(a.name).localeCompare(String(b.name))); }
+function getTune(id) { return tunesObj()[id] || null; }
+function saveTune(tune) {
+  if (!tune) return null;
+  const t = JSON.parse(JSON.stringify(tune));
+  if (!t.id) { t.id = 'my-' + DEV.slice(-4) + Date.now().toString(36); t.created = Date.now(); }
+  t.updatedAt = Date.now();
+  tunesObj()[t.id] = t;
+  scheduleSave(); emit();
+  return t;
+}
+function deleteTune(id) { delete tunesObj()[id]; tombstone('tune:' + id); scheduleSave(); emit(); }
+
 /* ---------- Custom routines ---------- */
 function routines() { if (!Array.isArray(state.routines)) state.routines = []; return state.routines; }
 function getRoutine(id) { return routines().find(r => r.id === id) || null; }
@@ -817,7 +836,7 @@ export default {
   routines, getRoutine, saveRoutine, deleteRoutine, activeRoutineId, setActiveRoutine, uid,
   session, startSession, touchSession, sessionChanged, endSession, journal,
   lessonDone, setLessonDone, heard, setHeard, techPick,
-  listSongs, getSong, saveSong, deleteSong,
+  listSongs, getSong, saveSong, deleteSong, listTunes, getTune, saveTune, deleteTune,
   SKILLS, CAT_NAMES, STRINGS, TUNINGS, guitar, setGuitar, FOCUS, init, get state() { return state; }, onChange, emit,
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,

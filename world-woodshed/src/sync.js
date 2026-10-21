@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 2;
+export const SCHEMA = 3;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'lastMinutes', 'lastRide'];
@@ -45,6 +45,11 @@ const MIGRATIONS = {
       Object.values(lib.pieces).forEach(p => { if (/^p\d+$/.test(p.id)) p.id = 'p' + tag + p.no; next[p.id] = p; });
       lib.pieces = next;
     }
+    return s;
+  },
+  // 2 → 3: the player's own tunes for the Repertoire gym
+  3(s) {
+    if (!isObj(s.tunes)) s.tunes = {};
     return s;
   }
 };
@@ -149,6 +154,7 @@ export function merge(local, remote) {
     anchors: Object.assign({}, a.anchors, b.anchors, bNewer ? b.anchors : a.anchors),
     tech: mergeTech(a.tech, b.tech),
     songs: dropDeleted(byKey(a.songs, b.songs), tomb, 'song:'),
+    tunes: dropDeleted(byKey(a.tunes, b.tunes), tomb, 'tune:'),
     routines: mergeList(a.routines, b.routines, r => r.id).filter(r => !tomb['routine:' + r.id] || stamp(r) > tomb['routine:' + r.id]),
     journal: mergeList(a.journal, b.journal, j => String(j.ts), 300).sort((x, y) => y.ts - x.ts),
     lessons: byKey(a.lessons, b.lessons, maxNum),
@@ -170,7 +176,7 @@ export function merge(local, remote) {
 
 /* A short fingerprint of the content that matters, to tell whether a merge changed anything */
 export function digest(s) {
-  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, cur: s.cur && s.cur.items, readLib: s.readLib, journal: (s.journal || []).length, routines: s.routines, settings: s.settings };
+  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, cur: s.cur && s.cur.items, readLib: s.readLib, tunes: s.tunes, journal: (s.journal || []).length, routines: s.routines, settings: s.settings };
   const str = JSON.stringify(pick);
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }

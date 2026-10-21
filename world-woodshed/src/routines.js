@@ -95,7 +95,7 @@ export function describe(b) {
     case 'drone': parts.push(st.scale ? D.NOTE_NAMES[st.tonic ?? 2] + ' ' + scale(st.scale) : 'Pick on the day'); break;
     case 'technique': { const ex = st.exercise || (b.params && b.params.exercise); parts.push(ex && ex !== 'auto' ? (D.EXERCISES.find(e => e.id === ex) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'rhythms': { const rid = st.rhythm || (b.params && b.params.rhythm); parts.push(rid && rid !== 'auto' ? (D.RHYTHMS.find(r => r.id === rid) || {}).name : 'Smart choice: rotates for you'); break; }
-    case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || {}).name : 'Smart choice: rotates for you'); break; }
+    case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || E.getTune(tid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'drill': { const did = st.drill && st.drill !== 'auto' ? st.drill : b.params && b.params.drill; const dd = did && (D.DRILLS || []).find(x => x.id === did); parts.push(dd ? dd.name + ' (' + ((D.REGIONS.find(r => r.id === dd.style) || {}).name || dd.style) + ')' : 'Smart choice: from the styles you put first'); break; }
     case 'transcribe': { const sg = st.song && st.song !== 'auto' ? E.getSong(st.song) : null; parts.push(sg ? sg.title : 'Your most recent song'); break; }
     case 'lesson': { const lid = st.lesson && st.lesson !== 'auto' ? st.lesson : b.params && b.params.lesson; parts.push(lid ? (D.LESSONS.find(l => l.id === lid) || {}).title : 'Smart choice: new lessons and reviews'); break; }
