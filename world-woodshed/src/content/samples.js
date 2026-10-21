@@ -227,6 +227,12 @@ export const SAMPLE_SETS = {
       ["60-2-1.mp3",60,2,1,4035]
     ]
   }),
+  hatfoot: Object.assign({"name":"Hi-hat pedal","source":"vcsl","gain":5.9,"release":0.05,"layers":1,"layerGain":null,"bytes":6423}, {
+    files: [
+      ["60-0-0.mp3",60,0,0,3224],
+      ["60-0-1.mp3",60,0,1,3199]
+    ]
+  }),
   ride: Object.assign({"name":"Ride cymbal","source":"vcsl","gain":1.15,"release":0.05,"layers":3,"layerGain":null,"bytes":36973}, {
     files: [
       ["60-0-0.mp3",60,0,0,11697],
