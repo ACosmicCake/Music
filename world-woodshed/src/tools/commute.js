@@ -107,7 +107,9 @@ tool('commute', {
 
     /* 1. a ride-length session */
     const plan = h('div', { class: 'card' });
-    let minutes = null, blocks = null;
+    // the ride length last started on this device, planned and ready
+    let minutes = RIDES.includes(E.state.settings.lastRide) ? E.state.settings.lastRide : null;
+    let blocks = minutes ? commuteBlocks(Cur.planSession(minutes).blocks.filter(b => b.type !== 'break')) : null;
     function drawPlan() {
       plan.innerHTML = '';
       plan.append(h('span', { class: 'eyebrow', text: 'Smart session, no guitar' }), h('h2', { text: 'How long is your ride?' }),
@@ -116,7 +118,7 @@ tool('commute', {
       plan.append(ribbon(blocks),
         h('ol', { class: 'blocks static smartlist' }, blocks.map(b => h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
           h('div', { class: 'bmain' }, h('span', { class: 'bicon' }), h('div', { class: 'btext' }, h('b', { text: blockTitle(b) }), h('span', { class: 'small muted', text: b.reason || describe(b) })), h('span', { class: 'mono small', text: b.minutes + 'm' }))))),
-        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => startSession({ name: 'On the go', blocks, autoAdvance: true }) }, '▶ Start · ' + fmtMin(totalOf(blocks))),
+        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastRide = minutes; startSession({ name: 'On the go', blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(blocks))),
           h('button', { class: 'btn ghost', onclick: () => { blocks = commuteBlocks(Cur.planSession(minutes).blocks.filter(b => b.type !== 'break')); drawPlan(); } }, 'Shuffle')));
     }
     drawPlan();
