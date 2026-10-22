@@ -25,6 +25,34 @@ export async function shareFile(name, text, title) {
   return 'downloaded';
 }
 
+/* Hand any file (a score, a photo, a MIDI file) to another app: the share sheet in the Android app and where the
+   browser can share files, otherwise a download. Resolves 'shared', 'downloaded' or 'cancelled'. */
+const blobBase64 = blob => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1));
+  r.onerror = () => rej(r.error);
+  r.readAsDataURL(blob);
+});
+export async function shareBlob(name, blob, title) {
+  const safe = [...String(name || 'file')].map(c => (c < ' ' || '\\/:*?"<>|'.includes(c) ? '_' : c)).join('').slice(0, 120) || 'file';
+  if (isNative()) {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const { Share } = await import('@capacitor/share');
+    const w = await Filesystem.writeFile({ path: 'share/' + safe, data: await blobBase64(blob), directory: Directory.Cache, recursive: true });
+    try { await Share.share({ title, files: [w.uri], dialogTitle: title }); } catch (e) { if (/cancel/i.test(String(e && e.message))) return 'cancelled'; throw e; }
+    return 'shared';
+  }
+  const f = new File([blob], safe, { type: blob.type || 'application/octet-stream' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title }); return 'shared'; }
+  } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(f); a.download = safe;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  return 'downloaded';
+}
+
 /* Keep the screen on while anything asks for it (a running session, hands-free practice, Transcribe playing).
    Each caller holds its own claim, so one letting go doesn't turn the screen off under another. The Android
    app uses the native keep-awake (its WebView has no Screen Wake Lock); the browser drops a wake lock when

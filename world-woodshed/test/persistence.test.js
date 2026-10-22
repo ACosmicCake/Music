@@ -153,7 +153,7 @@ describe('loading a save from every past format', () => {
     expect(s.scaleTime[E.device()]['major:7'].v).toBe(10);
     expect(s.records).toEqual({});
   });
-  it('schema 5 (current): loads as it was saved, the best streaks and the growing goal included', async () => {
+  it('schema 5 (before the Library): loads as it was saved, the best streaks and the growing goal included, with an empty library', async () => {
     const saved = JSON.parse(fixture(5));
     localStorage.setItem(LS_KEY, fixture(5));
     const E = await boot();
@@ -163,6 +163,18 @@ describe('loading a save from every past format', () => {
     expect(s.records).toEqual({ streak: 41, goalStreak: 12 });
     expect(s.cur.prefs).toMatchObject({ goal: 90, goalTarget: 240, streakRule: 10 });
     expect(E.streaks()).toMatchObject({ best: 41, goalBest: 12 }); // kept though the history no longer shows them
+    expect(s.library).toEqual({});
+  });
+  it('schema 6 (current): the Library loads as it was saved, deletions included', async () => {
+    const saved = JSON.parse(fixture(6));
+    localStorage.setItem(LS_KEY, fixture(6));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.library).toEqual(saved.library);
+    expect(s.tomb).toMatchObject({ 'lib:lbold': 1760300000000, 'libfile:lfgone': 1760300000000 });
+    expect(E.listLibrary().map(e => e.title).sort()).toEqual(['Asturias', 'Blackbird']);
+    expect(s.records).toEqual({ streak: 41, goalStreak: 12 });
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

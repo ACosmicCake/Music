@@ -27,6 +27,7 @@ import './tools/learn.js';
 import { bootSession } from './ui/session.js';
 import './ui/routine.js';
 import './pages.js';
+import './ui/library.js';
 import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
