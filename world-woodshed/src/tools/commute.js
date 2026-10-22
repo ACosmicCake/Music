@@ -108,9 +108,10 @@ tool('commute', {
         h('button', { class: 'btn small ghost', 'aria-label': 'One minute less', onclick: () => step(-1) }, '−'),
         h('span', { class: 'mono small', text: b.minutes + ' min' }),
         h('button', { class: 'btn small ghost', 'aria-label': 'One minute more', onclick: () => step(1) }, '+'),
-        h('span', { class: 'grow' }),
-        i > 0 ? h('button', { class: 'btn small ghost', 'aria-label': 'Move up', onclick: () => { blocks.splice(i - 1, 0, blocks.splice(i, 1)[0]); edited(); } }, '↑') : '',
-        h('button', { class: 'btn small ghost', 'aria-label': 'Remove ' + goTitle(b), disabled: blocks.length < 2 ? true : null, onclick: () => { blocks.splice(i, 1); edited(); } }, '✕'));
+        // kept together, so on a narrow screen they wrap as a pair
+        h('span', { class: 'go-move' },
+          i > 0 ? h('button', { class: 'btn small ghost', 'aria-label': 'Move up', onclick: () => { blocks.splice(i - 1, 0, blocks.splice(i, 1)[0]); edited(); } }, '↑') : '',
+          h('button', { class: 'btn small ghost', 'aria-label': 'Remove ' + goTitle(b), disabled: blocks.length < 2 ? true : null, onclick: () => { blocks.splice(i, 1); edited(); } }, '✕')));
       const title = goTitle(b), sub = b.reason || describe(b);
       return h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
         h('div', { class: 'bmain' }, h('span', { class: 'bicon' }), h('div', { class: 'btext' }, h('b', { text: title }), sub && !sub.startsWith(title) ? h('span', { class: 'small muted', text: sub }) : '')),

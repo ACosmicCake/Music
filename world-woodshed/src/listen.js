@@ -179,10 +179,10 @@ async function start() {
         await ctx.audioWorklet.addModule(url);
         URL.revokeObjectURL(url);
         node = new AudioWorkletNode(ctx, 'ww-mic');
-        node.port.onmessage = e => analyzer.push(e.data.buf, e.data.t0);
+        node.port.onmessage = e => { if (analyzer) analyzer.push(e.data.buf, e.data.t0); }; // a block can still arrive after stopNow()
       } else {
         node = ctx.createScriptProcessor(1024, 1, 1);
-        node.onaudioprocess = e => analyzer.push(e.inputBuffer.getChannelData(0).slice(), ctx.currentTime - 1024 / ctx.sampleRate);
+        node.onaudioprocess = e => { if (analyzer) analyzer.push(e.inputBuffer.getChannelData(0).slice(), ctx.currentTime - 1024 / ctx.sampleRate); };
       }
       srcNode.connect(node); node.connect(sink);
       setState('on');
@@ -196,7 +196,7 @@ async function start() {
   return starting;
 }
 function stopNow() {
-  try { if (srcNode) srcNode.disconnect(); if (node) node.disconnect(); if (sink) sink.disconnect(); } catch (e) { /* ignore */ }
+  try { if (srcNode) srcNode.disconnect(); if (node) { if (node.port) node.port.onmessage = null; node.disconnect(); } if (sink) sink.disconnect(); } catch (e) { /* ignore */ }
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = srcNode = node = sink = analyzer = null;
   if (state === 'on' || state === 'starting') setState('off');
