@@ -202,7 +202,7 @@ tool('commute', {
       const pauseBtn = h('button', { class: 'pk-stop', onclick: () => { r.paused = !r.paused; pauseBtn.textContent = r.paused ? '▶ Resume' : '❚❚ Pause'; if (!r.paused && r.wake) r.wake(); } }, '❚❚ Pause');
       scr.append(h('div', { class: 'pk-top' }, status, h('div', { class: 'row' }, pauseBtn, stopBtn)), h('div', { class: 'pk-mid' }, big, sub), h('div', { class: 'pk-halves' }, left, right));
       document.body.append(scr);
-      keepAwake(true);
+      keepAwake(true, 'handsfree');
       const grade = ok => { if (r.grade) { const g = r.grade; r.grade = null; g(ok); } };
       left.onclick = () => grade(false); right.onclick = () => grade(true);
       // headphone buttons through a media session (the browser and the installed web app)
@@ -220,7 +220,7 @@ tool('commute', {
       r.cleanup = () => {
         if (silent) { silent.pause(); silent = null; }
         if ('mediaSession' in navigator) ['nexttrack', 'previoustrack', 'pause', 'play'].forEach(a => { try { navigator.mediaSession.setActionHandler(a, null); } catch (e) { /* ignore */ } });
-        keepAwake(false); stopSpeaking(); scr.remove();
+        keepAwake(false, 'handsfree'); stopSpeaking(); scr.remove();
       };
       const sleep = s => new Promise(res => { const id = setTimeout(res, s * 1000); r.wake = () => { clearTimeout(id); res(); }; });
       const waitWhilePaused = async () => { const t0 = Date.now(); while (r.alive && r.paused) await sleep(60); r.pausedFor += Date.now() - t0; };

@@ -7,6 +7,7 @@ import { detectPitch } from '../listen.js';
 import './transcribe.css';
 import { TRANSCRIBE_META } from './transcribe-lazy.js';
 import TN from '../mytunes.js';
+import { keepAwake } from '../native.js';
 
 export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
@@ -1400,19 +1401,8 @@ export default function transcribe(UI) {
 
       /* ----- lock-screen / headset controls (Media Session) and keeping the screen on while it plays ----- */
       const MS = navigator.mediaSession || null;
-      let wakeLock = null, wakeBusy = false, lastPlay = null;
-      async function wake(on) {
-        if (!navigator.wakeLock) return;
-        if (!on) { if (wakeLock) { const wl = wakeLock; wakeLock = null; wl.release().catch(() => {}); } return; }
-        if (wakeLock || wakeBusy || document.visibilityState !== 'visible') return;
-        wakeBusy = true;
-        try {
-          const wl = await navigator.wakeLock.request('screen');
-          if (!P.alive || !P.wantPlay) wl.release().catch(() => {});
-          else { wakeLock = wl; wl.addEventListener('release', () => { if (wakeLock === wl) wakeLock = null; }); }
-        } catch (e) { /* not allowed right now (battery saver, hidden page) */ }
-        wakeBusy = false;
-      }
+      let lastPlay = null;
+      const wake = on => keepAwake(on && P.alive && !!P.wantPlay, 'transcribe');
       function msPosition() {
         if (!MS || typeof MS.setPositionState !== 'function' || !(P.dur > 0)) return;
         try { MS.setPositionState({ duration: P.dur, playbackRate: P.speed, position: clamp(curPos(), 0, P.dur) }); } catch (e) { /* ignore */ }
