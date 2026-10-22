@@ -279,7 +279,18 @@ export function discardSession() {
   E.endSession(''); updateWake(); render();
 }
 
-// resume the ticker after a reload if a session was running (call after E.init)
-export function bootSession() { if (E.session()) ensureTicker(); render(); }
+/* After a reload (call after E.init): a session the app was closed in the middle of comes back paused, so it
+   doesn't count time or take over until you resume it; one left untouched for hours is closed into the journal. */
+const IDLE_PAUSE = 15 * 60000, IDLE_END = 3 * 3600000;
+export function bootSession() {
+  const s = E.state.session;
+  if (s) {
+    const idle = Date.now() - (s.lastTick || s.started || 0);
+    if (idle > IDLE_END) discardSession();
+    else if (idle > IDLE_PAUSE && !s.paused) { s.paused = true; s.autoAt = null; E.sessionChanged(); }
+  }
+  if (E.session()) ensureTicker();
+  render();
+}
 E.onChange(() => { if (E.session()) ensureTicker(); render(); });
 export { render as renderSession };

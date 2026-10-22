@@ -160,7 +160,9 @@ export function merge(local, remote) {
     lessons: byKey(a.lessons, b.lessons, maxNum),
     heard: byKey(a.heard, b.heard, maxNum),
     placementDone: !!(a.placementDone || b.placementDone),
-    session: newer(a.session || undefined, b.session || undefined) || null,
+    // a running session belongs to the device it runs on: another copy (the phone's sync file, the cloud, an
+    // older save) must never start it here, or bring back one that was finished or discarded on this device
+    session: a.session || null,
     cur: mergeCur(a.cur || {}, b.cur || {}, bNewer ? 'b' : 'a')
   });
   if (a.readLib || b.readLib) {
