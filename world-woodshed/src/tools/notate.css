@@ -1,0 +1,22 @@
+/* Write by playing (src/tools/notate.js) */
+.nt-setup input[type="text"] { width: 100%; font-size: 1.05rem; font-weight: 700; }
+.nt-tempo { gap: 8px; }
+.nt-bpm { min-width: 3ch; text-align: center; font-size: 1.15rem; }
+.nt-opts { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.nt-opts .seg, .nt-durs { flex-wrap: wrap; border-radius: 14px; }
+.nt-rec { min-width: 120px; }
+.nt-rec.on { background: var(--bad); border-color: var(--bad); color: #fff; }
+.nt-heard { font-size: 1.1rem; font-weight: 500; }
+.nt-status { min-height: 1.4em; margin: 0; }
+.nt-setup .micmeter { color: var(--patina); }
+.nt-step, .nt-step-panel, .nt-step-panel > * { min-width: 0; }
+.nt-step-toggle { justify-self: start; }
+.nt-durs { max-width: 100%; width: fit-content; }
+.nt-staff { max-height: 70vh; overflow-y: auto; overflow-x: hidden; }
+.nt-staff .ww-staff { cursor: pointer; }
+.nt-edit { display: grid; gap: 8px; border: 1px solid var(--brass); border-radius: var(--r); padding: 10px; background: var(--brass-soft); }
+.nt-edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.nt-edit-grid .btn { justify-content: center; }
+.nt-score label, .nt-export label { gap: 8px; align-items: center; flex-wrap: nowrap; }
+html.compact .nt-edit-grid { grid-template-columns: repeat(2, 1fr); }
+html.compact .nt-rec { min-width: 0; flex: 1; }

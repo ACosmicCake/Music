@@ -29,7 +29,7 @@ function toolTile(id, extra) {
 const TRAIN = {
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
-  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'fretboard', 'callresp', 'repertoire', 'explorer'], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
+  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
   away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['commute', 'away', 'dictation', 'sightread', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
 };
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
