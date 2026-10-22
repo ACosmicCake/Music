@@ -68,6 +68,13 @@ describe('merge', () => {
     expect(merge(desk, phone).settings.lastMinutes).toBe(60);
     expect(merge(desk, phone).settings).not.toHaveProperty('lastRide');
   });
+  it('never brings a practice session in from another copy', () => {
+    const running = { id: 's1', name: 'On the go', started: 5, lastTick: 9, idx: 0, blocks: [] };
+    // ended here, still in the phone's older sync file: it stays ended
+    expect(merge(base({ updatedAt: 10, session: null }), base({ updatedAt: 5, session: running })).session).toBeNull();
+    // running here: another copy doesn't replace it
+    expect(merge(base({ session: running }), base({ updatedAt: 20, session: Object.assign({}, running, { id: 's2', lastTick: 30 }) })).session.id).toBe('s1');
+  });
   it('keeps the best technique tempo from both devices', () => {
     const m = merge(base({ tech: { altpick: { best: 120, bpm: 124, last: 5 } } }), base({ tech: { altpick: { best: 100, bpm: 104, last: 9 } } }));
     expect(m.tech.altpick).toMatchObject({ best: 120, bpm: 104, last: 9 });

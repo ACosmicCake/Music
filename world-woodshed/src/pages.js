@@ -4,7 +4,7 @@ import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fr
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
-import { startSession, runCurrent } from './ui/session.js';
+import { startSession, runCurrent, discardSession } from './ui/session.js';
 import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
@@ -55,9 +55,10 @@ Object.assign(PAGES, {
     const pc = h('div', { class: 'card practice-card' });
     if (ses) {
       const b = ses.blocks[ses.idx];
-      pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Session in progress' }), h('h2', { text: ses.name })), h('span', { class: 'mono small muted', text: 'Block ' + (ses.idx + 1) + ' of ' + ses.blocks.length })),
+      pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: ses.paused ? 'Session paused' : 'Session in progress' }), h('h2', { text: ses.name })), h('span', { class: 'mono small muted', text: 'Block ' + (ses.idx + 1) + ' of ' + ses.blocks.length })),
         ribbon(ses.blocks, { small: true, state: (x, i) => (x.done ? 'done' : '') + (i === ses.idx ? ' now' : '') }),
-        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => runCurrent() }, '▶ Resume: ' + (b ? blockTitle(b) : 'finish')), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'See the plan')));
+        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => runCurrent() }, '▶ Resume: ' + (b ? blockTitle(b) : 'finish')), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'See the plan'),
+          h('button', { class: 'btn ghost', onclick: () => { discardSession(); toast('Session ended'); } }, 'End it')));
     } else {
       // the smart plan is the main way in; a custom routine is one tap away
       pc.className = 'stack';
