@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { migrate, merge, rebuildHistory, SCHEMA } from '../src/sync.js';
+import { migrate, merge, rebuildHistory, digest, SCHEMA } from '../src/sync.js';
 
 const DAY = '2026-10-20';
 function base(extra = {}) {
@@ -125,5 +125,27 @@ describe('your own tunes', () => {
     const m = merge(base(), base({ tunes: { t1: tune('t1', 1) } }));
     expect(Object.keys(m.tunes)).toEqual(['t1']);
     expect(merge(base(), base()).tunes).toEqual({});
+  });
+});
+
+describe('digest', () => {
+  it('matches the same progress whatever order its keys were added in', () => {
+    const a = base({ skills: { intervals: { items: { P5: { n: 1 }, M3: { n: 2 } } } }, lessons: { l1: 5, l2: 6 } });
+    const b = base({ lessons: { l2: 6, l1: 5 }, skills: { intervals: { items: { M3: { n: 2 }, P5: { n: 1 } } } } });
+    expect(digest(a)).toBe(digest(b));
+  });
+  it('notices lessons, records heard, songs and deletions, not only practice', () => {
+    const d = digest(base());
+    expect(digest(base({ lessons: { l1: 5 } }))).not.toBe(d);
+    expect(digest(base({ heard: { x: 5 } }))).not.toBe(d);
+    expect(digest(base({ songs: { s1: { id: 's1' } } }))).not.toBe(d);
+    expect(digest(base({ tomb: { 'tune:x': 5 } }))).not.toBe(d);
+  });
+  it('two devices that merged each other agree, so the sync stops pushing', () => {
+    const sk = items => ({ items, conf: {}, last: 0 });
+    const phone = base({ updatedAt: 5, skills: { intervals: sk({ P5: { n: 1, last: 3 } }) }, lessons: { l1: 4 }, cur: { items: { 'tune:a': { s: 1, last: 2 } } } });
+    const desk = base({ updatedAt: 7, skills: { chords: sk({ maj: { n: 2, last: 6 } }), intervals: sk({ M3: { n: 1, last: 6 } }) }, heard: { r: 1 }, cur: { items: { 'tune:b': { s: 2, last: 6 } } } });
+    const onPhone = merge(phone, desk), onDesk = merge(desk, onPhone);
+    expect(digest(onDesk)).toBe(digest(onPhone));
   });
 });
