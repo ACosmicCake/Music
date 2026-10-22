@@ -6,9 +6,9 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import Cur from '../curriculum.js';
 import { h, tool, toast, openTool } from '../ui/core.js';
-import { BLOCKS, blockTitle, describe, totalOf, fmtMin } from '../routines.js';
+import { BLOCKS, describe, totalOf, fmtMin } from '../routines.js';
+import { GO_GROUPS, keyTitle, goTitle, goBlock, planRide, mineBlocks, toMine, DEFAULT_MINE } from '../commuteplan.js';
 import { startSession } from '../ui/session.js';
 import { ribbon } from '../ui/routine.js';
 import { speak, stopSpeaking, keepAwake, isNative } from '../native.js';
@@ -16,30 +16,6 @@ import './commute.css';
 
 const RIDES = [5, 10, 15, 20, 30, 45, 60];
 const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-
-/* Swap anything that needs the guitar for something that doesn't */
-function commuteBlocks(blocks) {
-  return blocks.map(b0 => {
-    const b = JSON.parse(JSON.stringify(b0)), p = b.params || {};
-    const as = (type, params, why) => Object.assign(b, { type, params: Object.assign({}, params), settings: Object.assign({}, params), reason: why || b.reason });
-    switch (b.type) {
-      case 'scalewarm': return as('away', { drill: 'visualise', scale: p.scale, tonic: p.tonic }, 'See the scale on the neck in your head');
-      case 'technique': return as('away', { drill: 'fingers' }, 'Finger independence, tapping on your leg');
-      case 'free': return as('away', { drill: 'visualise' });
-      case 'callresp': return as('dictation', {}, 'Hear it and write it back, instead of playing it back');
-      case 'drill': {
-        const d = (D.DRILLS || []).find(x => x.id === p.drill);
-        const r = d && d.backing && d.backing.rhythm;
-        return r ? as('rhythms', { rhythm: r }, 'Tap the rhythm from ' + d.name.toLowerCase()) : as('away', { drill: 'sing' }, 'Sing the degrees');
-      }
-      case 'repertoire': return as('repertoire', Object.assign({}, p, { ear: true }), 'Follow the form by ear with headphones');
-      case 'transcribe': return as('listening', {});
-      case 'metronome': return as('clock', {});
-      case 'sightread': return as('sightread', Object.assign({}, p, { mode: p.mode === 'melody' ? 'rhythm' : (p.mode || 'notes') }));
-      default: return b;
-    }
-  });
-}
 
 /* ---------- hands-free questions ---------- */
 const SKILL_SET = { mix: ['intervals', 'chords', 'degrees'], intervals: ['intervals'], chords: ['chords'], degrees: ['degrees'] };
@@ -101,25 +77,84 @@ tool('commute', {
   tab: 'train', skill: null, title: 'On the go', eyebrow: 'Commute · headphones, no guitar',
   desc: 'Practice on the bus or train: a session that needs only the phone, or hands-free ear training you can do with the screen in your pocket.',
   render(body, ctx) {
-    const pref = Object.assign({ set: 'mix', wait: 3, voice: true }, E.state.settings.commute || {});
+    const pref = Object.assign({ set: 'mix', wait: 3, voice: true, mode: 'smart', skip: [], stopAfter: 0, twice: false }, E.state.settings.commute || {});
+    // the hands-free set was one choice ('mix' or one skill) before you could tick several
+    if (!Array.isArray(pref.skills) || !pref.skills.length) pref.skills = (SKILL_SET[pref.set] || SKILL_SET.mix).slice();
     const save = () => E.setSetting('commute', Object.assign({}, pref));
     let run = null;
 
-    /* 1. a ride-length session */
-    const plan = h('div', { class: 'card' });
+    /* 1. a ride-length session: the smart plan, or your own commute */
+    const plan = h('div', { class: 'card go-plan' });
     // the ride length last started on this device, planned and ready
-    let minutes = RIDES.includes(E.state.settings.lastRide) ? E.state.settings.lastRide : null;
-    let blocks = minutes ? commuteBlocks(Cur.planSession(minutes).blocks.filter(b => b.type !== 'break')) : null;
+    const last = E.state.settings.lastRide;
+    let minutes = Number.isInteger(last) && last >= 3 && last <= 180 ? last : null;
+    let blocks = null;
+    const mine = () => (Array.isArray(pref.mine) && pref.mine.length ? pref.mine : DEFAULT_MINE);
+    const rebuild = () => {
+      // your own commute shows at its own length until you pick a ride
+      if (pref.mode === 'mine') { blocks = mineBlocks(mine(), minutes); minutes = totalOf(blocks) || minutes; } else blocks = minutes ? planRide(minutes, pref.skip || []) : null;
+    };
+    // an edit to your own commute is saved as it is made; an edit to the smart plan lasts until the next plan
+    const edited = () => {
+      blocks.forEach(b => { b.weight = b.minutes; });
+      minutes = totalOf(blocks) || minutes;
+      if (pref.mode === 'mine') { pref.mine = toMine(blocks); save(); }
+      drawPlan();
+    };
+    rebuild();
+    function blockRow(b, i) {
+      const step = d => { b.minutes = Math.max(1, Math.min(60, b.minutes + d)); edited(); };
+      const ctl = h('div', { class: 'go-ctl' },
+        h('button', { class: 'btn small ghost', 'aria-label': 'One minute less', onclick: () => step(-1) }, '−'),
+        h('span', { class: 'mono small', text: b.minutes + ' min' }),
+        h('button', { class: 'btn small ghost', 'aria-label': 'One minute more', onclick: () => step(1) }, '+'),
+        h('span', { class: 'grow' }),
+        i > 0 ? h('button', { class: 'btn small ghost', 'aria-label': 'Move up', onclick: () => { blocks.splice(i - 1, 0, blocks.splice(i, 1)[0]); edited(); } }, '↑') : '',
+        h('button', { class: 'btn small ghost', 'aria-label': 'Remove ' + goTitle(b), disabled: blocks.length < 2 ? true : null, onclick: () => { blocks.splice(i, 1); edited(); } }, '✕'));
+      const title = goTitle(b), sub = b.reason || describe(b);
+      return h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
+        h('div', { class: 'bmain' }, h('span', { class: 'bicon' }), h('div', { class: 'btext' }, h('b', { text: title }), sub && !sub.startsWith(title) ? h('span', { class: 'small muted', text: sub }) : '')),
+        ctl);
+    }
+    function addRow() {
+      const sel = h('select', { 'aria-label': 'Add to the ride' }, h('option', { value: '', text: '+ Add…' }),
+        Object.values(GO_GROUPS).map(g => h('optgroup', { label: g.name }, g.keys.map(k => h('option', { value: k, text: keyTitle(k) })))));
+      sel.onchange = () => { if (!sel.value) return; blocks.push(goBlock(sel.value, 4)); edited(); };
+      return sel;
+    }
     function drawPlan() {
       plan.innerHTML = '';
-      plan.append(h('span', { class: 'eyebrow', text: 'Smart session, no guitar' }), h('h2', { text: 'How long is your ride?' }),
-        h('div', { class: 'chips presets' }, RIDES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; blocks = commuteBlocks(Cur.planSession(m).blocks.filter(b => b.type !== 'break')); drawPlan(); } }, fmtMin(m)))));
-      if (!blocks) { plan.append(h('p', { class: 'small muted', text: 'The plan picks what is due from your own progress, then swaps anything that needs the guitar: scale positions become seeing the neck in your head, call & response becomes dictation, tunes become following the form by ear.' })); return; }
+      const custom = h('input', { type: 'number', min: 3, max: 180, step: 1, inputmode: 'numeric', class: 'go-min mono', 'aria-label': 'Ride length in minutes', value: minutes && !RIDES.includes(minutes) ? String(minutes) : '' });
+      custom.onchange = () => { const v = Math.round(+custom.value); if (v >= 3 && v <= 180) { minutes = v; rebuild(); drawPlan(); } };
+      plan.append(h('span', { class: 'eyebrow', text: 'Session, no guitar' }), h('h2', { text: 'How long is your ride?' }),
+        h('div', { class: 'chips presets' }, RIDES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; rebuild(); drawPlan(); } }, fmtMin(m))),
+          h('label', { class: 'go-other small' }, 'or', custom, 'min')),
+        h('div', { class: 'seg', role: 'group', 'aria-label': 'Plan' }, [['smart', 'Smart plan'], ['mine', 'My own commute']].map(([k, t]) =>
+          h('button', { 'aria-pressed': String(pref.mode === k), onclick: () => { if (pref.mode === k) return; pref.mode = k; save(); rebuild(); drawPlan(); } }, t))));
+      if (pref.mode === 'smart') {
+        const skip = new Set(pref.skip || []);
+        plan.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'What to include' }),
+          h('div', { class: 'chips' }, Object.entries(GO_GROUPS).map(([g, def]) => h('button', { class: 'chip', 'aria-pressed': String(!skip.has(g)), onclick: () => {
+            if (skip.has(g)) skip.delete(g);
+            else if (skip.size >= Object.keys(GO_GROUPS).length - 1) { toast('Keep at least one'); return; } else skip.add(g);
+            pref.skip = [...skip]; save(); rebuild(); drawPlan();
+          } }, def.name)))));
+      }
+      if (!blocks) {
+        plan.append(h('p', { class: 'small muted', text: pref.mode === 'mine'
+          ? 'Your own list of what to do on the ride, stretched or shrunk to fit its length. Pick a length, then add, remove, reorder and time each part.'
+          : 'The plan picks what is due from your own progress, then swaps anything that needs the guitar: scale positions become seeing the neck in your head, call & response becomes dictation, tunes become following the form by ear.' }));
+        return;
+      }
+      const ses = E.session();
       plan.append(ribbon(blocks),
-        h('ol', { class: 'blocks static smartlist' }, blocks.map(b => h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
-          h('div', { class: 'bmain' }, h('span', { class: 'bicon' }), h('div', { class: 'btext' }, h('b', { text: blockTitle(b) }), h('span', { class: 'small muted', text: b.reason || describe(b) })), h('span', { class: 'mono small', text: b.minutes + 'm' }))))),
+        h('ol', { class: 'blocks static smartlist' }, blocks.map(blockRow)),
+        h('div', { class: 'row' }, addRow()),
+        ses ? h('p', { class: 'small muted', text: 'Starting this ends the session in progress (' + ses.name + ').' }) : '',
         h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastRide = minutes; startSession({ name: 'On the go', blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(blocks))),
-          h('button', { class: 'btn ghost', onclick: () => { blocks = commuteBlocks(Cur.planSession(minutes).blocks.filter(b => b.type !== 'break')); drawPlan(); } }, 'Shuffle')));
+          pref.mode === 'smart' ? h('button', { class: 'btn ghost', onclick: () => { rebuild(); drawPlan(); } }, 'Shuffle') : '',
+          pref.mode === 'smart' ? h('button', { class: 'btn ghost', onclick: () => { pref.mine = toMine(blocks); pref.mode = 'mine'; save(); drawPlan(); toast('Saved as your own commute'); } }, 'Keep as my own')
+            : h('button', { class: 'btn ghost', onclick: () => { pref.mine = DEFAULT_MINE.slice(); save(); rebuild(); drawPlan(); } }, 'Reset')));
     }
     drawPlan();
 
@@ -128,10 +163,16 @@ tool('commute', {
     function drawHf() {
       hf.innerHTML = '';
       const seg = (opts, cur, on) => h('div', { class: 'seg' }, opts.map(([k, t]) => h('button', { 'aria-pressed': String(k === cur), onclick: () => { on(k); save(); drawHf(); } }, t)));
+      const pick = h('div', { class: 'chips' }, [['intervals', 'Intervals'], ['chords', 'Chord qualities'], ['degrees', 'Scale degrees']].map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': String(pref.skills.includes(k)), onclick: () => {
+        if (pref.skills.includes(k)) { if (pref.skills.length < 2) { toast('Keep at least one'); return; } pref.skills = pref.skills.filter(x => x !== k); } else pref.skills = pref.skills.concat(k);
+        save(); drawHf();
+      } }, t)));
       hf.append(h('span', { class: 'eyebrow', text: 'Hands-free' }), h('h2', { text: 'Ear training with the screen in your pocket' }),
         h('p', { class: 'small', text: 'A question plays, you answer in your head, then the answer is spoken. Tap the right half of the screen if you got it, the left half if you missed it' + (isNative() ? '' : ', or use your headphone buttons: next = got it, previous = missed') + '. Your answers go into the same reviews as the quizzes.' }),
-        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'What' }), seg([['mix', 'Mixed'], ['intervals', 'Intervals'], ['chords', 'Chords'], ['degrees', 'Degrees']], pref.set, k => { pref.set = k; })),
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'What' }), pick),
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Time to answer' }), seg([[2, '2 s'], [3, '3 s'], [5, '5 s'], [8, '8 s']], pref.wait, k => { pref.wait = k; })),
+        h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Stop after' }), seg([[0, 'No limit'], [10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']], pref.stopAfter, k => { pref.stopAfter = k; })),
+        h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: pref.twice ? true : null, onchange: e => { pref.twice = e.target.checked; save(); } }), 'Play each question twice'),
         h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: pref.voice ? true : null, onchange: e => { pref.voice = e.target.checked; save(); } }), 'Speak the answers'),
         h('button', { class: 'btn brass big', onclick: startHf }, '▶ Start hands-free'));
     }
@@ -147,9 +188,9 @@ tool('commute', {
     function startHf() {
       if (run) return;
       A.ensure();
-      const skills = SKILL_SET[pref.set].filter(k => E.unlocked(k).length);
+      const skills = pref.skills.filter(k => SKILL_SET.mix.includes(k) && E.unlocked(k).length);
       if (!skills.length) { toast('Nothing unlocked yet'); return; }
-      run = { alive: true, n: 0, got: 0, wake: null, grade: null, paused: false };
+      run = { alive: true, n: 0, got: 0, wake: null, grade: null, paused: false, started: Date.now(), pausedFor: 0 };
       const r = run;
       const scr = h('div', { class: 'pocket', role: 'dialog', 'aria-label': 'Hands-free ear training' });
       const status = h('div', { class: 'pk-status mono' });
@@ -182,18 +223,20 @@ tool('commute', {
         keepAwake(false); stopSpeaking(); scr.remove();
       };
       const sleep = s => new Promise(res => { const id = setTimeout(res, s * 1000); r.wake = () => { clearTimeout(id); res(); }; });
-      const waitWhilePaused = async () => { while (r.alive && r.paused) await sleep(60); };
+      const waitWhilePaused = async () => { const t0 = Date.now(); while (r.alive && r.paused) await sleep(60); r.pausedFor += Date.now() - t0; };
       ctx.setActive(true);
       (async () => {
         let i = 0;
         while (r.alive) {
           await waitWhilePaused(); if (!r.alive) break;
+          if (pref.stopAfter && Date.now() - r.started - r.pausedFor > pref.stopAfter * 60000) { stopHf(); break; }
           const q = question(skills[i++ % skills.length]);
-          if (!q) break;
+          if (!q) { stopHf(); break; }
           status.textContent = r.n + ' answered · ' + r.got + ' right';
           big.textContent = q.prompt; sub.textContent = 'Listen…';
           const len = q.play();
           await sleep(len); if (!r.alive) break;
+          if (pref.twice) { await sleep(0.6); if (!r.alive) break; await sleep(q.play()); if (!r.alive) break; }
           sub.textContent = 'Answer in your head';
           await sleep(pref.wait); if (!r.alive) break;
           big.textContent = q.answer; sub.textContent = 'Right half: got it · left half: missed';
