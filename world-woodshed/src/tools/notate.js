@@ -9,7 +9,7 @@ import { h, tool, toast, Fretboard } from '../ui/core.js';
 import { noteLabel } from '../ui/mic.js';
 import { renderStaff, parseTime, keyName, KEYS } from '../notation.js';
 import { cleanDraft, quantize, takeNotes, keyOf, guessKey, placeFrets, toMusicXML, toMidi, fileBase, TIMES } from '../notate.js';
-import { keepAwake, shareBlob } from '../native.js';
+import { keepAwake, openBlob } from '../native.js';
 import { addToLibrary, addFiles, getEntry, getFile, removeFile, updateEntry } from '../library.js';
 import './notate.css';
 
@@ -268,9 +268,9 @@ tool('notate', {
     async function send(kind) {
       const base = fileBase(draft), blob = kind === 'xml' ? xmlBlob() : midBlob();
       try {
-        const how = await shareBlob(base + (kind === 'xml' ? '.musicxml' : '.mid'), blob, draft.title || 'My score');
+        const how = await openBlob(base + (kind === 'xml' ? '.musicxml' : '.mid'), blob, draft.title || 'My score');
         if (how === 'downloaded') toast('Saved ' + base + (kind === 'xml' ? '.musicxml' : '.mid') + ' to your downloads');
-      } catch (e) { toast('Couldn’t share the file: ' + (e && e.message ? e.message : 'unknown error')); }
+      } catch (e) { toast('Couldn’t open the file: ' + (e && e.message ? e.message : 'unknown error')); }
     }
     /* ----- the Library: the MusicXML, the MIDI and this draft (to edit again), on this device ----- */
     const libNote = h('p', { class: 'small' });
@@ -326,11 +326,11 @@ tool('notate', {
     }
     const exportBox = h('div', { class: 'card stack nt-export', hidden: true },
       h('h3', { text: 'Open it in MuseScore' }),
-      h('p', { class: 'small', text: 'MusicXML keeps the notes, ties, key and tab; MIDI keeps only the notes and the tempo. MuseScore Studio on a computer opens both (File → Open). On the phone, share the file to MuseScore or save it to your files or Drive.' }),
+      h('p', { class: 'small', text: 'MusicXML keeps the notes, ties, key and tab; MIDI keeps only the notes and the tempo. In the Android app the file opens in MuseScore if it is installed (or the share sheet offers it); in a browser it downloads, and MuseScore Studio opens it with File → Open.' }),
       h('label', { class: 'row small', for: 'nt-tab' }, withTab, 'Add a tab staff (your tuning and capo)'),
       h('div', { class: 'row' },
-        h('button', { class: 'btn brass', type: 'button', onclick: () => send('xml') }, 'MusicXML'),
-        h('button', { class: 'btn', type: 'button', onclick: () => send('mid') }, 'MIDI')),
+        h('button', { class: 'btn brass', type: 'button', onclick: () => send('xml') }, 'Open MusicXML'),
+        h('button', { class: 'btn', type: 'button', onclick: () => send('mid') }, 'Open MIDI')),
       h('h3', { text: 'Keep it in your Library' }),
       libNote,
       h('div', { class: 'row' }, libBtn));
