@@ -15,8 +15,8 @@
 /* On the go: the ride plan you can edit */
 .go-plan .go-other { display: inline-flex; align-items: center; gap: 4px; }
 .go-plan .go-min { width: 4.5em; padding: 4px 8px; }
-.go-plan .go-ctl { display: flex; align-items: center; gap: 4px; padding: 0 10px 6px; }
-.go-plan .go-ctl .grow { flex: 1; }
+.go-plan .go-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 10px 6px; }
+.go-plan .go-move { display: flex; gap: 4px; margin-left: auto; }
 .go-plan .go-ctl .mono { white-space: nowrap; }
 .go-plan .go-ctl .btn { min-width: 34px; justify-content: center; }
 .go-plan .blocks.static .bmain { grid-template-columns: auto 1fr; }
