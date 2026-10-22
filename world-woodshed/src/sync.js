@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 5;
+export const SCHEMA = 6;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide'];
@@ -60,6 +60,11 @@ const MIGRATIONS = {
   // 4 → 5: personal bests kept for good (the longest streaks), past the six months of history
   5(s) {
     if (!isObj(s.records)) s.records = {};
+    return s;
+  },
+  // 5 → 6: the Library (scores, photos of scores, songs learned); only the details sync, the files stay on each device
+  6(s) {
+    if (!isObj(s.library)) s.library = {};
     return s;
   }
 };
@@ -147,6 +152,19 @@ function mergeCur(a = {}, b = {}, newerSide) {
   });
   return out;
 }
+/* Library entries: the newer copy's details, and the files listed on either copy (a photo added on the phone
+   and a note edited on the laptop both survive), less any file removed on either (a 'libfile:' tombstone). */
+function mergeLibrary(a = {}, b = {}, tomb = {}) {
+  return byKey(a, b, (x, y) => {
+    if (!isObj(x) || !isObj(y)) return isObj(x) ? x : y;
+    const w = newer(x, y), n = clone(w), seen = new Set(), files = [];
+    [w.files, w === x ? y.files : x.files].forEach(list => (Array.isArray(list) ? list : []).forEach(f => {
+      if (isObj(f) && f.id && !seen.has(f.id)) { seen.add(f.id); files.push(clone(f)); }
+    }));
+    n.files = files.filter(f => !tomb['libfile:' + f.id]);
+    return n;
+  });
+}
 function dropDeleted(obj, tomb, prefix) {
   if (!tomb) return obj;
   const out = {};
@@ -174,6 +192,7 @@ export function merge(local, remote) {
     scaleTime: mergeScaleTime(a.scaleTime, b.scaleTime),
     songs: dropDeleted(byKey(a.songs, b.songs), tomb, 'song:'),
     tunes: dropDeleted(byKey(a.tunes, b.tunes), tomb, 'tune:'),
+    library: dropDeleted(mergeLibrary(a.library, b.library, tomb), tomb, 'lib:'),
     routines: mergeList(a.routines, b.routines, r => r.id).filter(r => !tomb['routine:' + r.id] || stamp(r) > tomb['routine:' + r.id]),
     journal: mergeList(a.journal, b.journal, j => String(j.ts), 300).sort((x, y) => y.ts - x.ts),
     lessons: byKey(a.lessons, b.lessons, maxNum),
@@ -206,7 +225,7 @@ const stable = x => {
   return x === undefined ? 'null' : JSON.stringify(x);
 };
 export function digest(s) {
-  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, journal: (s.journal || []).length,
+  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, library: s.library, journal: (s.journal || []).length,
     routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
   const str = stable(pick);
   let h = 2166136261;

@@ -145,7 +145,7 @@ function freshState() {
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
     tech: {}, scaleTime: {}, records: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
-    routine: null, placementDone: false, songs: {}, tunes: {},
+    routine: null, placementDone: false, songs: {}, tunes: {}, library: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
   };
 }
@@ -780,6 +780,33 @@ function saveTune(tune) {
 }
 function deleteTune(id) { delete tunesObj()[id]; tombstone('tune:' + id); scheduleSave(); emit(); }
 
+/* ---------- Library (src/library.js): scores, photos of scores and songs learned. These are the details,
+   which sync; the files themselves stay in this device's IndexedDB (src/libfiles.js). ---------- */
+function libraryObj() { if (!state.library || typeof state.library !== 'object') state.library = {}; return state.library; }
+function listLibrary() { return Object.values(libraryObj()).filter(e => e && e.id); }
+function getLibEntry(id) { return libraryObj()[id] || null; }
+function saveLibEntry(entry) {
+  if (!entry) return null;
+  const e = JSON.parse(JSON.stringify(entry));
+  if (!e.id) { e.id = 'lb' + DEV.slice(-4) + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); e.created = Date.now(); }
+  e.updatedAt = Date.now();
+  libraryObj()[e.id] = e;
+  scheduleSave(); emit();
+  return e;
+}
+function deleteLibEntry(id) {
+  const e = getLibEntry(id);
+  if (e) (e.files || []).forEach(f => tombstone('libfile:' + f.id));
+  delete libraryObj()[id]; tombstone('lib:' + id); scheduleSave(); emit();
+}
+function removeLibFile(id, fileId) {
+  const e = getLibEntry(id);
+  if (!e) return;
+  e.files = (e.files || []).filter(f => f.id !== fileId);
+  e.updatedAt = Date.now();
+  tombstone('libfile:' + fileId); scheduleSave(); emit();
+}
+
 /* ---------- Custom routines ---------- */
 function routines() { if (!Array.isArray(state.routines)) state.routines = []; return state.routines; }
 function getRoutine(id) { return routines().find(r => r.id === id) || null; }
@@ -857,6 +884,7 @@ export default {
   session, startSession, touchSession, sessionChanged, endSession, journal,
   lessonDone, setLessonDone, heard, setHeard, techPick,
   listSongs, getSong, saveSong, deleteSong, listTunes, getTune, saveTune, deleteTune,
+  listLibrary, getLibEntry, saveLibEntry, deleteLibEntry, removeLibFile,
   SKILLS, CAT_NAMES, STRINGS, TUNINGS, guitar, setGuitar, FOCUS, init, get state() { return state; }, onChange, emit,
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, streaks, trend, regionOfWeek, setRegionWeek, regionScore,

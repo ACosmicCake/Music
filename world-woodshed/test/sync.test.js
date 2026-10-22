@@ -191,3 +191,37 @@ describe('personal bests', () => {
     expect(digest(base({ records: { streak: 1 } }))).not.toBe(digest(base()));
   });
 });
+
+describe('the Library', () => {
+  const file = (id, name = id + '.jpg') => ({ id, name, type: 'image/jpeg', size: 100, added: 1 });
+  const entry = (id, updatedAt, extra = {}) => Object.assign({ id, title: id, by: '', status: 'learning', notes: '', link: '', files: [], updatedAt }, extra);
+  it('a schema-5 save gains an empty library and keeps the rest', () => {
+    const m = migrate({ v: 1, schema: 5, records: { streak: 3 } }, 'd1');
+    expect(m.schema).toBe(SCHEMA);
+    expect(m.library).toEqual({});
+    expect(m.records.streak).toBe(3);
+  });
+  it('keeps the newer details and the files added on either device', () => {
+    const phone = base({ library: { e1: entry('e1', 10, { notes: 'old', files: [file('p1'), file('p2')] }) } });
+    const desk = base({ library: { e1: entry('e1', 20, { notes: 'new', files: [file('p1'), file('x.pdf')] }), e2: entry('e2', 5) } });
+    const m = merge(phone, desk);
+    expect(Object.keys(m.library).sort()).toEqual(['e1', 'e2']);
+    expect(m.library.e1.notes).toBe('new');
+    expect(m.library.e1.files.map(f => f.id)).toEqual(['p1', 'x.pdf', 'p2']); // the newer copy's order, then the rest
+    expect(merge(desk, phone).library.e1.files.map(f => f.id)).toEqual(['p1', 'x.pdf', 'p2']);
+    expect(digest(merge(desk, m))).toBe(digest(m));
+  });
+  it('a removed file and a deleted entry stay gone', () => {
+    const phone = base({ library: { e1: entry('e1', 10, { files: [file('p1'), file('p2')] }), e2: entry('e2', 10) } });
+    const desk = base({ library: { e1: entry('e1', 30, { files: [file('p1')] }) }, tomb: { 'libfile:p2': 30, 'lib:e2': 30 } });
+    const m = merge(phone, desk);
+    expect(m.library.e1.files.map(f => f.id)).toEqual(['p1']);
+    expect(m.library.e2).toBeUndefined();
+    expect(merge(m, phone).library.e2).toBeUndefined();
+  });
+  it('copes with copies that have no library, and is part of the digest', () => {
+    expect(merge(base(), base()).library).toEqual({});
+    expect(Object.keys(merge(base(), base({ library: { e1: entry('e1', 1) } })).library)).toEqual(['e1']);
+    expect(digest(base({ library: { e1: entry('e1', 1) } }))).not.toBe(digest(base()));
+  });
+});
