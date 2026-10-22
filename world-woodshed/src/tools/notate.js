@@ -9,7 +9,7 @@ import { h, tool, toast, Fretboard } from '../ui/core.js';
 import { noteLabel } from '../ui/mic.js';
 import { renderStaff, parseTime, keyName, KEYS } from '../notation.js';
 import { cleanDraft, quantize, takeNotes, keyOf, guessKey, placeFrets, toMusicXML, toMidi, fileBase, TIMES } from '../notate.js';
-import { isNative, keepAwake } from '../native.js';
+import { keepAwake, shareBlob } from '../native.js';
 import './notate.css';
 
 const STORE = 'ww-notate-draft';
@@ -17,27 +17,6 @@ function loadStore() {
   try { const v = JSON.parse(localStorage.getItem(STORE) || 'null'); return { draft: cleanDraft(v && v.draft), click: v && v.click === 'all' ? 'all' : 'count' }; } catch (e) { return { draft: cleanDraft(null), click: 'count' }; }
 }
 function saveStore(v) { try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) { /* the draft is a convenience; the export is the copy that matters */ } }
-
-/* Share a file through the phone's share sheet (the Android app, or a browser that shares files), or download it */
-async function shareBlob(name, blob, title) {
-  if (isNative()) {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem');
-    const { Share } = await import('@capacitor/share');
-    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
-    const w = await Filesystem.writeFile({ path: name, data, directory: Directory.Cache });
-    await Share.share({ title, files: [w.uri], dialogTitle: title });
-    return 'shared';
-  }
-  const f = new File([blob], name, { type: blob.type });
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title }); return 'shared'; }
-  } catch (e) { if (e && e.name === 'AbortError') return 'cancelled'; }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(f); a.download = name;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  return 'downloaded';
-}
 
 const DUR_OPTS = [[0.25, '16th'], [0.5, '8th'], [1, 'Quarter'], [2, 'Half'], [4, 'Whole']];
 const snapTo = (x, g) => Math.round(x / g + 1e-9) * g;
