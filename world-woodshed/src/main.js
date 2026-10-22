@@ -21,6 +21,7 @@ import './tools/play.js';
 import './tools/atlas.js';
 import './tools/practice.js';
 import './tools/reading.js';
+import './tools/notate.js';
 import './tools/drills.js';
 import './tools/rhythmgym.js';
 import './tools/learn.js';

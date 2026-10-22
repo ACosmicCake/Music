@@ -149,7 +149,7 @@ const STEM = 34;
 
 /* opts: { bars: [[note…]…], key, time, width (CSS px of the container), barsPerLine (max, default 4),
            scale (CSS px per unit; default 1; below 480 px the largest of 1 to 0.76 that fits 2 bars a line), lyrics: [text per note], label,
-           showTime (default true), endBar: 'final' | 'single' | 'none' }
+           showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6) }
    returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null) };
    i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
@@ -383,6 +383,27 @@ export function renderStaff(opts) {
     };
     if (nx.sys === it.sys) draw(it.sys, it.x + 6, nx.x - 6, it.y);
     else { draw(it.sys, it.x + 6, systems[it.sys].x1 + 2, it.y); draw(nx.sys, systems[nx.sys].x0 - 4, nx.x - 6, nx.y); }
+  });
+  // a tab staff under each system: opts.tab[i] = { si (0 = lowest string), f } for note i, or null
+  if (opts.tab) systems.forEach(sy => {
+    const n = opts.strings || 6, gap = 8.5;
+    const top = Math.max(sy.maxY, 50) + 12, bot = top + (n - 1) * gap;
+    const g = el('g', { class: 'st-tab' }, sy.g);
+    for (let l = 0; l < n; l++) el('line', { class: 'st-line', x1: 0, x2: f1(sy.x1), y1: f1(top + l * gap), y2: f1(top + l * gap) }, g);
+    ['T', 'A', 'B'].forEach((c, k) => { el('text', { class: 'st-tablbl', x: 12, y: f1((top + bot) / 2 + (k - 1) * 12), 'text-anchor': 'middle', 'dominant-baseline': 'central' }, g).textContent = c; });
+    sy.bars.forEach((b, k) => {
+      const last = sy.first + k === bars.length - 1 && (opts.endBar || 'final') === 'final';
+      el('rect', { class: 'st-bar', x: f1(b.x1 - (last ? 4 : 1.3)), y: f1(top), width: last ? 4 : 1.3, height: f1(bot - top) }, g);
+      if (last) el('rect', { class: 'st-bar', x: f1(b.x1 - 8.5), y: f1(top), width: 1.3, height: f1(bot - top) }, g);
+      b.list.forEach(it => {
+        const p = opts.tab[it.i];
+        if (!p || it.rest || !noteEls[it.i]) return;
+        const y = top + (n - 1 - p.si) * gap, t = String(p.f), w = 6.4 * t.length + 2;
+        el('rect', { class: 'st-tabbg', x: f1(it.x - w / 2), y: f1(y - 5), width: f1(w), height: 10 }, noteEls[it.i]);
+        el('text', { class: 'st-fret', x: f1(it.x), y: f1(y + 0.5), 'text-anchor': 'middle', 'dominant-baseline': 'central' }, noteEls[it.i]).textContent = t;
+      });
+    });
+    sy.maxY = bot + 6;
   });
   // lyrics / counts under the staff
   if (opts.lyrics) systems.forEach(sy => {

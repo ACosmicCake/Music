@@ -82,7 +82,7 @@ export function micSettingsCard() {
   };
   const card = h('details', { class: 'card miccard' },
     h('summary', {}, h('span', { class: 'micico' }), h('b', { text: 'Microphone' }), h('span', { class: 'small muted', text: 'Let the app hear your guitar' })),
-    h('p', { class: 'small', text: 'Tools with a Listen button can hear you play: the tuner, Fretboard notes, Call & response, Melodic dictation, the rhythm tests, Internal clock, Technique ladders, Scale warm-up, Sight-reading and Sing the degrees. The sound is analysed on this device as you play. Nothing is recorded, saved or sent anywhere, and the mic switches off when you leave the tool.' }),
+    h('p', { class: 'small', text: 'Tools with a Listen button can hear you play: the tuner, Fretboard notes, Call & response, Melodic dictation, the rhythm tests, Internal clock, Technique ladders, Scale warm-up, Sight-reading, Sing the degrees and Write by playing. The sound is analysed on this device as you play. Nothing is recorded, saved or sent anywhere, and the mic switches off when you leave the tool.' }),
     h('div', { class: 'row' }, testBtn, meter, heard),
     h('label', { class: 'stack field', for: 'mic-sens' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Sensitivity' }), h('span', { class: 'small muted', text: 'Lower it in a noisy room; raise it for soft fingerstyle' })), sens),
     h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Rhythm timing' }), calInfo,
