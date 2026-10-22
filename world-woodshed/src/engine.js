@@ -816,7 +816,7 @@ function session() {
 function startSession(src) {
   state.session = {
     id: uid('s'), routineId: src.id || null, name: src.name, started: Date.now(), lastTick: Date.now(),
-    paused: false, idx: 0, autoAdvance: src.autoAdvance !== false,
+    paused: false, idx: 0,
     blocks: src.blocks.map(b => Object.assign(JSON.parse(JSON.stringify(b)), { elapsed: 0, done: false, skipped: false }))
   };
   scheduleSave(); emit();

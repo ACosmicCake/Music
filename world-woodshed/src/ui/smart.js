@@ -4,7 +4,7 @@ import E from '../engine.js';
 import Cur from '../curriculum.js';
 import { view, h, toast, go, ui, renderTabs, teardown } from './core.js';
 import { BLOCKS, blockTitle, describe, totalOf, fmtMin, syncWeights } from '../routines.js';
-import { startSession } from './session.js';
+import { startSession, autoAdvanceToggle } from './session.js';
 import { ribbon } from './routine.js';
 import { openSwap } from './swap.js';
 import { goalSettings } from './goal.js';
@@ -63,10 +63,10 @@ export function smartPlanner(opts = {}) {
           h('div', { class: 'stack', style: { gap: '4px', justifyItems: 'end' } }, h('span', { class: 'mono small', text: b.minutes + 'm' }),
             b.type !== 'break' ? h('button', { class: 'mbtn', 'aria-label': 'Swap ' + blockTitle(b), title: 'Swap this block', onclick: () => openSwap({ block: b, used: plan.blocks.map(x => x.cur).filter(Boolean), onPick: nb => { nb.minutes = b.minutes; plan.blocks[i] = nb; draw(); } }) }, '⇄') : null))))),
       h('div', { class: 'row' },
-        h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastMinutes = minutes; picked = null; startSession({ name: 'Smart practice', blocks: plan.blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
+        h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastMinutes = minutes; picked = null; startSession({ name: 'Smart practice', blocks: plan.blocks }); } }, '▶ Start · ' + fmtMin(totalOf(plan.blocks))),
         h('button', { class: 'btn ghost', onclick: () => { plan = planFor(minutes, true); draw(); } }, 'Shuffle'),
         opts.compact ? null : h('button', { class: 'btn ghost', onclick: () => {
-          const r = { id: E.uid('r'), name: 'Smart ' + fmtMin(minutes), breaks: false, autoAdvance: true, blocks: plan.blocks.filter(b => b.type !== 'break').map(b => ({ id: E.uid('b'), type: b.type, minutes: b.minutes, settings: {} })) };
+          const r = { id: E.uid('r'), name: 'Smart ' + fmtMin(minutes), breaks: false, blocks: plan.blocks.filter(b => b.type !== 'break').map(b => ({ id: E.uid('b'), type: b.type, minutes: b.minutes, settings: {} })) };
           syncWeights(r); E.saveRoutine(r); E.setActiveRoutine(r.id); toast('Saved as a routine. Its content stays smart.'); go('routine');
         } }, 'Save the shape as a routine')));
   }
@@ -97,6 +97,8 @@ export function learningPrefsCard(opts = {}) {
     card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Pace of new material' }),
       h('div', { class: 'seg' }, Object.entries(Cur.PACE).map(([k, v]) => h('button', { 'aria-pressed': (p.pace || 'steady') === k ? 'true' : 'false', onclick: () => set({ pace: k }) }, v.name))),
       h('span', { class: 'small muted', text: Cur.PACE[p.pace || 'steady'].desc })));
+    card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'When a block\'s time is up' }), autoAdvanceToggle(),
+      h('span', { class: 'small muted', text: 'Off: a chime, then the block waits until you tap Done · next. On: it moves to the next block 10 seconds later, once you pause.' })));
     card.append(goalSettings({ onChange: () => { if (opts.onChange) opts.onChange(); } }));
     if (!opts.compact) {
       const st = Cur.stats();

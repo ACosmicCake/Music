@@ -267,7 +267,7 @@ export const TEMPLATES = [
 
 export function fromTemplate(t, minutes, opts = {}) {
   const r = {
-    id: E.uid('r'), name: opts.name || t.name, template: t.id, breaks: (minutes || t.minutes) >= 90, autoAdvance: true,
+    id: E.uid('r'), name: opts.name || t.name, template: t.id, breaks: (minutes || t.minutes) >= 90,
     blocks: t.blocks.map(([type, w, settings]) => Object.assign(newBlock(type), { minutes: w, weight: w, settings: Object.assign({}, settings || {}) }))
   };
   return setTotal(r, minutes || t.minutes);

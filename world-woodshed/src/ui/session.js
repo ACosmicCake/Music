@@ -9,8 +9,9 @@ import Mic from '../listen.js';
 import { keepAwake } from '../native.js';
 
 let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0;
-/* Auto-advance never cuts into a phrase: when the countdown ends while the mic hears you playing, or you
-   are tapping, it waits until you have paused for this long. */
+/* When a block's time is up it chimes and waits for Done · next, unless the player has turned on moving on by
+   itself (settings.autoAdvance, one choice for every session). Even then it never cuts into a phrase: when the
+   countdown ends while the mic hears you playing, or you are tapping, it waits until you have paused for this long. */
 const PAUSE_MS = 2500;
 let lastInput = 0, waitingForPause = false;
 ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { lastInput = Date.now(); }, true));
@@ -20,6 +21,10 @@ document.querySelector('.topbar-inner').insertBefore(pill, document.getElementBy
 
 export const cur = () => { const s = E.session(); return s ? s.blocks[s.idx] || null : null; };
 const inSessionTool = () => !!(ui.runner && ui.runner.opts && ui.runner.opts.session);
+export const autoAdvanceOn = () => E.state.settings.autoAdvance === true;
+export function autoAdvanceToggle() {
+  return h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: autoAdvanceOn() ? true : null, onchange: e => E.setSetting('autoAdvance', e.target.checked) }), 'Move on by itself when time is up');
+}
 
 export function startSession(src) {
   if (!src.blocks.length) { toast('Add a block first'); return; }
@@ -142,6 +147,7 @@ function tick() {
     if (saveAcc >= 10000) { E.touchSession(); saveAcc = 0; }
     if (!b.timeUp && b.elapsed >= b.minutes * 60000) timeUp(s, b);
   }
+  if (s.autoAt && !autoAdvanceOn()) s.autoAt = null; // turned off during the countdown
   if (s.autoAt && now >= s.autoAt) {
     waitingForPause = now - Math.max(Mic.lastHeard, lastInput) < PAUSE_MS;
     if (waitingForPause) s.autoAt = now + 500;
@@ -158,7 +164,7 @@ function timeUp(s, b) {
   } catch (e) { /* audio unavailable */ }
   try { if (navigator.vibrate) navigator.vibrate([120, 80, 120]); } catch (e) { /* ignore */ }
   const nxt = s.blocks[s.idx + 1];
-  if (s.autoAdvance && inSessionTool() && nxt) { s.autoAt = Date.now() + 10000; waitingForPause = false; }
+  if (autoAdvanceOn() && inSessionTool() && nxt) { s.autoAt = Date.now() + 10000; waitingForPause = false; }
   E.touchSession();
 }
 
