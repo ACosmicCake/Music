@@ -33,8 +33,9 @@ const blobBase64 = blob => new Promise((res, rej) => {
   r.onerror = () => rej(r.error);
   r.readAsDataURL(blob);
 });
+const safeName = name => [...String(name || 'file')].map(c => (c < ' ' || '\\/:*?"<>|'.includes(c) ? '_' : c)).join('').slice(0, 120) || 'file';
 export async function shareBlob(name, blob, title) {
-  const safe = [...String(name || 'file')].map(c => (c < ' ' || '\\/:*?"<>|'.includes(c) ? '_' : c)).join('').slice(0, 120) || 'file';
+  const safe = safeName(name);
   if (isNative()) {
     const { Filesystem, Directory } = await import('@capacitor/filesystem');
     const { Share } = await import('@capacitor/share');
@@ -51,6 +52,32 @@ export async function shareBlob(name, blob, title) {
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   return 'downloaded';
+}
+
+/* Open a file in the app the phone uses for its type (a PDF reader, MuseScore for MIDI): in the Android app the
+   file is written to the cache and handed over with a VIEW intent; types the phone knows no app for (.mscz,
+   .gp) and any failure fall back to the share sheet. In the browser a PDF or image opens in a new tab and other
+   files go to shareBlob. Resolves 'opened', or what shareBlob resolved. */
+export async function openBlob(name, blob, title) {
+  if (isNative()) {
+    try {
+      const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      const { FileViewer } = await import('@capacitor/file-viewer');
+      const w = await Filesystem.writeFile({ path: 'open/' + safeName(name), data: await blobBase64(blob), directory: Directory.Cache, recursive: true });
+      // the plugin wants a plain path: it strips 'file:///' along with the path's own leading slash
+      await FileViewer.openDocumentFromLocalPath({ path: decodeURIComponent(w.uri.replace(/^file:\/\//, '')) });
+      return 'opened';
+    } catch (e) {
+      console.warn('No app opened the file, using the share sheet', e);
+      return shareBlob(name, blob, title);
+    }
+  }
+  if (/^(application\/pdf|image\/)/.test(blob.type)) {
+    const url = URL.createObjectURL(blob);
+    if (window.open(url, '_blank')) { setTimeout(() => URL.revokeObjectURL(url), 60000); return 'opened'; }
+    URL.revokeObjectURL(url);
+  }
+  return shareBlob(name, blob, title);
 }
 
 /* Keep the screen on while anything asks for it (a running session, hands-free practice, Transcribe playing).
