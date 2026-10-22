@@ -1,7 +1,7 @@
 /* World Woodshed — Write by playing: play a melody into the mic (or tap it on the fretboard) and the app
    writes it as notation and tab, which you can fix by tapping a note, hear back, and send to MuseScore
    as MusicXML or MIDI. The notes, keys, frets and files come from src/notate.js; the draft stays on this
-   device (localStorage) until it is exported. */
+   device (localStorage) until it is exported or saved to the Library (src/library.js), which can open it here again. */
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
@@ -10,11 +10,12 @@ import { noteLabel } from '../ui/mic.js';
 import { renderStaff, parseTime, keyName, KEYS } from '../notation.js';
 import { cleanDraft, quantize, takeNotes, keyOf, guessKey, placeFrets, toMusicXML, toMidi, fileBase, TIMES } from '../notate.js';
 import { keepAwake, shareBlob } from '../native.js';
+import { addToLibrary, addFiles, getEntry, getFile, removeFile, updateEntry } from '../library.js';
 import './notate.css';
 
 const STORE = 'ww-notate-draft';
 function loadStore() {
-  try { const v = JSON.parse(localStorage.getItem(STORE) || 'null'); return { draft: cleanDraft(v && v.draft), click: v && v.click === 'all' ? 'all' : 'count' }; } catch (e) { return { draft: cleanDraft(null), click: 'count' }; }
+  try { const v = JSON.parse(localStorage.getItem(STORE) || 'null'); return { draft: cleanDraft(v && v.draft), click: v && v.click === 'all' ? 'all' : 'count', entry: v && typeof v.entry === 'string' ? v.entry : null }; } catch (e) { return { draft: cleanDraft(null), click: 'count', entry: null }; }
 }
 function saveStore(v) { try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) { /* the draft is a convenience; the export is the copy that matters */ } }
 
@@ -23,12 +24,12 @@ const snapTo = (x, g) => Math.round(x / g + 1e-9) * g;
 
 tool('notate', {
   tab: 'train', skill: null, title: 'Write by playing', eyebrow: 'Guitar · score from your playing',
-  desc: 'Play a melody into the mic, or tap it on the fretboard, and it is written as notation and tab. Fix any note by tapping it, hear it back, then open it in MuseScore as MusicXML or MIDI.',
-  render(body) {
+  desc: 'Play a melody into the mic, or tap it on the fretboard, and it is written as notation and tab. Fix any note by tapping it, hear it back, open it in MuseScore as MusicXML or MIDI, or keep it in your Library.',
+  render(body, ctx) {
     const store = loadStore();
     const draft = store.draft;
     let sel = null, undo = [], rec = null, play = null, alive = true, stepDur = 1, stepDot = false;
-    const save = () => saveStore({ draft, click: store.click });
+    const save = () => saveStore({ draft, click: store.click, entry: store.entry });
     const snapshot = () => { undo.push(JSON.stringify(draft.notes)); if (undo.length > 60) undo.shift(); undoBtn.disabled = false; };
     const lastEnd = () => draft.notes.reduce((a, n) => Math.max(a, n.e), 0);
 
@@ -196,7 +197,7 @@ tool('notate', {
     const clearBtn = h('button', { class: 'btn small ghost', type: 'button', onclick: () => {
       if (!draft.notes.length) return;
       if (!confirm('Start a new score? This one is cleared (Undo brings it back while you stay here).')) return;
-      snapshot(); draft.notes = []; draft.title = ''; title.value = ''; sel = null; stepAt = null; save(); draw();
+      snapshot(); draft.notes = []; draft.title = ''; title.value = ''; sel = null; stepAt = null; store.entry = null; save(); draw();
     } }, 'New score');
     let staff = null, flat = [];
     function draw(extra) {
@@ -261,15 +262,67 @@ tool('notate', {
 
     /* ----- MuseScore ----- */
     const withTab = h('input', { type: 'checkbox', id: 'nt-tab', checked: true });
+    const fileOpts = () => ({ strings: E.STRINGS.map(s => s.midi), program: E.state.settings.guitarSound === 'steel' ? 25 : 24, date: new Date().toISOString().slice(0, 10), tab: withTab.checked });
+    const xmlBlob = () => new Blob([toMusicXML(draft, fileOpts())], { type: 'application/vnd.recordare.musicxml+xml' });
+    const midBlob = () => new Blob([toMidi(draft, fileOpts())], { type: 'audio/midi' });
     async function send(kind) {
-      const base = fileBase(draft), opts = { strings: E.STRINGS.map(s => s.midi), program: E.state.settings.guitarSound === 'steel' ? 25 : 24, date: new Date().toISOString().slice(0, 10), tab: withTab.checked };
-      const blob = kind === 'xml'
-        ? new Blob([toMusicXML(draft, opts)], { type: 'application/vnd.recordare.musicxml+xml' })
-        : new Blob([toMidi(draft, opts)], { type: 'audio/midi' });
+      const base = fileBase(draft), blob = kind === 'xml' ? xmlBlob() : midBlob();
       try {
         const how = await shareBlob(base + (kind === 'xml' ? '.musicxml' : '.mid'), blob, draft.title || 'My score');
         if (how === 'downloaded') toast('Saved ' + base + (kind === 'xml' ? '.musicxml' : '.mid') + ' to your downloads');
       } catch (e) { toast('Couldn’t share the file: ' + (e && e.message ? e.message : 'unknown error')); }
+    }
+    /* ----- the Library: the MusicXML, the MIDI and this draft (to edit again), on this device ----- */
+    const libNote = h('p', { class: 'small' });
+    const libBtn = h('button', { class: 'btn', type: 'button', onclick: () => saveToLib() });
+    const linked = () => (store.entry && getEntry(store.entry) ? store.entry : null);
+    function paintLib() {
+      const id = linked();
+      libBtn.textContent = id ? 'Update it in the Library' : 'Save to the Library';
+      libNote.textContent = id ? 'Saved as “' + getEntry(id).title + '”. Updating replaces its files with this version.' : 'Saves the MusicXML, the MIDI and this draft, so you can open it from the Library and edit it here again.';
+    }
+    async function saveToLib() {
+      libBtn.disabled = true;
+      try {
+        const base = fileBase(draft);
+        const files = [
+          { blob: xmlBlob(), name: base + '.musicxml', type: 'application/vnd.recordare.musicxml+xml' },
+          { blob: midBlob(), name: base + '.mid', type: 'audio/midi' },
+          { blob: new Blob([JSON.stringify({ app: 'world-woodshed', kind: 'wwscore', v: 1, draft })], { type: 'application/json' }), name: base + '.wwscore.json', type: 'application/json' }
+        ];
+        let id = linked(), res;
+        if (id) {
+          // replace this tool's own files from the last save; anything else Pan added to the entry stays
+          for (const f of getEntry(id).files) if (['musicxml', 'midi', 'wwscore'].includes(f.kind) && /^[\w-]+\.(musicxml|mid|wwscore\.json)$/.test(f.name)) await removeFile(id, f.id);
+          if (draft.title.trim()) updateEntry(id, { title: draft.title });
+          res = await addFiles(id, files);
+        } else {
+          id = await addToLibrary({ title: draft.title || 'Untitled', source: 'notation', status: 'learning', files: [] });
+          res = await addFiles(id, files);
+          store.entry = id; save();
+        }
+        toast(res.failed.length ? 'Saved, but ' + res.failed.map(x => x[0] + ' (' + x[1] + ')').join(', ') + ' could not be stored' : 'Saved in the Library');
+      } catch (e) { toast('Couldn’t save to the Library: ' + (e && e.message ? e.message : 'unknown error')); }
+      libBtn.disabled = false;
+      paintLib();
+    }
+    /* Open a draft saved in the Library (params.load: the entry id) */
+    async function loadFromLib(id) {
+      const e = getEntry(id);
+      const f = e && e.files.filter(x => x.kind === 'wwscore').pop();
+      const got = f ? await getFile(f.id) : null;
+      if (!alive) return;
+      if (!got) { toast('That score’s draft isn’t on this device'); return; }
+      try {
+        const v = JSON.parse(await got.blob.text());
+        const d = cleanDraft(v && v.draft);
+        if (draft.notes.length) snapshot();
+        Object.assign(draft, d);
+        store.entry = id; sel = null; stepAt = null;
+        title.value = draft.title; timeSeg.paint(draft.time); gridSeg.paint(draft.grid); hold.checked = draft.hold; bpmOut.textContent = String(draft.bpm);
+        save(); draw();
+        status.textContent = 'Opened “' + e.title + '” from the Library. Record to add bars, or tap a note to fix it.';
+      } catch (err) { toast('That draft couldn’t be read'); }
     }
     const exportBox = h('div', { class: 'card stack nt-export', hidden: true },
       h('h3', { text: 'Open it in MuseScore' }),
@@ -277,7 +330,10 @@ tool('notate', {
       h('label', { class: 'row small', for: 'nt-tab' }, withTab, 'Add a tab staff (your tuning and capo)'),
       h('div', { class: 'row' },
         h('button', { class: 'btn brass', type: 'button', onclick: () => send('xml') }, 'MusicXML'),
-        h('button', { class: 'btn', type: 'button', onclick: () => send('mid') }, 'MIDI')));
+        h('button', { class: 'btn', type: 'button', onclick: () => send('mid') }, 'MIDI')),
+      h('h3', { text: 'Keep it in your Library' }),
+      libNote,
+      h('div', { class: 'row' }, libBtn));
 
     /* ----- layout ----- */
     body.append(
@@ -299,6 +355,8 @@ tool('notate', {
         h('label', { class: 'row small', for: 'nt-hold' }, hold, 'Hold each note until the next one (short gaps aren’t rests)')),
       exportBox);
     draw();
+    paintLib();
+    if (ctx.params.load) loadFromLib(String(ctx.params.load));
 
     return () => {
       if (rec) stopRec();
