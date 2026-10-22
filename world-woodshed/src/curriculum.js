@@ -223,8 +223,9 @@ export function warmDetails(item) {
   const pats = s < 3 ? ['updown'] : s < 7 ? ['updown', 'thirds'] : s < 14 ? ['thirds', 'fours', 'threes'] : ['thirds', 'fours', 'threes', 'sixths'];
   const pattern = pats.filter(p => p !== (it && it.pattern))[0] || pats[0];
   // positions: where the root sits on the 6th, 5th or 4th string, rotating once the scale is settled
+  // (starting no higher than fret 8: the neck drawn is frets 0–12)
   const starts = [];
-  [4, 9, 2].forEach(open => { let f = ((key - open) % 12 + 12) % 12; [f, f + 12].forEach(ff => { const st = Math.max(0, ff - 1); if (st <= 10 && !starts.includes(st)) starts.push(st); }); });
+  [4, 9, 2].forEach(open => { let f = ((key - open) % 12 + 12) % 12; [f, f + 12].forEach(ff => { const st = Math.max(0, ff - 1); if (st <= 8 && !starts.includes(st)) starts.push(st); }); });
   starts.sort((a, b) => a - b);
   const start = s < 5 ? starts.find(x => x >= 0 && x <= 7) ?? starts[0] : starts[Math.floor(Math.random() * starts.length)];
   const bpm = Math.round((it && it.bpm) || (pattern === 'updown' ? 66 : 60));

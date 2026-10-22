@@ -177,9 +177,18 @@ export function merge(local, remote) {
 }
 
 /* A short fingerprint of the content that matters, to tell whether a merge changed anything */
+/* A fingerprint of everything that syncs (not this device's session, nor history, which is rebuilt from hdev).
+   Keys are sorted, so two copies with the same content match even when their keys were added in a different
+   order on each device; otherwise the GitHub sync would push the same progress back and forth forever. */
+const stable = x => {
+  if (Array.isArray(x)) return '[' + x.map(stable).join(',') + ']';
+  if (x && typeof x === 'object') return '{' + Object.keys(x).sort().filter(k => x[k] !== undefined).map(k => JSON.stringify(k) + ':' + stable(x[k])).join(',') + '}';
+  return x === undefined ? 'null' : JSON.stringify(x);
+};
 export function digest(s) {
-  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, cur: s.cur && s.cur.items, readLib: s.readLib, tunes: s.tunes, journal: (s.journal || []).length, routines: s.routines, settings: s.settings };
-  const str = JSON.stringify(pick);
+  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, journal: (s.journal || []).length,
+    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
+  const str = stable(pick);
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   return (h >>> 0).toString(36) + ':' + str.length;

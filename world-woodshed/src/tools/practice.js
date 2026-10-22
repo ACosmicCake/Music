@@ -37,7 +37,7 @@ export function positionNotes(steps, tonicPc, start) {
   const pcs = steps.map(st => (tonicPc + st) % 12);
   const out = [];
   E.STRINGS.forEach((st, si) => {
-    for (let f = start; f <= start + 4 && f <= 15; f++) {
+    for (let f = start; f <= start + 4 && f <= 12; f++) { // the fretboard shows frets 0–12
       const m = st.midi + f, p = m % 12;
       if (!pcs.includes(p)) continue;
       if (out.length && m <= out[out.length - 1].m) continue;
@@ -103,7 +103,7 @@ tool('scalewarm', {
     const bpms = E.state.settings.warmBpm || {};
     // the smart plan sets the tempo and position itself
     let bpm = p.smart ? p.bpm : p.bpm && !bpms[bpmKey()] ? p.bpm : (bpms[bpmKey()] || p.bpm || 72);
-    if (p.smart && p.start !== undefined) st.start = p.start;
+    if (p.smart && Number.isInteger(p.start)) st.start = Math.min(8, Math.max(0, p.start));
     const sig = { clean: 0, notClean: 0 };
     const report = extra => { Object.assign(sig, extra || {}, { bpm }); if (hooks.signal) hooks.signal('warm:' + st.scale, sig); };
     let loop = null, seq = [], notes = [], rounds = 0;
@@ -240,7 +240,7 @@ tool('scalewarm', {
           selectEl('warm-scale', 'Scale', scaleOptions(warmScales()), st.scale, v => { st.scale = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; restart(); }),
           selectEl('warm-pattern', 'Pattern', Object.entries(PATTERNS).map(([k, v]) => ({ value: k, text: v })), st.pattern, v => { st.pattern = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; persist(); const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); }),
           selectEl('warm-sub', 'Notes per beat', [1, 2, 3, 4].map(v => ({ value: String(v), text: ['1 (quarters)', '2 (eighths)', '3 (triplets)', '4 (sixteenths)'][v - 1] })), String(st.sub), v => { st.sub = +v; persist(); if (loop) { stop(); start(); } else build(); }),
-          selectEl('warm-pos', 'Position', Array.from({ length: 11 }, (_, i) => ({ value: String(i), text: 'Frets ' + i + '–' + (i + 4) })), String(st.start), v => { st.start = +v; const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); })),
+          selectEl('warm-pos', 'Position', Array.from({ length: 9 }, (_, i) => ({ value: String(i), text: 'Frets ' + i + '–' + (i + 4) })), String(st.start), v => { st.start = +v; const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); })),
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.tonic, i => { st.tonic = i; restart(); })),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.guide ? true : null, onchange: e => { st.guide = e.target.checked; persist(); } }), 'Play the notes with me'),

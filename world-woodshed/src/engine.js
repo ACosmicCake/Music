@@ -524,7 +524,9 @@ function regionOfWeek() {
   if (rw && Date.now() - rw.start < 7 * DAY && D.REGIONS.find(r => r.id === rw.id) && (!pri.length || pri.includes(rw.id) || rw.manual)) return D.REGIONS.find(r => r.id === rw.id);
   const visited = (state.settings.visitedRegions || []);
   // with style priorities set, the weekly focus rotates through them, favouring the top of the list
-  const candidates = pri.length ? pri.map(id => D.REGIONS.find(r => r.id === id)).filter(Boolean) : D.REGIONS.filter(r => r.rhythms.length || r.scales.length);
+  let candidates = pri.map(id => D.REGIONS.find(r => r.id === id)).filter(Boolean);
+  // (a ranked style this version doesn't have, from another device, doesn't count)
+  if (!candidates.length) candidates = D.REGIONS.filter(r => r.rhythms.length || r.scales.length);
   const ranked = candidates.map((r, i) => ({ r, s: regionScore(r) + (visited.includes(r.id) ? 0.3 : 0) + (pri.length ? i * 0.12 : 0) + Math.random() * 0.05 })).sort((a, b) => a.s - b.s);
   const chosen = ranked[0].r;
   state.settings.regionWeek = { id: chosen.id, start: Date.now() };
