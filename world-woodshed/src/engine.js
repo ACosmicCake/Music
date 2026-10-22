@@ -142,7 +142,7 @@ function freshState() {
   return {
     v: 1, schema: SCHEMA, created: Date.now(), updatedAt: 0,
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
-    tech: {},
+    tech: {}, scaleTime: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
     routine: null, placementDone: false, songs: {}, tunes: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
@@ -346,6 +346,18 @@ function addTime(sec, skill) {
   if (!(sec > 0)) return;
   const add = Math.min(sec, 600);
   bump(today(), skill, 0, 0, add); bump(todayDev(), skill, 0, 0, add);
+  scheduleSave();
+}
+/* Time on a scale in one key, kept per device and for good (not pruned with the daily history):
+   kind 'v' is seen in your head (No-guitar drills), 'p' is played (Scale warm-up). */
+function addScaleTime(kind, scale, tonic, sec) {
+  if (!(sec > 0) || (kind !== 'v' && kind !== 'p') || !scale || !Number.isInteger(tonic)) return;
+  if (!state.scaleTime) state.scaleTime = {};
+  const d = state.scaleTime[DEV] || (state.scaleTime[DEV] = {});
+  const k = scale + ':' + (((tonic % 12) + 12) % 12);
+  const r = d[k] || (d[k] = { v: 0, p: 0, last: 0 });
+  r[kind] = Math.round(((r[kind] || 0) + Math.min(sec, 600)) * 10) / 10;
+  r.last = Date.now();
   scheduleSave();
 }
 function pruneHistory() {
@@ -843,6 +855,6 @@ export default {
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
-  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, resetAll, exportBackup, importBackup,
+  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, exportBackup, importBackup,
   storageNote: () => (saveHealth().level === 'failing' ? 'Not saving on this device' : storageNote), saveHealth, onSaveHealth, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };

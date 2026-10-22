@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 3;
+export const SCHEMA = 4;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide'];
@@ -50,6 +50,11 @@ const MIGRATIONS = {
   // 2 → 3: the player's own tunes for the Repertoire gym
   3(s) {
     if (!isObj(s.tunes)) s.tunes = {};
+    return s;
+  },
+  // 3 → 4: time on each scale and key, per device
+  4(s) {
+    if (!isObj(s.scaleTime)) s.scaleTime = {};
     return s;
   }
 };
@@ -100,6 +105,14 @@ function mergeHdev(a = {}, b = {}) {
     if (!p) return q; if (!q) return p;
     const w = r => (r.sec || 0) + (r.q || 0) * 5;
     return w(q) > w(p) ? q : p;
+  }));
+}
+/* Time on each scale: { device: { 'scale:tonic': { v: seconds seen in your head, p: seconds played, last } } }.
+   A device's own totals only grow, so the bigger number of each is the newer one. */
+function mergeScaleTime(a = {}, b = {}) {
+  return byKey(a, b, (x, y) => byKey(x, y, (p, q) => {
+    if (!isObj(p) || !isObj(q)) return isObj(p) ? p : q;
+    return { v: maxNum(p.v, q.v), p: maxNum(p.p, q.p), last: maxNum(p.last, q.last) };
   }));
 }
 function mergeTech(a = {}, b = {}) {
@@ -153,6 +166,7 @@ export function merge(local, remote) {
     hdev: mergeHdev(a.hdev, b.hdev),
     anchors: Object.assign({}, a.anchors, b.anchors, bNewer ? b.anchors : a.anchors),
     tech: mergeTech(a.tech, b.tech),
+    scaleTime: mergeScaleTime(a.scaleTime, b.scaleTime),
     songs: dropDeleted(byKey(a.songs, b.songs), tomb, 'song:'),
     tunes: dropDeleted(byKey(a.tunes, b.tunes), tomb, 'tune:'),
     routines: mergeList(a.routines, b.routines, r => r.id).filter(r => !tomb['routine:' + r.id] || stamp(r) > tomb['routine:' + r.id]),
@@ -186,7 +200,7 @@ const stable = x => {
   return x === undefined ? 'null' : JSON.stringify(x);
 };
 export function digest(s) {
-  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, journal: (s.journal || []).length,
+  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, journal: (s.journal || []).length,
     routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
   const str = stable(pick);
   let h = 2166136261;

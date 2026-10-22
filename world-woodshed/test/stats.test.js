@@ -122,3 +122,39 @@ describe('dueAt: the planner\'s reviews by a time', () => {
     expect(Cur.dueAt(NOW + 2 * DAY).map(x => x.id)).toEqual(['warm:major']);
   });
 });
+
+describe('time on each scale', () => {
+  const scaleTime = {
+    phone: { 'major:7': { v: 600, p: 0, last: 5 }, 'major:0': { v: 60, p: 30, last: 9 }, 'phrygian-dominant:4': { v: 0, p: 1200, last: 3 } },
+    desk: { 'major:7': { v: 0, p: 900, last: 7 }, 'dorian:2': { v: 0, p: 0, last: 1 } }
+  };
+  it('adds up every device, per scale and per key, most time first', () => {
+    const list = St.scaleTotals(scaleTime);
+    expect(list.map(x => x.scale)).toEqual(['major', 'phrygian-dominant']);
+    expect(list[0]).toMatchObject({ v: 660, p: 930, total: 1590, last: 9 });
+    expect(list[0].keys).toEqual([{ tonic: 7, v: 600, p: 900, total: 1500 }, { tonic: 0, v: 60, p: 30, total: 90 }]);
+  });
+  it('gives one scale in one key or in every key', () => {
+    expect(St.scaleTimeOf(scaleTime, 'major', 7)).toEqual({ v: 600, p: 900 });
+    expect(St.scaleTimeOf(scaleTime, 'major')).toEqual({ v: 660, p: 930 });
+    expect(St.scaleTimeOf(scaleTime, 'major', 5)).toEqual({ v: 0, p: 0 });
+    expect(St.scaleTimeOf(undefined, 'major')).toEqual({ v: 0, p: 0 });
+  });
+});
+
+describe('addScaleTime', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); E.resetAll(); });
+  afterEach(() => vi.useRealTimers());
+  it('keeps seen-in-your-head and played time apart, per scale and key, on this device', () => {
+    E.addScaleTime('v', 'major', 7, 5);
+    E.addScaleTime('v', 'major', 7, 5.04);
+    E.addScaleTime('p', 'major', 19, 30); // 19 is G again, an octave up
+    E.addScaleTime('x', 'major', 7, 5);  // not a kind
+    E.addScaleTime('v', 'major', 7, -3);
+    expect(E.state.scaleTime[E.device()]).toEqual({ 'major:7': { v: 10, p: 30, last: NOW } });
+  });
+  it('never adds more than ten minutes at once', () => {
+    E.addScaleTime('p', 'dorian', 2, 5000);
+    expect(St.scaleTimeOf(E.state.scaleTime, 'dorian', 2).p).toBe(600);
+  });
+});

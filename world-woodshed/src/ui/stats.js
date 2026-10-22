@@ -1,11 +1,13 @@
 /* World Woodshed — the Statistics page (Today → Progress → All statistics): where the practice time went,
    skill by skill and week by week, how accuracy is moving, six months at a glance, and what the planner
    will ask for tomorrow. The numbers come from src/stats.js; the charts here are also drawn on Today. */
+import D from '../data.js';
 import E from '../engine.js';
 import Cur from '../curriculum.js';
 import St from '../stats.js';
 import { view, h, s, ui, go, renderTabs, teardown, focusView } from './core.js';
 import { fmtMin } from '../routines.js';
+import { spell, keyPrefersFlats } from '../theory.js';
 
 const OTHER_NAMES = { transcribe: 'Transcribe' };
 const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
@@ -14,7 +16,7 @@ const pct = x => Math.round(x * 100) + '%';
 const hm = m => { m = Math.round(m); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + m % 60 + 'm' : ''); }; // short, for the narrow column
 let span = 8; // weeks shown; kept while the app is open
 
-export function statsPage() {
+export function statsPage(opts = {}) {
   teardown(); ui.runner = { id: 'stats', opts: {} }; renderTabs();
   view.innerHTML = ''; window.scrollTo(0, 0);
   view.append(h('div', { class: 'hero' },
@@ -25,6 +27,7 @@ export function statsPage() {
   view.append(body);
   draw(body);
   focusView();
+  if (opts.section) { const el = body.querySelector('[data-section="' + opts.section + '"]'); if (el) el.scrollIntoView(); }
 }
 
 function draw(body) {
@@ -83,8 +86,32 @@ function draw(body) {
   }
   body.append(acc);
 
+  body.append(scaleCard());
   body.append(h('section', { class: 'card' }, h('h2', { text: 'Every day' }), heatmap()));
   body.append(dueTomorrow(now));
+}
+
+/* Time on each scale, for good (not only these weeks): seen in your head (No-guitar drills → See the neck in
+   your head) and played (Scale warm-up), with the keys inside each scale */
+function scaleCard() {
+  const list = St.scaleTotals(E.state.scaleTime);
+  const card = h('section', { class: 'card', 'data-section': 'scales' }, h('h2', { text: 'Time on each scale' }));
+  if (!list.length) {
+    card.append(h('p', { class: 'muted', text: 'Nothing yet. Time counts while the click runs in Scale warm-up (played) and in No-guitar drills → See the neck in your head.' }));
+    return card;
+  }
+  const dur = sec => (sec < 60 ? Math.round(sec) + ' s' : hm(sec / 60));
+  const tot = list.reduce((a, x) => [a[0] + x.v, a[1] + x.p], [0, 0]);
+  card.append(h('p', { class: 'small muted', text: 'All time, every device. In your head: ' + dur(tot[0]) + ' · played: ' + dur(tot[1]) + '. Tap a scale for its keys.' }));
+  list.forEach(x => {
+    const sc = D.SCALES.find(y => y.id === x.scale), minor = sc ? sc.steps[2] === 3 : false;
+    card.append(h('details', { class: 'scaletime' },
+      h('summary', {}, h('span', { class: 'st-name', text: sc ? sc.name : x.scale }), h('b', { class: 'mono', text: dur(x.total) }),
+        h('span', { class: 'small muted st-split', text: 'head ' + dur(x.v) + ' · played ' + dur(x.p) })),
+      h('ul', { class: 'list small' }, x.keys.map(k => h('li', { class: 'spread' }, h('span', { text: spell(k.tonic, keyPrefersFlats(k.tonic, minor)) }),
+        h('span', { class: 'mono muted', text: 'head ' + dur(k.v) + ' · played ' + dur(k.p) }))))));
+  });
+  return card;
 }
 
 /* A strip of week squares for one row, shaded like the heatmap */

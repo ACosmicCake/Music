@@ -98,4 +98,31 @@ export function endOfTomorrow(t) {
   return d.getTime();
 }
 
-export default { weekStart, dayTotal, weeks, skillsIn, accuracySeries, accuracyChange, quizDue, endOfTomorrow };
+/* Time on each scale, every device added up (state.scaleTime: { device: { 'scale:tonic': { v, p, last } } },
+   v = seconds seen in your head, p = seconds played). One entry per scale, most time first:
+   { scale, v, p, total, last, keys: [{ tonic, v, p, total }] (most time first) } */
+export function scaleTotals(scaleTime) {
+  const by = {};
+  Object.values(scaleTime || {}).forEach(dev => Object.entries(dev || {}).forEach(([k, r]) => {
+    const i = k.lastIndexOf(':'), scale = k.slice(0, i), tonic = +k.slice(i + 1);
+    if (!scale || !Number.isInteger(tonic) || !r) return;
+    const sc = by[scale] || (by[scale] = { scale, v: 0, p: 0, total: 0, last: 0, keys: {} });
+    const kt = sc.keys[tonic] || (sc.keys[tonic] = { tonic, v: 0, p: 0, total: 0 });
+    const v = r.v || 0, p = r.p || 0;
+    sc.v += v; sc.p += p; sc.total += v + p; kt.v += v; kt.p += p; kt.total += v + p;
+    sc.last = Math.max(sc.last, r.last || 0);
+  }));
+  return Object.values(by).filter(x => x.total > 0)
+    .map(x => Object.assign(x, { keys: Object.values(x.keys).filter(k => k.total > 0).sort((a, b) => b.total - a.total || a.tonic - b.tonic) }))
+    .sort((a, b) => b.total - a.total);
+}
+/* One scale in one key (tonic) or in every key (tonic null): { v, p } in seconds */
+export function scaleTimeOf(scaleTime, scale, tonic = null) {
+  const sc = scaleTotals(scaleTime).find(x => x.scale === scale);
+  if (!sc) return { v: 0, p: 0 };
+  if (tonic === null) return { v: sc.v, p: sc.p };
+  const k = sc.keys.find(x => x.tonic === tonic);
+  return k ? { v: k.v, p: k.p } : { v: 0, p: 0 };
+}
+
+export default { weekStart, dayTotal, weeks, skillsIn, accuracySeries, accuracyChange, quizDue, endOfTomorrow, scaleTotals, scaleTimeOf };
