@@ -9,7 +9,7 @@ import E from '../engine.js';
 import { h, tool, toast, openTool } from '../ui/core.js';
 import { BLOCKS, describe, totalOf, fmtMin } from '../routines.js';
 import { GO_GROUPS, keyTitle, goTitle, goBlock, planRide, mineBlocks, toMine, DEFAULT_MINE } from '../commuteplan.js';
-import { startSession } from '../ui/session.js';
+import { startSession, autoAdvanceToggle } from '../ui/session.js';
 import { ribbon } from '../ui/routine.js';
 import { speak, stopSpeaking, keepAwake, isNative } from '../native.js';
 import './commute.css';
@@ -151,10 +151,11 @@ tool('commute', {
         h('ol', { class: 'blocks static smartlist' }, blocks.map(blockRow)),
         h('div', { class: 'row' }, addRow()),
         ses ? h('p', { class: 'small muted', text: 'Starting this ends the session in progress (' + ses.name + ').' }) : '',
-        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastRide = minutes; startSession({ name: 'On the go', blocks, autoAdvance: true }); } }, '▶ Start · ' + fmtMin(totalOf(blocks))),
+        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => { E.state.settings.lastRide = minutes; startSession({ name: 'On the go', blocks }); } }, '▶ Start · ' + fmtMin(totalOf(blocks))),
           pref.mode === 'smart' ? h('button', { class: 'btn ghost', onclick: () => { rebuild(); drawPlan(); } }, 'Shuffle') : '',
           pref.mode === 'smart' ? h('button', { class: 'btn ghost', onclick: () => { pref.mine = toMine(blocks); pref.mode = 'mine'; save(); drawPlan(); toast('Saved as your own commute'); } }, 'Keep as my own')
-            : h('button', { class: 'btn ghost', onclick: () => { pref.mine = DEFAULT_MINE.slice(); save(); rebuild(); drawPlan(); } }, 'Reset')));
+            : h('button', { class: 'btn ghost', onclick: () => { pref.mine = DEFAULT_MINE.slice(); save(); rebuild(); drawPlan(); } }, 'Reset')),
+        h('div', { class: 'row' }, autoAdvanceToggle()));
     }
     drawPlan();
 

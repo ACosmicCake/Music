@@ -3,7 +3,7 @@ import D from '../data.js';
 import E from '../engine.js';
 import { view, h, toast, go, PAGES, hooks, ui } from './core.js';
 import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks } from '../routines.js';
-import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause } from './session.js';
+import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause, autoAdvanceToggle } from './session.js';
 import { smartPlanner, learningPrefsCard } from './smart.js';
 
 const PRESETS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -38,7 +38,7 @@ function legend(blocks) {
 PAGES.routine = function () {
   const active = E.activeRoutineId();
   view.append(h('div', { class: 'pagehead' }, h('span', { class: 'eyebrow', text: 'Routine' }), h('h1', { text: 'Plan your practice' }),
-    h('p', { class: 'muted', text: 'Smart practice chooses what to work on for the time you have. Or build your own routine: line up blocks and the smart plan fills them with the right scale, technique, rhythm and tune each time. The timer keeps going while you play and moves you on.' })));
+    h('p', { class: 'muted', text: 'Smart practice chooses what to work on for the time you have. Or build your own routine: line up blocks and the smart plan fills them with the right scale, technique, rhythm and tune each time. The timer keeps going while you play and chimes when a block is over.' })));
   if (E.session()) view.append(sessionCard());
   view.append(picker(active));
   if (active === 'smart') view.append(smartPlanner(), learningPrefsCard());
@@ -91,7 +91,7 @@ function picker(active) {
   E.routines().forEach(r => row.append(h('button', { class: 'rpick', role: 'tab', 'aria-selected': r.id === active ? 'true' : 'false', onclick: () => { E.setActiveRoutine(r.id); go('routine'); } },
     h('b', { text: r.name }), h('span', { class: 'mono small', text: fmtMin(totalOf(r.blocks)) }), ribbon(r.blocks, { small: true }))));
   row.append(h('button', { class: 'rpick add', onclick: () => {
-    const r = { id: E.uid('r'), name: 'New routine', breaks: false, autoAdvance: true, blocks: [newBlock('scalewarm'), newBlock('rhythms'), newBlock('repertoire')] };
+    const r = { id: E.uid('r'), name: 'New routine', breaks: false, blocks: [newBlock('scalewarm'), newBlock('rhythms'), newBlock('repertoire')] };
     syncWeights(r); E.saveRoutine(r); E.setActiveRoutine(r.id); go('routine');
   } }, h('b', { text: '+ New routine' }), h('span', { class: 'small', text: 'Start empty-ish' })));
   return row;
@@ -128,7 +128,7 @@ function editor(stored) {
       legend(r.blocks),
       h('div', { class: 'row' },
         h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: r.breaks ? true : null, onchange: e => { r.breaks = e.target.checked; setTotal(r, total); commit(); draw(); } }), '5-minute breaks about every hour'),
-        h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: r.autoAdvance !== false ? true : null, onchange: e => { r.autoAdvance = e.target.checked; commit(); } }), 'Move on automatically')),
+        autoAdvanceToggle()),
       h('button', { class: 'btn brass big start', onclick: () => { commit(); startSession(r); } }, E.session() ? '▶ Start over with this routine' : '▶ Start session · ' + fmtMin(total)),
       awayButton(r)));
 
@@ -236,7 +236,7 @@ export function awayButton(r, cls) {
   const n = r.blocks.filter(needsGuitar).length;
   return h('button', { class: cls || 'btn ghost start', title: n ? n + ' guitar-only blocks become no-guitar drills' : 'Every block works without the guitar', onclick: () => {
     E.saveRoutine(r);
-    startSession({ id: r.id, name: r.name + ' · no guitar', autoAdvance: r.autoAdvance, blocks: awayBlocks(r.blocks) });
+    startSession({ id: r.id, name: r.name + ' · no guitar', blocks: awayBlocks(r.blocks) });
   } }, 'No guitar with me' + (n ? ' (swaps ' + n + ' block' + (n > 1 ? 's' : '') + ')' : ''));
 }
 
