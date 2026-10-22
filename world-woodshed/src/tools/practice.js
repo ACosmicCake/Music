@@ -574,27 +574,45 @@ tool('away', {
           }, () => drawSyl(-1)),
           h('p', { class: 'small muted', text: 'Carnatic drummers learn every rhythm by voice first. Once you can say it, playing it on the guitar is easy.' }));
       } else if (drill === 'visualise') {
-        const p = ctx.params || {};
-        const scales = warmScales().filter(x => x.tier <= 3);
-        let sc = scaleOf(p.scale && scales.find(x => x.id === p.scale) ? p.scale : scales[Math.floor(Math.random() * scales.length)].id);
-        let tonic = p.tonic ?? Math.floor(Math.random() * 12), start = 0;
-        const st = { bpm: 60 };
+        // you choose the scale, key and position (the last choice is kept); a session block brings its own
+        const p = ctx.params || {}, saved = E.state.settings.visualise || {};
+        const scales = warmScales(), easy = scales.filter(x => x.tier <= 3);
+        const known = id => !!(id && scales.some(x => x.id === id));
+        const st = {
+          scale: known(p.scale) ? p.scale : known(saved.scale) ? saved.scale : 'major',
+          tonic: Number.isInteger(p.tonic) ? p.tonic : Number.isInteger(saved.tonic) ? saved.tonic : 7,
+          start: null, bpm: 60
+        };
+        const persist = () => E.setSetting('visualise', { scale: st.scale, tonic: st.tonic });
         const prompt = h('div', { class: 'prompt' });
         const fb = Fretboard({});
         const fbWrap = h('div', { hidden: true }, fb.el);
-        const pick = () => {
-          const f = ((tonic - 4) % 12 + 12) % 12; start = Math.max(0, f - 1);
-          prompt.textContent = spell(tonic, keyPrefersFlats(tonic, sc.steps[2] === 3)) + ' ' + sc.name + ', frets ' + start + '–' + (start + 4);
-          const notes = positionNotes(sc.steps, tonic, start);
+        const setup = h('div', { class: 'stack' });
+        const draw = () => {
+          const sc = scaleOf(st.scale), ps = rootPositions(st.tonic);
+          if (st.start === null || !ps.includes(st.start)) { const f = ((st.tonic - E.STRINGS[0].midi) % 12 + 12) % 12; st.start = ps.includes(Math.max(0, f - 1)) ? Math.max(0, f - 1) : ps[0]; }
+          prompt.textContent = spell(st.tonic, keyPrefersFlats(st.tonic, sc.steps[2] === 3)) + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4);
+          const notes = positionNotes(sc.steps, st.tonic, st.start);
           fb.mark(notes.map(n => ({ s: n.s, f: n.f, kind: n.deg === 0 ? 'root' : 'tone', label: degreeLabel(n.deg) })));
           fbWrap.hidden = true;
+          setup.innerHTML = '';
+          setup.append(
+            h('div', { class: 'formgrid' },
+              selectEl('vis-scale', 'Scale', scaleOptions(scales), st.scale, v => { st.scale = v; persist(); draw(); }),
+              selectEl('vis-pos', 'Position', ps.map((f, i) => ({ value: String(f), text: (i + 1) + ' · frets ' + f + '–' + (f + 4) })), String(st.start), v => { st.start = +v; draw(); })),
+            h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.tonic, i => { st.tonic = i; st.start = null; persist(); draw(); })));
         };
-        pick();
-        card.append(h('h2', { text: 'See the neck in your head' }), prompt,
+        const surprise = () => {
+          st.scale = easy[Math.floor(Math.random() * easy.length)].id; st.tonic = Math.floor(Math.random() * 12);
+          const ps = rootPositions(st.tonic); st.start = ps[Math.floor(Math.random() * ps.length)];
+          draw();
+        };
+        draw();
+        card.append(h('h2', { text: 'See the neck in your head' }), prompt, setup,
           h('p', { text: 'Close your eyes. Picture the neck and "play" this scale in position, one note per click, up and down. Say each note name or degree under your breath. Then reveal it and check where you went wrong.' }),
           clickRow(st, () => { A.ensure(); loop = A.Loop({ steps: 4, stepDur: () => 60 / st.bpm, onStep: (i, t) => A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8) }); loop.start(); ctx.setActive(true); }),
           h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: () => { fbWrap.hidden = !fbWrap.hidden; } }, 'Reveal / hide'),
-            h('button', { class: 'btn ghost', onclick: () => { sc = scaleOf(scales[Math.floor(Math.random() * scales.length)].id); tonic = Math.floor(Math.random() * 12); pick(); } }, 'New scale')),
+            h('button', { class: 'btn ghost', onclick: surprise }, 'Surprise me')),
           fbWrap,
           h('p', { class: 'small muted', text: 'Mental practice works: players who rehearse in their heads keep much of their progress. Do the same with a piece you are learning.' }));
       } else {
