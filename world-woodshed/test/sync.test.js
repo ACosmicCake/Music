@@ -176,3 +176,18 @@ describe('time on each scale', () => {
     expect(digest(base({ scaleTime: { d: { 'major:0': { v: 5 } } } }))).not.toBe(digest(base()));
   });
 });
+
+describe('personal bests', () => {
+  it('a schema-4 save gains an empty record and keeps its scale time', () => {
+    const m = migrate({ v: 1, schema: 4, scaleTime: { d: { 'major:0': { v: 5, p: 0, last: 1 } } } }, 'd1');
+    expect(m.schema).toBe(SCHEMA);
+    expect(m.records).toEqual({});
+    expect(m.scaleTime.d['major:0'].v).toBe(5);
+  });
+  it('keeps the best of each from either copy, and is part of the digest', () => {
+    const m = merge(base({ records: { streak: 12, goalStreak: 2 } }), base({ updatedAt: 9, records: { streak: 5, goalStreak: 7 } }));
+    expect(m.records).toEqual({ streak: 12, goalStreak: 7 });
+    expect(merge(base(), base()).records).toEqual({});
+    expect(digest(base({ records: { streak: 1 } }))).not.toBe(digest(base()));
+  });
+});

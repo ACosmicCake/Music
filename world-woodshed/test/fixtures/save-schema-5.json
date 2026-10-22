@@ -1,0 +1,360 @@
+{
+ "v": 1,
+ "created": 1760000000000,
+ "updatedAt": 1760900000000,
+ "skills": {
+  "intervals": {
+   "items": {
+    "P5:up": {
+     "n": 6,
+     "c": 5,
+     "ema": 0.82,
+     "box": 3,
+     "due": 1761000000000,
+     "last": 1760900000000
+    }
+   },
+   "conf": {
+    "M3:up>P4:up": 2
+   },
+   "last": 1760900000000
+  },
+  "chords": {
+   "items": {
+    "maj": {
+     "n": 3,
+     "c": 3,
+     "ema": 1,
+     "box": 3,
+     "due": 1761100000000,
+     "last": 1760800000000
+    }
+   },
+   "conf": {},
+   "last": 1760800000000
+  }
+ },
+ "history": {
+  "2025-10-18": {
+   "sec": 1200,
+   "q": 14,
+   "c": 11,
+   "by": {
+    "intervals": [
+     10,
+     8,
+     600
+    ],
+    "technique": [
+     0,
+     0,
+     600
+    ]
+   },
+   "mastery": {
+    "intervals": 12
+   }
+  },
+  "2025-10-19": {
+   "sec": 900,
+   "q": 4,
+   "c": 4,
+   "by": {
+    "chords": [
+     4,
+     4,
+     900
+    ]
+   }
+  },
+  "2025-10-20": {
+   "sec": 600,
+   "q": 6,
+   "c": 5,
+   "by": {
+    "intervals": [
+     6,
+     5,
+     600
+    ]
+   }
+  }
+ },
+ "tomb": {
+  "tune:my-ab12mgx0aa": 1760870000000
+ },
+ "anchors": {
+  "P5:up": "Star Wars theme"
+ },
+ "tech": {
+  "altpick": {
+   "bpm": 96,
+   "best": 92,
+   "last": 1760800000000,
+   "hist": [
+    [
+     "2025-10-18",
+     92
+    ]
+   ],
+   "sloppy": 0
+  }
+ },
+ "settings": {
+  "latencyMs": 35,
+  "minutes": 30,
+  "focus": "jazz",
+  "tuning": "dropd",
+  "capo": 2,
+  "noteNames": "letters"
+ },
+ "routine": null,
+ "placementDone": true,
+ "songs": {
+  "sg1": {
+   "id": "sg1",
+   "title": "Blue in Green",
+   "lastOpened": 1760850000000,
+   "speed": 0.75,
+   "sections": [
+    {
+     "a": 10,
+     "b": 20,
+     "name": "Intro"
+    }
+   ]
+  }
+ },
+ "routines": [
+  {
+   "id": "r1",
+   "name": "Mornings",
+   "breaks": false,
+   "blocks": [
+    {
+     "id": "b1",
+     "type": "scalewarm",
+     "minutes": 10,
+     "settings": {}
+    }
+   ],
+   "updatedAt": 1760700000000
+  }
+ ],
+ "session": null,
+ "lessons": {
+  "notes": 1760600000000
+ },
+ "heard": {
+  "flamenco:0": 1760600000000
+ },
+ "journal": [
+  {
+   "ts": 1760800000000,
+   "date": "2025-10-18",
+   "name": "Mornings",
+   "sec": 1200,
+   "done": 1,
+   "total": 1,
+   "note": "Felt good"
+  }
+ ],
+ "readLib": {
+  "n": 2,
+  "pieces": {
+   "p3123451": {
+    "id": "p3123451",
+    "no": 1,
+    "lv": 1,
+    "kind": "melody",
+    "code": "C/4/4/60w",
+    "made": 1760600000000,
+    "reads": [
+     {
+      "t": 1760600000000,
+      "s": 0.6,
+      "bpm": 60
+     }
+    ],
+    "best": 0.6,
+    "gap": 1,
+    "due": 1760686400000,
+    "star": true
+   },
+   "p3123452": {
+    "id": "p3123452",
+    "no": 2,
+    "lv": 1,
+    "kind": "rhythm",
+    "code": "C/4/4/71h 71h",
+    "made": 1760600000000,
+    "reads": [],
+    "best": 0,
+    "gap": 0,
+    "due": null,
+    "star": false
+   }
+  }
+ },
+ "schema": 5,
+ "hdev": {
+  "legacy": {
+   "2025-10-18": {
+    "sec": 1200,
+    "q": 14,
+    "c": 11,
+    "by": {
+     "intervals": [
+      10,
+      8,
+      600
+     ],
+     "technique": [
+      0,
+      0,
+      600
+     ]
+    }
+   },
+   "2025-10-19": {
+    "sec": 900,
+    "q": 4,
+    "c": 4,
+    "by": {
+     "chords": [
+      4,
+      4,
+      900
+     ]
+    }
+   }
+  },
+  "dphone12345": {
+   "2025-10-20": {
+    "sec": 600,
+    "q": 6,
+    "c": 5,
+    "by": {
+     "intervals": [
+      6,
+      5,
+      600
+     ]
+    }
+   }
+  }
+ },
+ "cur": {
+  "items": {
+   "warm:major": {
+    "s": 4.2,
+    "last": 1760900000000,
+    "n": 3,
+    "lapses": 0,
+    "intro": 1760600000000,
+    "g": 2
+   }
+  },
+  "prefs": {
+   "styles": [
+    "flamenco",
+    "jazz"
+   ],
+   "pace": "gentle",
+   "goal": 90,
+   "goalTarget": 240,
+   "goalSince": "2025-10-14",
+   "goalLog": [
+    [
+     "2025-10-01",
+     60
+    ],
+    [
+     "2025-10-14",
+     90
+    ]
+   ],
+   "streakRule": 10
+  },
+  "days": {}
+ },
+ "tunes": {
+  "my-ab12mgx1k2": {
+   "id": "my-ab12mgx1k2",
+   "name": "Rainy-day blues",
+   "groove": "shuffle",
+   "bpm": 96,
+   "note": "slow blues in G",
+   "created": 1760850000000,
+   "updatedAt": 1760890000000,
+   "form": [
+    [
+     "A",
+     4
+    ],
+    [
+     "B",
+     4
+    ],
+    [
+     "C",
+     4
+    ]
+   ],
+   "bars": [
+    "G7",
+    "C7",
+    "G7",
+    "G7",
+    "C7",
+    "C7",
+    "G7",
+    "E7",
+    "Am7",
+    "D7",
+    "G7 E7",
+    "Am7 D7"
+   ]
+  },
+  "my-ab12mgx9z0": {
+   "id": "my-ab12mgx9z0",
+   "name": "Montuno sketch",
+   "groove": "son",
+   "bpm": 180,
+   "note": "",
+   "created": 1760860000000,
+   "updatedAt": 1760860000000,
+   "bars": [
+    "Dm7 G7",
+    "Cmaj7",
+    "Dm7 G7",
+    "Cmaj7"
+   ]
+  }
+ },
+ "scaleTime": {
+  "d9f3k2a": {
+   "major:7": {
+    "v": 640,
+    "p": 1800,
+    "last": 1760900000000
+   },
+   "aeolian:9": {
+    "v": 300,
+    "p": 0,
+    "last": 1760850000000
+   }
+  },
+  "dp1x0ab": {
+   "major:7": {
+    "v": 120,
+    "p": 0,
+    "last": 1760800000000
+   }
+  }
+ },
+ "records": {
+  "streak": 41,
+  "goalStreak": 12
+ }
+}

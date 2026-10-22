@@ -11,6 +11,7 @@ import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
+import { goalCard, applyRamp } from './ui/goal.js';
 import Samples from './samples.js';
 import A from './audio.js';
 import { VOICES } from './guitars.js';
@@ -49,6 +50,10 @@ Object.assign(PAGES, {
         h('div', {}, h('b', { class: 'mono', text: fmtMin(wkMin) }), h('span', { text: 'this week' })),
         h('div', {}, h('b', { class: 'mono', text: lessonsDone + '/' + D.LESSONS.length }), h('span', { text: 'lessons' })),
         h('div', {}, h('b', { class: 'mono', text: heardAll }), h('span', { text: 'records heard' })))));
+
+    // the daily goal and the streaks (the goal grows first, if it is time)
+    applyRamp();
+    view.append(goalCard());
 
     // practice now
     const ses = E.session();
@@ -107,7 +112,7 @@ Object.assign(PAGES, {
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkMin }), h('span', { text: 'minutes, last 7 days' })),
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkQ }), h('span', { text: 'answers, last 7 days' })),
       h('div', { class: 'stat' }, h('b', { class: 'mono', text: wkQ ? Math.round(100 * wkC / wkQ) + '%' : '—' }), h('span', { text: 'accuracy' })),
-      h('div', { class: 'stat' }, h('b', { class: 'mono', text: E.streak() }), h('span', { text: 'day streak' }))));
+      h('div', { class: 'stat' }, h('b', { class: 'mono', text: E.streaks().best }), h('span', { text: 'best streak, days' }))));
     prog.append(dayChart(days), heatmap(), h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => statsPage() }, 'All statistics →')));
     Object.entries(E.CAT_NAMES).forEach(([cat, name]) => {
       const ks = Object.keys(E.SKILLS).filter(k => E.SKILLS[k].cat === cat);
