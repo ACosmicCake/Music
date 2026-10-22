@@ -7,6 +7,8 @@ import { BLOCKS, blockTitle, describe, totalOf, fmtMin, syncWeights } from '../r
 import { startSession } from './session.js';
 import { ribbon } from './routine.js';
 import { openSwap } from './swap.js';
+import { goalSettings } from './goal.js';
+import Goals from '../goals.js';
 import { loadScience, whenLoaded } from '../content/lazy.js';
 
 const TIMES = [10, 15, 20, 30, 45, 60, 90, 120];
@@ -36,13 +38,14 @@ export function smartPlanner(opts = {}) {
   function draw() {
     card.innerHTML = '';
     const ctx = Cur.context(), goal = Cur.prefs().goal || 30;
-    const done = ctx.minutesToday;
+    const done = Goals.minutesOn(E.state.history, E.dayKey()); // all practice today, on every device
     const status = ctx.sessionNo === 1 ? 'First session today' : 'Session ' + ctx.sessionNo + ' today · ' + fmtMin(done) + ' so far' + (ctx.sinceLast !== null ? ', last one ' + (ctx.sinceLast < 1 ? Math.round(ctx.sinceLast * 60) + ' min' : Math.round(ctx.sinceLast) + ' h') + ' ago' : '');
     card.append(
       h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Smart practice' }), h('h2', { text: plan ? 'Your session' : 'How much time do you have right now?' }),
         plan && minutes === E.state.settings.lastMinutes ? h('span', { class: 'small muted', text: 'Same length as last time. Pick another below.' }) : null),
         h('button', { class: 'btn small ghost', onclick: () => sciencePage() }, 'How it decides →')),
-      h('div', { class: 'daygoal' }, h('span', { class: 'small', text: status }), h('span', { class: 'mono small muted', text: fmtMin(done) + ' / ' + fmtMin(goal) + ' goal' }),
+      // on Today the goal card above shows the goal
+      opts.compact ? h('span', { class: 'small muted', text: status }) : h('div', { class: 'daygoal' }, h('span', { class: 'small', text: status }), h('span', { class: 'mono small muted', text: fmtMin(done) + ' / ' + fmtMin(goal) + ' goal' }),
         h('div', { class: 'bar brass' }, h('i', { style: { width: Math.min(100, 100 * done / goal) + '%' } }))));
     const chips = h('div', { class: 'chips presets' }, TIMES.map(m => h('button', { class: 'chip', 'aria-pressed': m === minutes ? 'true' : 'false', onclick: () => { minutes = m; picked = { m, t: Date.now() }; plan = planFor(m); draw(); } }, fmtMin(m).replace(' min', 'm').replace(' h', 'h'))));
     card.append(chips);
@@ -94,9 +97,7 @@ export function learningPrefsCard(opts = {}) {
     card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Pace of new material' }),
       h('div', { class: 'seg' }, Object.entries(Cur.PACE).map(([k, v]) => h('button', { 'aria-pressed': (p.pace || 'steady') === k ? 'true' : 'false', onclick: () => set({ pace: k }) }, v.name))),
       h('span', { class: 'small muted', text: Cur.PACE[p.pace || 'steady'].desc })));
-    card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Daily goal' }),
-      h('div', { class: 'chips presets' }, [15, 30, 45, 60, 90, 120, 180].map(m => h('button', { class: 'chip', 'aria-pressed': (p.goal || 30) === m ? 'true' : 'false', onclick: () => set({ goal: m }) }, fmtMin(m)))),
-      h('span', { class: 'small muted', text: 'Split it into as many sessions as your day allows. Several short sessions spread out are as good as one long one, often better.' })));
+    card.append(goalSettings({ onChange: () => { if (opts.onChange) opts.onChange(); } }));
     if (!opts.compact) {
       const st = Cur.stats();
       card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'What you have learned' }),

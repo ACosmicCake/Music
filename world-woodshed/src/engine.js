@@ -4,6 +4,7 @@ import { readingItems } from './content/reading.js';
 import { gymItems } from './content/gym.js';
 import { dictationItems } from './content/dictation.js';
 import { SCHEMA, migrate, merge, digest } from './sync.js';
+import Goals from './goals.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
@@ -142,7 +143,7 @@ function freshState() {
   return {
     v: 1, schema: SCHEMA, created: Date.now(), updatedAt: 0,
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
-    tech: {}, scaleTime: {},
+    tech: {}, scaleTime: {}, records: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
     routine: null, placementDone: false, songs: {}, tunes: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
@@ -503,16 +504,21 @@ function lastNDays(n) {
   }
   return out;
 }
-function streak() {
-  let s = 0;
-  for (let i = 0; i < 400; i++) {
-    const h = state.history[dayKey(Date.now() - i * DAY)];
-    if (h && (h.q > 0 || h.sec > 60)) s++;
-    else if (i === 0) continue;
-    else break;
+/* The streaks by the player's rule (Learning plan → Daily goal), with the best ever kept in state.records
+   (the history itself only goes back six months) */
+function streaks() {
+  const p = (state.cur && state.cur.prefs) || {};
+  const st = Goals.streaks(state.history, Date.now(), { rule: p.streakRule, goal: p.goal || 30, log: p.goalLog });
+  if (!state.records) state.records = {};
+  const r = state.records;
+  if (st.best > (r.streak || 0) || st.goalBest > (r.goalStreak || 0)) {
+    r.streak = Math.max(r.streak || 0, st.best); r.goalStreak = Math.max(r.goalStreak || 0, st.goalBest);
+    scheduleSave();
   }
-  return s;
+  st.best = Math.max(st.best, r.streak || 0); st.goalBest = Math.max(st.goalBest, r.goalStreak || 0);
+  return st;
 }
+function streak() { return streaks().current; }
 function trend(skill) {
   const nowM = mastery(skill);
   for (let i = 7; i <= 14; i++) {
@@ -853,7 +859,7 @@ export default {
   listSongs, getSong, saveSong, deleteSong, listTunes, getTune, saveTune, deleteTune,
   SKILLS, CAT_NAMES, STRINGS, TUNINGS, guitar, setGuitar, FOCUS, init, get state() { return state; }, onChange, emit,
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
-  weakItems, confusions, lastNDays, streak, trend, regionOfWeek, setRegionWeek, regionScore,
+  weakItems, confusions, lastNDays, streak, streaks, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
   techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, exportBackup, importBackup,
   storageNote: () => (saveHealth().level === 'failing' ? 'Not saving on this device' : storageNote), saveHealth, onSaveHealth, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef

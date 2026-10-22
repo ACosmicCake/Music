@@ -139,7 +139,7 @@ describe('loading a save from every past format', () => {
     expect(E.getTune('my-ab12mgx1k2').form).toEqual([['A', 4], ['B', 4], ['C', 4]]);
     expect(s.scaleTime).toEqual({});
   });
-  it('schema 4 (current): loads as it was saved, time on each scale from every device included', async () => {
+  it('schema 4 (before personal bests): time on each scale from every device is kept, with no bests yet', async () => {
     const saved = JSON.parse(fixture(4));
     localStorage.setItem(LS_KEY, fixture(4));
     const E = await boot();
@@ -151,6 +151,18 @@ describe('loading a save from every past format', () => {
     E.addScaleTime('v', 'major', 7, 10);
     expect(s.scaleTime.d9f3k2a['major:7'].v).toBe(640); // another device's time is never touched
     expect(s.scaleTime[E.device()]['major:7'].v).toBe(10);
+    expect(s.records).toEqual({});
+  });
+  it('schema 5 (current): loads as it was saved, the best streaks and the growing goal included', async () => {
+    const saved = JSON.parse(fixture(5));
+    localStorage.setItem(LS_KEY, fixture(5));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.scaleTime).toEqual(saved.scaleTime);
+    expect(s.records).toEqual({ streak: 41, goalStreak: 12 });
+    expect(s.cur.prefs).toMatchObject({ goal: 90, goalTarget: 240, streakRule: 10 });
+    expect(E.streaks()).toMatchObject({ best: 41, goalBest: 12 }); // kept though the history no longer shows them
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

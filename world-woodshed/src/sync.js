@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 4;
+export const SCHEMA = 5;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide'];
@@ -55,6 +55,11 @@ const MIGRATIONS = {
   // 3 → 4: time on each scale and key, per device
   4(s) {
     if (!isObj(s.scaleTime)) s.scaleTime = {};
+    return s;
+  },
+  // 4 → 5: personal bests kept for good (the longest streaks), past the six months of history
+  5(s) {
+    if (!isObj(s.records)) s.records = {};
     return s;
   }
 };
@@ -173,6 +178,7 @@ export function merge(local, remote) {
     journal: mergeList(a.journal, b.journal, j => String(j.ts), 300).sort((x, y) => y.ts - x.ts),
     lessons: byKey(a.lessons, b.lessons, maxNum),
     heard: byKey(a.heard, b.heard, maxNum),
+    records: byKey(a.records, b.records, maxNum),
     placementDone: !!(a.placementDone || b.placementDone),
     // a running session belongs to the device it runs on: another copy (the phone's sync file, the cloud, an
     // older save) must never start it here, or bring back one that was finished or discarded on this device
@@ -201,7 +207,7 @@ const stable = x => {
 };
 export function digest(s) {
   const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, journal: (s.journal || []).length,
-    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
+    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
   const str = stable(pick);
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
