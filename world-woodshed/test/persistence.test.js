@@ -126,7 +126,7 @@ describe('loading a save from every past format', () => {
     expect(s.tunes).toEqual({});
     expect(E.listTunes()).toEqual([]);
   });
-  it('schema 3 (current): loads as it was saved, your tunes and their deletions included', async () => {
+  it('schema 3 (before time on each scale): your tunes and their deletions are kept, with no scale time yet', async () => {
     const saved = JSON.parse(fixture(3));
     localStorage.setItem(LS_KEY, fixture(3));
     const E = await boot();
@@ -137,6 +137,20 @@ describe('loading a save from every past format', () => {
     expect(s.tomb['tune:my-ab12mgx0aa']).toBe(1760870000000);
     expect(E.listTunes().map(t => t.name)).toEqual(['Montuno sketch', 'Rainy-day blues']);
     expect(E.getTune('my-ab12mgx1k2').form).toEqual([['A', 4], ['B', 4], ['C', 4]]);
+    expect(s.scaleTime).toEqual({});
+  });
+  it('schema 4 (current): loads as it was saved, time on each scale from every device included', async () => {
+    const saved = JSON.parse(fixture(4));
+    localStorage.setItem(LS_KEY, fixture(4));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.skills).toEqual(saved.skills);
+    expect(s.tunes).toEqual(saved.tunes);
+    expect(s.scaleTime).toEqual(saved.scaleTime);
+    E.addScaleTime('v', 'major', 7, 10);
+    expect(s.scaleTime.d9f3k2a['major:7'].v).toBe(640); // another device's time is never touched
+    expect(s.scaleTime[E.device()]['major:7'].v).toBe(10);
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

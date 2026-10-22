@@ -7,6 +7,10 @@ import { PATTERNS, DRILLS, warmScales } from '../routines.js';
 import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
+import { keepAwake } from '../native.js';
+import St from '../stats.js';
+import { fmtMin } from '../routines.js';
+import { statsPage } from '../ui/stats.js';
 
 /* ======================================================
    PRACTICE TOOLS: scale warm-up, explorer, circle of fifths, tuner, free practice, break
@@ -26,6 +30,36 @@ function keyChips(value, onpick) {
   const wrap = h('div', { class: 'chips' });
   D.NOTE_NAMES.forEach((n, i) => wrap.append(h('button', { class: 'chip', 'aria-pressed': i === value ? 'true' : 'false', onclick: () => onpick(i) }, n)));
   return wrap;
+}
+/* Time on a scale (E.addScaleTime): counted from the wall clock while it runs and put down to the scale and
+   key that were up when it was measured, so call flush() right after the scale or key changes. A gap of more
+   than two minutes between ticks means the phone slept, and only two minutes of it count. The screen stays on
+   while it runs. */
+function scaleClock(kind, which, onTick) {
+  let since = 0, cur = null, timer = null;
+  const who = 'scale-' + kind;
+  function flush() {
+    if (!since) return;
+    const now = Date.now(), sec = Math.min(now - since, 120000) / 1000;
+    since = now;
+    if (cur) E.addScaleTime(kind, cur.scale, cur.tonic, sec);
+    cur = which();
+    if (onTick) onTick();
+  }
+  return {
+    start() { if (since) { flush(); return; } since = Date.now(); cur = which(); timer = setInterval(flush, 5000); keepAwake(true, who); },
+    stop() { if (!since) return; flush(); since = 0; cur = null; clearInterval(timer); timer = null; keepAwake(false, who); },
+    flush
+  };
+}
+const fmtDur = sec => (sec < 60 ? Math.round(sec) + ' s' : fmtMin(sec / 60));
+/* "In your head: 12 min in G, 1 h in every key · Played: 30 min in G" for one scale; this tool's kind first,
+   the other only once there is some */
+function scaleTimeText(kind, scale, tonic, keyName) {
+  const k = St.scaleTimeOf(E.state.scaleTime, scale, tonic), all = St.scaleTimeOf(E.state.scaleTime, scale);
+  const part = (label, a, b) => label + ': ' + fmtDur(a) + ' in ' + keyName + (b > a ? ', ' + fmtDur(b) + ' in every key' : '');
+  const head = part('In your head', k.v, all.v), played = part('Played', k.p, all.p);
+  return kind === 'v' ? head + (all.p ? ' · ' + played : '') : played + (all.v ? ' · ' + head : '');
 }
 function scaleOptions(list) {
   return [1, 2, 3, 4, 5].map(t => ({ group: ['Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5'][t - 1], items: list.filter(x => x.tier === t).map(x => ({ value: x.id, text: x.name })) })).filter(g => g.items.length);
@@ -112,13 +146,18 @@ tool('scalewarm', {
     const now = h('div', { class: 'big-number mono warm-note', text: '—' });
     const bpmLbl = h('div', { class: 'big-number mono', text: bpm });
     const info = h('p', { class: 'small muted' });
+    const timeLbl = h('p', { class: 'small muted scaletime-line' });
+    const keyName = () => spell(st.tonic, keyPrefersFlats(st.tonic, scaleOf(st.scale).steps[2] === 3));
+    const paintTime = () => { timeLbl.textContent = scaleTimeText('p', st.scale, st.tonic, keyName()); };
+    // played time on this scale and key, while the click runs
+    const clock = scaleClock('p', () => ({ scale: st.scale, tonic: st.tonic }), paintTime);
     const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.2) });
     const playBtn = h('button', { class: 'btn primary' }, '▶ Start');
     const roundLbl = h('span', { class: 'small muted mono' });
     card.append(
       h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '0' } }, h('span', { class: 'eyebrow', text: 'Now' }), now),
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), h('div', { class: 'stack', style: { gap: '0', justifyItems: 'center' } }, h('span', { class: 'eyebrow', text: 'bpm' }), bpmLbl), h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'))),
-      fb.el, info,
+      fb.el, info, timeLbl,
       h('div', { class: 'row' }, playBtn,
         h('button', { class: 'btn brass', onclick: () => { saveBest(); setBpm(bpm + 4); sig.clean++; report(); toast('Clean. Up to ' + bpm + ' bpm'); } }, 'Clean ✓ +4'),
         h('button', { class: 'btn', onclick: () => { setBpm(bpm - 6); sig.notClean++; report(); toast('Back to ' + bpm + ' bpm. Rebuild it clean.'); } }, 'Not clean'), roundLbl));
@@ -162,6 +201,7 @@ tool('scalewarm', {
     }
     function defaultStart() { const f = ((st.tonic - 4) % 12 + 12) % 12; return Math.max(0, f === 0 ? 0 : f - 1); }
     function build() {
+      clock.flush();
       const sc = scaleOf(st.scale);
       if (st.start === null) st.start = defaultStart();
       notes = positionNotes(sc.steps, st.tonic, st.start);
@@ -173,6 +213,7 @@ tool('scalewarm', {
         'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.' + (st.autoPos ? ' The position moves every ' + st.posEvery + ' round' + (st.posEvery > 1 ? 's' : '') + '.' : '');
       const best = (E.state.settings.warmBest || {})[bpmKey()];
       roundLbl.textContent = best ? 'Best clean: ' + best + ' bpm' : '';
+      paintTime();
       renderCtl();
     }
     function highlight(i, rs = seq, rn = notes) {
@@ -191,6 +232,7 @@ tool('scalewarm', {
         countTimers.push(setTimeout(() => { now.textContent = (k + 1) + '…'; }, Math.max(0, (t0 + k * beat - A.now() + A.latency()) * 1000)));
       }
       playRound(t0 + 4 * beat);
+      clock.start();
       playBtn.textContent = '■ Stop'; ctx.setActive(true);
     }
     // One round of the pattern. Its last step schedules the next round exactly on time, so the tempo
@@ -229,7 +271,7 @@ tool('scalewarm', {
       }
       playRound(at);
     }
-    function stop() { countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
+    function stop() { clock.stop(); countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
     playBtn.onclick = () => (loop ? stop() : start());
 
     function renderCtl() {
@@ -251,7 +293,7 @@ tool('scalewarm', {
         h('p', { class: 'small muted', text: 'Positions follow the root on the 6th, 5th and 4th strings, so you cover the neck in a few rounds. Each round starts and ends on the root.' }));
     }
     build();
-    return () => { countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
+    return () => { clock.stop(); countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
   }
 });
 
@@ -581,17 +623,23 @@ tool('away', {
         const st = {
           scale: known(p.scale) ? p.scale : known(saved.scale) ? saved.scale : 'major',
           tonic: Number.isInteger(p.tonic) ? p.tonic : Number.isInteger(saved.tonic) ? saved.tonic : 7,
-          start: null, bpm: 60
+          start: null, bpm: 60, click: saved.click !== false
         };
-        const persist = () => E.setSetting('visualise', { scale: st.scale, tonic: st.tonic });
+        const persist = () => E.setSetting('visualise', { scale: st.scale, tonic: st.tonic, click: st.click });
         const prompt = h('div', { class: 'prompt' });
+        // time seen in your head on this scale and key, while the timer runs
+        const timeLbl = h('p', { class: 'small muted scaletime-line' });
+        const keyName = () => spell(st.tonic, keyPrefersFlats(st.tonic, scaleOf(st.scale).steps[2] === 3));
+        const paintTime = () => { timeLbl.textContent = scaleTimeText('v', st.scale, st.tonic, keyName()); };
+        const clock = scaleClock('v', () => ({ scale: st.scale, tonic: st.tonic }), paintTime);
         const fb = Fretboard({});
         const fbWrap = h('div', { hidden: true }, fb.el);
         const setup = h('div', { class: 'stack' });
         const draw = () => {
           const sc = scaleOf(st.scale), ps = rootPositions(st.tonic);
           if (st.start === null || !ps.includes(st.start)) { const f = ((st.tonic - E.STRINGS[0].midi) % 12 + 12) % 12; st.start = ps.includes(Math.max(0, f - 1)) ? Math.max(0, f - 1) : ps[0]; }
-          prompt.textContent = spell(st.tonic, keyPrefersFlats(st.tonic, sc.steps[2] === 3)) + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4);
+          prompt.textContent = keyName() + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4);
+          clock.flush(); paintTime();
           const notes = positionNotes(sc.steps, st.tonic, st.start);
           fb.mark(notes.map(n => ({ s: n.s, f: n.f, kind: n.deg === 0 ? 'root' : 'tone', label: degreeLabel(n.deg) })));
           fbWrap.hidden = true;
@@ -608,9 +656,17 @@ tool('away', {
           draw();
         };
         draw();
-        card.append(h('h2', { text: 'See the neck in your head' }), prompt, setup,
-          h('p', { text: 'Close your eyes. Picture the neck and "play" this scale in position, one note per click, up and down. Say each note name or degree under your breath. Then reveal it and check where you went wrong.' }),
-          clickRow(st, () => { A.ensure(); loop = A.Loop({ steps: 4, stepDur: () => 60 / st.bpm, onStep: (i, t) => A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8) }); loop.start(); ctx.setActive(true); }),
+        card.append(h('h2', { text: 'See the neck in your head' }), prompt, timeLbl, setup,
+          h('p', { text: 'Close your eyes. Picture the neck and "play" this scale in position, one note per click, up and down. Say each note name or degree under your breath. Then reveal it and check where you went wrong. The time counts while the click runs (turn the sound off to work in silence).' }),
+          clickRow(st, () => {
+            A.ensure();
+            loop = A.Loop({ steps: 4, stepDur: () => 60 / st.bpm, onStep: (i, t) => { if (st.click) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8); } });
+            loop.start(); ctx.setActive(true);
+            clock.start(); cleanupExtra = () => clock.stop(); // stopAll clears this, so it is set again on every start
+          }),
+          h('div', { class: 'row' },
+            h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.click ? true : null, onchange: e => { st.click = e.target.checked; persist(); } }), 'Click sound'),
+            h('button', { class: 'btn small ghost', onclick: () => statsPage({ section: 'scales' }) }, 'Time on every scale →')),
           h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: () => { fbWrap.hidden = !fbWrap.hidden; } }, 'Reveal / hide'),
             h('button', { class: 'btn ghost', onclick: surprise }, 'Surprise me')),
           fbWrap,

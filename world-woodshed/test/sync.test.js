@@ -149,3 +149,30 @@ describe('digest', () => {
     expect(digest(onDesk)).toBe(digest(onPhone));
   });
 });
+
+describe('time on each scale', () => {
+  it('a schema-3 save gains an empty record and keeps the rest', () => {
+    const m = migrate({ v: 1, schema: 3, tunes: { t1: { id: 't1' } } }, 'd1');
+    expect(m.schema).toBe(SCHEMA);
+    expect(m.scaleTime).toEqual({});
+    expect(m.tunes.t1.id).toBe('t1');
+  });
+  it('keeps each device’s own time, taking the bigger total of each scale and key', () => {
+    const a = base({ scaleTime: { phone: { 'major:7': { v: 300, p: 0, last: 10 } }, desk: { 'major:7': { v: 0, p: 60, last: 5 } } } });
+    const b = base({ scaleTime: { phone: { 'major:7': { v: 120, p: 30, last: 8 }, 'dorian:2': { v: 50, p: 0, last: 9 } }, desk: { 'major:7': { v: 0, p: 600, last: 20 } } } });
+    const m = merge(a, b);
+    expect(m.scaleTime.phone['major:7']).toEqual({ v: 300, p: 30, last: 10 });
+    expect(m.scaleTime.phone['dorian:2'].v).toBe(50);
+    expect(m.scaleTime.desk['major:7'].p).toBe(600);
+    // merging again, either way round, changes nothing
+    expect(merge(m, a).scaleTime).toEqual(m.scaleTime);
+    expect(digest(merge(b, a))).toBe(digest(m));
+  });
+  it('copes with copies that have no scale time', () => {
+    expect(merge(base(), base()).scaleTime).toEqual({});
+    expect(merge(base(), base({ scaleTime: { d: { 'major:0': { v: 5, p: 0, last: 1 } } } })).scaleTime.d['major:0'].v).toBe(5);
+  });
+  it('is part of the digest, so the sync pushes it', () => {
+    expect(digest(base({ scaleTime: { d: { 'major:0': { v: 5 } } } }))).not.toBe(digest(base()));
+  });
+});
