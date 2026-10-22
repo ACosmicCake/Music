@@ -6,7 +6,7 @@ import './library.css';
 import * as L from '../library.js';
 import { STATUSES, KIND_LABEL, SCORE_KINDS, sizeLabel } from '../library.js';
 import { view, h, ui, go, toast, renderTabs, teardown, focusView, PAGES, TOOLS, ICONS, TABS, openTool } from './core.js';
-import { shareBlob, isNative } from '../native.js';
+import { shareBlob, openBlob, isNative } from '../native.js';
 
 ICONS.library = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10.5" cy="16.5" r="1.8"/><path d="M12.3 16.5V10l3 1"/></svg>';
 TABS.push(['library', 'Library']);
@@ -239,14 +239,14 @@ function fileRow(entry, f, local, redraw) {
     if (!got) { toast('This file is not on this device'); return; }
     try { await fn(got); } catch (e) { console.error(e); toast('Could not hand the file over' + (e && e.message ? ': ' + e.message : '')); }
   };
-  const share = (got, what) => shareBlob(got.name, got.blob.type ? got.blob : new Blob([got.blob], { type: got.type }), got.name).then(r => {
-    if (r === 'downloaded') toast('Saved to your downloads' + (what ? ': open it in ' + what : ''));
-  });
+  const typed = got => (got.blob.type ? got.blob : new Blob([got.blob], { type: got.type }));
+  const said = what => r => { if (r === 'downloaded') toast('Saved to your downloads' + (what ? ': open it in ' + what : '')); };
+  const share = (got, what) => shareBlob(got.name, typed(got), got.name).then(said(what));
   if (local) {
-    if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => share(got, 'MuseScore')) }, 'Open in MuseScore'));
-    else if (f.kind === 'pdf' && !isNative()) acts.append(h('button', { class: 'btn small brass', onclick: withFile(async got => { const u = urlFor(new Blob([got.blob], { type: 'application/pdf' })); window.open(u, '_blank', 'noopener'); }) }, 'Open'));
+    if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said('MuseScore'))) }, 'Open in MuseScore'));
+    else if (f.kind === 'pdf') acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said(''))) }, 'Open'));
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
-    acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share or open' : 'Share or save'));
+    acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
   }
   if (f.kind === 'image' && pages.length > 1) {
     acts.append(h('button', { class: 'btn small ghost', 'aria-label': 'Move ' + f.name + ' a page earlier', disabled: i <= 0 ? true : null, onclick: () => { L.moveFile(entry.id, f.id, -1); redraw(); } }, '↑'),
