@@ -6,8 +6,9 @@ import { BLOCKS, CATS, paramsFor, blockTitle, describe, fmtClock, fmtMin, totalO
 import Cur from '../curriculum.js';
 import { openSwap } from './swap.js';
 import Mic from '../listen.js';
+import { keepAwake } from '../native.js';
 
-let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0, wake = null;
+let ticker = null, lastNow = 0, secAcc = 0, saveAcc = 0;
 /* Auto-advance never cuts into a phrase: when the countdown ends while the mic hears you playing, or you
    are tapping, it waits until you have paused for this long. */
 const PAUSE_MS = 2500;
@@ -162,12 +163,8 @@ function timeUp(s, b) {
 }
 
 /* Keep the screen on while a session runs (you're holding a guitar, not the phone) */
-async function updateWake() {
-  const want = !!(E.session() && !E.session().paused && document.visibilityState === 'visible');
-  try {
-    if (want && !wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); }
-    else if (!want && wake) { await wake.release(); wake = null; }
-  } catch (e) { wake = null; }
+function updateWake() {
+  return keepAwake(!!(E.session() && !E.session().paused), 'session');
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { lastNow = lastNow || Date.now(); } updateWake(); });
 

@@ -25,17 +25,33 @@ export async function shareFile(name, text, title) {
   return 'downloaded';
 }
 
-/* Keep the screen on (hands-free practice, sessions) */
-let lock = null;
-export async function keepAwake(on) {
+/* Keep the screen on while anything asks for it (a running session, hands-free practice, Transcribe playing).
+   Each caller holds its own claim, so one letting go doesn't turn the screen off under another. The Android
+   app uses the native keep-awake (its WebView has no Screen Wake Lock); the browser drops a wake lock when
+   the page is hidden, so it is taken again when the page comes back. */
+const holders = new Set();
+let lock = null, lockBusy = false;
+async function webLock() {
+  if (!navigator.wakeLock) return;
+  const want = holders.size > 0 && document.visibilityState === 'visible';
+  if (want && !lock && !lockBusy) {
+    lockBusy = true;
+    try {
+      const l = await navigator.wakeLock.request('screen');
+      if (holders.size) { lock = l; l.addEventListener('release', () => { if (lock === l) lock = null; }); } else l.release().catch(() => {});
+    } finally { lockBusy = false; }
+  } else if (!holders.size && lock) { const l = lock; lock = null; await l.release(); }
+}
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!isNative()) webLock().catch(() => {}); });
+export async function keepAwake(on, who = 'app') {
+  if (on) holders.add(who); else holders.delete(who);
   try {
     if (isNative()) {
       const { KeepAwake } = await import('@capacitor-community/keep-awake');
-      if (on) await KeepAwake.keepAwake(); else await KeepAwake.allowSleep();
+      if (holders.size) await KeepAwake.keepAwake(); else await KeepAwake.allowSleep(); // the state now, after the import
       return true;
     }
-    if (on && navigator.wakeLock && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); }
-    if (!on && lock) { await lock.release(); lock = null; }
+    await webLock();
     return true;
   } catch (e) { return false; }
 }
