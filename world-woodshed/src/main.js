@@ -33,6 +33,7 @@ import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
 import { initGitHubSync } from './ghsync.js';
+import { initLibSync } from './libsync.js';
 import './tools/commute.js';
 import { initSaveBanner } from './ui/savebanner.js';
 
@@ -46,6 +47,7 @@ E.init();
 applyDisplay();
 initSaveBanner();
 initGitHubSync();
+initLibSync();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);

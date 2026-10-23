@@ -1,12 +1,14 @@
 /* World Woodshed — the Library tab: your scores (PDF, MusicXML, MuseScore, Guitar Pro, MIDI), photos of
    scores taken with the phone, and the songs you want to learn, are learning and have learned.
    The data and the files are handled by src/library.js; this draws the list, an entry's page and the photo
-   viewer. Each entry's details sync; its files stay on the device they were added on. */
+   viewer. Each entry's details sync with your progress; its files sync through your GitHub sync repository
+   when that is on (src/libsync.js), and download to another device when you open the entry. */
 import './library.css';
 import * as L from '../library.js';
 import { STATUSES, KIND_LABEL, SCORE_KINDS, sizeLabel } from '../library.js';
 import { view, h, ui, go, toast, renderTabs, teardown, focusView, PAGES, TOOLS, ICONS, TABS, openTool } from './core.js';
 import { shareBlob, openBlob, isNative } from '../native.js';
+import * as LS from '../libsync.js';
 
 ICONS.library = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10.5" cy="16.5" r="1.8"/><path d="M12.3 16.5V10l3 1"/></svg>';
 TABS.push(['library', 'Library']);
@@ -19,6 +21,8 @@ function urlFor(blob) { const u = URL.createObjectURL(blob); urls.add(u); return
 function dropUrls() { urls.forEach(u => URL.revokeObjectURL(u)); urls.clear(); }
 let closeViewer = null; // the photo viewer, closed when the page goes (the Android back button, a tab)
 function leave() { if (closeViewer) closeViewer(); dropUrls(); }
+const AUTO_FETCH_MB = 25; // opening an entry downloads its missing files by itself up to this much
+const syncOffNote = 'To sync the files themselves, turn on automatic sync: Today → Your progress on every device.';
 const titleFromFile = name => String(name || '').replace(/\.wwscore\.json$/i, '').replace(/\.[a-z0-9]{1,8}$/i, '').replace(/[_]+/g, ' ').trim();
 
 /* a hidden file input: camera (a photo of a score), the photo gallery, or any file */
@@ -81,7 +85,8 @@ PAGES.library = function () {
       h('button', { class: 'btn', onclick: () => { songForm.hidden = false; tIn.focus(); } }, 'Add a song'),
       writeButton('btn')),
     songForm,
-    h('p', { class: 'small muted', text: 'PDF, MusicXML, MuseScore, Guitar Pro, MIDI, photos and audio. The details sync to your other devices; the files stay on the device you added them on.' })));
+    h('p', { class: 'small muted', text: 'PDF, MusicXML, MuseScore, Guitar Pro, MIDI, photos and audio.' }), syncLine()));
+  if (LS.isOn()) LS.syncFiles();
 
   const all = L.listEntries();
   const list = h('div', { class: 'tools lib-list' });
@@ -121,6 +126,19 @@ PAGES.library = function () {
   drawList();
 };
 
+/* where the files are: syncing through the GitHub repository, or on the device each was added on */
+function syncLine() {
+  const el = h('p', { class: 'small muted', role: 'status' });
+  const draw = st => {
+    if (!st.on) { el.textContent = 'The details sync to your other devices; the files stay on the device you added them on. ' + syncOffNote; return; }
+    el.textContent = 'Files sync through ' + st.repo + ' and download when you open them on another device.' +
+      (st.pending ? ' Uploading ' + st.pending + (st.pending === 1 ? ' file' : ' files') + '…' : '') + (st.error ? ' ' + st.error : '');
+  };
+  draw(LS.status());
+  const off = LS.onStatus(st => { if (!el.isConnected) { off(); return; } draw(st); });
+  return el;
+}
+
 /* ---------- one entry: status, pages and files, details ---------- */
 export function entryPage(id, opts = {}) {
   teardown(); ui.runner = { id: 'library-entry', opts: {} }; renderTabs();
@@ -151,10 +169,33 @@ export function entryPage(id, opts = {}) {
   const photos = picker('photos', files => L.addFiles(id, files).then(after));
   const any = picker('files', files => L.addFiles(id, files).then(after));
   view.append(cam, photos, any);
+  const fetchNote = h('p', { class: 'small', role: 'status' });
+  let autoTried = false, fetching = false;
+  /* download files added on another device from the sync repository, one by one */
+  async function fetchAll(files) {
+    if (fetching) return;
+    fetching = true;
+    let n = 0;
+    try {
+      for (const f of files) {
+        fetchNote.textContent = 'Downloading ' + f.name + (files.length > 1 ? ' (' + (n + 1) + ' of ' + files.length + ')' : '') + '…';
+        try { await LS.fetchFile(id, f); n++; } catch (err) { toast(f.name + ': ' + err.message); }
+        if (!view.contains(filesCard)) return;
+      }
+      fetchNote.textContent = '';
+    } finally { fetching = false; }
+    if (n) drawFiles();
+  }
   async function drawFiles() {
     const cur = L.getEntry(id);
     if (!cur) return;
     const have = await L.localIds();
+    const missing = cur.files.filter(f => !have.has(f.id) && !LS.tooBig(f));
+    if (LS.isOn() && missing.length && !autoTried) {
+      autoTried = true;
+      if (missing.reduce((a, f) => a + (f.size || 0), 0) <= AUTO_FETCH_MB * 1024 * 1024) fetchAll(missing);
+    }
+    const fetchOne = f => (LS.isOn() && !LS.tooBig(f) ? () => fetchAll([f]) : null);
     filesCard.innerHTML = '';
     filesCard.append(h('h2', { text: 'Pages and files' }));
     const imgs = cur.files.filter(f => f.kind === 'image'), others = cur.files.filter(f => f.kind !== 'image');
@@ -164,23 +205,27 @@ export function entryPage(id, opts = {}) {
       const here = imgs.filter(f => have.has(f.id));
       imgs.forEach((f, i) => {
         const local = have.has(f.id);
-        const b = h('button', { class: 'lib-page', 'aria-label': 'Page ' + (i + 1) + (local ? '' : ', on another device'), disabled: local ? null : true, onclick: () => viewer(here, here.indexOf(f)) },
-          h('span', { class: 'lib-pno', text: String(i + 1) }));
+        const get = local ? null : fetchOne(f);
+        const b = h('button', { class: 'lib-page', 'aria-label': 'Page ' + (i + 1) + (local ? '' : get ? ', not downloaded: tap to download' : ', on another device'), disabled: local || get ? null : true,
+          onclick: () => (local ? viewer(here, here.indexOf(f)) : get()) },
+        h('span', { class: 'lib-pno', text: String(i + 1) }));
         if (local) L.getThumb(f.id).then(t => { if (t) b.style.backgroundImage = 'url("' + urlFor(t) + '")'; });
-        else b.append(h('span', { class: 'lib-away small', text: 'On another device' }));
+        else b.append(h('span', { class: 'lib-away small', text: get ? 'Tap to download' : 'On another device' }));
         strip.append(b);
       });
       filesCard.append(strip);
       if (here.length) filesCard.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => viewer(here, 0) }, here.length > 1 ? 'Read the ' + here.length + ' pages' : 'Open the photo')));
     }
     const rows = others.concat(imgs);
-    if (rows.length) filesCard.append(h('div', { class: 'stack lib-files' }, rows.map(f => fileRow(cur, f, have.has(f.id), drawFiles))));
+    filesCard.append(fetchNote);
+    if (rows.length) filesCard.append(h('div', { class: 'stack lib-files' }, rows.map(f => fileRow(cur, f, have.has(f.id), drawFiles, have.has(f.id) ? null : fetchOne(f)))));
     filesCard.append(h('div', { class: 'row' },
       h('button', { class: 'btn small brass', onclick: () => cam.click() }, 'Take a photo'),
       h('button', { class: 'btn small', onclick: () => photos.click() }, 'From your photos'),
       h('button', { class: 'btn small', onclick: () => any.click() }, 'Add files'),
       cur.files.some(f => f.kind === 'wwscore' && have.has(f.id)) ? writeButton('btn small', { load: id }) : null));
-    if (cur.files.some(f => !have.has(f.id))) filesCard.append(h('p', { class: 'small muted', text: 'Files marked "on another device" were added there. Files never sync, only their names: share one from that device to bring it here.' }));
+    if (cur.files.some(f => !have.has(f.id)) && !LS.isOn()) filesCard.append(h('p', { class: 'small muted', text: 'Files marked "on another device" were added there. ' + syncOffNote }));
+    if (LS.isOn() && cur.files.some(f => LS.tooBig(f))) filesCard.append(h('p', { class: 'small muted', text: 'Files over ' + LS.MAX_SYNC_MB + ' MB stay on the device they were added on.' }));
   }
   drawFiles();
 
@@ -228,11 +273,11 @@ export function entryPage(id, opts = {}) {
 }
 
 /* one file: what it is, and what can be done with it here */
-function fileRow(entry, f, local, redraw) {
+function fileRow(entry, f, local, redraw, fetch) {
   const pages = entry.files.filter(x => x.kind === 'image'), i = pages.indexOf(f); // photos are the pages, read in this order
   const row = h('div', { class: 'lib-file' });
   const info = h('div', { class: 'lib-finfo' }, h('span', { class: 'badge', text: f.kind === 'image' && pages.length > 1 ? 'Page ' + (i + 1) : KIND_LABEL[f.kind] || 'File' }),
-    h('span', { class: 'lib-fname', text: f.name }), h('span', { class: 'small muted', text: local ? sizeLabel(f.size) : sizeLabel(f.size) + ' · on another device' }));
+    h('span', { class: 'lib-fname', text: f.name }), h('span', { class: 'small muted', text: sizeLabel(f.size) + (local ? '' : fetch ? ' · not downloaded' : ' · on another device') }));
   const acts = h('div', { class: 'row' });
   const withFile = fn => async () => {
     const got = await L.getFile(f.id);
@@ -248,6 +293,7 @@ function fileRow(entry, f, local, redraw) {
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
   }
+  if (!local && fetch) acts.append(h('button', { class: 'btn small brass', onclick: fetch }, 'Download'));
   if (f.kind === 'image' && pages.length > 1) {
     acts.append(h('button', { class: 'btn small ghost', 'aria-label': 'Move ' + f.name + ' a page earlier', disabled: i <= 0 ? true : null, onclick: () => { L.moveFile(entry.id, f.id, -1); redraw(); } }, '↑'),
       h('button', { class: 'btn small ghost', 'aria-label': 'Move ' + f.name + ' a page later', disabled: i >= pages.length - 1 ? true : null, onclick: () => { L.moveFile(entry.id, f.id, 1); redraw(); } }, '↓'));

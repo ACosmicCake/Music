@@ -26,8 +26,8 @@ function syncDigest(s) {
 const b64encode = str => { const bytes = new TextEncoder().encode(str); let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); };
 const b64decode = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)));
 
-async function call(method, body, accept) {
-  const url = API + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) + '/contents/' + cfg.path.split('/').map(encodeURIComponent).join('/');
+async function call(method, body, accept, path = cfg.path) {
+  const url = API + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) + '/contents/' + path.split('/').map(encodeURIComponent).join('/');
   const res = await fetch(url + (method === 'GET' ? '?t=' + Date.now() : ''), {
     method, cache: 'no-store',
     headers: { Authorization: 'Bearer ' + cfg.token, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -35,7 +35,18 @@ async function call(method, body, accept) {
   });
   return res;
 }
-function explain(res) {
+/* Another file in the same repository (the Library's files, src/libsync.js): a Contents API call on `path`.
+   Throws when sync is off. */
+export function repoCall(method, path, body, accept) {
+  if (!cfg || !cfg.token) throw new Error('Automatic sync is off');
+  return call(method, body, accept, path);
+}
+/* the folder the progress file is in ('' at the top of the repository) */
+export const repoDir = () => (cfg && cfg.path.includes('/') ? cfg.path.slice(0, cfg.path.lastIndexOf('/') + 1) : '');
+const syncedListeners = new Set();
+/* fn() after each sync round that reached GitHub */
+export function onSynced(fn) { syncedListeners.add(fn); return () => syncedListeners.delete(fn); }
+export function explain(res) {
   if (res.status === 401) return 'GitHub refused the token (expired or mistyped). Paste a new one.';
   if (res.status === 403) return 'The token is not allowed to write to that repository. Give it Contents: Read and write on it.';
   if (res.status === 404) return 'Repository not found. Check the name, and that the token includes that repository.';
@@ -94,6 +105,7 @@ export function syncNow(reason) {
         break;
       }
       cfg.lastSync = Date.now(); cfg.lastError = null; save();
+      syncedListeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
       return true;
     } catch (e) {
       if (cfg) { cfg.lastError = navigator.onLine === false ? 'Offline: will sync when you are back online.' : (e.message || 'Sync failed'); save(); }
