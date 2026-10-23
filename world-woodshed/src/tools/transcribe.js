@@ -59,6 +59,7 @@ export default function transcribe(UI) {
   /* ---------- time-stretch: worker with main-thread fallback ---------- */
   let worker = null, wid = 0;
   const pending = new Map();
+  const CACHE_SAMPLES = 12e6; // stretched audio kept for replays, in samples (about 48 MB): a few loops, or one long stretch
   function getWorker() {
     if (worker !== null) return worker;
     try {
@@ -79,16 +80,18 @@ export default function transcribe(UI) {
     } catch (e) { worker = false; }
     return worker;
   }
-  function stretch(channels, sr, speed, semis, onProgress) {
+  /* getChannels() gives a fresh copy of the audio to stretch: the worker is handed it outright (transferred,
+     not copied, so a whole song isn't held twice), and the main-thread fallback asks for another */
+  function stretch(getChannels, sr, speed, semis, onProgress) {
     return new Promise((resolve, reject) => {
       const runLocal = () => setTimeout(() => {
-        try { resolve(Stretch.process(channels, sr, speed, semis, null)); } catch (e) { reject(e); }
+        try { resolve(Stretch.process(getChannels(), sr, speed, semis, null)); } catch (e) { reject(e); }
       }, 30);
       const w = getWorker();
       if (!w) { runLocal(); return; }
       const id = ++wid;
       pending.set(id, { resolve, reject, onProgress, fallback: runLocal });
-      try { w.postMessage({ id, channels, sr, speed, semitones: semis }); }
+      try { const channels = getChannels(); w.postMessage({ id, channels, sr, speed, semitones: semis }, channels.map(c => c.buffer)); }
       catch (e) { pending.delete(id); runLocal(); }
     });
   }
@@ -618,14 +621,18 @@ export default function transcribe(UI) {
         // Stretch a little audio either side of the loop so its edges sound like the middle.
         const pad = Math.round(P.sr * 0.25);
         const s0 = Math.max(0, Math.floor(rg.a * P.sr) - pad), s1 = Math.min(P.buffer.length, Math.ceil(rg.b * P.sr) + pad);
-        const chans = [];
-        for (let c = 0; c < P.buffer.numberOfChannels; c++) chans.push(P.buffer.getChannelData(c).slice(s0, s1));
+        const src = P.buffer;
+        const chans = () => Array.from({ length: src.numberOfChannels }, (_, c) => src.getChannelData(c).slice(s0, s1));
         const res = await stretch(chans, P.sr, P.speed, P.semis, onProgress);
         const ac = A.ensure();
         const out = ac.createBuffer(res.length, res[0].length, P.sr);
         res.forEach((ch, i) => out.copyToChannel(ch, i));
         const entry = { key, buffer: out, a: s0 / P.sr };
-        P.cache.unshift(entry); if (P.cache.length > 3) P.cache.pop();
+        // keep the last few versions while they are small (loops); a slowed-down whole song is kept alone,
+        // since three of them could run a phone out of memory
+        P.cache.unshift(entry);
+        let kept = 0;
+        P.cache = P.cache.filter((c, i) => { kept += c.buffer.length * c.buffer.numberOfChannels; return i === 0 || (i < 3 && kept <= CACHE_SAMPLES); });
         return entry;
       }
       function stopSource() {

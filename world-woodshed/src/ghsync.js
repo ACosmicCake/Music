@@ -31,12 +31,12 @@ async function call(method, body, accept, path = cfg.path) {
   const res = await fetch(url + (method === 'GET' ? '?t=' + Date.now() : ''), {
     method, cache: 'no-store',
     headers: { Authorization: 'Bearer ' + cfg.token, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? (typeof Blob !== 'undefined' && body instanceof Blob ? body : JSON.stringify(body)) : undefined
   });
   return res;
 }
-/* Another file in the same repository (the Library's files, src/libsync.js): a Contents API call on `path`.
-   Throws when sync is off. */
+/* Another file in the same repository (the Library's files, src/libsync.js): a Contents API call on `path`,
+   with a body object, or a Blob of JSON for a large upload. Throws when sync is off. */
 export function repoCall(method, path, body, accept) {
   if (!cfg || !cfg.token) throw new Error('Automatic sync is off');
   return call(method, body, accept, path);

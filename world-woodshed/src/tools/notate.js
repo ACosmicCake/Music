@@ -72,10 +72,14 @@ tool('notate', {
     const meter = h('span', { class: 'micmeter', 'aria-hidden': 'true', hidden: true }, meterFill);
     const status = h('p', { class: 'small nt-status', 'aria-live': 'polite', text: draft.notes.length ? 'Record again to add more bars after these.' : 'Set the tempo, press Record, wait for the count-in and play one note at a time.' });
     const heard = h('span', { class: 'mono nt-heard' });
-    let offs = [];
+    let offs = [], opening = false;
     async function record() {
+      if (opening || rec) return; // a second tap while the mic opens would start a second recording and leak the first
       stopPlay();
-      if (!(await Mic.start())) {
+      opening = true;
+      let ok = false;
+      try { ok = await Mic.start(); } finally { opening = false; }
+      if (!ok) {
         status.textContent = Mic.state === 'denied' ? 'The microphone is blocked. Allow it for this site in your browser settings, or write the notes by tapping below.' : 'This browser can’t use a microphone here. Write the notes by tapping below.';
         openStep(true); return;
       }
