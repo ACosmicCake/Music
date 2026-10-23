@@ -289,7 +289,7 @@ function fileRow(entry, f, local, redraw, fetch) {
   const share = (got, what) => shareBlob(got.name, typed(got), got.name).then(said(what));
   if (local) {
     if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said('MuseScore'))) }, 'Open in MuseScore'));
-    else if (f.kind === 'pdf') acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said(''))) }, 'Open'));
+    else if (f.kind === 'pdf') acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readPdf(got)) }, 'Read'));
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
   }
@@ -306,6 +306,21 @@ function fileRow(entry, f, local, redraw, fetch) {
   } }, 'Remove'));
   row.append(info, acts);
   return row;
+}
+
+/* ---------- reading a PDF score in the app (pdf.js, loaded the first time) ---------- */
+async function readPdf(got) {
+  const note = h('div', { class: 'toast', role: 'status', text: 'Opening ' + got.name + '…' });
+  document.body.append(note);
+  try {
+    const { openPdf } = await import('./pdfviewer.js');
+    if (closeViewer) closeViewer();
+    const close = await openPdf(got.blob, got.name, () => { if (closeViewer === close) closeViewer = null; });
+    closeViewer = close;
+  } catch (e) {
+    console.error(e);
+    toast('This PDF could not be shown here' + (e && e.message ? ' (' + e.message + ')' : '') + '. Use Share to open it in another app.');
+  } finally { note.remove(); }
 }
 
 /* ---------- reading photos of a score, page by page, zoomed to fit the width or closer ---------- */
@@ -325,7 +340,7 @@ function viewer(pages, start) {
   };
   if (closeViewer) closeViewer();
   closeViewer = close;
-  const closeBtn = h('button', { class: 'btn small', onclick: close }, 'Close');
+  const closeBtn = h('button', { class: 'btn small', 'aria-label': 'Close', onclick: close }, '✕');
   const box = h('div', { class: 'lib-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Score pages' },
     h('div', { class: 'lib-vbar' }, closeBtn, prev, count, next, zoomBtn), pane);
   function setZoom() { img.style.width = (zoom * 100) + '%'; zoomBtn.textContent = zoom === 1 ? 'Zoom' : zoom + '×'; zoomBtn.setAttribute('aria-label', 'Zoom: ' + (zoom === 1 ? 'fit width' : zoom + ' times')); }

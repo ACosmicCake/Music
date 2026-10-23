@@ -35,7 +35,8 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff2}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // pdf.js's worker (the Library's PDF reader), so PDFs open offline
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         // Instrument samples are too big to install with the app: each is kept the first time it is

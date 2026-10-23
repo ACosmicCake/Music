@@ -26,10 +26,13 @@
 .lib-vbar .btn:last-child { margin-left: auto; }
 .lib-vpane { overflow: auto; -webkit-overflow-scrolling: touch; background: #fff; }
 .lib-vimg { display: block; max-width: none; height: auto; }
+.lib-pdf { background: var(--sunk); padding: 6px 0; }
+.lib-pdfpage { background: #fff; margin: 0 auto 8px; max-width: none; }
+.lib-pdfpage canvas { display: block; width: 100%; height: auto; }
 
 html.compact .lib-tile { grid-template-columns: 38px minmax(0, 1fr); gap: 2px 8px; }
 html.compact .lib-thumb { width: 38px; height: 38px; font-size: 0.6rem; }
 html.compact .lib-pages { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
-html.compact .lib-vbar { gap: 4px; padding-inline: 4px; }
-html.compact .lib-vbar .btn { padding: 3px 9px; }
+html.compact .lib-vbar { gap: 4px; padding-inline: 4px; flex-wrap: nowrap; }
+html.compact .lib-vbar .btn { padding: 3px 8px; min-width: 0; }
 html.compact .lib-details input[type="url"] { min-height: 44px; }
