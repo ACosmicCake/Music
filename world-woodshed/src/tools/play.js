@@ -10,6 +10,8 @@ import { Band } from '../band.js';
 import { techniquePage } from './learn.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
+import { loadTuneNotes, drawWhenLoaded } from '../content/lazy.js';
+import { chartNumerals, keyName, prettyNumeral } from '../harmony.js';
 
 /* ======================================================
    PLAY TOOLS
@@ -175,10 +177,11 @@ tool('repertoire', {
     const listCard = h('div', { class: 'section' });
     const tuneCard = h('div', { class: 'section' });
     body.append(listCard, tuneCard);
-    let band = null, drillCleanup = null, stopTune = null;
+    let band = null, drillCleanup = null, stopTune = null, notesCleanup = null;
     function stopLoop() { if (band) { band.stop(); if (stopTune) stopTune(); } band = null; ctx.setActive(false); }
+    const dropNotes = () => { if (notesCleanup) { notesCleanup(); notesCleanup = null; } };
     function showList() {
-      stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
+      stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; } dropNotes();
       tuneCard.innerHTML = ''; listCard.innerHTML = '';
       const tile = t => {
         const st = E.skillState('repertoire').items[t.id];
@@ -196,7 +199,7 @@ tool('repertoire', {
        a Transcribe song (fromSong: an editor draft with the song's id). Saved tunes have the shape of D.TUNES
        entries, so openTune and the band treat them the same. */
     function editTune(src, fromSong) {
-      stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; }
+      stopLoop(); if (drillCleanup) { drillCleanup(); drillCleanup = null; } dropNotes();
       listCard.innerHTML = ''; tuneCard.innerHTML = '';
       const saved = src && src.mine ? E.getTune(src.id) : null;
       const songOf = fromSong ? fromSong.song : saved ? saved.song : null;
@@ -270,7 +273,7 @@ tool('repertoire', {
       if (!src && !fromSong) name.focus();
     }
     function openTune(t) {
-      tune = t; listCard.innerHTML = ''; tuneCard.innerHTML = '';
+      tune = t; listCard.innerHTML = ''; tuneCard.innerHTML = ''; dropNotes();
       const g = D.GROOVES[t.groove];
       const engine = t.groove === 'swing' ? 'swing' : t.groove === 'bossa' ? 'bossa' : 'pattern';
       let bpm = t.bpm, blind = false;
@@ -296,6 +299,15 @@ tool('repertoire', {
       const barsIn = k => tCache[k] || (tCache[k] = bars.map(b => b.map(c => transposeChord(c, k))));
       const barsFor = ch => barsIn(shiftFor(ch));
       const shiftName = k => (k === 0 ? 'original key' : (k <= 6 ? 'up ' + k : 'down ' + (12 - k)) + ' semitone' + ((k <= 6 ? k : 12 - k) === 1 ? '' : 's'));
+      // Roman numerals under the chords (and the key wherever it changes), once the tune's notes are loaded
+      let rnRows = null;
+      const chordCell = (c, bi, ci) => {
+        if (blind) return h('span', { class: 'blind', text: '?' });
+        const x = rnRows && pref.rn !== false && rnRows[bi] && rnRows[bi][ci];
+        if (!x) return h('span', { text: prettySym(c.sym) });
+        return h('span', { class: 'cch' }, h('span', { text: prettySym(c.sym) }),
+          h('span', { class: 'crn' }, x.newKey ? h('span', { class: 'ckey', text: keyName(x.key, shiftFor(shownCh)).replace(' major', '').replace(' minor', 'm') + ':' }) : null, prettyNumeral(x.rn)));
+      };
       function drawChart() {
         chartEl.innerHTML = ''; barEls.length = 0;
         const B = barsFor(shownCh);
@@ -305,7 +317,7 @@ tool('repertoire', {
           const first = bi;
           for (let k = 0; k < len && bi < B.length; k++, bi++) {
             const b = B[bi], idx = bi;
-            const el = h('div', { class: 'cbar' + (range && (idx < range[0] || idx > range[1]) ? ' out' : ''), onclick: ev => guess(idx, ev) }, b.map(c => blind ? h('span', { class: 'blind', text: '?' }) : h('span', { text: prettySym(c.sym) })));
+            const el = h('div', { class: 'cbar' + (range && (idx < range[0] || idx > range[1]) ? ' out' : ''), onclick: ev => guess(idx, ev) }, b.map((c, ci) => chordCell(c, idx, ci)));
             grid.append(el); barEls.push(el);
           }
           const last = bi - 1;
@@ -373,7 +385,25 @@ tool('repertoire', {
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
         band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl);
-      tuneCard.append(card, drillHolder);
+      const notesHolder = h('div');
+      tuneCard.append(card, notesHolder, drillHolder);
+      if (!t.mine) notesCleanup = drawWhenLoaded(loadTuneNotes, notesHolder, () => { if (!t.harmony) return; rnRows = chartNumerals(t.harmony); drawChart(); highlight(curBar); notesHolder.append(harmonyCard(t.harmony)); });
+      /* How the changes work: the big picture, then each section with its key, what the chords do, the notes to aim for
+         and a button that loops just those bars */
+      function harmonyCard(hm) {
+        const rnBtn = h('button', { class: 'btn small ghost', 'aria-pressed': String(pref.rn !== false) }, pref.rn !== false ? 'Hide numerals' : 'Show numerals');
+        rnBtn.onclick = () => { savePref({ rn: pref.rn === false }); rnBtn.setAttribute('aria-pressed', String(pref.rn !== false)); rnBtn.textContent = pref.rn !== false ? 'Hide numerals' : 'Show numerals'; drawChart(); highlight(curBar); };
+        const line = (lbl, text) => text ? h('p', { class: 'small' }, h('b', { text: lbl + ': ' }), text) : null;
+        return h('div', { class: 'card harmony' },
+          h('div', { class: 'spread' }, h('h3', { text: 'How the changes work' }), rnBtn),
+          h('p', { text: hm.intro }),
+          h('p', { class: 'small muted', text: 'The small numerals under each chord name it by its place in the key (ii, V7, I); a key name marks where the key changes. Notes named below are in the original key; the numerals hold in any key.' }),
+          hm.sections.map(sec => h('div', { class: 'hsec' },
+            h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: (sec.bars[0] === sec.bars[1] ? 'Bar ' + sec.bars[0] : 'Bars ' + sec.bars[0] + '–' + sec.bars[1]) + ' · ' + keyName(sec.key) }),
+              h('button', { class: 'btn small ghost', onclick: () => { setRange(sec.bars[0] === 1 && sec.bars[1] === bars.length ? null : [sec.bars[0] - 1, sec.bars[1] - 1]); chartEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, 'Loop these bars')),
+            h('b', { text: sec.title }), h('p', { class: 'small', text: sec.text }), line('Aim for', sec.aim), line('Scale', sec.scale))),
+          D.HARMONY_WORDS ? h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Words used here' }), h('ul', { class: 'list small' }, D.HARMONY_WORDS.map(([w, m]) => h('li', {}, h('b', { text: w }), ': ' + m)))) : null);
+      }
       function showChord(c) {
         if (!c) { nowLbl.textContent = check ? 'Listen…' : ''; fb.clear(); legend.textContent = ''; return; }
         nowLbl.textContent = blind ? 'Listen: what is this chord?' : prettySym(c.sym);
@@ -460,7 +490,7 @@ tool('repertoire', {
       });
     }
     if (ctx.params.draft) editTune(null, ctx.params.draft); else if (tune) openTune(tune); else showList();
-    return () => { stopLoop(); if (drillCleanup) drillCleanup(); };
+    return () => { stopLoop(); if (drillCleanup) drillCleanup(); dropNotes(); };
   }
 });
 

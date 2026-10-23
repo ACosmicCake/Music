@@ -66,3 +66,9 @@ export function whenLoaded(load, ui, view, toast, page, optional = true) {
     draw();
   });
 }
+
+/* How the changes of each jazz standard work (t.harmony on D.TUNES) and the words they use (D.HARMONY_WORDS) */
+export const loadTuneNotes = once(() => import('./tunes-harmony.js').then(m => {
+  D.TUNES.forEach(t => { if (m.default[t.id]) t.harmony = m.default[t.id]; });
+  D.HARMONY_WORDS = m.WORDS;
+}));
