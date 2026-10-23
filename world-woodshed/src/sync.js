@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 6;
+export const SCHEMA = 7;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide'];
@@ -65,6 +65,11 @@ const MIGRATIONS = {
   // 5 → 6: the Library (scores, photos of scores, songs learned); only the details sync, the files stay on each device
   6(s) {
     if (!isObj(s.library)) s.library = {};
+    return s;
+  },
+  // 6 → 7: melodies added to Repertoire tunes (by tune id), for the standards the app can't include and your own tunes
+  7(s) {
+    if (!isObj(s.melodies)) s.melodies = {};
     return s;
   }
 };
@@ -192,6 +197,7 @@ export function merge(local, remote) {
     scaleTime: mergeScaleTime(a.scaleTime, b.scaleTime),
     songs: dropDeleted(byKey(a.songs, b.songs), tomb, 'song:'),
     tunes: dropDeleted(byKey(a.tunes, b.tunes), tomb, 'tune:'),
+    melodies: dropDeleted(byKey(a.melodies, b.melodies), tomb, 'mel:'),
     library: dropDeleted(mergeLibrary(a.library, b.library, tomb), tomb, 'lib:'),
     routines: mergeList(a.routines, b.routines, r => r.id).filter(r => !tomb['routine:' + r.id] || stamp(r) > tomb['routine:' + r.id]),
     journal: mergeList(a.journal, b.journal, j => String(j.ts), 300).sort((x, y) => y.ts - x.ts),
@@ -225,7 +231,7 @@ const stable = x => {
   return x === undefined ? 'null' : JSON.stringify(x);
 };
 export function digest(s) {
-  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, songs: s.songs, library: s.library, journal: (s.journal || []).length,
+  const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, melodies: s.melodies, songs: s.songs, library: s.library, journal: (s.journal || []).length,
     routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
   const str = stable(pick);
   let h = 2166136261;

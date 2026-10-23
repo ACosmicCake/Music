@@ -149,8 +149,9 @@ const STEM = 34;
 
 /* opts: { bars: [[note…]…], key, time, width (CSS px of the container), barsPerLine (max, default 4),
            scale (CSS px per unit; default 1; below 480 px the largest of 1 to 0.76 that fits 2 bars a line), lyrics: [text per note], label,
-           showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6) }
-   returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null) };
+           showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6),
+           chords: [[{ text, at (quarters into the bar) }] per bar] (chord symbols above the staff), barBands: true }
+   returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null), bar(i|null) };
    i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
   const bars = opts.bars || [];
@@ -285,7 +286,7 @@ export function renderStaff(opts) {
 
   /* 5. draw */
   const svg = el('svg', { class: 'ww-staff' + (opts.cls ? ' ' + opts.cls : ''), role: 'img', 'aria-label': opts.label || 'Music notation' });
-  const noteEls = new Array(items.length);
+  const noteEls = new Array(items.length), barBands = [];
   const sysGroups = [];
   const ties = [];
   systems.forEach((sy, si) => {
@@ -367,6 +368,25 @@ export function renderStaff(opts) {
         }
       });
     });
+    // chord symbols above the staff (a lead sheet), at their place in the bar, and a band behind each bar
+    // that bar(i, 'now') lights up
+    if (opts.chords) {
+      const cy = Math.min(-14, minY - 6);
+      sy.bars.forEach((b, k) => {
+        let room = b.x0 + 4; // chords in one bar never overlap: each starts after the one before
+        (opts.chords[sy.first + k] || []).forEach(c => {
+          const it = b.full ? null : b.list.find(x => Math.abs(x.onset - c.at) < 1e-6);
+          const x = Math.max(room, it ? it.x - 6 : b.x0 + LEFT + (b.x1 - RIGHT - b.x0 - LEFT) * c.at / ts.barQ);
+          el('text', { class: 'st-chord', x: f1(x), y: f1(cy) }, g).textContent = c.text;
+          room = x + 7.4 * String(c.text).length + 6;
+        });
+      });
+      track(cy - 13, cy);
+    }
+    if (opts.barBands) sy.bars.forEach((b, k) => {
+      barBands[sy.first + k] = el('rect', { class: 'st-band', x: f1(b.x0), y: f1(minY - 2), width: f1(b.x1 - b.x0), height: f1(maxY - minY + 4), rx: 3 }, null);
+      g.insertBefore(barBands[sy.first + k], g.firstChild);
+    });
     sy.minY = minY; sy.maxY = maxY; sy.g = g; sy.track = track;
   });
   // ties (may cross a line break)
@@ -438,6 +458,7 @@ export function renderStaff(opts) {
     xOf: i => (items[i] ? items[i].x : null),
     posOf,
     mark(i, cls) { const e = noteEls[i]; if (!e) return; e.classList.remove('now', 'good', 'bad', 'near'); if (cls) cls.split(' ').forEach(c => e.classList.add(c)); },
+    bar(i, cls) { barBands.forEach((e, k) => e && e.classList.toggle(cls || 'now', k === i)); },
     clearMarks() { noteEls.forEach(e => e && e.classList.remove('now', 'good', 'bad', 'near')); },
     cursor(i) {
       const p = i === null || i === undefined ? null : posOf(i);

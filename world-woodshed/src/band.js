@@ -51,7 +51,7 @@ function getBus() {
   const sr = ctx.sampleRate;
   noise = ctx.createBuffer(1, sr, sr);
   const nd = noise.getChannelData(0); for (let i = 0; i < sr; i++) nd[i] = Math.random() * 2 - 1;
-  bus = { ctx, out, drums: part(0.62, 0.22, 0.12), comp: part(0.78, 0.45, -0.18), bass: part(1.0, 0.1, 0) };
+  bus = { ctx, out, drums: part(0.62, 0.22, 0.12), comp: part(0.78, 0.45, -0.18), bass: part(1.0, 0.1, 0), lead: part(0.95, 0.3, 0.06) };
   return bus;
 }
 
@@ -326,8 +326,10 @@ const GROOVE_KIT = { son: { kit: 'congas', region: 'cuba' }, highlife: { kit: 'c
 
 export function Band(o) {
   // o: { bars: [[chord]], barsFor(chorus)?, range: [firstBar, lastBar]?, groove, grooveId, bpm(), parts: {drums, comp, bass},
-  //      comp: 'piano'|'guitar', feel: 'walk'|'two', countIn, onBeat, onCount, onChorus(chorus) }
+  //      comp: 'piano'|'guitar', feel: 'walk'|'two', countIn, onBeat, onCount, onChorus(chorus),
+  //      melody: { notes: [{ s, e, midi }] (quarters from bar 1, sounding), shift(chorus) semitones, on } }
   // barsFor gives each pass its own chords (e.g. a new key every chorus); range loops a section of the form.
+  // The melody plays on the guitar sound, its eighths swung with the band; set({ melodyOn }) mutes it.
   const g = o.groove, gid = o.grooveId;
   const engine = gid === 'swing' ? 'swing' : gid === 'bossa' ? 'bossa' : 'pattern';
   const kit = GROOVE_KIT[gid] || {};
@@ -350,6 +352,27 @@ export function Band(o) {
     if (!bus) return;
     const t = bus.ctx.currentTime;
     ['drums', 'comp', 'bass'].forEach(k => bus[k].in.gain.setTargetAtTime(p[k] ? bus[k].level : 0, t, 0.03));
+  }
+  const melOn = () => !!(o.melody && o.melody.on);
+  function setMelody() { if (bus) bus.lead.in.gain.setTargetAtTime(melOn() ? bus.lead.level : 0, bus.ctx.currentTime, 0.03); }
+  // the melody's notes by the beat they start on (beats counted from bar 1)
+  let melBeats = new Map();
+  const indexMelody = () => {
+    melBeats = new Map();
+    ((o.melody && o.melody.notes) || []).forEach(n => { const b = Math.floor(n.s + 1e-6); if (b < nb * BPB) { if (!melBeats.has(b)) melBeats.set(b, []); melBeats.get(b).push(n); } });
+  };
+  indexMelody();
+  /* Play the melody notes that start in one beat; an eighth off the beat is swung in swing and shuffle */
+  function playMelody(beatNo, t, bd, chorus) {
+    const list = melBeats.get(beatNo);
+    if (!list || !melOn()) return;
+    const swung = engine === 'swing' || gid === 'shuffle', k = o.melody.shift ? o.melody.shift(chorus) : 0;
+    const place = q => { const b = Math.floor(q + 1e-6), f = q - b; return b + (swung && Math.abs(f - 0.5) < 1e-6 ? sw() : f); };
+    list.forEach(n => {
+      const start = place(n.s), end = Math.min(place(n.e), nb * BPB);
+      const when = t + (start - beatNo) * bd, dur = Math.max(0.09, (end - start) * bd * 0.96);
+      A.note(n.midi + k, when, 0.78, dur, { out: bus.lead.in, release: 0.15 });
+    });
   }
 
   /* Plan one bar: bass notes, comp hits and drum extras, each tagged with the beat it starts on */
@@ -481,7 +504,7 @@ export function Band(o) {
     live.forEach(n => { try { n.stop(); } catch (e) { /* already stopped */ } }); live.clear();
     const ctx = bus.ctx;
     bus.out.gain.cancelScheduledValues(ctx.currentTime); bus.out.gain.setValueAtTime(0.9, ctx.currentTime);
-    setParts(o.parts);
+    setParts(o.parts); setMelody();
     bassStart = null; bassPrev = null; voicing = null; pushed = false; history.length = 0;
     let t0 = ctx.currentTime + 0.12;
     if (o.countIn) { // two bars: 1 . 2 . | 1 2 3 4
@@ -506,6 +529,7 @@ export function Band(o) {
           history.push({ t, bi, chorus: cycle }); if (history.length > 64) history.shift();
         }
         if (barPlan) play(barPlan.filter(e => e.beat === beat), t, beatDur());
+        playMelody(bi * BPB + beat, t, beatDur(), cycle);
       },
       onVisual: (i, cycle) => {
         const bi = lo + Math.floor(i / BPB), beat = i % BPB;
@@ -535,7 +559,11 @@ export function Band(o) {
   return {
     start, stop, barAt,
     get running() { return !!loop; },
-    set(patch) { Object.assign(o, patch); if (patch.parts) setParts(o.parts); },
+    set(patch) {
+      if ('melodyOn' in patch) { if (o.melody) o.melody.on = !!patch.melodyOn; setMelody(); }
+      if (patch.melody) { o.melody = patch.melody; indexMelody(); setMelody(); }
+      Object.assign(o, patch); if (patch.parts) setParts(o.parts);
+    },
     beatDur
   };
 }

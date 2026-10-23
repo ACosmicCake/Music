@@ -13,6 +13,10 @@ import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { loadTuneNotes, drawWhenLoaded } from '../content/lazy.js';
 import { chartNumerals, keyName, prettyNumeral } from '../harmony.js';
 import { SoloTips } from '../ui/solo.js';
+import { renderStaff } from '../notation.js';
+import { guessKey, cleanDraft } from '../notate.js';
+import { parseMel, cleanMelody, packNotes, shiftNotes, trimLead, staffKey, melodyBars, readMelodyFile, MELODY_FILE } from '../melody.js';
+import { listEntries, getFile } from '../library.js';
 
 /* ======================================================
    PLAY TOOLS
@@ -303,6 +307,9 @@ tool('repertoire', {
       const shiftName = k => (k === 0 ? 'original key' : (k <= 6 ? 'up ' + k : 'down ' + (12 - k)) + ' semitone' + ((k <= 6 ? k : 12 - k) === 1 ? '' : 's'));
       // Roman numerals under the chords (and the key wherever it changes), once the tune's notes are loaded
       let rnRows = null;
+      // the melody under the chart (drawMelody, further down)
+      let mel = null, staff = null, staffAt = [];
+      const melBox = h('div', { class: 'melbox' }), staffHolder = h('div', { class: 'melstaff' });
       const chordCell = (c, bi, ci) => {
         if (blind) return h('span', { class: 'blind', text: '?' });
         const x = rnRows && pref.rn !== false && rnRows[bi] && rnRows[bi][ci];
@@ -327,6 +334,7 @@ tool('repertoire', {
         });
         chartEl.classList.toggle('checking', check);
         chartEl.classList.toggle('longlabels', form.some(f => f[0].length > 2)); // names such as Verse1 go above their bars
+        drawStaff();
       }
       const nowLbl = h('div', { class: 'prompt' });
       const where = h('p', { class: 'mono small muted', text: (t.form ? 'Form ' + formName(t.form) + ' · ' : '') + bars.length + ' bars' });
@@ -386,10 +394,115 @@ tool('repertoire', {
           t.song && E.getSong(t.song) ? h('button', { class: 'btn small ghost', onclick: () => openTool('transcribe', { params: { song: t.song }, returnTab: 'transcribe' }) }, 'Open the song in Transcribe') : null),
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
         band_, shed, checkCard,
-        h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl);
+        h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl, melBox);
       const notesHolder = h('div');
       tuneCard.append(card, notesHolder, drillHolder);
-      if (!t.mine) notesCleanup = drawWhenLoaded(loadTuneNotes, notesHolder, () => { if (!t.harmony) return; rnRows = chartNumerals(t.harmony); drawChart(); highlight(curBar); notesHolder.append(harmonyCard(t.harmony)); });
+      if (!t.mine) notesCleanup = drawWhenLoaded(loadTuneNotes, notesHolder, () => { drawMelody(); if (!t.harmony) return; rnRows = chartNumerals(t.harmony); drawChart(); highlight(curBar); notesHolder.append(harmonyCard(t.harmony)); });
+      else drawMelody();
+      /* The melody under the changes, as a lead sheet (chord symbols over the staff) that follows the band, and
+         heard with it unless muted. The app's own melody for a progression (t.melody), or one Pan added (E.getMelody),
+         which wins when there is both. The standards still under copyright have none until Pan adds it. */
+      function currentMelody() {
+        const own = cleanMelody(E.getMelody(t.id));
+        const key = t.harmony && t.harmony.sections[0] ? t.harmony.sections[0].key : null;
+        if (own) return { notes: own.notes, key: key || guessKey(own.notes), own, label: own.name };
+        if (t.melody) { const p = parseMel(t.melody.mel); return p.notes.length ? { notes: p.notes, key: t.melody.key } : null; }
+        return null;
+      }
+      const melForBand = () => (mel ? { notes: mel.notes, shift: shiftFor, on: pref.melOn !== false } : { notes: [], on: false });
+      function drawStaff() {
+        staffHolder.innerHTML = ''; staff = null; staffAt = [];
+        if (!mel || pref.melShow === false) return;
+        const k = shiftFor(shownCh), B = barsFor(shownCh);
+        const lay = melodyBars(mel.notes, bars.length, k, B);
+        const chords = blind ? null : B.map(b => b.map((c, ci) => ({ text: prettySym(c.sym), at: ci * 4 / b.length })));
+        const width = Math.max(220, (chartEl.clientWidth || card.clientWidth || 320) - 4);
+        staff = renderStaff({ bars: lay.bars, key: staffKey(mel.key, k), time: '4/4', width, chords, barBands: true, endBar: 'final', label: 'The melody of ' + t.name + ', ' + bars.length + ' bars, with the chords' });
+        staffAt = staff.items.map(it => it.bar * 4 + it.onset);
+        staffHolder.append(staff.el);
+        const notes = [];
+        if (lay.up) notes.push('Written an octave above where it sounds, as guitar music is.');
+        else notes.push('Written at concert pitch, as on a lead sheet.');
+        if (lay.cut) notes.push(lay.cut + ' note' + (lay.cut === 1 ? '' : 's') + ' after bar ' + bars.length + ' left out: the chart ends there.');
+        staffHolder.append(h('p', { class: 'small muted', text: notes.join(' ') }));
+        if (band) highlight(curBar);
+      }
+      // where the band is: the bar lit up and a soft cursor on the note sounding
+      function followMelody(bi, beat) {
+        if (!staff || check) return;
+        const at = bi * 4 + beat;
+        let i = -1;
+        for (let j = 0; j < staffAt.length && staffAt[j] <= at + 1e-6; j++) i = j;
+        staff.cursor(i >= 0 && staff.items[i].bar === bi ? i : null);
+      }
+      function drawMelody() {
+        melBox.innerHTML = '';
+        mel = currentMelody();
+        if (band) band.set({ melody: melForBand() });
+        if (!mel) { staffHolder.innerHTML = ''; staff = null; melBox.append(addMelody()); return; }
+        const hear = h('button', { class: 'btn small', 'aria-pressed': String(pref.melOn !== false) }, 'Hear the melody');
+        hear.onclick = () => { savePref({ melOn: pref.melOn === false }); hear.setAttribute('aria-pressed', String(pref.melOn !== false)); if (band) band.set({ melodyOn: pref.melOn !== false }); };
+        const show = h('button', { class: 'btn small ghost', 'aria-pressed': String(pref.melShow !== false) }, pref.melShow !== false ? 'Hide notes' : 'Show notes');
+        show.onclick = () => { savePref({ melShow: pref.melShow === false }); show.setAttribute('aria-pressed', String(pref.melShow !== false)); show.textContent = pref.melShow !== false ? 'Hide notes' : 'Show notes'; drawStaff(); };
+        const about = mel.own ? 'Your melody' + (mel.label ? ', from ' + mel.label : '') + '.' : 'An original melody written for this app over these changes, since ' + t.name + ' is a progression rather than a song.';
+        melBox.append(h('div', { class: 'spread melhead' }, h('h3', { text: 'Melody' }), h('div', { class: 'row' }, hear, show)),
+          h('p', { class: 'small muted', text: about + ' Play it, then solo with it in your ear, or mute it and keep the tune in your head.' }),
+          staffHolder, melTools());
+        drawStaff();
+      }
+      // your own melody: line it up with bar 1, replace it or remove it; the app's own: swap in yours
+      function melTools() {
+        const box = h('details', { class: 'sr-tips meltools' }, h('summary', { class: 'small', text: mel.own ? 'Line it up, replace or remove' : 'Use your own melody instead' }));
+        if (!mel.own) { box.append(addMelody()); return box; }
+        const nudge = (q, lbl) => h('button', { class: 'btn small', onclick: () => {
+          const m = E.getMelody(t.id); if (!m) return;
+          const moved = shiftNotes(cleanMelody(m).notes, q);
+          if (!moved.length) { toast('That would move every note before bar 1'); return; }
+          E.saveMelody(t.id, Object.assign({}, m, { notes: packNotes(moved) }));
+          mel = currentMelody(); drawStaff(); if (band) band.set({ melody: melForBand() });
+        } }, lbl);
+        box.append(h('p', { class: 'small', text: 'If it starts early or late, move every note:' }),
+          h('div', { class: 'row' }, nudge(-4, '◀ a bar'), nudge(-1, '◀ a beat'), nudge(1, 'a beat ▶'), nudge(4, 'a bar ▶')),
+          addMelody(true),
+          h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => { E.deleteMelody(t.id); toast('Melody removed'); drawMelody(); } }, 'Remove my melody')));
+        return box;
+      }
+      /* Ways to add a melody: Write by playing (record it now), a draft or score in the Library, a file
+         (MusicXML from MuseScore, .mxl, or a Write by playing draft), or the draft open in Write by playing */
+      function addMelody(replacing) {
+        const box = h('div', { class: replacing ? 'stack' : 'callout melodd' });
+        const takeIt = (got, from, name) => {
+          const notes = trimLead(got.notes || []);
+          if (!notes.length) { toast('No notes found in ' + (name || 'that file')); return; }
+          E.saveMelody(t.id, { notes: packNotes(notes), from, name: (name || '').slice(0, 120) });
+          toast(got.time && got.time !== '4/4' ? 'Melody added. It is in ' + got.time + ', the band plays 4/4: check it lines up.' : 'Melody added. If it doesn’t line up with bar 1, nudge it.');
+          drawMelody();
+          melBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+        const fileIn = h('input', { type: 'file', hidden: true, accept: '.musicxml,.xml,.mxl,.json,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml' });
+        fileIn.addEventListener('change', async () => {
+          const f = fileIn.files && fileIn.files[0]; fileIn.value = '';
+          if (!f) return;
+          try { takeIt(await readMelodyFile(f.name, f), 'file', f.name); } catch (e) { toast('Couldn’t read ' + f.name + ': ' + (e && e.message ? e.message : 'not a score')); }
+        });
+        if (!replacing) box.append(h('p', { class: 'small', text: t.mine ? 'Add the melody and it shows here under the chords and plays with the band.' : 'The melody of ' + t.name + ' is still under copyright, so it isn’t built in. Add it yourself and it shows here under the chords and plays with the band.' }));
+        box.append(h('div', { class: 'row' },
+          h('button', { class: 'btn small brass', onclick: () => openTool('notate', { params: { forTune: { id: t.id, name: t.name } }, returnTab: 'play' }) }, 'Write it by playing'),
+          h('button', { class: 'btn small', onclick: () => fileIn.click() }, 'Open a file'), fileIn));
+        // the draft open in Write by playing
+        let d = null;
+        try { const v = JSON.parse(localStorage.getItem('ww-notate-draft') || 'null'); d = v && v.draft ? cleanDraft(v.draft) : null; } catch (e) { d = null; }
+        const from = [];
+        if (d && d.notes.length) from.push(h('button', { class: 'btn small ghost', onclick: () => takeIt(d, 'notate', d.title || 'your Write by playing draft') }, 'Your Write by playing draft' + (d.title ? ' “' + d.title + '”' : '') + ' (' + d.notes.length + ' notes)'));
+        listEntries().forEach(e => e.files.filter(f => MELODY_FILE.test(f.name)).forEach(f => from.push(h('button', { class: 'btn small ghost', onclick: async () => {
+          const got = await getFile(f.id);
+          if (!got) { toast('That file is on another device; add it there, or save it to this one'); return; }
+          try { takeIt(await readMelodyFile(f.name, got.blob), 'library', e.title); } catch (err) { toast('Couldn’t read ' + f.name + ': ' + (err && err.message ? err.message : 'not a score')); }
+        } }, e.title + ' · ' + f.name))));
+        if (from.length) box.append(h('span', { class: 'eyebrow', text: 'Or use' }), h('div', { class: 'row melfrom' }, from.slice(0, 12)));
+        box.append(h('p', { class: 'small muted', text: 'From MuseScore: File → Export → MusicXML. The first bar of the file goes on bar 1 of the chart; move it a beat or a bar afterwards if it starts with a pickup. It stays with your progress and syncs, but is never shared.' }));
+        return box;
+      }
       /* How the changes work: the big picture, then each section with its key, what the chords do, the notes to aim for
          and a button that loops just those bars */
       function harmonyCard(hm) {
@@ -416,7 +529,7 @@ tool('repertoire', {
         fb.mark(positionsOfPc(tones.map(x => x.p)).map(m => Object.assign(m, { kind: tones.find(x => x.p === m.p).kind, label: m.p === c.root ? 'R' : m.p === (c.root + c.third) % 12 ? '3' : (c.seventh !== null ? c.label7 : '5') })));
         legend.textContent = 'Gold R = root · filled 3 = third · outlined ' + (c.seventh !== null ? c.label7 : '5') + ' = ' + (c.seventh !== null ? 'seventh' : 'fifth') + '. Connect the 3rds and 7ths by the nearest step.';
       }
-      function highlight(bi) { barEls.forEach((el, k) => el.classList.toggle('now', !check && k === bi)); }
+      function highlight(bi) { barEls.forEach((el, k) => el.classList.toggle('now', !check && k === bi)); if (staff) staff.bar(check ? null : bi); }
       drawChart(); showChord(bars[0][0]);
       function flash(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 1100); }
       function guess(bi, ev) {
@@ -441,7 +554,7 @@ tool('repertoire', {
       }
       function play() {
         band = Band({
-          bars, barsFor, range, groove: g, grooveId: t.groove, bpm: () => bpm, parts: WHO[pref.who][1], comp: pref.comp, feel: pref.feel, countIn: pref.countIn,
+          bars, barsFor, range, groove: g, grooveId: t.groove, bpm: () => bpm, parts: WHO[pref.who][1], comp: pref.comp, feel: pref.feel, countIn: pref.countIn, melody: melForBand(),
           onCount: n => { nowLbl.textContent = n; },
           onChorus: () => { if (ramp) { bpm = Math.min(+tempo.max, bpm + ramp); setTimeout(() => { tempo.value = bpm; tempoLbl.textContent = bpm + ' bpm'; }, 0); } },
           onBeat: ({ bar: bi, beat, chorus, chord }) => {
@@ -456,6 +569,7 @@ tool('repertoire', {
                 else if (askAt >= 0 && bi !== askAt && (bi - askAt + bars.length) % bars.length > 2) { askAt = -1; nowLbl.textContent = 'Listen…'; }
               }
             }
+            followMelody(bi, beat);
             if (!check && (beat === 0 || chord !== lastChord)) { if (chord !== lastChord) showChord(chord); lastChord = chord; }
           }
         });
