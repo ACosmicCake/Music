@@ -288,7 +288,8 @@ function fileRow(entry, f, local, redraw, fetch) {
   const said = what => r => { if (r === 'downloaded') toast('Saved to your downloads' + (what ? ': open it in ' + what : '')); };
   const share = (got, what) => shareBlob(got.name, typed(got), got.name).then(said(what));
   if (local) {
-    if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said('MuseScore'))) }, 'Open in MuseScore'));
+    if (READABLE.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readScore(got, f.kind)) }, 'Read and play'));
+    if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small' + (READABLE.has(f.kind) ? ' ghost' : ' brass'), onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said('MuseScore'))) }, 'Open in MuseScore'));
     else if (f.kind === 'pdf') acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readPdf(got)) }, 'Read'));
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
@@ -306,6 +307,22 @@ function fileRow(entry, f, local, redraw, fetch) {
   } }, 'Remove'));
   row.append(info, acts);
   return row;
+}
+
+/* ---------- reading and playing MusicXML, Guitar Pro and MIDI in the app (alphaTab, loaded the first time) ---------- */
+const READABLE = new Set(['musicxml', 'guitarpro', 'midi']);
+async function readScore(got, kind) {
+  const note = h('div', { class: 'toast', role: 'status', text: 'Opening ' + got.name + '…' });
+  document.body.append(note);
+  try {
+    const { openScore } = await import('./scoreview.js');
+    if (closeViewer) closeViewer();
+    const close = await openScore(got.blob, { title: got.name, kind }, () => { if (closeViewer === close) closeViewer = null; });
+    closeViewer = close;
+  } catch (e) {
+    console.error(e);
+    toast('This score could not be shown here' + (e && e.message ? ' (' + e.message + ')' : '') + '. Open it in MuseScore instead.');
+  } finally { note.remove(); }
 }
 
 /* ---------- reading a PDF score in the app (pdf.js, loaded the first time) ---------- */

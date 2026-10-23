@@ -26,6 +26,17 @@
 .lib-vbar .btn:last-child { margin-left: auto; }
 .lib-vpane { overflow: auto; -webkit-overflow-scrolling: touch; background: #fff; }
 .lib-vimg { display: block; max-width: none; height: auto; }
+.lib-vtools { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.lib-vtools select { min-height: 34px; padding: 4px 8px; }
+.lib-vnote { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-viewer:has(.lib-vtools) { grid-template-rows: auto auto minmax(0, 1fr); }
+.lib-scorepane { color: #111; }
+.lib-score { min-height: 100%; }
+/* alphaTab's playback cursor (the page stays white in dark mode, like paper) */
+.lib-score .at-cursor-bar { background: rgba(216, 165, 72, 0.18); }
+.lib-score .at-cursor-beat { background: #9a6a14; width: 3px; }
+.lib-score .at-highlight * { fill: #9a6a14; stroke: #9a6a14; }
+.lib-score .at-selection div { background: rgba(154, 106, 20, 0.12); }
 .lib-pdf { background: var(--sunk); padding: 6px 0; }
 .lib-pdfpage { background: #fff; margin: 0 auto 8px; max-width: none; }
 .lib-pdfpage canvas { display: block; width: 100%; height: auto; }
@@ -35,4 +46,6 @@ html.compact .lib-thumb { width: 38px; height: 38px; font-size: 0.6rem; }
 html.compact .lib-pages { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
 html.compact .lib-vbar { gap: 4px; padding-inline: 4px; flex-wrap: nowrap; }
 html.compact .lib-vbar .btn { padding: 3px 8px; min-width: 0; }
+html.compact .lib-vtools { gap: 4px; padding: 4px; }
+html.compact .lib-vtools select { min-height: 36px; font-size: 0.8rem; flex: 1 1 30%; min-width: 0; }
 html.compact .lib-details input[type="url"] { min-height: 44px; }
