@@ -136,3 +136,27 @@ describe('backup export and import', () => {
     expect(() => E.importBackup(null)).toThrow();
   });
 });
+
+describe('technique tempo', () => {
+  it('keeps an open exercise tied to the live state after a sync folds another copy in', () => {
+    const t = E.techState('altpick'), start = t.bpm;
+    E.importBackup(JSON.parse(JSON.stringify(E.exportBackup())));
+    E.setTechBpm('altpick', t.bpm + 2);
+    expect(t.bpm).toBe(start + 2);
+    expect(E.state.tech.altpick).toBe(t);
+    E.importBackup(JSON.parse(JSON.stringify(E.exportBackup())), 'replace');
+    E.setTechBpm('altpick', t.bpm + 2);
+    expect(E.state.tech.altpick.bpm).toBe(start + 4);
+  });
+  it('lets a tempo set by hand win over an older copy from another device', () => {
+    const t = E.techState('altpick');
+    E.techResult('altpick', true);
+    const other = JSON.parse(JSON.stringify(E.exportBackup()));
+    other.state.tech.altpick.last = T0 + MIN; // practised on the phone a minute later
+    vi.setSystemTime(T0 + 2 * MIN);
+    E.setTechBpm('altpick', 120);
+    E.importBackup(other);
+    expect(E.state.tech.altpick.bpm).toBe(120);
+    expect(t.bpm).toBe(120);
+  });
+});

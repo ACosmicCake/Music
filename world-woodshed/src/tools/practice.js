@@ -523,7 +523,7 @@ tool('free', {
     const bpmLbl = h('b', { class: 'mono', text: bpm + ' bpm' });
     const btn = h('button', { class: 'btn' }, '▶ Click');
     const range = h('input', { type: 'range', min: 30, max: 240, value: bpm, 'aria-label': 'Tempo' });
-    range.oninput = () => { bpm = +range.value; bpmLbl.textContent = bpm + ' bpm'; if (loop) { loop.stop(); start(); } };
+    range.oninput = () => { bpm = +range.value; bpmLbl.textContent = bpm + ' bpm'; }; // the click reads it on every beat
     function start() { A.ensure(); loop = A.Loop({ steps: 4, stepDur: () => 60 / bpm, onStep: (i, t) => A.hit(i === 0 ? 'clickHi' : 'click', t, 0.9) }); loop.start(); btn.textContent = '■ Stop click'; ctx.setActive(true); }
     btn.onclick = () => { if (loop) { loop.stop(); loop = null; btn.textContent = '▶ Click'; } else start(); };
     card.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '0' } }, h('span', { class: 'eyebrow', text: 'Time on this' }), clock), h('div', { class: 'row' }, btn, bpmLbl)), range,
@@ -572,7 +572,7 @@ tool('away', {
     function clickRow(state, onStart, onStop) {
       const lbl = h('b', { class: 'mono', text: state.bpm + ' bpm' });
       const btn = h('button', { class: 'btn primary' }, '▶ Start');
-      const set = v => { state.bpm = Math.max(30, Math.min(220, v)); lbl.textContent = state.bpm + ' bpm'; if (loop) { stopAll(); onStart(); btn.textContent = '■ Stop'; } };
+      const set = v => { state.bpm = Math.max(30, Math.min(220, v)); lbl.textContent = state.bpm + ' bpm'; }; // the click reads it on every beat
       btn.onclick = () => { if (loop) { stopAll(); btn.textContent = '▶ Start'; onStop && onStop(); } else { onStart(); btn.textContent = '■ Stop'; } };
       return h('div', { class: 'row' }, btn, h('button', { class: 'btn small', onclick: () => set(state.bpm - 4) }, '−4'), lbl, h('button', { class: 'btn small', onclick: () => set(state.bpm + 4) }, '+4'));
     }

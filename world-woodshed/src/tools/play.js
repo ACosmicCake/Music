@@ -676,7 +676,9 @@ tool('technique', {
       const sloppyBtn = h('button', { class: 'btn' }, 'Not clean');
       const note = h('p', { class: 'small muted', text: 'Play 4 bars per attempt. Be honest: clean means even, relaxed and in time.' });
       // with the mic on, a meter shows where each note lands against the click
-      const meter = TimingMeter(() => (loop ? { start: loop.startTime, step: 60 / t.bpm / sub } : null), { idle: 'Start the click and play the exercise.', onClean: true });
+      // the grid follows the last click, so a burst does not leave the meter off the beat
+      let lastClick = null;
+      const meter = TimingMeter(() => (loop && lastClick ? lastClick : null), { idle: 'Start the click and play the exercise.', onClean: true });
       const meterBox = h('div', { hidden: true }, meter.el);
       const mic = MicToggle({ label: 'Check my timing', onLabel: 'Listening to your timing', hint: 'Wear headphones so the mic hears your guitar, not the click.',
         onOn: () => { meterBox.hidden = false; meter.reset(); meter.start('onset'); },
@@ -709,8 +711,10 @@ tool('technique', {
       let burstNext = false, burstOn = false; // a burst starts on the next downbeat and lasts one bar
       function start(at) {
         A.ensure();
-        loop = A.Loop({ steps: 4 * sub, stepDur: () => 60 / (t.bpm * (burstOn ? 1.2 : 1)) / sub, onStep: (i, tt) => {
+        const stepDur = () => 60 / (t.bpm * (burstOn ? 1.2 : 1)) / sub;
+        loop = A.Loop({ steps: 4 * sub, stepDur, onStep: (i, tt) => {
           if (i === 0) { burstOn = burstNext; burstNext = false; }
+          lastClick = { start: tt, step: stepDur() };
           if (i === 0) A.hit('clickHi', tt, 1); else if (i % sub === 0) A.hit('click', tt, 0.85); else A.hit('click', tt, 0.3);
         } });
         loop.start(at); playBtn.textContent = '■ Stop'; ctx.setActive(true);
