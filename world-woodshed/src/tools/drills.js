@@ -10,6 +10,7 @@ import { MicToggle, TimingMeter } from '../ui/mic.js';
 import Cur from '../curriculum.js';
 import { Band } from '../band.js';
 import { loadDrills, drawWhenLoaded } from '../content/lazy.js';
+import { phraseGrid, patternGrid, backingRows, offBeat } from '../countgrid.js';
 
 /* ======================================================
    STYLE DRILLS: the exercises a teacher of each tradition would give, with a backing loop,
@@ -56,6 +57,24 @@ function Backing(d, getBpm, onRound) {
     stop() { if (loop) loop.stop(); loop = null; },
     chordAt(i) { if (!g) return null; const bi = Math.floor(i / g.steps), st = i % g.steps, bar = bars[bi]; return bar.length === 1 ? bar[0] : bar[st < g.steps / 2 ? 0 : 1]; }
   };
+}
+
+/* Where each note falls on the counts, bar by bar, with the backing's part above it (src/countgrid.js) */
+export function CountGrid(g) {
+  const wrap = h('div', { class: 'cgrid' });
+  const n = g.labels.length, cols = '--n: ' + n; // the columns are set in styles.css, narrower in the compact layout
+  const starts = new Set(g.starts || []), beat = j => starts.has(j);
+  g.bars.forEach((bar, bi) => {
+    const box = h('div', { class: 'cg-bar' });
+    if (g.bars.length > 1) box.append(h('span', { class: 'eyebrow', text: 'Bar ' + (bi + 1) }));
+    box.append(h('div', { class: 'crow', style: cols }, h('span', { class: 'rname', text: 'count' }),
+      (bar.labels || g.labels).map((l, j) => h('span', { class: 'lab' + (beat(j) ? ' gstart' : '') + (/^\d+$/.test(l) ? ' beat' : ''), text: l }))));
+    bar.rows.forEach(r => box.append(h('div', { class: 'crow' + (r.you ? ' you' : ''), style: cols }, h('span', { class: 'rname', text: r.name }),
+      r.cells.map((c, j) => h('span', { class: 'cell' + (c.kind ? ' ' + c.kind : '') + (beat(j) ? ' gstart' : ''), text: n <= 8 ? c.text : '' })))));
+    if (bar.play) box.append(h('p', { class: 'small cplay', text: bar.play }));
+    wrap.append(box);
+  });
+  return wrap;
 }
 
 tool('drill', {
@@ -113,7 +132,7 @@ tool('drill', {
           h('b', { text: v.name }), h('p', { class: 'small', text: v.how }));
         if (v.bars && v.bars.length) {
           try {
-            const staff = renderStaff({ bars: v.bars.map(bar => bar.map(n => ({ midi: n.m === null || n.m === undefined ? null : n.m + 12, dur: n.d, dot: !!n.dot }))), key: v.key || 'C', time: v.time || '4/4', width: Math.min(720, card.clientWidth || 680) });
+            const staff = renderStaff({ bars: v.bars.map(bar => bar.map(n => ({ midi: n.m === null || n.m === undefined ? null : n.m + 12, dur: n.d, dot: !!n.dot, spell: n.sp || v.spell }))), key: v.key || 'C', time: v.time || '4/4', width: Math.min(720, card.clientWidth || 680) });
             varBox.append(h('div', { class: 'drill-staff' }, staff.el));
           } catch (e) { console.error(e); }
           const play = h('button', { class: 'btn small ghost', onclick: () => {
@@ -122,6 +141,11 @@ tool('drill', {
           } }, '▶ Hear the phrase');
           varBox.append(play);
         }
+        const dg = d.grid || {}, backRows = backingRows(d.backing, D);
+        const cg = v.grid ? patternGrid(Object.assign({}, dg, v.grid), { backing: backRows })
+          : v.bars && v.bars.length ? phraseGrid(v.bars, { time: v.time, key: v.key, spell: v.spell, count: v.count || dg.count, backing: backRows }) : null;
+        // a phrase whose notes all fall on the beat needs no grid, unless counting is the point of the drill
+        if (cg && (v.grid || d.grid || d.focus === 'rhythm' || offBeat(cg))) varBox.append(h('div', { class: 'stack', style: { gap: '4px' } }, h('span', { class: 'eyebrow', text: 'Count it' }), CountGrid(cg)));
         if (v.positions && v.positions.length) {
           fb.mark(v.positions.map(([str, fr], k) => ({ s: 6 - str, f: fr, kind: k === 0 ? 'root' : 'tone', label: String(k + 1) })));
           varBox.append(fb.el);
