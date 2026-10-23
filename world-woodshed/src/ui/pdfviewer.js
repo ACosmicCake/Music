@@ -8,6 +8,12 @@ import { h } from './core.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
+/* The most pixels one page's canvas may have. At 3× zoom on a sharp phone screen a page came to about
+   15 million (60 MB), and the few pages kept drawn around the one in view could close the app. */
+const MAX_PX = 6e6;
+// a canvas's memory goes back at once when it is emptied, not whenever the page is collected
+const free = c => { c.width = 0; c.height = 0; };
+
 /* Show `blob` full screen; resolves with a close function once the document has opened (throws if it can't) */
 export async function openPdf(blob, title, onClose) {
   const task = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false });
@@ -29,22 +35,34 @@ export async function openPdf(blob, title, onClose) {
   for (let i = 1; i <= doc.numPages; i++) { const p = await doc.getPage(i); const v = p.getViewport({ scale: 1 }); sizes.push([v.width, v.height]); }
   const slots = sizes.map((_, i) => h('div', { class: 'lib-pdfpage', 'data-page': i + 1, 'aria-label': 'Page ' + (i + 1) }));
   pane.append(...slots);
-  const drawn = new Map(); // slot index → render task
+  const drawn = new Map(); // slot index → { task } while it is drawn or being drawn
   async function draw(i) {
     if (drawn.has(i) || closed) return;
-    const slot = slots[i], page = await doc.getPage(i + 1);
-    const cssW = slot.clientWidth, scale = cssW / sizes[i][0], dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const mark = {};
+    drawn.set(i, mark); // before the first await, so a second call for the same page waits its turn
+    const mine = () => drawn.get(i) === mark && !closed; // not scrolled away or closed meanwhile
+    let page;
+    try { page = await doc.getPage(i + 1); } catch (e) { if (drawn.get(i) === mark) drawn.delete(i); return; }
+    mark.page = page;
+    const slot = slots[i], cssW = slot.clientWidth;
+    if (!mine() || !cssW) { if (drawn.get(i) === mark) drawn.delete(i); return; }
+    // as sharp as the screen, but never more than MAX_PX in one canvas
+    const scale = cssW / sizes[i][0], area = sizes[i][0] * sizes[i][1] * scale * scale;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3, Math.sqrt(MAX_PX / area));
     const v = page.getViewport({ scale: scale * dpr });
     const c = h('canvas', { width: Math.floor(v.width), height: Math.floor(v.height) });
-    const task = page.render({ canvasContext: c.getContext('2d'), viewport: v, canvas: c });
-    drawn.set(i, task);
-    try { await task.promise; } catch (e) { drawn.delete(i); return; }
-    if (drawn.get(i) === task) { slot.innerHTML = ''; slot.append(c); }
+    try {
+      mark.task = page.render({ canvasContext: c.getContext('2d'), viewport: v, canvas: c });
+      await mark.task.promise;
+    } catch (e) { free(c); if (drawn.get(i) === mark) drawn.delete(i); return; }
+    if (mine()) { slot.innerHTML = ''; slot.append(c); } else free(c);
   }
   function drop(i) {
-    const t = drawn.get(i);
-    if (!t) return;
-    drawn.delete(i); try { t.cancel(); } catch (e) { /* already done */ }
+    const m = drawn.get(i);
+    if (!m) return;
+    drawn.delete(i); try { if (m.task) m.task.cancel(); } catch (e) { /* already done */ }
+    if (m.page) setTimeout(() => { if (!drawn.has(i)) try { m.page.cleanup(); } catch (e) { /* closed */ } }, 0); // its fonts and images, once the cancel has landed
+    slots[i].querySelectorAll('canvas').forEach(free);
     slots[i].innerHTML = '';
   }
   const io = new IntersectionObserver(entries => entries.forEach(en => {

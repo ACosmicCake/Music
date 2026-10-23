@@ -99,3 +99,37 @@ describe('pressing play again starts over', () => {
     made.forEach(s => expect(s.stopAt).toBe(0));
   });
 });
+
+describe('a loop after the page slept', () => {
+  it('skips the steps that went by instead of playing them all at once, and keeps the beat', () => {
+    vi.useFakeTimers();
+    const steps = [];
+    const loop = A.Loop({ steps: 4, stepDur: () => 0.125, onStep: (i, t) => { steps.push([i, t]); A.hit('click', t, 0.9); } });
+    loop.start();
+    const t0 = steps[0][1], before = steps.length;
+    ctx.currentTime += 600; // ten minutes with the screen off: the audio clock ran, the timers didn't
+    vi.advanceTimersByTime(25);
+    const after = steps.slice(before);
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.length).toBeLessThan(5); // the look-ahead's worth, not 4800 clicks
+    after.forEach(([i, t]) => {
+      expect(t).toBeGreaterThanOrEqual(ctx.currentTime);
+      const k = (t - t0) / 0.125; // still on the same grid
+      expect(Math.abs(k - Math.round(k))).toBeLessThan(1e-3);
+      expect(Math.round(k) % 4).toBe(i);
+    });
+    loop.stop();
+  });
+  it('ends a play-once loop whose steps all went by while asleep', () => {
+    vi.useFakeTimers();
+    const onEnd = vi.fn(), onStep = vi.fn();
+    const loop = A.Loop({ steps: 4, maxSteps: 8, stepDur: () => 0.25, onStep, onEnd });
+    loop.start();
+    const n = onStep.mock.calls.length;
+    ctx.currentTime += 60;
+    vi.advanceTimersByTime(200);
+    expect(onStep.mock.calls.length).toBe(n);
+    expect(onEnd).toHaveBeenCalledOnce();
+    expect(loop.running).toBe(false);
+  });
+});

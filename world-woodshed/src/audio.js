@@ -277,7 +277,21 @@ function hit(type, when, vel = 0.8, out, o = {}) {
 function Loop(opts) {
   let timer = null, nextTime = 0, step = 0, running = false;
   const visTimers = new Set(), mine = new Set(), scope = { mine, shot: !!opts.shot };
+  function end() {
+    const endDelay = Math.max(0, (nextTime - ctx.currentTime + latency()) * 1000);
+    clearInterval(timer); timer = null;
+    setTimeout(() => { if (running) { running = false; shotLoops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
+  }
   function tick() {
+    // The page slept (screen off, the app in the background) while the audio clock ran on: skip the steps
+    // that are already past instead of scheduling them all at once, which played minutes of clicks or band
+    // in one burst of thousands of sounds. The beat stays where it was.
+    if (nextTime < ctx.currentTime - 0.1) {
+      for (let n = 0; nextTime < ctx.currentTime && n < 1e6; n++) {
+        nextTime += Math.max(opts.stepDur(step % opts.steps) || 0, 1e-3); step++;
+        if (opts.maxSteps && step >= opts.maxSteps) { end(); return; }
+      }
+    }
     while (nextTime < ctx.currentTime + 0.12) {
       const i = step % opts.steps, cycle = Math.floor(step / opts.steps);
       const t = nextTime;
@@ -293,12 +307,7 @@ function Loop(opts) {
       }
       nextTime += opts.stepDur(i);
       step++;
-      if (opts.maxSteps && step >= opts.maxSteps) {
-        const endDelay = Math.max(0, (nextTime - ctx.currentTime + latency()) * 1000);
-        clearInterval(timer); timer = null;
-        setTimeout(() => { if (running) { running = false; shotLoops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
-        return;
-      }
+      if (opts.maxSteps && step >= opts.maxSteps) { end(); return; }
     }
   }
   const api = {

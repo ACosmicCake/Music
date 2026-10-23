@@ -19,13 +19,14 @@ function fakeGitHub() {
       if (kids.length) return json(200, kids.map(k => ({ type: 'file', name: k.slice(path.length + 1), sha: files.get(k).sha, size: files.get(k).bytes.length })));
       const f = files.get(path);
       if (!f) return json(404, {});
-      return { status: 200, ok: true, arrayBuffer: async () => f.bytes.buffer.slice(f.bytes.byteOffset, f.bytes.byteOffset + f.bytes.length) };
+      return { status: 200, ok: true, blob: async () => new Blob([f.bytes]) };
     }
-    const body = JSON.parse(opts.body);
+    if (opts.body instanceof Blob) calls.push('blob body');
+    const body = JSON.parse(typeof opts.body === 'string' ? opts.body : await opts.body.text());
     if (method === 'PUT') {
       if (files.has(path) && !body.sha) return json(422, {});
       const sha = 'sha' + (++n);
-      files.set(path, { bytes: Uint8Array.from(atob(body.content), c => c.charCodeAt(0)), sha });
+      files.set(path, { bytes: new Uint8Array(Buffer.from(body.content, 'base64')), sha });
       return json(201, { content: { sha } });
     }
     if (method === 'DELETE') {
@@ -85,6 +86,18 @@ describe('Library files through the sync repository', () => {
     const got = await laptop.L.getFile(f.id);
     expect(await got.blob.text()).toBe('%PDF-1.4 asturias');
     expect(got.type).toBe('application/pdf');
+  });
+  it('sends a large file as a body built in pieces, and it arrives whole', async () => {
+    const { L, LS } = await device();
+    const n = 4 * 1024 * 1024 + 7, data = new Uint8Array(n);
+    for (let i = 0; i < n; i++) data[i] = (i * 7 + (i >> 11)) & 255;
+    const id = await L.addToLibrary({ title: 'Big', files: [new File([data], 'big.pdf', { type: 'application/pdf' })] });
+    const f = L.getEntry(id).files[0];
+    expect(await LS.syncFiles()).toBe(true);
+    expect(gh.calls).toContain('blob body');
+    const up = gh.files.get('world-woodshed-library/' + LS.remoteName(f.id, f.name)).bytes;
+    expect(up.length).toBe(n);
+    expect(Buffer.compare(Buffer.from(up), Buffer.from(data))).toBe(0);
   });
   it('deletes from the repository what was removed on any device', async () => {
     const { L, LS } = await device();

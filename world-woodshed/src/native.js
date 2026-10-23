@@ -27,20 +27,31 @@ export async function shareFile(name, text, title) {
 
 /* Hand any file (a score, a photo, a MIDI file) to another app: the share sheet in the Android app and where the
    browser can share files, otherwise a download. Resolves 'shared', 'downloaded' or 'cancelled'. */
-const blobBase64 = blob => new Promise((res, rej) => {
-  const r = new FileReader();
-  r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1));
-  r.onerror = () => rej(r.error);
-  r.readAsDataURL(blob);
-});
+const blobBase64 = blob => (typeof FileReader !== 'undefined'
+  ? new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1));
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(blob);
+  })
+  : blob.arrayBuffer().then(buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }));
+/* Write a blob to the app's cache folder → its file:// uri. In pieces: the whole file as one base64 string
+   crossing to Android in a single call ran the app out of memory and closed it for a large score or song. */
+const PIECE = 3 * 512 * 1024; // bytes per call, a multiple of 3 so each piece is whole base64
+export async function writeCacheFile(path, blob) {
+  const { Filesystem, Directory } = await import('@capacitor/filesystem');
+  const piece = i => blobBase64(blob.slice(i, i + PIECE));
+  const w = await Filesystem.writeFile({ path, data: await piece(0), directory: Directory.Cache, recursive: true });
+  for (let i = PIECE; i < blob.size; i += PIECE) await Filesystem.appendFile({ path, data: await piece(i), directory: Directory.Cache });
+  return w.uri;
+}
 const safeName = name => [...String(name || 'file')].map(c => (c < ' ' || '\\/:*?"<>|'.includes(c) ? '_' : c)).join('').slice(0, 120) || 'file';
 export async function shareBlob(name, blob, title) {
   const safe = safeName(name);
   if (isNative()) {
-    const { Filesystem, Directory } = await import('@capacitor/filesystem');
     const { Share } = await import('@capacitor/share');
-    const w = await Filesystem.writeFile({ path: 'share/' + safe, data: await blobBase64(blob), directory: Directory.Cache, recursive: true });
-    try { await Share.share({ title, files: [w.uri], dialogTitle: title }); } catch (e) { if (/cancel/i.test(String(e && e.message))) return 'cancelled'; throw e; }
+    const uri = await writeCacheFile('share/' + safe, blob);
+    try { await Share.share({ title, files: [uri], dialogTitle: title }); } catch (e) { if (/cancel/i.test(String(e && e.message))) return 'cancelled'; throw e; }
     return 'shared';
   }
   const f = new File([blob], safe, { type: blob.type || 'application/octet-stream' });
@@ -61,11 +72,10 @@ export async function shareBlob(name, blob, title) {
 export async function openBlob(name, blob, title) {
   if (isNative()) {
     try {
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
       const { FileViewer } = await import('@capacitor/file-viewer');
-      const w = await Filesystem.writeFile({ path: 'open/' + safeName(name), data: await blobBase64(blob), directory: Directory.Cache, recursive: true });
+      const uri = await writeCacheFile('open/' + safeName(name), blob);
       // the plugin wants a plain path: it strips 'file:///' along with the path's own leading slash
-      await FileViewer.openDocumentFromLocalPath({ path: decodeURIComponent(w.uri.replace(/^file:\/\//, '')) });
+      await FileViewer.openDocumentFromLocalPath({ path: decodeURIComponent(uri.replace(/^file:\/\//, '')) });
       return 'opened';
     } catch (e) {
       console.warn('No app opened the file, using the share sheet', e);

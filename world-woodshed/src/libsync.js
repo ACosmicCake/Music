@@ -32,6 +32,16 @@ export function onStatus(fn) { listeners.add(fn); return () => listeners.delete(
 const blobB64 = blob => (typeof FileReader !== 'undefined'
   ? new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).slice(String(r.result).indexOf(',') + 1)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); })
   : blob.arrayBuffer().then(buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }));
+/* The body of an upload ({ message, content: the file as base64 }) as a Blob, built a piece at a time: one
+   string of a 50 MB file's base64, then its JSON copy, held the page's memory at several times the file's
+   size and could close the app on a phone. */
+const PIECE = 3 * 512 * 1024; // a multiple of 3, so the pieces' base64 joins up
+async function uploadBody(message, blob) {
+  const parts = ['{"message":' + JSON.stringify(message) + ',"content":"'];
+  for (let i = 0; i < blob.size; i += PIECE) parts.push(new Blob([await blobB64(blob.slice(i, i + PIECE))]));
+  parts.push('"}');
+  return new Blob(parts, { type: 'application/json' });
+}
 const wait = ms => new Promise(r => setTimeout(r, ms));
 /* a write, tried again once if another device's commit moved the branch in between (409) */
 async function write(method, path, body) {
@@ -75,7 +85,7 @@ export function syncFiles() {
         const rec = await getFile(f.id);
         if (!rec || !rec.blob) { pending--; continue; }
         const name = remoteName(f.id, f.name);
-        const res = await write('PUT', folder() + '/' + name, { message: 'Library: ' + String(e.title || 'Untitled').slice(0, 60) + ' · ' + String(f.name).slice(0, 60), content: await blobB64(rec.blob) });
+        const res = await write('PUT', folder() + '/' + name, await uploadBody('Library: ' + String(e.title || 'Untitled').slice(0, 60) + ' · ' + String(f.name).slice(0, 60), rec.blob));
         if (res.status === 422) await list(); // already there (another device uploaded it): take the repository's word
         else if (!res.ok) throw new Error(explain(res));
         else { const out = await res.json(); remote.set(f.id, { name, sha: out.content && out.content.sha, size: rec.blob.size }); }
@@ -101,7 +111,7 @@ export async function fetchFile(entryId, f) {
   const res = await repoCall('GET', folder() + '/' + r.name, null, 'application/vnd.github.raw+json');
   if (!res.ok) throw new Error(explain(res));
   const type = f.type || mimeOf(f.name, '');
-  const blob = new Blob([await res.arrayBuffer()], { type });
+  const blob = new Blob([await res.blob()], { type });
   const th = fileKind(f.name, f.type) === 'image' ? await thumbnail(blob) : null;
   if (!await putFile(f.id, { blob, name: f.name, type: f.type || '', size: blob.size, entry: entryId, thumb: th ? th.blob : null })) throw new Error('This device would not store it (storage full or blocked)');
   return true;
