@@ -46,12 +46,18 @@ export function RhythmGrid(r) {
   const labRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
   labRow.append(h('span', { class: 'rname', text: r.labels ? 'say' : 'count' }));
   for (let i = 0; i < r.steps; i++) {
-    let t = r.labels ? r.labels[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
+    let t = r.labels ? r.labels[i] : r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
     if (r.groups && !r.labels) { let a = 0, gi = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; gi++; } }
     const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: t, title: t });
     labs.push(l); labRow.append(l);
   }
   grid.append(labRow);
+  if (r.alt) { // the same pattern counted twice as slowly, as many teachers count clave
+    const aRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
+    aRow.append(h('span', { class: 'rname', text: 'slow' }));
+    for (let i = 0; i < r.steps; i++) aRow.append(h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: r.alt[i] || '', title: r.alt[i] || '' }));
+    grid.append(aRow);
+  }
   if (r.marks) {
     const mRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
     mRow.append(h('span', { class: 'rname', text: 'hand' }));
@@ -268,6 +274,7 @@ tool('rhythms', {
         h('p', { class: 'small muted', text: 'Outlined cells are your part: ' + (r.target === 'all' ? 'every dum and tek' : r.target) + '. It stays the same while the rest varies.' }));
       shownTracks = null; showGrid(null); now.innerHTML = '';
       tipsBox.innerHTML = '';
+      if (r.words) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Words used here' }), h('ul', { class: 'list small' }, r.words.map(([w, m]) => h('li', {}, h('b', { text: w }), ': ' + m)))));
       if (r.var && r.var.tips && r.var.tips.length) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Practice tips for ' + r.name }), h('ul', { class: 'list small' }, r.var.tips.map(t => h('li', { text: t })))));
       drawOpts();
       result.innerHTML = '';

@@ -15,29 +15,99 @@ const COUNT12 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 const rep = (a, n) => [].concat(...Array(n).fill(a));
 const swap = (a, i, v) => a.map((x, k) => (k === i ? v : x));
 
-/* Son and rumba: in these variations each step is an eighth note and the clave spans two bars of 4/4,
-   so one-bar parts (conga marcha, bass tumbao, güiro) repeat twice per cycle. */
+/* Son and rumba: one round of clave is one bar of sixteenths here (1 e & a 2 e & a …), which is two bars of
+   eighths in the slow count many teachers use; one-bar parts (conga marcha, bass tumbao, güiro) repeat twice per round. */
 const TUMBAO_BASS = '...x..x....x..x.';
 const CONGA_OPEN = '......xx......xx';
 const CONGA_SLAP = '..X.......X.....';
 const CONGA_HEELTOE = 'xx.xxx..xx.xxx..';
 
+/* Words the notes and tips use, per region, shown under each rhythm as “Words used here”. */
+const WORDS = {
+  cuba: [
+    ['Clave', 'the five-hit pattern every part fits around; one round is one bar here'],
+    ['3-2 and 2-3', 'which half of the clave comes first: the half with three hits or the half with two'],
+    ['Tumbao', 'the repeating conga part, or the repeating bass part, that never plays on 1'],
+    ['Montuno', 'the loud, repeating last part of a son or salsa song'],
+    ['Cáscara', 'a pattern tapped on the metal shell of the timbales'],
+    ['Martillo', 'the bongo player’s steady pattern (“hammer”)'],
+    ['Abanico', 'a short timbales roll that announces a new section'],
+    ['Guagua', 'a wooden tube played with sticks in rumba']
+  ],
+  brazil: [
+    ['Surdo', 'the big bass drum of samba; the low one answers on beat 2'],
+    ['Ganzá', 'a metal shaker playing every sixteenth'],
+    ['Caixa', 'the snare drum'],
+    ['Repinique', 'the high lead drum that plays the calls (chamada) the band answers'],
+    ['Zabumba', 'the big two-headed drum of baião, played with a beater on top and a stick underneath']
+  ],
+  flamenco: [
+    ['Compás', 'the repeating cycle of 12 counts (or 5 uneven beats in seguiriya)'],
+    ['Palmas', 'hand claps; sordas are soft cupped claps'],
+    ['Remate', 'a closing phrase; in soleá and bulerías it stops on count 10'],
+    ['Llamada', 'a “call” phrase that tells the others a section is starting or ending'],
+    ['Golpe', 'a heel stamp, or a tap on the guitar top']
+  ],
+  hindustani: [
+    ['Matra', 'one beat of the cycle: one square of the grid'],
+    ['Sam', 'beat 1 of the cycle, where phrases land; marked with a clap'],
+    ['Khali', 'the “empty” section, shown with a wave of the hand instead of a clap'],
+    ['Vibhag', 'one section of the cycle (for example 4 beats of teental)'],
+    ['Theka', 'the basic tabla pattern that names the cycle'],
+    ['Bol', 'a spoken name for a tabla stroke: Dha, Dhin, Na, Tin…'],
+    ['Bayan', 'the left-hand bass drum of the tabla'],
+    ['Tihai', 'a phrase played three times so that its last stroke lands on sam'],
+    ['Bedam', 'a tihai with no gaps between the three phrases'],
+    ['Prakar', 'a small variation of the theka'],
+    ['Dugun', 'double speed: two bols in each beat'],
+    ['Vilambit, drut', 'slow, fast']
+  ],
+  carnatic: [
+    ['Konnakol', 'drum strokes spoken as syllables: Ta Ka Di Mi…'],
+    ['Samam', 'beat 1 of the cycle, where phrases land'],
+    ['Mora', 'a phrase played three times so that it ends on samam'],
+    ['Korvai', 'a longer closing phrase built the same way'],
+    ['Chatusra, tisra, khanda, misra', 'groups of 4, 3, 5 and 7 notes per beat or per phrase'],
+    ['Kalam, nadai', 'speed (how many notes per beat) and the grouping of notes in a beat'],
+    ['Mridangam', 'the two-headed drum of South India; Thom is its left-hand bass stroke']
+  ],
+  arabic: [
+    ['Dum', 'the low stroke in the middle of the drum'],
+    ['Tek, ka', 'high strokes on the rim, right hand and left hand'],
+    ['Riq', 'a small tambourine with jingles']
+  ],
+  turkbalkan: [
+    ['Dum, tek', 'low stroke in the middle of the drum, high stroke on the rim'],
+    ['Short and long beats', 'beats two or three eighths long; the counts and the gaps in the grid show where each one starts']
+  ],
+  persian: [
+    ['Tombak', 'the goblet drum of Iran'],
+    ['Dum, tek', 'low stroke in the middle of the drum, high stroke on the rim']
+  ],
+  westafrica: [
+    ['Timeline', 'the bell pattern that everyone fits around, like the clave'],
+    ['Kpanlogo', 'a dance rhythm from Ghana, and the drum it is played on'],
+    ['Djembe, dundun', 'the hand drum and the stick-played bass drums of Mande music']
+  ]
+};
+
 export default {
   extra: [],
+  words: WORDS,
   rhythms: {
     son32: {
       cycles: 8, tempo: [80, 130],
       variations: [
         { name: 'Conga marcha (tumbao) and bass tumbao', tracks: { clave: 'X..x..x...x.x...', hat: CONGA_HEELTOE, high: CONGA_SLAP, mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'The conga plays heel-toe, slap on 2, two open tones on 4 and its “and”, once per bar; the bass anticipates on the “and” of 2 and on 4.' },
+          note: 'Conga: heel and toe on most counts, a sharp slap on the & of 1 and the & of 3, two open tones on the & and a of 2 and of 4. Bass: the a of 1, the & of 2, the a of 3 and the & of 4, never on 1.' },
         { name: 'Cáscara on the timbal shell (3-2)', tracks: { clave: 'X..x..x...x.x...', hat: 'x.xx.x.xx.x.xx.x', mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'The timbalero’s verse pattern: its 2-side half contains the clave’s 2 and 3, so it only fits one way round.' },
+          note: 'The timbales player taps this on the drum’s metal shell in the verse. Its second half lands on the clave’s last two hits, so it only fits one way round.' },
         { name: 'Son conjunto: güiro and maracas', tracks: { clave: 'X..x..x...x.x...', chick: 'X.xxX.xxX.xxX.xx', shaker: 'xxxxxxxxxxxxxxxx', low: TUMBAO_BASS },
-          note: 'No bell: the güiro’s long-short-short and steady maracas, as in the older son septetos.' },
+          note: 'No bell: the güiro scrapes long-short-short and the maracas shake every sixteenth, as in the older son bands.' },
         { name: 'Bongó martillo', tracks: { clave: 'X..x..x...x.x...', hat: 'xxxxxx.xxxxxxx.x', mid: '......x.......x.', low: TUMBAO_BASS },
-          note: 'The bongosero’s “hammer”: steady eighths with an open tone on beat 4 of each bar.' },
+          note: 'The bongo player’s steady pattern (martillo, “hammer”): almost every sixteenth, with an open tone on the & of 2 and the & of 4.' },
         { name: 'Montuno: bongó bell and full tumbao', tracks: { clave: 'X..x..x...x.x...', bell: 'X.x.x.x.X.x.x.x.', high: CONGA_SLAP, mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'In the montuno the bongosero switches to the hand bell in quarter notes; the band gets louder, the clave stays the same.' }
+          note: 'In the loud, repeating last part of a song (the montuno) the bongo player switches to a hand bell on every number and &; the clave stays the same.' }
       ],
       fills: [
         { name: 'Abanico (timbales roll into the next 1)', cycles: 1, tracks: { clave: 'X..x..x...x.x...', high: '............xxxX', mid: CONGA_OPEN, low: TUMBAO_BASS },
@@ -45,47 +115,47 @@ export default {
         { name: 'Unison break on the clave', cycles: 1, tracks: { clave: 'X..x..x...x.x...', low: 'X..x..x...x.x...', mid: 'X..x..x...x.x...', high: 'X..x..x...x.x...' },
           note: 'The whole band hits the five clave strokes together and nothing else: the classic “a la clave” break.' }
       ],
-      tips: ['Keep the clave going while you sing the conga tumbao, then swap.', 'In the cáscara variation, check that the doubled strokes fall on the 3-side.', 'During the break, feel the empty spaces as strongly as the hits: the band comes back exactly on 1.']
+      tips: ['Keep the clave going while you sing the conga tumbao, then swap.', 'In the shell (cáscara) variation, check that the pairs of quick taps fall in the half of the bar with three clave hits.', 'During the break, feel the empty spaces as strongly as the hits: the band comes back exactly on 1.']
     },
 
     son23: {
       cycles: 8, tempo: [80, 130],
       variations: [
         { name: 'Conga marcha (tumbao) and bass tumbao', tracks: { clave: '..X.x...x..x..x.', hat: CONGA_HEELTOE, high: CONGA_SLAP, mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'The tumbao is the same in either clave direction; only the clave’s starting side changes.' },
+          note: 'The conga and bass parts are the same whichever way round the clave goes; only the clave changes.' },
         { name: 'Cáscara on the timbal shell (2-3)', tracks: { clave: '..X.x...x..x..x.', hat: 'x.x.xx.xx.xx.x.x', mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'The two halves of the cáscara swap places to follow the 2-3 clave.' },
+          note: 'The two halves of the shell pattern swap places to follow the clave.' },
         { name: 'Son conjunto: güiro and maracas', tracks: { clave: '..X.x...x..x..x.', chick: 'X.xxX.xxX.xxX.xx', shaker: 'xxxxxxxxxxxxxxxx', low: TUMBAO_BASS },
           note: 'Long-short-short güiro and steady maracas under a 2-3 clave.' },
         { name: 'Montuno: bongó bell and full tumbao', tracks: { clave: '..X.x...x..x..x.', bell: 'X.x.x.x.X.x.x.x.', high: CONGA_SLAP, mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'Bell in quarter notes; listen for the clave’s first stroke on beat 2, not on 1.' }
+          note: 'Bell on every number and &; listen for the clave’s first hit on the & of 1, not on 1.' }
       ],
       fills: [
         { name: 'Abanico (timbales roll into the next 1)', cycles: 1, tracks: { clave: '..X.x...x..x..x.', high: '............xxxX', mid: CONGA_OPEN, low: TUMBAO_BASS },
-          note: 'The roll leads into the 2-side again: the clave never turns around.' },
+          note: 'After the roll the clave starts again from the same half: it never turns around.' },
         { name: 'Unison break on the clave', cycles: 1, tracks: { clave: '..X.x...x..x..x.', low: '..X.x...x..x..x.', mid: '..X.x...x..x..x.', high: '..X.x...x..x..x.' },
           note: 'Everyone hits the clave together; the first beat of the cycle is silent, so count it.' }
       ],
-      tips: ['Start counting on 1 even though the clave starts on 2: the silent downbeat is the hard part.', 'Alternate a pass of son32 and son23 so you hear the same pattern from both sides.', 'In the break, say “one” out loud on the empty downbeat.']
+      tips: ['Start counting on 1 even though the clave starts on the & of 1: the silent 1 is the hard part.', 'Alternate a pass of Son clave 3-2 and Son clave 2-3 so you hear the same pattern from both ends.', 'In the break, say “one” out loud on the empty 1.']
     },
 
     rumba32: {
       cycles: 8, tempo: [85, 140], layaRamp: true,
       variations: [
         { name: 'Palitos (guagua) on the rumba clave', tracks: { clave: 'X..x...x..x.x...', hat: 'x.xx.x.xx.x.xx.x', mid: '............x.x.', high: '....x.......x...' },
-          note: 'The sticks pattern contains every rumba clave stroke plus fill-in strokes; it is the ancestor of the salsa cáscara.' },
+          note: 'The sticks play every clave hit plus some in between; salsa’s shell pattern grew out of it.' },
         { name: 'Palmas on the clave', tracks: { clave: 'X..x...x..x.x...', clap: 'X..x...x..x.x...', mid: '............x.x.', high: '....x.......x...', shaker: 'x.x.x.x.x.x.x.x.' },
-          note: 'Singers and dancers clap the clave with the stick player; the delayed third stroke is the one to feel.' },
+          note: 'Singers and dancers clap the clave with the stick player; feel the late third hit, on the a of 2.' },
         { name: 'Palitos and low drum on the downbeats', tracks: { clave: 'X..x...x..x.x...', hat: 'x.xx.x.xx.x.xx.x', low: 'x.......x.......', mid: '............x.x.', high: '....x.......x...' },
-          note: 'A low drum marks each bar line so you can hear how far the clave’s third stroke pushes past beat 4.' }
+          note: 'A low drum marks 1 and 3 so you can hear how late the clave’s third hit comes, just before 3.' }
       ],
       fills: [
         { name: 'Quinto phrase into the next 1', cycles: 1, tracks: { clave: 'X..x...x..x.x...', high: 'X..x...x..x.xxxx', mid: '............x.x.' },
-          note: 'The lead drum rides the clave strokes, then rolls into the next downbeat.' },
+          note: 'The lead drum plays with the clave hits, then rolls into the next 1.' },
         { name: 'Break: clave alone', cycles: 1, tracks: { clave: 'X..x...x..x.x...' },
           note: 'The drums drop out for one cycle; keep the time in your body so they can come back together.' }
       ],
-      tips: ['Rumba tends to speed up as the quinto heats up: practise with “speed up” on.', 'Sing “one, two-and, four … two, three” with the delayed third note late enough.', 'Clap the clave while the palitos play, then switch to the palitos.']
+      tips: ['Rumba tends to speed up as the quinto heats up: practise with “speed up” on.', 'Say “1, a of 1, a of 2, & of 3, 4” (slow count: “1, 2 &, 4 & … 2, 3”) and make the third hit late enough.', 'Clap the clave while the palitos play, then switch to the palitos.']
     },
 
     tresillo: {

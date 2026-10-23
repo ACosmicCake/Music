@@ -1,18 +1,22 @@
 /* World Woodshed — style drills: Cuba, Brazil, flamenco, Hindustani, Carnatic, Arab world, Turkey & the Balkans,
    West Africa, Central & East Africa, gypsy jazz, jazz, Latin America.
    Phrases are written in a short form and expanded below: 'midi:dur' tokens, '.' after the duration for a dot,
-   'r' for a rest, '|' between bars. Pitches are sounding MIDI (guitar range 40–88). */
+   'b' or '#' after the pitch to spell a chromatic note as a flat or a sharp, 'r' for a rest, '|' between bars.
+   Pitches are sounding MIDI (guitar range 40–88). */
 
 const P = s => s.trim().split('|').map(bar => bar.trim().split(/\s+/).map(tok => {
-  const [m, d0] = tok.split(':');
-  const dot = d0.endsWith('.');
+  const [m0, d0] = tok.split(':');
+  const dot = d0.endsWith('.'), sp = /[b#]$/.test(m0) ? m0.slice(-1) : null, m = sp ? m0.slice(0, -1) : m0;
   const n = { m: m === 'r' ? null : Number(m), d: dot ? d0.slice(0, -1) : d0 };
   if (dot) n.dot = true;
+  if (sp) n.sp = sp;
   return n;
 }));
 
 export default [
   /* ====================== CUBA ====================== */
+  /* One written 4/4 bar is one full round of son clave, counted as the app's clave grid counts it:
+     1 e & a 2 e & a 3 e & a 4 e & a, clave on 1, a of 1, & of 2, & of 3 and 4. */
   {
     id: 'cuba-tumbao-clave',
     style: 'cuba',
@@ -20,40 +24,42 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play the anticipated son bass (the tumbao) on the low strings while the clave keeps its own place.',
-    why: 'The tumbao skips beat 1 and lands early on the next chord, which is what makes son lean forward. Rotating the note choice while the rhythm stays fixed builds a flexible skill rather than one memorised motion.',
+    goal: 'Play the son bass line (the tumbao) on the low strings while the backing plays the clave.',
+    why: 'The son bass never plays on 1. It plays just before each chord change, so the music seems to lean forward. You keep the rhythm the same and change the notes, so you learn the feel instead of one finger pattern.',
     backing: { rhythm: 'son32' },
     tempo: [70, 110],
     steps: [
-      'One round of the backing is one whole clave: the 3-side, then the 2-side. The notation writes each side as a short bar, so every written bar is one bar of the son.',
-      'Clap the clave once through with the backing before you play.',
-      'Play only the last bass note of each bar first, with the thumb, and hear how it pulls into the next bar.',
-      'Add the earlier note so you have two notes per bar and nothing on the downbeat.',
-      'Keep your foot on the quarter-note pulse; the downbeat you skip should still be felt.'
+      'Count every bar as 1 e & a 2 e & a 3 e & a 4 e & a. One bar is one round of the clave.',
+      'The clave plays on 1, the a of 1, the & of 2, the & of 3 and 4. Clap it once with the backing.',
+      'Play variation 1: only the & of 2 and the & of 4, with your thumb.',
+      'Then variation 2: add the a of 1 and the a of 3. You never play on 1 or 3.',
+      'Tap your foot on 1, 2, 3 and 4 the whole time, so you still feel the 1 you skip.',
+      'Some teachers count the same clave twice as slowly, over two bars: 1, 2 &, 4, then 2, 3. It is the same rhythm.'
     ],
     variations: [
       {
         name: 'Anticipation only',
-        how: 'One note per bar, on beat 4 of each son bar (where the ponche falls on the 3-side). Each note is the root of the chord that comes next: F, G, F, C over a C–F–G–F loop.',
-        bars: P('r:q. 41:8 | r:q. 43:8 | r:q. 41:8 | r:q. 48:8'),
-        time: '2/4', key: 'C',
+        how: 'Two notes per bar: one on the & of 2 and one on the & of 4. Bar 1 is F, then G. Bar 2 is F, then C. The chords change every two beats (C, F, G, F) but the backing has no chords; your notes arrive just before each change.',
+        bars: P('r:q. 41:8 r:q. 43:8 | r:q. 41:8 r:q. 48:8'),
+        time: '4/4', key: 'C',
         positions: [[6, 1], [6, 3], [5, 3]]
       },
       {
         name: 'Fifth, then anticipation',
-        how: 'Two notes per bar: the fifth of the current chord, then the root of the next chord. Leave the downbeat empty every time.',
-        bars: P('r:8. 43:8. 41:8 | r:8. 48:8. 43:8 | r:8. 50:8. 41:8 | r:8. 48:8. 48:8'),
-        time: '2/4', key: 'C'
+        how: 'Four notes per bar, on the a of 1, the & of 2, the a of 3 and the & of 4. In each pair, the first note is the fifth of the chord you are on and the second is the root of the next chord.',
+        bars: P('r:8. 43:8. 41:8 r:8. 48:8. 43:8 | r:8. 50:8. 41:8 r:8. 48:8. 48:8'),
+        time: '4/4', key: 'C'
       },
       {
         name: 'Root, then anticipation',
-        how: 'Same rhythm, but the first note is the root of the current chord. Listen for how much heavier it sounds than the fifth.',
-        bars: P('r:8. 48:8. 41:8 | r:8. 41:8. 43:8 | r:8. 43:8. 41:8 | r:8. 41:8. 48:8'),
-        time: '2/4', key: 'C'
+        how: 'Same counts as variation 2, but the first note of each pair is the root of the chord you are on. Hear how much heavier it sounds.',
+        bars: P('r:8. 48:8. 41:8 r:8. 41:8. 43:8 | r:8. 43:8. 41:8 r:8. 41:8. 48:8'),
+        time: '4/4', key: 'C'
       },
       {
-        name: 'Thumb tumbao, fingers on the 2-side',
-        how: 'Keep the tumbao in the thumb and pluck a short C or F chord on the top three strings exactly with the two strokes of the 2-side of the clave.'
+        name: 'Thumb tumbao, fingers with the clave',
+        how: 'Your thumb keeps variation 2 going. Your fingers pluck a short F chord on the top three strings (frets 2, 1, 1) on the & of 3 and on 4, together with the clave.',
+        grid: { rows: { thumb: '...x..x....x..x.', fingers: '..........x.x...' } }
       }
     ],
     listen: { artist: 'Israel “Cachao” López', work: 'Master Sessions Vol. 1' }
@@ -65,38 +71,38 @@ export default [
     focus: 'technique',
     level: 2,
     minutes: 10,
-    goal: 'Play a syncopated guajeo in octaves on strings 1 and 3 that sits on the 3-2 clave.',
-    why: 'The tres doubles its lines in octaves, and a guajeo only works if its accents agree with the clave. Changing texture and alignment one at a time trains both the hand and the ear for clave direction.',
+    goal: 'Play a short repeating tres line (a guajeo) in octaves on strings 1 and 3, with a note on every clave hit.',
+    why: 'The Cuban tres doubles its lines in octaves, and its line only works if it agrees with the clave. You change one thing at a time, so your hands and your ear both learn where the clave sits.',
     backing: { groove: 'son', bars: ['C F', 'G7 F'] },
     tempo: [70, 105],
     steps: [
-      'This is a model guajeo written for practice, built the way tres parts are built: short, repeated, and locked to the clave.',
-      'Each written bar is one bar of the son; one round of the backing covers two written bars (C then F).',
-      'Learn the top line alone on string 1, then add the octave below on string 3 (three frets lower), muting string 2 with the side of the finger.',
-      'Use down-up alternate picking; the rests are where the pick still moves but misses the strings.',
-      'Play the guajeo for a full minute without changing anything before you move on.'
+      'This is a practice guajeo, built the way tres parts are built: short, repeated and fitted to the clave.',
+      'Count every bar as 1 e & a 2 e & a 3 e & a 4 e & a. One written bar is one round of the clave; the chord changes on 3.',
+      'Learn the top line alone on string 1. Then add the same notes on string 3, three frets lower, and mute string 2 with the side of your finger.',
+      'Pick down on the numbers and &s, up on the e and a counts. On a rest, keep the pick moving but miss the strings.',
+      'Play it for a full minute without changing anything before you move on.'
     ],
     variations: [
       {
         name: 'Top line only',
-        how: 'Single notes on string 1. Check that bar 1 hits the three strokes of the 3-side and bar 2 hits both strokes of the 2-side.',
-        bars: P('72:16 r:16 76:16 72:16 r:16 76:16 72:8 | r:16 69:16 72:16 r:16 69:16 70:16 69:8 | 71:16 r:16 74:16 71:16 r:16 74:16 71:8 | r:16 72:16 69:16 r:16 72:16 69:16 67:8'),
-        time: '2/4', key: 'C'
+        how: 'Single notes on string 1. In bar 1, a note lands on all five clave hits; the grid shows them lined up.',
+        bars: P('72:16 r:16 76:16 72:16 r:16 76:16 72:8 r:16 69:16 72:16 r:16 69:16 70b:16 69:8 | 71:16 r:16 74:16 71:16 r:16 74:16 71:8 r:16 72:16 69:16 r:16 72:16 69:16 67:8'),
+        time: '4/4', key: 'C'
       },
       {
         name: 'In octaves',
-        how: 'Same line, each note doubled an octave lower on string 3, three frets back. The marks show the C and E octave pairs.',
-        bars: P('72:16 r:16 76:16 72:16 r:16 76:16 72:8 | r:16 69:16 72:16 r:16 69:16 70:16 69:8 | 71:16 r:16 74:16 71:16 r:16 74:16 71:8 | r:16 72:16 69:16 r:16 72:16 69:16 67:8'),
-        time: '2/4', key: 'C',
+        how: 'The same line, with each note also played on string 3, three frets lower. The marks show the C pair (strings 1 and 3, frets 8 and 5) and the E pair (frets 12 and 9).',
+        bars: P('72:16 r:16 76:16 72:16 r:16 76:16 72:8 r:16 69:16 72:16 r:16 69:16 70b:16 69:8 | 71:16 r:16 74:16 71:16 r:16 74:16 71:8 r:16 72:16 69:16 r:16 72:16 69:16 67:8'),
+        time: '4/4', key: 'C',
         positions: [[1, 8], [3, 5], [1, 12], [3, 9]]
       },
       {
         name: 'In thirds',
-        how: 'Keep the rhythm, but harmonise each top note with the chord tone a third below on string 2, the way a second tres or a piano montuno often does.'
+        how: 'Keep the rhythm. Under each top note, add the chord note a third below it on string 2, as a second tres or a piano often does.'
       },
       {
-        name: 'Crossed on purpose',
-        how: 'For one round, start the line from its second bar so the 2-side figure falls on the 3-side. Hear the clash (the part is “cruzado”), then put it back.'
+        name: 'Backwards on purpose',
+        how: 'For one round, start the line from the & of 3 (its second half) so it no longer matches the clave. Hear the clash, then put it back.'
       }
     ],
     listen: { artist: 'Buena Vista Social Club', work: 'El Cuarto de Tula' }
@@ -108,35 +114,35 @@ export default [
     focus: 'ear',
     level: 2,
     minutes: 8,
-    goal: 'Learn a short coro by ear and answer it with your own improvised pregón that fits the clave.',
-    why: 'The montuno section of son is a call and response between a fixed coro and an improvised pregón. Learning the coro by ear and answering it under constraints is retrieval and variable practice in one.',
+    goal: 'Learn a short chorus line (the coro) by ear, then answer it with your own short improvised line (the pregón).',
+    why: 'Late in a son song, a fixed chorus and an improvising lead singer take turns. Learning the chorus by ear and answering it with a few rules trains your ear and your ideas together.',
     backing: { groove: 'son', bars: ['C F', 'G7 F'] },
     tempo: [70, 100],
     steps: [
-      'Set “Change variation every” to never while you learn the coro, then let it rotate.',
+      'Set “Change variation every” to never while you learn the coro, then let it change.',
       'Press Hear the phrase without looking at the staff. Sing it back twice.',
-      'Find it on the guitar by ear, then check against the notation.',
-      'Trade: play the coro for two rounds, improvise for two rounds, repeat.',
-      'Keep your answer short. A good pregón leaves space before the coro comes back.'
+      'Find it on the guitar by ear, then check it against the notation.',
+      'Take turns: play the coro for one round, make up an answer for one round, repeat.',
+      'Keep your answer short. Leave a gap before the coro comes back.'
     ],
     variations: [
       {
         name: 'Learn the coro',
-        how: 'A model coro over C–F–G7–F, two rounds long. Sing it, then play it on strings 1 and 2.',
-        bars: P('76:8 76:16 74:16 72:8 r:8 | 69:8. 72:16 r:q | 74:8 74:16 72:16 71:8 r:8 | 69:8 67:8 r:q'),
-        time: '2/4', key: 'C'
+        how: 'A practice coro over C, F, G7, F, one round long. Sing it, then play it on strings 1 and 2.',
+        bars: P('76:8 76:16 74:16 72:8 r:8 69:8. 72:16 r:q | 74:8 74:16 72:16 71:8 r:8 69:8 67:8 r:q'),
+        time: '4/4', key: 'C'
       },
       {
         name: 'Answer with two notes',
-        how: 'Improvise the pregón using only C and E. All the interest has to come from rhythm and where you start.'
+        how: 'Make up your answer using only C and E. All the interest has to come from the rhythm and where you start.'
       },
       {
         name: 'Answer in the coro’s rhythm',
-        how: 'Keep the coro’s rhythm exactly but choose new chord tones for each chord.'
+        how: 'Keep the coro’s rhythm exactly, but choose new notes from each chord.'
       },
       {
-        name: 'Start on the second clave stroke',
-        how: 'Begin every answer on the second stroke of the 3-side, never on the downbeat, and end before the coro returns.'
+        name: 'Start on the a of 1',
+        how: 'Begin every answer on the a of 1 (the second clave hit), never on 1, and stop before the coro returns.'
       }
     ],
     listen: { artist: 'Septeto Nacional de Ignacio Piñeiro', work: 'Échale salsita' }
@@ -148,36 +154,41 @@ export default [
     focus: 'harmony',
     level: 3,
     minutes: 10,
-    goal: 'Move to each new chord an eighth note before the bar line, the way son guitar, bass and piano do.',
-    why: 'In son the harmony changes early: the new chord arrives on the last eighth of the old bar and is held over the downbeat. The backing changes on the beat, so you hear exactly how early you are.',
+    goal: 'Play each new chord one & early, the way son guitar, bass and piano do.',
+    why: 'In son the next chord arrives early, on the & just before the change, and rings over it. The backing changes exactly on time, so you can hear how early you are.',
     backing: { groove: 'son', bars: ['Dm F', 'Gm A7'] },
     tempo: [70, 105],
     steps: [
-      'Learn the four triads on the top three strings shown in the variations; they sit within two frets of each other.',
-      'Play one short chord on each beat with the backing, changing on the downbeat.',
-      'Then move each change to the last eighth of the bar before, and let that chord ring over the downbeat.',
-      'Keep the right hand moving in eighths even when you do not strike, so the anticipation falls in time.'
+      'The chords change every two beats, on 1 and on 3: Dm, F, Gm, A7.',
+      'Learn the four chords on the top three strings shown in the variations; they sit within two frets of each other.',
+      'First play one short chord on each beat, changing exactly on 1 and 3.',
+      'Then play each new chord on the & just before: the & of 2 and the & of 4. Let it ring over the 1 or 3.',
+      'Keep your hand moving down-up on every count (1 & 2 &) even when you do not strike, so the early chord lands in time.'
     ],
     variations: [
       {
         name: 'On the beat (reference)',
-        how: 'Change exactly with the backing on each downbeat. The marks show Dm on the top strings.',
-        positions: [[3, 7], [2, 6], [1, 5]]
+        how: 'Change exactly with the backing, on 1 and 3. The marks show Dm on the top strings.',
+        positions: [[3, 7], [2, 6], [1, 5]],
+        grid: { rows: { strum: 'x.x.x.x.' } }
       },
       {
         name: 'Every change early',
-        how: 'Strike each new chord on the “and” of 4 of the bar before and do not strike the downbeat. The marks show F (C–F–A).',
-        positions: [[3, 5], [2, 6], [1, 5]]
+        how: 'Strike on 2 and 4, and play each new chord on the & of 2 and the & of 4. Do not strike 1 or 3: the early chord is still ringing. The marks show F.',
+        positions: [[3, 5], [2, 6], [1, 5]],
+        grid: { rows: { strum: '..xX..xX' } }
       },
       {
-        name: 'Early into the 3-side only',
-        how: 'Anticipate only the changes into Dm and Gm (the starts of the 3-side); land on F and A7 on the beat. The marks show Gm.',
-        positions: [[3, 7], [2, 8], [1, 6]]
+        name: 'Early into Dm and Gm only',
+        how: 'Play Dm and Gm early, on the & of 4 of the bar before. Play F and A7 on time, on 3. The marks show Gm.',
+        positions: [[3, 7], [2, 8], [1, 6]],
+        grid: { rows: { strum: '..x.x.xX' } }
       },
       {
-        name: 'Anticipation with a strum pattern',
-        how: 'Muted down-up eighths, accents on the “and” of 2 and on 4, and the chord change on the “and” of 4. The marks show A7 (C♯–G–A).',
-        positions: [[3, 6], [2, 8], [1, 5]]
+        name: 'Early changes with a strum',
+        how: 'Strum muted down-up eighths. Let the chord sound loud only on the & of 2 and the & of 4, which is where each new chord comes in. The marks show A7.',
+        positions: [[3, 6], [2, 8], [1, 5]],
+        grid: { rows: { strum: 'xxxXxxxX' } }
       }
     ],
     listen: { artist: 'Buena Vista Social Club', work: 'Chan Chan' }
@@ -191,21 +202,24 @@ export default [
     focus: 'harmony',
     level: 2,
     minutes: 10,
-    goal: 'Comp a ii–V–I–VI in C with four-note voicings whose top note moves by step, thumb on the bass.',
-    why: 'Bossa guitar moves one voice at a time while the rest hold still. Building from shells to full voicings to a planned top line is whole–part practice for a skill that is about listening to the inner voices.',
+    goal: 'Play Dm9, G13, Cmaj9 and A7♭9 in the bossa rhythm, with the thumb on the bass and a top note that moves one step at a time.',
+    why: 'Bossa guitar changes one note of the chord at a time while the others stay put. You build the chords up in stages (three notes, then four, then the top line) so you learn to hear the notes inside the chord.',
     backing: { groove: 'bossa', bars: ['Dm9', 'G13', 'Cmaj9', 'A7b9'] },
     tempo: [70, 130],
     steps: [
       'Learn the four shapes slowly without the backing, saying each top note as you play it.',
-      'Thumb on the bass string, fingers (i-m-a) on the three upper strings together.',
-      'Play the chords on the bossa pattern with the backing; the thumb stays steady while the fingers syncopate.',
+      'Count every bar as 1 e & a 2 e & a 3 e & a 4 e & a.',
+      'Thumb on the bass string on 1, the & of 2, 3 and the & of 4. It never changes.',
+      'Fingers (index, middle, ring) pluck the upper strings together on 1, the a of 1, the & of 2, the & of 3 and the e of 4. These are the same counts as the clave in the backing.',
+      'Learn thumb and fingers separately first, then together, slowly.',
       'Listen to the top note as a melody: E, E, D, C♯.'
     ],
     variations: [
       {
         name: 'Shells first',
-        how: 'Root, 3rd and 7th only: thumb on the root, two fingers on the 3rd and 7th. The marks show the Dm7 shell (D–F–C).',
-        positions: [[5, 5], [4, 3], [3, 5]]
+        how: 'Three notes only: thumb on the root, two fingers on the 3rd and 7th. The marks show Dm7 as D, F and C.',
+        positions: [[5, 5], [4, 3], [3, 5]],
+        grid: { rows: { thumb: 'x.....x.x.....x.', fingers: 'x..x..x...x..x..' } }
       },
       {
         name: 'Add the colour tone on top',
@@ -220,7 +234,8 @@ export default [
       },
       {
         name: 'Anticipate the change',
-        how: 'Play the last finger stroke of each bar as the next chord, so the harmony arrives a sixteenth early while the thumb stays on the old root until the bar line.'
+        how: 'Play the last finger stroke of each bar (the e of 4) already as the next chord. The thumb stays on the old bass note until 1.',
+        grid: { rows: { thumb: 'x.....x.x.....x.', fingers: 'x..x..x...x..X..' } }
       }
     ],
     listen: { artist: 'João Gilberto', work: 'Chega de Saudade (1959)' }
@@ -232,33 +247,37 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 8,
-    goal: 'Keep a samba bass in the thumb with the weight on beat 2 while the fingers place chords on different sixteenths.',
-    why: 'Samba guitar is two parts in one hand: the thumb plays the surdo and the fingers play the tamborim-like syncopation. Moving the finger part while the thumb stays fixed builds independence.',
+    goal: 'Keep a steady samba bass in your thumb, louder on 2, while your fingers play short chords between the thumb notes.',
+    why: 'Samba guitar is two parts in one hand: the thumb copies the big bass drum (the surdo) and the fingers copy the small drums. You move the finger part while the thumb stays the same, so the two hands learn to work on their own.',
     backing: { rhythm: 'samba' },
     tempo: [70, 100],
     steps: [
-      'The backing is two bars of 2/4: the surdo hits hard on beat 2 of each bar. Count “1 e & a 2 e & a”.',
+      'The backing is two short bars of 2 beats. Count each bar “1 e & a 2 e & a”. The bass drum hits hard on 2.',
       'Hold Am7 at the 5th fret (5-x-5-5-5-x) for the whole drill.',
-      'Thumb on the beats, alternating root (string 6) and fifth (string 5), softer on 1 and heavier on 2.',
-      'Add the finger part from each variation without letting the thumb speed up or drift.'
+      'Thumb on 1 and 2 only: string 6 on 1 (soft), string 4 on 2 (loud).',
+      'Add the finger part from each variation. If the thumb speeds up or drifts, go back to the thumb alone.'
     ],
     variations: [
       {
         name: 'Thumb alone',
-        how: 'Root on 1, fifth on 2, heavier on 2, matching the surdo.',
-        positions: [[6, 5], [4, 5], [3, 5], [2, 5]]
+        how: 'Thumb only: soft on 1, loud on 2, with the bass drum.',
+        positions: [[6, 5], [4, 5], [3, 5], [2, 5]],
+        grid: { time: '2/4', bars: 2, rows: { thumb: 'x...X...x...X...' } }
       },
       {
         name: 'Fingers on every “a”',
-        how: 'Pluck the chord with i-m-a on the last sixteenth of each beat, just before the thumb.'
+        how: 'Fingers pluck the chord on the a of 1 and the a of 2, just before each thumb note.',
+        grid: { time: '2/4', bars: 2, rows: { thumb: 'x...X...x...X...', fingers: '...x...x...x...x' } }
       },
       {
         name: 'Fingers on “e” and “a”',
-        how: 'Two finger strokes per beat, on the second and fourth sixteenths, so the fingers never land with the thumb.'
+        how: 'Fingers on every e and every a, so they never play together with the thumb.',
+        grid: { time: '2/4', bars: 2, rows: { thumb: 'x...X...x...X...', fingers: '.x.x.x.x.x.x.x.x' } }
       },
       {
         name: 'The bossa figure',
-        how: 'Fingers on sixteenths 1, 4, 7, 11 and 14 of the two bars: the samba-derived figure that João Gilberto made the bossa nova beat.'
+        how: 'Fingers on 1, the a of 1 and the & of 2 in bar 1, then the & of 1 and the e of 2 in bar 2. João Gilberto took this samba figure and made it the bossa nova beat.',
+        grid: { time: '2/4', bars: 2, rows: { thumb: 'x...X...x...X...', fingers: 'x..x..x...x..x..' } }
       }
     ],
     listen: { artist: 'Cartola', work: 'O Mundo é um Moinho' }
@@ -270,13 +289,14 @@ export default [
     focus: 'melody',
     level: 3,
     minutes: 10,
-    goal: 'Run sixteenth-note arpeggios through G–G♯dim7–Am7–D7 with chromatic approach notes, the way choro melodies move.',
-    why: 'Choro lines are arpeggios with chromatic approaches, and the diminished chord between I and ii is one of its signature moves. Changing direction and adding approaches one step at a time keeps the line flexible instead of memorised.',
+    goal: 'Play fast even notes (four per beat) through the chords of G, G♯dim7, Am7 and D7, the way choro melodies move.',
+    why: 'Choro melodies are mostly chord notes played one at a time, with extra notes a half step below. You change one thing at a time (direction, extra notes), so the line stays flexible instead of memorised.',
     backing: { click: { beats: 2, sub: 2 } },
     tempo: [60, 100],
     steps: [
       'Learn the plain arpeggios first at a tempo where every note is even.',
-      'Alternate picking (or i-m rest strokes) with no accent except where you choose one.',
+      'Each bar is two beats. Count it “1 e & a 2 e & a”: one note on every count.',
+      'Pick down-up all the way through, all notes the same loudness.',
       'Hear the bass climbing G–G♯–A under the line, then D7 pulling back to G.',
       'Raise the tempo only when the whole four bars are clean twice in a row.'
     ],
@@ -301,7 +321,7 @@ export default [
       },
       {
         name: 'Add a baixaria',
-        how: 'After the four bars, answer with a 7-string-style bass run on strings 5 and 6 (D–C–B–A–G in sixteenths) into the top of the line.'
+        how: 'After the four bars, answer with a bass run on strings 5 and 6, as the 7-string guitar does in choro (a baixaria): D, C, B, A, G, one note per count, then start the line again.'
       }
     ],
     listen: { artist: 'Jacob do Bandolim', work: 'Noites Cariocas' }
@@ -313,15 +333,15 @@ export default [
     focus: 'melody',
     level: 2,
     minutes: 8,
-    goal: 'Play and vary short northeastern phrases over D7 that lean on the ♯4 (G♯) and the ♭7 (C).',
-    why: 'The raised 4th and lowered 7th are the colour of baião and forró melody. Moving the same phrase between octaves and then answering it yourself turns a scale into vocabulary.',
+    goal: 'Play short phrases from northeast Brazil over D7 that use G♯ and C, the two notes that give baião its sound.',
+    why: 'Baião and forró melodies use a scale with a raised 4th (G♯ over D) and a lowered 7th (C). Playing the same phrase in two octaves and then making up your own answer turns the scale into phrases you can use.',
     backing: { groove: 'drone', bars: ['D7'] },
     tempo: [70, 110],
     steps: [
       'Play D Lydian dominant once up and down: D E F♯ G♯ A B C D.',
       'Learn the first phrase and sing it; notice the G♯ resolving to A.',
       'Play each phrase twice in a row, then rest for one round.',
-      'Keep the eighths straight and bright; the music is in 2.'
+      'Each bar is two beats: count “1 & 2 &”. Keep the eighths even, not swung.'
     ],
     variations: [
       {
@@ -358,34 +378,39 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play a basic soleá compás por arriba, E and F, with the accents on 3, 6, 8, 10 and 12.',
-    why: 'Compás is the first thing a flamenco teacher checks. Keeping the chords fixed while the right hand changes lets you build the accents into the body before adding technique.',
+    goal: 'Play the 12-count soleá rhythm (its compás) on E and F, loud on 3, 6, 8, 10 and 12.',
+    why: 'Keeping the 12-count rhythm is the first thing a flamenco teacher checks. The chords stay the same while your strumming hand changes, so the loud counts get into your body before you add harder techniques.',
     backing: { rhythm: 'solea' },
+    grid: { time: '12/4', count: '1 2 3 | 4 5 6 | 7 8 | 9 10 | 11 12' },
     tempo: [90, 160],
     steps: [
-      'Count 1 to 12 out loud with the backing before you play.',
-      'One common basic pattern: E from 1 to 7, F on 8 and 9, back to E on 10 to 12.',
+      'Count 1 to 12 out loud with the backing before you play. The loud counts are 3, 6, 8, 10 and 12.',
+      'Chords: E on counts 1 to 7, F on 8 and 9, E again on 10 to 12.',
       'Play F as x-3-3-2-1-0, letting the open top string ring.',
-      'Strike on every count but make the accented counts clearly louder.',
+      'Strum on every count, and make 3, 6, 8, 10 and 12 clearly louder.',
       'Keep counting out loud for the whole drill.'
     ],
     variations: [
       {
         name: 'Strokes on the accents',
-        how: 'One index downstroke on 3, 6, 8, 10 and 12; light thumb strokes on the other counts.',
-        positions: [[6, 0], [5, 2], [4, 2], [3, 1], [2, 0], [1, 0]]
+        how: 'A loud index-finger downstroke on 3, 6, 8, 10 and 12. A soft thumb stroke on every other count.',
+        positions: [[6, 0], [5, 2], [4, 2], [3, 1], [2, 0], [1, 0]],
+        grid: { rows: { index: '..X..X.X.X.X', thumb: 'xx.xx.x.x.x.' } }
       },
       {
         name: 'Rasgueado on 3 and 6',
-        how: 'Replace the strokes on 3 and 6 with an e-a-m-i roll that finishes exactly on the count.'
+        how: 'On 3 and 6, play a rasgueado instead of one stroke: flick out the little, ring, middle and index fingers one after another, so the last one lands exactly on the count.',
+        grid: { rows: { roll: '..X..X......', strum: 'xx.xx.xXxXxX' } }
       },
       {
         name: 'Close on 10',
-        how: 'A full rasgueado on 10, then damp the strings with the left hand: silence on 11, a light stroke on 12.'
+        how: 'A rasgueado (finger roll) on 10, then lay your fretting hand flat on the strings so 11 is silent. A light stroke on 12.',
+        grid: { rows: { roll: '.........X..', strum: 'xxXxxXxXx..x' } }
       },
       {
         name: 'Add golpe',
-        how: 'Tap the golpeador with the ring finger together with the strum on each accent.'
+        how: 'On each loud count, tap the guitar top below the strings (the golpe) with your ring finger at the same moment as the strum.',
+        grid: { rows: { strum: 'xxXxxXxXxXxX', tap: '..x..x.x.x.x' } }
       }
     ],
     listen: { artist: 'Paco de Lucía', work: 'Gloria al Niño Ricardo (Almoraima, 1976)' }
@@ -397,15 +422,15 @@ export default [
     focus: 'technique',
     level: 2,
     minutes: 10,
-    goal: 'Play i-m rest-stroke runs in A minor / E Phrygian dominant that land on E at the end of the cadence.',
-    why: 'A picado run is only useful if it lands on time on the chord. Changing the grouping and direction while the target stays the same is variable practice for the hand and the ear.',
+    goal: 'Play fast single-note runs (picado) with index and middle fingers that end on E exactly when the E chord arrives.',
+    why: 'A fast run only works if it ends on time on the chord. You change the shape of the run while the last note stays the same, which trains your hand and your ear together.',
     backing: { groove: 'flamenco', bars: ['Am', 'G', 'F', 'E'] },
     tempo: [70, 120],
     steps: [
-      'Alternate i and m with rest strokes; the finger comes to rest on the next string.',
+      'Alternate index and middle fingers. After each note, let the finger come to rest on the next string down (a rest stroke).',
       'Practise each variation without the backing first at half tempo.',
       'Plant the thumb on string 6 for stability on the higher runs.',
-      'The last note must arrive on beat 1 or 3 of the E bar; land it, then stop.'
+      'Count “1 & 2 & 3 & 4 &” for eighths, “1 e & a” for the fast ones. The last note must land on 1 or 3 of the E bar; land it, then stop.'
     ],
     variations: [
       {
@@ -416,7 +441,7 @@ export default [
       },
       {
         name: 'Descending fours',
-        how: 'Sixteenths in four-note cells, each cell starting a step lower. Play it over the F and E bars.',
+        how: 'Four notes per beat, in groups of four, each group starting one note lower. Play it over the F and E bars.',
         bars: P('69:16 67:16 65:16 64:16 67:16 65:16 64:16 62:16 65:16 64:16 62:16 60:16 64:16 62:16 60:16 59:16 | 62:16 60:16 59:16 57:16 60:16 59:16 57:16 56:16 59:16 57:16 56:16 53:16 52:q'),
         time: '4/4', key: 'Am'
       },
@@ -428,7 +453,8 @@ export default [
       },
       {
         name: 'Accent every third note',
-        how: 'Play the descending fours but accent every third note, so the accents cut across the groups of four.'
+        how: 'Play the descending fours, but make every third note loud. The loud notes move around inside the groups of four.',
+        grid: { rows: { accent: 'X..X..X..X..X..X' } }
       }
     ],
     listen: { artist: 'Paco de Lucía', work: 'Entre dos aguas' }
@@ -441,7 +467,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Play Dm–C–B♭–A in several textures, including parallel triads whose top note falls A–G–F–E.',
-    why: 'The Andalusian cadence por medio is the home of bulerías, soleá por medio and many falsetas. Playing the same four chords in different textures builds a flexible map of the neck rather than one shape set.',
+    why: 'These four chords, falling to A, are home for bulerías and many flamenco melodies. Playing them in different ways teaches you the neck instead of one set of shapes.',
     backing: { groove: 'flamenco', bars: ['Dm', 'C', 'Bb', 'A'] },
     tempo: [80, 130],
     steps: [
@@ -452,7 +478,8 @@ export default [
     variations: [
       {
         name: 'Thumb bass and strum',
-        how: 'Thumb on the bass note on beat 1, index strums on the accents of the groove.'
+        how: 'Thumb plays the bass note on 1. Index finger strums on 1, 2, the & of 2, 3 and 4, loud on 1 and 3, like the backing.',
+        grid: { rows: { thumb: 'x.......', index: 'X.xxX.x.' } }
       },
       {
         name: 'Parallel triads, top strings',
@@ -463,11 +490,12 @@ export default [
       },
       {
         name: 'Arpeggio p-i-m-i',
-        how: 'Thumb on the bass, then i-m-i on strings 3-2-3 in eighths, two groups per bar.'
+        how: 'Count “1 & 2 & 3 & 4 &”. Thumb on the bass note on 1 and 3; index, middle, index on strings 3, 2, 3 on the counts between.',
+        grid: { rows: { thumb: 'x...x...', fingers: '.xxx.xxx' } }
       },
       {
         name: 'Rasgueado on the change',
-        how: 'A four-finger rasgueado on the first beat of each new chord, single strokes in between.'
+        how: 'On 1 of each new chord, a rasgueado (flick out little, ring, middle and index fingers in turn). Single strokes on 2, 3 and 4.'
       }
     ]
   },
@@ -478,32 +506,37 @@ export default [
     focus: 'rhythm',
     level: 3,
     minutes: 10,
-    goal: 'Hold a fast bulerías compás por medio counted from 12, closing on 10 with silence on 11.',
-    why: 'Bulerías is soleá’s cycle at speed, counted from 12, and the cierre on 10 is how players and dancers mark the end of a phrase. Varying what you leave out trains the cycle, not just the strokes.',
+    goal: 'Keep the fast 12-count bulerías rhythm going on A and B♭, and end a phrase on 10 with silence on 11.',
+    why: 'Bulerías is the soleá cycle played fast. Players and dancers end a phrase with a sharp hit on 10 (the cierre, “closing”). Changing what you leave out trains the cycle, not just the strokes.',
     backing: { rhythm: 'solea' },
+    grid: { time: '12/4', count: '1 2 3 | 4 5 6 | 7 8 | 9 10 | 11 12' },
     tempo: [160, 240],
     steps: [
-      'Count “12, 1, 2, 3 … 11” with the backing. The cycle starts on 12.',
-      'One common basic compás por medio: A on 12 through 6, B♭ on 7 and 8, A on 9 and 10, silence on 11.',
-      'Accent 12, 3, 6, 8 and 10.',
-      'Start at the low tempo; bulerías needs to feel relaxed before it can be fast.'
+      'Count 1 to 12 with the backing, like soleá. Bulerías players start each phrase on 12, the last count, so your first strum is on 12.',
+      'Chords: A from 12 to 6, B♭ on 7 and 8, A on 9 and 10, nothing on 11.',
+      'Loud on 12, 3, 6, 8 and 10.',
+      'Start at the low tempo. Bulerías has to feel relaxed before it can be fast.'
     ],
     variations: [
       {
         name: 'Basic compás',
-        how: 'A strum on every count from 12 to 10, accents on 12, 3, 6, 8 and 10; damp on 11.'
+        how: 'A strum on every count, loud on 12, 3, 6, 8 and 10. On 11, lay your fretting hand on the strings so nothing sounds.',
+        grid: { rows: { strum: 'xxXxxXxXxX.X' } }
       },
       {
         name: 'Accents only',
-        how: 'Strike only 12, 3, 6, 8 and 10. Count the gaps out loud.'
+        how: 'Strum only on 12, 3, 6, 8 and 10. Count the gaps out loud.',
+        grid: { rows: { strum: '..X..X.X.X.X' } }
       },
       {
         name: 'Cierre',
-        how: 'A sharp rasgueado on 10, then both hands damp the strings so 11 is truly silent.'
+        how: 'A sharp rasgueado (finger roll) on 10, then both hands stop the strings so 11 is truly silent. Start again on 12.',
+        grid: { rows: { strum: 'xxXxxXxXx..X', roll: '.........X..' } }
       },
       {
         name: 'Contratiempo',
-        how: 'From 1 to 6 strum only between the counts, like off-beat palmas, then return to the accents on 8 and 10.'
+        how: 'From 1 to 6, strum only on the “&” between the counts, like handclaps between the beats. Then go back to strumming on 8 and 10.',
+        grid: { count: '1 & 2 & 3 & | 4 & 5 & 6 & | 7 & 8 & | 9 & 10 & | 11 & 12 &', rows: { strum: '.x.x.x.x.x.x..X...X.....' } }
       }
     ],
     listen: { artist: 'Paco de Lucía', work: 'Almoraima' }
@@ -518,11 +551,11 @@ export default [
     level: 1,
     minutes: 10,
     goal: 'Play the characteristic phrases of Bhupali (S R G P D) with each note settled against Sa.',
-    why: 'A raga is its phrases, not its scale. Learning a few movements in different registers, slowly, against the drone trains the ear to hear each note as a relation to Sa.',
+    why: 'A raga is a set of typical phrases, not just a scale. Playing a few of them slowly against the drone trains your ear to hear every note against Sa, the home note.',
     backing: { groove: 'drone', bars: ['C'] },
     tempo: [50, 80],
     steps: [
-      'Sa is C. Bhupali uses S R G P D (C D E G A) and leaves out Ma and Ni.',
+      'Sa (the home note, the drone) is C. Bhupali uses five notes: Sa Re Ga Pa Dha, which here are C D E G A.',
       'Hold each long note until it stops beating against the drone.',
       'Slide between notes on one string where you can, rather than changing strings.',
       'Sing the sargam names as you play: Sa Re Ga Pa Dha.'
@@ -530,25 +563,25 @@ export default [
     variations: [
       {
         name: 'Aroha and avaroha',
-        how: 'Ascent S R G P D Ṡ and descent Ṡ D P G R S, each note a beat.',
+        how: 'Up the scale and back down, one note per beat: C D E G A C, then C A G E D C.',
         bars: P('60:q 62:q 64:q 67:q | 69:q 72:h. | 72:q 69:q 67:q 64:q | 62:q 60:h.'),
         time: '4/4', key: 'C'
       },
       {
         name: 'G R S, D̤ S',
-        how: 'Ga to Re, down to Sa, dip to lower Dha and back. Slide from Re to Sa.',
+        how: 'E, D, C, then dip down to the low A and back up to C. Slide from D to C.',
         bars: P('64:h 62:q 60:q | 57:q 60:h.'),
         time: '4/4', key: 'C'
       },
       {
         name: 'G P D Ṡ and back',
-        how: 'Climb to upper Sa through Pa and Dha, then come back down to Re and Sa.',
+        how: 'Climb E G A to the high C, then come back down to D and C.',
         bars: P('64:q 67:q 69:q 72:q | 72:h 69:8 67:8 64:q | 62:q 64:q 62:q 60:q | 60:w'),
         time: '4/4', key: 'C'
       },
       {
         name: 'Lower octave',
-        how: 'Start from lower Pa and Dha and rise to Ga, then settle on Sa.',
+        how: 'Start from the low G and A, rise to E, then settle on C.',
         bars: P('55:q 57:q 60:h | 62:q 64:q 62:q 60:q | 57:h 60:h | 60:w'),
         time: '4/4', key: 'C'
       }
@@ -562,39 +595,40 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 10,
-    goal: 'Start a three-times-repeated phrase at the right beat of teental so its last note lands on sam.',
-    why: 'A tihai is how Hindustani musicians end a passage on sam. Working out the start point for different phrase and gap lengths trains the arithmetic and the feel of the cycle together.',
+    goal: 'Play a short phrase three times so that its very last note lands on beat 1 of the 16-beat cycle (sam).',
+    why: 'This three-times phrase (a tihai) is how Hindustani musicians end a passage on beat 1. Working out where to start for different phrases trains the counting and the feel of the cycle together.',
     backing: { rhythm: 'teental' },
+    grid: { count: ['1 & 2 & 3 & 4 &', '5 & 6 & 7 & 8 &', '9 & 10 & 11 & 12 &', '13 & 14 & 15 & 16 &'] },
     tempo: [60, 120],
     steps: [
-      'Clap teental with the backing: claps on 1, 5 and 13, a wave on 9 (khali).',
-      'Rule: phrase length P, gap G. The tihai takes 3P + 2G beats, so it starts on beat 18 − (3P + 2G).',
-      'The notes come from Yaman (C D E F♯ G A B). Every phrase ends on Sa.',
-      'The written notation is five bars: the fifth bar is sam of the next cycle.',
-      'Say the beat numbers while you play; land the last Sa with a clear accent.'
+      'The cycle (teental) has 16 beats. Clap on 1, 5 and 13; on 9, wave your hand instead (that beat is called khali, “empty”).',
+      'Each written bar is 4 beats, so bars 1 to 4 are beats 1 to 16. Bar 5 is beat 1 of the next cycle, where you land.',
+      'To find the start: add up the phrase three times plus the two gaps. Count back that many beats from the next 1, and add 1. Each variation gives the answer.',
+      'The notes are C D E F♯ G A B. Every phrase ends on C (Sa).',
+      'Say the beat numbers while you play, and play the last C clearly louder.'
     ],
     variations: [
       {
         name: 'P 3, gap 1: start on 7',
-        how: 'Ga Re Sa, rest, three times. Start on beat 7.',
+        how: 'E D C, then one beat of rest, three times. Start on beat 7: E D C rest, E D C rest, E D C, and the last C is beat 1.',
         bars: P('r:w | r:q r:q 64:q 62:q | 60:q r:q 64:q 62:q | 60:q r:q 64:q 62:q | 60:q r:q r:h'),
         time: '4/4', key: 'C'
       },
       {
         name: 'P 5, no gap: start on 3',
-        how: 'Ni Re Ga Re Sa, three times without a break. Start on beat 3.',
+        how: 'B D E D C, three times with no rest. Start on beat 3.',
         bars: P('r:h 59:q 62:q | 64:q 62:q 60:q 59:q | 62:q 64:q 62:q 60:q | 59:q 62:q 64:q 62:q | 60:q r:q r:h'),
         time: '4/4', key: 'C'
       },
       {
         name: 'P 4, gap 2: start on 2',
-        how: 'Ma♯ Ga Re Sa, two beats rest, three times. Start on beat 2.',
+        how: 'F♯ E D C, then two beats of rest, three times. Start on beat 2.',
         bars: P('r:q 66:q 64:q 62:q | 60:q r:q r:q 66:q | 64:q 62:q 60:q r:q | r:q 66:q 64:q 62:q | 60:q r:q r:h'),
         time: '4/4', key: 'C'
       },
       {
         name: 'Dugun: P 5 at double speed',
-        how: 'Ni Re Ga Re Sa in eighths, three times. At double speed the tihai is 7½ beats long, so it starts on beat 10.',
+        how: 'B D E D C at double speed (two notes per beat), three times. Start on the & of 10.',
         bars: P('r:w | r:w | r:q 59:8 62:8 64:8 62:8 60:8 59:8 | 62:8 64:8 62:8 60:8 59:8 62:8 64:8 62:8 | 60:q r:q r:h'),
         time: '4/4', key: 'C'
       }
@@ -607,40 +641,40 @@ export default [
     focus: 'technique',
     level: 3,
     minutes: 10,
-    goal: 'Play Bhairav’s komal Re and komal Dha with a slow, narrow andolan that never reaches the next fret.',
-    why: 'In Bhairav the flat 2nd and flat 6th are not plain notes: they sway slowly. Isolating the ornament on each note before putting it back in a phrase is part–whole practice for a fine motor skill.',
+    goal: 'Play the two flat notes of raga Bhairav (D♭ and A♭) with a slow, small sway (andolan) that never reaches the next fret.',
+    why: 'In Bhairav the flat 2nd and flat 6th are not plain notes: they sway slowly. You practise the sway on each note alone before you put it back in a phrase.',
     backing: { groove: 'drone', bars: ['C'] },
     tempo: [40, 70],
     steps: [
-      'Sa is C. Bhairav: C D♭ E F G A♭ B.',
-      'Andolan on guitar: push the string slightly and release, slower than vibrato, about one sway per beat, staying below the next semitone.',
+      'Sa (the home note) is C. Bhairav: C D♭ E F G A♭ B.',
+      'The sway: push the string a little sideways and let it back, slower than vibrato, about once per beat. Never bend it as far as the next fret.',
       'Tune by ear: the swaying note should keep sounding like komal Re or komal Dha, never like the note above.',
       'Play other notes plain so the andolan stands out.'
     ],
     variations: [
       {
         name: 'G M d, P',
-        how: 'Ga, Ma, then a long komal Dha with andolan, resolving to Pa.',
+        how: 'E, F, then a long A♭ with the sway, ending on G.',
         bars: P('64:q 65:q 68:h | 67:w'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       },
       {
         name: 'G M r, S',
-        how: 'Ga, Ma, then a long komal Re with andolan, resolving to Sa.',
+        how: 'E, F, then a long D♭ with the sway, ending on C.',
         bars: P('64:q 65:q 61:h | 60:w'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       },
       {
         name: 'The full movement',
-        how: 'S G M P, d P, G M r S: andolan on both komal notes.',
+        how: 'C E F G, A♭ G, E F D♭ C: sway on the A♭ and the D♭.',
         bars: P('60:q 64:q 65:q 67:q | 68:h 67:h | 64:q 65:q 61:h | 60:w'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       },
       {
         name: 'Upper tetrachord',
-        how: 'd N Ṡ, Ṡ N d P: andolan on Dha each time it appears.',
+        how: 'A♭ B C, C B A♭ G: sway on the A♭ each time.',
         bars: P('68:h 71:q 72:q | 72:q 71:q 68:h | 67:w'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       }
     ],
     listen: { artist: 'Pandit Bhimsen Joshi', work: 'Raga Bhairav' }
@@ -653,11 +687,11 @@ export default [
     level: 1,
     minutes: 8,
     goal: 'Hear a short Kafi phrase, sing it back in sargam, then find it on the guitar without looking.',
-    why: 'Hindustani music is taught by ear, teacher to student. Naming notes against Sa before playing them is retrieval practice that ties the ear to the fretboard.',
+    why: 'Hindustani music is taught by ear, teacher to student. Naming the notes before you play them ties your ear to the fretboard.',
     backing: { groove: 'drone', bars: ['C'] },
     tempo: [50, 80],
     steps: [
-      'Sa is C. Kafi has komal Ga and komal Ni: C D E♭ F G A B♭.',
+      'Sa (the home note) is C. Raga Kafi: C D E♭ F G A B♭, sung as Sa Re ga ma Pa Dha ni.',
       'Cover the staff. Press Hear the phrase once.',
       'Sing it back with sargam names (Sa Re ga ma Pa Dha ni).',
       'Play it on the guitar, then uncover the staff and check.'
@@ -678,38 +712,38 @@ export default [
     focus: 'technique',
     level: 1,
     minutes: 8,
-    goal: 'Play the first janta varisai (each swara doubled) in Mayamalavagowla at three speeds in adi tala.',
-    why: 'Janta varisai follow sarali varisai in the traditional Carnatic syllabus: doubling each note trains a clean, stressed repeat. Changing speed while keeping the tala is the standard way the exercises are practised.',
+    goal: 'Play a Carnatic beginner exercise (janta varisai: every note played twice) at three speeds over the 8-beat cycle.',
+    why: 'This is one of the first exercises in the traditional Carnatic course. Playing each note twice trains a clean, even repeat, and changing speed while the cycle stays the same is how the exercises are always practised.',
     backing: { rhythm: 'adi' },
     tempo: [50, 90],
     steps: [
-      'Mayamalavagowla on C: C D♭ E F G A♭ B C.',
-      'Put the tala in your hand: clap and three finger counts, clap and wave, clap and wave.',
-      'S S R R G G M M | P P D D N N Ṡ Ṡ, then back down.',
-      'Make the second note of each pair slightly stronger than the first.'
+      'The scale (raga Mayamalavagowla) on C: C D♭ E F G A♭ B C.',
+      'Keep the 8-beat cycle (adi tala) in your hand: beat 1 clap, beats 2, 3, 4 touch little, ring and middle finger to your thumb, beat 5 clap, 6 wave, 7 clap, 8 wave.',
+      'Play C C D♭ D♭ E E F F, G G A♭ A♭ B B C C, then back down.',
+      'Make the second note of each pair a little louder than the first.'
     ],
     variations: [
       {
         name: 'First speed',
-        how: 'One swara per beat: the whole exercise takes four cycles of adi tala.',
+        how: 'One note per beat. The whole exercise takes four cycles of 8 beats.',
         bars: P('60:q 60:q 61:q 61:q | 64:q 64:q 65:q 65:q | 67:q 67:q 68:q 68:q | 71:q 71:q 72:q 72:q | 72:q 72:q 71:q 71:q | 68:q 68:q 67:q 67:q | 65:q 65:q 64:q 64:q | 61:q 61:q 60:q 60:q'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       },
       {
         name: 'Second speed',
-        how: 'Two swaras per beat: the exercise fits in two cycles.',
+        how: 'Two notes per beat (count “1 & 2 &”). The exercise fits in two cycles.',
         bars: P('60:8 60:8 61:8 61:8 64:8 64:8 65:8 65:8 | 67:8 67:8 68:8 68:8 71:8 71:8 72:8 72:8 | 72:8 72:8 71:8 71:8 68:8 68:8 67:8 67:8 | 65:8 65:8 64:8 64:8 61:8 61:8 60:8 60:8'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       },
       {
         name: 'Third speed',
-        how: 'Four swaras per beat: the exercise fits in one cycle.',
+        how: 'Four notes per beat (count “1 e & a”). The exercise fits in one cycle.',
         bars: P('60:16 60:16 61:16 61:16 64:16 64:16 65:16 65:16 67:16 67:16 68:16 68:16 71:16 71:16 72:16 72:16 | 72:16 72:16 71:16 71:16 68:16 68:16 67:16 67:16 65:16 65:16 64:16 64:16 61:16 61:16 60:16 60:16'),
-        time: '4/4', key: 'C'
+        time: '4/4', key: 'C', spell: 'b'
       },
       {
         name: 'Sphuritam',
-        how: 'At second speed, sound the second note of each pair with a quick touch from the fret below (a fast hammer from one fret lower), the gamaka that janta swaras carry.'
+        how: 'At the second speed, play the second note of each pair as a quick hammer-on from one fret lower. This little flick (sphuritam) is the ornament these repeated notes carry.'
       }
     ]
   },
@@ -720,22 +754,22 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 10,
-    goal: 'Keep adi tala steady while you split each beat into 3, 4, 5 and 7, speaking and playing the konnakol.',
-    why: 'Carnatic rhythm is built on changing the subdivision (nadai or gati) against a fixed tala. Speaking first and playing second ties the count to the body; switching nadai is variable practice for the internal pulse.',
+    goal: 'Keep the 8-beat cycle steady while you split each beat into 3, 4, 5 or 7 even notes, first speaking the syllables, then playing them.',
+    why: 'Carnatic rhythm changes how many notes fit in a beat (the nadai) while the beat itself stays the same. Saying the syllables first and then playing ties the count to your body.',
     backing: { rhythm: 'adi' },
     tempo: [50, 80],
     steps: [
-      'Keep the tala in your left hand or foot the whole time.',
+      'Keep the beat with your foot or your hand the whole time. The backing claps beats 1, 5 and 7.',
       'Say the syllables for one cycle, then play them on one note for one cycle.',
-      'Accent the first syllable of each beat so the groups always start with the tala.',
-      'When a nadai is solid, play up and down a scale in it instead of one note.'
+      'Make the first syllable of each beat louder, so every group starts with the beat.',
+      'When one speed is solid, play up and down a scale in it instead of one note.'
     ],
     variations: [
-      { name: 'Tisra (3)', how: 'Ta-ki-ta on every beat: 24 notes per cycle.' },
-      { name: 'Chatusra (4)', how: 'Ta-ka-di-mi on every beat: 32 notes per cycle.' },
-      { name: 'Khanda (5)', how: 'Ta-di-gi-na-thom on every beat: 40 notes per cycle.' },
-      { name: 'Misra (7)', how: 'Ta-ki-ta ta-ka-di-mi on every beat: 56 notes per cycle.' },
-      { name: 'Switch every two beats', how: 'Two beats of 3, two of 4, two of 5, two of 4, without losing the tala.' }
+      { name: 'Threes', how: 'Say “ta-ki-ta” on every beat: three even notes per beat, 24 per cycle.' },
+      { name: 'Fours', how: 'Say “ta-ka-di-mi” on every beat: four even notes per beat, 32 per cycle.' },
+      { name: 'Fives', how: 'Say “ta-di-gi-na-thom” on every beat: five even notes per beat, 40 per cycle.' },
+      { name: 'Sevens', how: 'Say “ta-ki-ta ta-ka-di-mi” on every beat: seven even notes per beat, 56 per cycle.' },
+      { name: 'Switch every two beats', how: 'Beats 1 and 2 in threes, 3 and 4 in fours, 5 and 6 in fives, 7 and 8 in fours. Keep the beat steady through the changes.' }
     ],
     listen: { artist: 'Shakti with John McLaughlin', work: 'Joy' }
   },
@@ -746,21 +780,21 @@ export default [
     focus: 'melody',
     level: 2,
     minutes: 10,
-    goal: 'Play a short Hamsadhwani phrase plain, with slides from below and above, and with a kampita oscillation.',
-    why: 'In Carnatic music the gamaka is part of the note. Applying one kind of gamaka at a time to the same phrase isolates each motion before you mix them as a singer would.',
+    goal: 'Play one short phrase four ways: plain, sliding up into each note, sliding down into each note, and with a fast wobble.',
+    why: 'In Carnatic music the ornament (gamaka) is part of the note itself. You add one kind of ornament at a time to the same phrase, so each motion is clear before you mix them.',
     backing: { groove: 'drone', bars: ['C'] },
     tempo: [50, 80],
     steps: [
-      'Hamsadhwani on C: C D E G B. Sing the phrase first.',
+      'The raga (Hamsadhwani) on C uses five notes: C D E G B. Sing the phrase first.',
       'These are the basic motions; in a real raga each note has its own habits, so learn them from recordings.',
       'Slides: one finger, keep pressure, arrive in tune.',
-      'Kampita: push the string up toward the next note and back, two or three times per beat.'
+      'Wobble (kampita): push the string up toward the next note and back, two or three times per beat.'
     ],
     variations: [
       { name: 'Plain', how: 'No gamaka at all, for reference.', bars: P('60:q 62:q 64:q 67:q | 71:q 72:h.'), time: '4/4', key: 'C' },
-      { name: 'Jaru from below', how: 'Slide into each note from the swara below.', bars: P('60:q 62:q 64:q 67:q | 71:q 72:h.'), time: '4/4', key: 'C' },
-      { name: 'Jaru from above', how: 'Descending phrase, sliding down into each note from the one above.', bars: P('72:q 71:q 67:q 64:q | 62:q 60:h.'), time: '4/4', key: 'C' },
-      { name: 'Kampita on Ga and Ni', how: 'Oscillate the held Ga and Ni toward the note above; land Pa and Sa plain.', bars: P('64:h 67:h | 71:h 72:h'), time: '4/4', key: 'C' }
+      { name: 'Slide up into each note', how: 'Slide into each note from the scale note below it.', bars: P('60:q 62:q 64:q 67:q | 71:q 72:h.'), time: '4/4', key: 'C' },
+      { name: 'Slide down into each note', how: 'Going down, slide into each note from the one above it.', bars: P('72:q 71:q 67:q 64:q | 62:q 60:h.'), time: '4/4', key: 'C' },
+      { name: 'Wobble on E and B', how: 'Wobble the long E and B toward the note above. Play G and C plain.', bars: P('64:h 67:h | 71:h 72:h'), time: '4/4', key: 'C' }
     ],
     listen: { artist: 'U. Shrinivas', work: 'Vatapi Ganapatim' }
   },
@@ -771,21 +805,26 @@ export default [
     focus: 'rhythm',
     level: 3,
     minutes: 10,
-    goal: 'Place a phrase repeated three times with gaps so its last note falls exactly on samam of adi tala.',
-    why: 'Moras and korvais are how Carnatic musicians end improvisations. Calculating and then feeling different phrase and gap lengths builds the same skill from several directions.',
+    goal: 'Play a phrase three times, with gaps, so that its last note lands exactly on beat 1 of the 8-beat cycle.',
+    why: 'This three-times ending (a mora) is how Carnatic musicians finish an improvisation. Working it out and then feeling it for different phrase lengths builds the skill from several sides.',
     backing: { rhythm: 'adi' },
+    grid: { count: ['1 e & a 2 e & a 3 e & a 4 e & a', '5 e & a 6 e & a 7 e & a 8 e & a'] },
     tempo: [50, 80],
     steps: [
-      'Adi tala in chatusra nadai has 32 sixteenth-note syllables per cycle.',
-      'A mora of phrase P and gap G is 3P + 2G syllables long; it starts at syllable 33 − (3P + 2G), counting from 1 on samam.',
-      'Five-note phrase: E D C B C (ta-di-gi-na-thom). Seven-note phrase: D E G E D B C (ta-ka-di-mi-ta-ki-ta).',
-      'Speak it first, then play, keeping the tala in your hand.'
+      'Count four syllables per beat, “ta ka di mi”, so one cycle of 8 beats is 32 syllables. The grid writes them 1 e & a.',
+      'The five-note phrase is E D C B C (say ta-di-gi-na-thom). The seven-note phrase is D E G E D B C (ta-ka-di-mi-ta-ki-ta).',
+      'The grid shows where to start. The last note lands on beat 1 of the next cycle (bar 3 in the grid).',
+      'Speak it first, then play it, keeping the beat in your hand.'
     ],
     variations: [
-      { name: 'Five, gap three', how: 'Ta-di-gi-na-thom, three syllables of rest, three times. 21 syllables: start on beat 4.' },
-      { name: 'Seven, gap two', how: 'Ta-ka-di-mi-ta-ki-ta, two rests, three times. 25 syllables: start on beat 3.' },
-      { name: 'Five, gap one', how: 'Ta-di-gi-na-thom, one rest, three times. 17 syllables: start on beat 5, the first beat of the first dhrutam.' },
-      { name: 'Five, gap three in tisra', how: 'Three syllables per beat (24 per cycle). The same 21-syllable mora starts on the second syllable of beat 2.' }
+      { name: 'Five, gap three', how: 'The five-note phrase, three syllables of rest, three times. Start on beat 4.',
+        grid: { bars: 3, rows: { you: '............xxxxx...xxxxx...xxxxX...............' } } },
+      { name: 'Seven, gap two', how: 'The seven-note phrase, two syllables of rest, three times. Start on beat 3.',
+        grid: { bars: 3, rows: { you: '........xxxxxxx..xxxxxxx..xxxxxxX...............' } } },
+      { name: 'Five, gap one', how: 'The five-note phrase, one syllable of rest, three times. Start on beat 5.',
+        grid: { bars: 3, rows: { you: '................xxxxx.xxxxx.xxxxX...............' } } },
+      { name: 'Five, gap three, in threes', how: 'Now three syllables per beat, “ta ki ta”, so 24 per cycle. The same phrase and gaps start on the second syllable of beat 2.',
+        grid: { bars: 3, count: ['1 & a 2 & a 3 & a 4 & a', '5 & a 6 & a 7 & a 8 & a'], rows: { you: '....xxxxx...xxxxx...xxxxX...........' } } }
     ]
   },
 
@@ -797,26 +836,29 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play maqsum on the guitar with dum on a bass string and tek on muted high strings, then fill it and put melody on it.',
-    why: 'Iqa’at are a skeleton that players fill. Keeping the skeleton fixed while you change the fill and the pitch content is variable practice that keeps the dum–tek placement solid.',
+    goal: 'Play the Arabic rhythm maqsum on the guitar: low “dum” notes on a bass string and short “tek” chops on the high strings.',
+    why: 'Arabic rhythms are a few main strokes that players fill in. The main strokes stay the same while you change the fill and the notes, so they get solid.',
     backing: { rhythm: 'maqsum' },
     tempo: [80, 120],
     steps: [
+      'Count “1 & 2 & 3 & 4 &”. Dum is on 1 and 3. Tek is on the & of 1, the & of 2 and 4.',
       'Say it with the backing: “dum tek – tek dum – tek –”.',
-      'Dum: open D string, struck with the thumb or a downstroke. Tek: a short palm-muted stroke on the top strings.',
+      'Dum: the open D string, with your thumb or a downstroke. Tek: a short stroke on the top strings with your palm resting on them, so it clicks.',
       'Play the skeleton for a minute before trying any fill.',
       'Fills are always softer than the skeleton.'
     ],
     variations: [
-      { name: 'Skeleton', how: 'Dum on 1 and 3, tek on the “and” of 1, the “and” of 2 and on 4.' },
-      { name: 'Filled', how: 'Add soft muted taps (ka) on each empty eighth, so you play every eighth but only the skeleton strokes are loud.' },
+      { name: 'Main strokes only', how: 'Dum on 1 and 3. Tek on the & of 1, the & of 2 and 4. Nothing else.',
+        grid: { backing: false, rows: { dum: 'x...x...', tek: '.x.x..x.' } } },
+      { name: 'Filled', how: 'Add a soft muted tap on each empty count (the & of 3 and the & of 4), so you play every count but only the main strokes are loud.',
+        grid: { backing: false, rows: { dum: 'X...X...', tek: '.X.X..X.', soft: '.....x.x' } } },
       {
         name: 'Hijaz on the strokes',
-        how: 'D on the dums, the upper Hijaz notes on the teks: the melody follows the rhythm exactly.',
-        bars: P('62:8 66:q 67:8 62:q 63:q | 62:8 63:q 66:8 62:q 60:q'),
+        how: 'Play D on every dum and higher notes on the teks, so the melody follows the rhythm exactly.',
+        bars: P('62:8 66:q 67:8 62:q 63b:q | 62:8 63b:q 66:8 62:q 60:q'),
         time: '4/4', key: 'Dm'
       },
-      { name: 'Tremolo on the last tek', how: 'Turn the tek on beat 4 into a quick down-up tremolo, the way an oud player uses the risha.' }
+      { name: 'Fast picking on the last tek', how: 'Turn the tek on 4 into a quick run of down-up strokes (tremolo), the way an oud player uses the pick.' }
     ]
   },
   {
@@ -826,21 +868,21 @@ export default [
     focus: 'melody',
     level: 2,
     minutes: 10,
-    goal: 'Play Hijaz phrases on D that rest on G, climb into the upper jins and return to D.',
-    why: 'A maqam has a path (sayr): it explores its lower jins, rests on the ghammaz and only then moves up. Learning phrases for each stage gives you the building blocks of a taqsim.',
+    goal: 'Play phrases in maqam Hijaz on D: stay low, rest on G, climb higher, and come back to D.',
+    why: 'A maqam has a usual path: it stays in its lowest four notes first, rests on a pivot note, and only then moves up. Learning a phrase for each stage gives you the pieces of a free improvisation (taqsim).',
     backing: { groove: 'drone', bars: ['D'] },
     tempo: [50, 80],
     steps: [
-      'Jins Hijaz on D: D E♭ F♯ G. The ghammaz (pivot) is G.',
-      'Upper jins: Nahawand on G (G A B♭ C D) is a common choice.',
+      'The lower four notes are D E♭ F♯ G. The pivot note is G.',
+      'Above G, use G A B♭ C D.',
       'Play each phrase slowly, then repeat it with a different ornament on the long note.',
       'Always come back down to D by step.'
     ],
     variations: [
-      { name: 'Inside the jins', how: 'D E♭ F♯ G and back, resting on G.', bars: P('62:q 63:8 66:8 67:h | 66:q 63:q 62:h'), time: '4/4', key: 'Dm' },
-      { name: 'From below', how: 'Approach D from C, the note below the tonic, then rise to G.', bars: P('60:8 62:8 63:8 66:8 67:q 66:8 63:8 | 62:h. r:q'), time: '4/4', key: 'Dm' },
-      { name: 'Up to the upper jins', how: 'From G up through Nahawand to D, then all the way down.', bars: P('67:8 69:8 70:8 72:8 74:q 72:8 70:8 | 69:8 67:8 66:8 63:8 62:h'), time: '4/4', key: 'Dm' },
-      { name: 'Short taqsim', how: 'Free time: stay in the lower jins, rest on G, rise to the upper jins once, and return to D. Ignore the pulse.' }
+      { name: 'The lower four notes', how: 'D E♭ F♯ G and back, resting on G.', bars: P('62:q 63b:8 66:8 67:h | 66:q 63b:q 62:h'), time: '4/4', key: 'Dm' },
+      { name: 'From below', how: 'Approach D from C, the note below the tonic, then rise to G.', bars: P('60:8 62:8 63b:8 66:8 67:q 66:8 63b:8 | 62:h. r:q'), time: '4/4', key: 'Dm' },
+      { name: 'Up high', how: 'From G up through A B♭ C to the high D, then all the way down.', bars: P('67:8 69:8 70:8 72:8 74:q 72:8 70:8 | 69:8 67:8 66:8 63b:8 62:h'), time: '4/4', key: 'Dm' },
+      { name: 'Short taqsim', how: 'Improvise without a beat: stay in the lower four notes, rest on G, go up high once, and come back to D.' }
     ],
     listen: { artist: 'Ali Jihad Racy and Simon Shaheen', work: 'Taqasim: The Art of Improvisation in Arabic Music' }
   },
@@ -852,7 +894,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Hear and play the difference between Kurd (E♭) and Bayati (E half-flat) on D.',
-    why: 'Bayati and Kurd differ only in the second note, and that quarter tone is the sound of the maqam. Alternating the two sharpens the ear far more than playing either alone.',
+    why: 'Bayati and Kurd differ only in their second note, which in Bayati sits between two frets. Switching between them sharpens your ear far more than playing either one alone.',
     backing: { groove: 'drone', bars: ['Dm'] },
     tempo: [50, 80],
     steps: [
@@ -861,10 +903,10 @@ export default [
       'Record yourself or ask someone: which phrase was Bayati?'
     ],
     variations: [
-      { name: 'Kurd', how: 'Fretted E♭: D E♭ F G and back.', bars: P('62:q 63:q 65:q 67:q | 65:q 63:q 62:h'), time: '4/4', key: 'Dm' },
-      { name: 'Bayati', how: 'The same phrase with the E♭ bent up a quarter tone.', bars: P('62:q 63:q 65:q 67:q | 65:q 63:q 62:h'), time: '4/4', key: 'Dm' },
+      { name: 'Kurd', how: 'Fretted E♭: D E♭ F G and back.', bars: P('62:q 63:q 65:q 67:q | 65:q 63:q 62:h'), time: '4/4', key: 'Dm', spell: 'b' },
+      { name: 'Bayati', how: 'The same phrase with the E♭ bent up a quarter tone.', bars: P('62:q 63:q 65:q 67:q | 65:q 63:q 62:h'), time: '4/4', key: 'Dm', spell: 'b' },
       { name: 'Back to back', how: 'Play the Kurd phrase, then the Bayati phrase, without stopping. Then reverse the order.' },
-      { name: 'Bayati from the top', how: 'From the ghammaz G up to C and back down to D, with the half-flat on the way down.', bars: P('67:q 69:q 70:q 72:q | 70:q 69:q 67:q 65:q | 63:q 62:h.'), time: '4/4', key: 'Dm' }
+      { name: 'Bayati from the top', how: 'From G up to C and back down to D, with the half-flat E on the way down.', bars: P('67:q 69:q 70:q 72:q | 70:q 69:q 67:q 65:q | 63:q 62:h.'), time: '4/4', key: 'Dm', spell: 'b' }
     ]
   },
   {
@@ -874,21 +916,24 @@ export default [
     focus: 'rhythm',
     level: 3,
     minutes: 10,
-    goal: 'Play the 10/8 sama’i thaqil cycle on the guitar, then fill it and put melody on it.',
-    why: 'Sama’i thaqil carries the sama’i, the main instrumental form of the takht repertoire. Counting the groups and then filling them is the same skeleton-then-fill practice Arab percussionists use.',
+    goal: 'Play the 10-count Arabic rhythm sama’i thaqil on the guitar, then fill it in and put a melody on it.',
+    why: 'This rhythm carries the sama’i, the main instrumental piece of classical Arabic ensembles. Counting the groups and then filling them in is how Arab percussionists practise.',
     backing: { click: { beats: 10, sub: 1 } },
+    grid: { time: '10/8', count: '1 2 3 | 4 5 | 6 7 | 8 9 10' },
     tempo: [120, 200],
     steps: [
-      'The click gives ten eighth notes per cycle; the high click is 1.',
-      'Strokes: dum on 1, tek on 4, dum on 6 and 7, tek on 8. Say “dum – – tek – dum dum tek – –”.',
-      'Count the groups 3+2+2+3 under it.',
-      'Dum on the open D string, tek muted on the top strings.'
+      'The click counts 1 to 10; the high click is 1. Count “1 2 3, 4 5, 6 7, 8 9 10”.',
+      'Dum on 1, 6 and 7. Tek on 4 and 8. Say “dum – – tek – dum dum tek – –”.',
+      'Dum on the open D string. Tek on the top strings with your palm resting on them, so it clicks.'
     ],
     variations: [
-      { name: 'Skeleton', how: 'Only the five strokes, everything else silent.' },
-      { name: 'Count aloud', how: 'Play the skeleton while saying “1-2-3, 1-2, 1-2, 1-2-3”.' },
-      { name: 'Filled', how: 'Soft muted taps on every empty eighth; the skeleton stays loud.' },
-      { name: 'Bayati on the strokes', how: 'One note of D Bayati per stroke, rising for one cycle and falling for the next.' }
+      { name: 'Main strokes only', how: 'Only the five strokes, silence on every other count.',
+        grid: { rows: { dum: 'x....xx...', tek: '...x...x..' } } },
+      { name: 'Count aloud', how: 'Play the main strokes while saying the groups: “1-2-3, 1-2, 1-2, 1-2-3”.',
+        grid: { rows: { dum: 'x....xx...', tek: '...x...x..' } } },
+      { name: 'Filled', how: 'A soft muted tap on every empty count; the five main strokes stay loud.',
+        grid: { rows: { dum: 'X....XX...', tek: '...X...X..', soft: '.xx.x...xx' } } },
+      { name: 'Bayati on the strokes', how: 'One note of D Bayati (D, E half-flat, F, G, A) on each of the five strokes, going up for one cycle and down for the next.' }
     ],
     listen: { artist: 'Ibrahim al-Aryan', work: 'Sama’i Bayati al-Aryan' }
   },
@@ -901,21 +946,26 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Comp a 2+2+3 rachenitsa with bass and chord chops, changing chords without losing the long beat.',
-    why: 'Balkan wedding guitar pumps out the aksak groups like a bass and snare. Changing one element at a time keeps the 7/8 feel solid under each new demand.',
+    goal: 'Accompany the Bulgarian dance rhythm rachenitsa (7 fast counts: short, short, long) with bass notes and short chord chops.',
+    why: 'Balkan wedding guitar plays these uneven groups like a bass and a snare drum. You change one thing at a time, so the 7-count feel stays solid.',
     backing: { rhythm: 'rachenitsa' },
+    grid: { time: '7/8', count: '1 2 | 3 4 | 5 6 7' },
     tempo: [200, 360],
     steps: [
-      'The tempo counts fast eighth-note pulses. Say “1-2, 1-2, 1-2-3”.',
+      'Each bar is 7 fast counts in three groups: “1 2, 3 4, 5 6 7”. The tempo number counts every one of the 7.',
       'Use Dm (x-x-0-2-3-1) and A7 (x-0-2-0-2-0).',
-      'Start slow enough that the long group feels clearly longer, not like a mistake.',
-      'Tap your foot on the three group starts, not on every pulse.'
+      'Start slow enough that the last group clearly sounds longer, not like a mistake.',
+      'Tap your foot on 1, 3 and 5 only: quick, quick, slow.'
     ],
     variations: [
-      { name: 'Group starts', how: 'One downstroke on each group start: three strokes per bar, the third followed by the longer gap.' },
-      { name: 'Oom-pa, oom-pa, oom-pa-pa', how: 'Bass note on each group start, a short chord chop on the other pulses.' },
-      { name: 'Change every bar', how: 'Dm for one bar, A7 for the next, changing on the first pulse.' },
-      { name: 'Lift the long beat', how: 'Accent the start of the long group and let that chord ring through it, the way dancers lift on the slow step.' }
+      { name: 'Group starts', how: 'One downstroke on 1, 3 and 5. After the third one there is a longer gap.',
+        grid: { rows: { strum: 'x.x.x..' } } },
+      { name: 'Oom-pa, oom-pa, oom-pa-pa', how: 'A bass note on 1, 3 and 5, and a short chord chop on every other count.',
+        grid: { rows: { bass: 'x.x.x..', chop: '.x.x.xx' } } },
+      { name: 'Change every bar', how: 'Keep the oom-pa. Play Dm for one bar and A7 for the next, changing on 1.',
+        grid: { rows: { bass: 'x.x.x..', chop: '.x.x.xx' } } },
+      { name: 'Lift the long beat', how: 'Make 5 loud and let that chord ring through 6 and 7, the way dancers lift on the slow step.',
+        grid: { rows: { strum: 'x.x.X--' } } }
     ],
     listen: { artist: 'Ivo Papasov and His Wedding Band', work: 'Orpheus Ascending' }
   },
@@ -926,20 +976,20 @@ export default [
     focus: 'technique',
     level: 2,
     minutes: 10,
-    goal: 'Add mordents, trills, turns and slides to a slow Phrygian dominant line with legato.',
-    why: 'Clarinet and kaval lines are carried by fast ornaments. Applying one ornament type to the same line at a time makes each motion clean before you mix them freely.',
+    goal: 'Add four kinds of quick ornaments, one kind at a time, to a slow line, using hammer-ons, pull-offs and slides.',
+    why: 'Clarinet and flute lines in this music are full of fast ornaments. You add one kind at a time to the same line, so each motion gets clean before you mix them.',
     backing: { groove: 'drone', bars: ['E'] },
     tempo: [50, 80],
     steps: [
-      'Learn the plain line in E Phrygian dominant (E F G♯ A B C D).',
-      'Ornaments are left-hand legato: pick the first note only.',
+      'Learn the plain line first. It uses E F G♯ A B C D.',
+      'Ornaments are played with the fretting hand only: pick the first note, then hammer on and pull off.',
       'Keep each ornament short and before the beat, so the main note still lands on time.',
       'Stay on one ornament type until it sounds easy.'
     ],
     variations: [
       { name: 'Plain', how: 'The line with no ornaments.', bars: P('69:h 68:q 65:q | 64:w | 65:q 68:q 69:q 71:q | 69:h 64:h'), time: '4/4', key: 'Am' },
-      { name: 'Upper mordent', how: 'On each half note: note, quick hammer to the note above, pull back.', bars: P('69:h 68:q 65:q | 64:w | 65:q 68:q 69:q 71:q | 69:h 64:h'), time: '4/4', key: 'Am' },
-      { name: 'Trill', how: 'Trill the whole note and the half notes with the note above, hammer and pull as fast as stays even.' },
+      { name: 'Flick up (mordent)', how: 'On each half note: play the note, hammer quickly to the note above, pull back.', bars: P('69:h 68:q 65:q | 64:w | 65:q 68:q 69:q 71:q | 69:h 64:h'), time: '4/4', key: 'Am' },
+      { name: 'Trill', how: 'On the long notes, hammer on and pull off to the note above again and again, as fast as you can keep it even.' },
       { name: 'Turn', how: 'Before each half note: note above, the note, note below, the note.' },
       { name: 'Slide in', how: 'Slide into each quarter note from the fret below.' }
     ],
@@ -952,21 +1002,22 @@ export default [
     focus: 'melody',
     level: 3,
     minutes: 10,
-    goal: 'Play a Phrygian dominant phrase that follows the 2+2+3+2+2 groups of kopanitsa.',
-    why: 'In 11/8 the melody has to know where the long beat is. Building from bass to melody and then shifting the start trains the grouping, not one fixed line.',
+    goal: 'Play a phrase that follows the 11-count Bulgarian rhythm kopanitsa: short, short, long, short, short.',
+    why: 'In this rhythm the melody has to know where the long beat is. You go from bass notes to the melody and then start it somewhere else, so you learn the groups instead of one fixed line.',
     backing: { rhythm: 'kopanitsa' },
+    grid: { count: '1 2 | 3 4 | 5 6 7 | 8 9 | 10 11' },
     tempo: [180, 340],
     steps: [
-      'Say the groups: “ta-ka ta-ka ta-ki-ta ta-ka ta-ka”.',
-      'The tempo counts eighth-note pulses; start slow.',
-      'The phrase is in E Phrygian dominant: E F G♯ A B C D.',
-      'The dotted quarter is the long group in the middle; lean on it.'
+      'Each bar is 11 fast counts in five groups: “1 2, 3 4, 5 6 7, 8 9, 10 11”. Say “ta-ka ta-ka ta-ki-ta ta-ka ta-ka”.',
+      'The tempo number counts every one of the 11. Start slow.',
+      'The notes are E F G♯ A B C D.',
+      'The long group (5 6 7) is in the middle; lean on it.'
     ],
     variations: [
-      { name: 'Bass on the groups', how: 'Low E on each of the five group starts.', bars: P('52:q 52:q 52:q. 52:q 52:q'), time: '11/8', key: 'Am' },
+      { name: 'Bass on the groups', how: 'Low E on 1, 3, 5, 8 and 10, the start of each group.', bars: P('52:q 52:q 52:q. 52:q 52:q'), time: '11/8', key: 'Am' },
       { name: 'The phrase', how: 'Two bars up to the long B and back to E.', bars: P('64:8 65:8 68:8 69:8 71:q. 69:8 68:8 65:8 64:8 | 65:8 68:8 69:8 68:8 65:8 64:8 62:8 64:q r:q'), time: '11/8', key: 'Am' },
-      { name: 'Ornament the long note', how: 'Trill the long B in bar 1 with the C above, stopping exactly at the next group.' },
-      { name: 'Start in the middle', how: 'Begin the phrase on the long group instead of the first, and fit the rest around the cycle.' }
+      { name: 'Ornament the long note', how: 'Trill the long B in bar 1 (hammer on and pull off to C again and again), stopping exactly on 8.' },
+      { name: 'Start in the middle', how: 'Begin the phrase on 5, the long group, instead of on 1, and fit the rest around the cycle.' }
     ],
     listen: { artist: 'Ivo Papasov and His Wedding Band', work: 'Balkanology' }
   },
@@ -978,7 +1029,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Hear and play the Turkish segâh (B about a comma flat) against fretted B and the lower Arabic half-flat.',
-    why: 'Turkish theory divides the whole tone into nine commas, and makam Rast’s third sits a little below the fret. Comparing three versions of one note builds a finer ear than learning any one of them.',
+    why: 'In Turkish makam Rast, the third note sits a little below the guitar’s fret. Comparing three versions of one note builds a finer ear than learning any one of them.',
     backing: { groove: 'drone', bars: ['Gsus4'] },
     tempo: [50, 80],
     steps: [
@@ -1003,21 +1054,26 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play the 12/8 bell pattern with the fingers while the thumb holds the four main beats.',
-    why: 'The bell timeline anchors West African ensembles, and the guitar has to feel both the four beats and the twelve pulses. Moving the finger part while the thumb holds still builds the 3-against-2 feel in one hand.',
+    goal: 'Play the West African bell pattern with your fingers while your thumb keeps the four main beats.',
+    why: 'Everyone in a West African drum group follows the bell. You have to feel the four big beats and the twelve small pulses at the same time. Your thumb holds still while your fingers change, so one hand learns both.',
     backing: { rhythm: 'bembe' },
+    grid: { count: '1 2 3 | 4 5 6 | 7 8 9 | 10 11 12' },
     tempo: [70, 110],
     steps: [
-      'Count twelve pulses per cycle; the main beats fall on pulses 1, 4, 7 and 10.',
-      'Thumb on the open A and E strings, alternating, on the four beats.',
-      'Fingers on a muted pair of strings (2 and 3) for the bell.',
-      'Tap your foot on the four beats the whole time.'
+      'Count 12 quick pulses per cycle: “1 2 3, 4 5 6, 7 8 9, 10 11 12”. The four main beats are 1, 4, 7 and 10. (The drum grid writes the same 12 as 1 & a 2 & a 3 & a 4 & a.)',
+      'Thumb on the four main beats, switching between the open A and E strings.',
+      'For the bell, pluck strings 2 and 3 together with the fretting hand resting on them, so they click.',
+      'Tap your foot on 1, 4, 7 and 10 the whole time.'
     ],
     variations: [
-      { name: 'Thumb alone', how: 'Open A on pulses 1 and 7, open E on 4 and 10.' },
-      { name: 'Thumb and bell', how: 'Fingers play the seven bell strokes: pulses 1, 3, 5, 6, 8, 10 and 12.' },
-      { name: 'Three against two', how: 'Fingers on every other pulse (1, 3, 5, 7, 9, 11): six even notes against the thumb’s four.' },
-      { name: 'Bell alone', how: 'Thumb silent. Keep the four beats in your foot and play only the bell.' }
+      { name: 'Thumb alone', how: 'Open A on 1 and 7, open E on 4 and 10.',
+        grid: { rows: { thumb: 'x..x..x..x..' } } },
+      { name: 'Thumb and bell', how: 'Add the fingers on the seven bell strokes: 1, 3, 5, 6, 8, 10 and 12.',
+        grid: { rows: { thumb: 'x..x..x..x..', fingers: 'x.x.xx.x.x.x' } } },
+      { name: 'Six against four', how: 'Fingers on every other pulse (1, 3, 5, 7, 9, 11): six even notes against the thumb’s four.',
+        grid: { rows: { thumb: 'x..x..x..x..', fingers: 'x.x.x.x.x.x.' } } },
+      { name: 'Bell alone', how: 'Thumb silent. Keep the four beats in your foot and play only the bell.',
+        grid: { rows: { fingers: 'x.x.xx.x.x.x' } } }
     ],
     listen: { artist: 'Babatunde Olatunji', work: 'Drums of Passion' }
   },
@@ -1028,23 +1084,27 @@ export default [
     focus: 'harmony',
     level: 1,
     minutes: 8,
-    goal: 'Play I–IV–I–V in C with a thumb bass and offbeat finger dyads, then a melody in thirds on top.',
-    why: 'Highlife guitar is clean, repetitive and light: a thumb bass, offbeat chords and lines in thirds. Building the parts one at a time and holding each for a long time is how these parts are learned.',
+    goal: 'Play C, F, C, G7 with a thumb bass and two-note chords between the beats, then a melody in thirds on top.',
+    why: 'Highlife guitar is clean, repetitive and light: a thumb bass, short chords between the beats and melodies in two-note harmony. You build the parts one at a time and hold each one for a long time, which is how these parts are learned.',
     backing: { groove: 'highlife', bars: ['C', 'F', 'C', 'G7'] },
     tempo: [80, 120],
     steps: [
-      'Thumb: root on beat 1, fifth on beat 3.',
-      'Index (or index and middle): a two-note chord fragment on strings 3 and 2.',
+      'Count “1 e & a 2 e & a 3 e & a 4 e & a”.',
+      'Thumb: the chord’s root on 1, its fifth on 3.',
+      'Fingers (index, or index and middle): two notes of the chord on strings 3 and 2.',
       'Repeat each variation for at least 16 bars without changing it.',
       'Keep the fingers soft and the thumb steady.'
     ],
     variations: [
-      { name: 'Offbeat dyads', how: 'Fingers on the “and” of every beat, matching the backing’s chord.' },
-      { name: 'Add the “a” of 2 and 4', how: 'One extra finger stroke on the last sixteenth of beats 2 and 4.' },
-      { name: 'Walking into the change', how: 'On the “and” of 4 the thumb plays a passing note into the next chord’s root.' },
+      { name: 'Between the beats', how: 'Fingers on the & of every beat, with the backing’s chord.',
+        grid: { rows: { thumb: 'x.......x.......', fingers: '..x...x...x...x.' } } },
+      { name: 'Add the a of 2 and 4', how: 'One extra finger stroke on the a of 2 and the a of 4.',
+        grid: { rows: { thumb: 'x.......x.......', fingers: '..x...xx..x...xx' } } },
+      { name: 'Walking into the change', how: 'On the & of 4 the thumb plays one extra note that leads to the next chord’s root (for C to F: E).',
+        grid: { rows: { thumb: 'x.......x.....x.', fingers: '..x...x...x...x.' } } },
       {
         name: 'Melody in thirds',
-        how: 'The top line on string 1 or 2 with a third below on the next string, over the same thumb bass.',
+        how: 'The top line on string 1 or 2, with a second note on the next string, a third below (two scale steps down), over the same thumb bass.',
         bars: P('72:q 76:8 74:8 72:q 67:q | 69:q 72:8 69:8 65:h | 67:q 72:8 74:8 76:q 72:q | 71:q 74:q 71:h'),
         time: '4/4', key: 'C'
       }
@@ -1058,29 +1118,33 @@ export default [
     focus: 'technique',
     level: 2,
     minutes: 10,
-    goal: 'Hold a kumbengo-style ostinato for minutes, then drop in a fast run and return without losing the cycle.',
-    why: 'On kora the birimintingo runs sit over the steady kumbengo. Leaving and returning to the ostinato is the real skill, and practising the return is retrieval under time pressure.',
+    goal: 'Hold a repeating kora-style pattern for minutes, then drop in a fast run and come back without losing the beat.',
+    why: 'A kora player keeps a steady repeating pattern (kumbengo) and now and then breaks into fast runs (birimintingo). Leaving the pattern and coming back on time is the real skill.',
     backing: { click: { beats: 4, sub: 3 } },
+    grid: { count: '1 & a 2 & a 3 & a 4 & a' },
     tempo: [60, 100],
     steps: [
-      'Each beat has three pulses. Thumb on the first pulse of each beat, index on the third.',
+      'Each beat has three pulses: count “1 & a 2 & a 3 & a 4 & a”. Thumb on each number, index finger on each a.',
       'Bass notes: F (string 4, fret 3) and C (string 5, fret 3). High notes on strings 1 and 2.',
-      'Do not speed up. Kora ostinatos are hypnotic because they are steady.',
+      'Do not speed up. Kora patterns are hypnotic because they are steady.',
       'Play each variation for at least two minutes.'
     ],
     variations: [
       {
         name: 'Thumb alone',
-        how: 'F, C, F, C on the four beats.',
-        positions: [[4, 3], [5, 3]]
+        how: 'F, C, F, C on 1, 2, 3 and 4.',
+        positions: [[4, 3], [5, 3]],
+        grid: { rows: { thumb: 'x..x..x..x..' } }
       },
       {
         name: 'Add the index',
-        how: 'On the third pulse of each beat: A, G, A, C on string 1 (frets 5, 3, 5, 8).',
-        positions: [[4, 3], [1, 5], [5, 3], [1, 3], [1, 8]]
+        how: 'Index on each a: A, G, A, C on string 1 (frets 5, 3, 5, 8).',
+        positions: [[4, 3], [1, 5], [5, 3], [1, 3], [1, 8]],
+        grid: { rows: { thumb: 'x..x..x..x..', index: '..x..x..x..x' } }
       },
-      { name: 'Shift the index', how: 'Move the index notes to the second pulse of each beat. Hear the whole pattern change feel.' },
-      { name: 'Drop in a run', how: 'Every fourth cycle replace the pattern with a fast run down F major pentatonic on strings 1 and 2 (C A G F D C), then pick the ostinato back up on beat 1.' }
+      { name: 'Shift the index', how: 'Move the index notes to each &. Hear how the whole pattern changes feel.',
+        grid: { rows: { thumb: 'x..x..x..x..', index: '.x..x..x..x.' } } },
+      { name: 'Drop in a run', how: 'Every fourth time round, play a fast run down strings 1 and 2 instead (C A G F D C), then start the pattern again on 1.' }
     ],
     listen: { artist: 'Toumani Diabaté', work: 'Jarabi' }
   },
@@ -1091,21 +1155,23 @@ export default [
     focus: 'rhythm',
     level: 3,
     minutes: 10,
-    goal: 'Play a muted single-note line on the sixteenths between the drums, then shift it one sixteenth and keep it locked.',
-    why: 'Afrobeat guitars play short muted lines that fit into the gaps left by each other and the drums. Moving the same line one sixteenth trains exact placement, not a memorised groove.',
+    goal: 'Play a short muted line in the gaps between the drums, then move it one count later and keep it steady.',
+    why: 'Afrobeat guitars play short muted lines that fit into the gaps the drums and each other leave. Moving the same line by one count trains exact placement instead of one memorised groove.',
     backing: { rhythm: 'funk16' },
     tempo: [80, 112],
     steps: [
-      'Count every sixteenth: 1 e & a 2 e & a.',
-      'Light palm mute, alternate picking with the hand moving in sixteenths all the time.',
-      'The notes come from D Dorian (A, C and D here).',
+      'Count “1 e & a 2 e & a 3 e & a 4 e & a”.',
+      'Rest the side of your picking hand lightly on the strings near the bridge, so the notes are short and muted.',
+      'Keep the pick moving down-up on every count, even when you do not play.',
+      'The notes are A, C and D.',
       'Play one variation for two minutes before you change it.'
     ],
     variations: [
-      { name: 'The line', how: 'Notes on the “e” of 1, beat 2, the “&” of 2, the “e” of 3, beat 4 and the “&” of 4.', bars: P('r:16 57:16 r:8 60:16 r:16 62:16 r:16 r:16 62:16 r:8 60:16 r:16 57:8'), time: '4/4', key: 'Dm' },
-      { name: 'One sixteenth later', how: 'The same notes, each moved one sixteenth later.', bars: P('r:8 57:16 r:16 r:16 60:16 r:16 62:16 r:8 62:16 r:16 r:16 60:16 r:16 57:16'), time: '4/4', key: 'Dm' },
-      { name: 'Chord chops', how: 'Play the first line’s rhythm as short muted Dm7 chops on strings 2 to 4.' },
-      { name: 'Two-bar answer', how: 'Play the line in bar 1 and answer it in bar 2 with C, D and F in the same spaces.' }
+      { name: 'The line', how: 'Notes on the e of 1, 2, the & of 2, the e of 3, 4 and the & of 4.', bars: P('r:16 57:16 r:8 60:16 r:16 62:16 r:16 r:16 62:16 r:8 60:16 r:16 57:8'), time: '4/4', key: 'Dm' },
+      { name: 'One count later', how: 'The same notes, each moved one count later: the & of 1, the e of 2, the a of 2, and so on.', bars: P('r:8 57:16 r:16 r:16 60:16 r:16 62:16 r:8 62:16 r:16 r:16 60:16 r:16 57:16'), time: '4/4', key: 'Dm' },
+      { name: 'Chord chops', how: 'Play the first line’s rhythm as short muted Dm7 chords on strings 2 to 4.',
+        grid: { rows: { chop: '.x..x.x..x..x.x.' } } },
+      { name: 'Two-bar answer', how: 'Play the line in bar 1. In bar 2, answer it using C, D and F on the same counts.' }
     ],
     listen: { artist: 'Fela Kuti', work: 'Water No Get Enemy' }
   },
@@ -1118,37 +1184,38 @@ export default [
     focus: 'technique',
     level: 1,
     minutes: 10,
-    goal: 'Play high triad arpeggios through E–A–B–A with relaxed alternate picking for minutes at a time.',
-    why: 'The sebene lead guitar loops bright arpeggio cells high on the neck. Changing subdivision and direction on the same three-string shapes builds endurance and evenness.',
+    goal: 'Play the notes of E, A, B and A one at a time, high on the neck, with relaxed down-up picking for minutes at a time.',
+    why: 'In the fast dance section of Congolese rumba (the sebene), the lead guitar loops bright broken chords high on the neck. Changing speed and direction on the same shapes builds stamina and evenness.',
     backing: { groove: 'soukous', bars: ['E', 'A', 'B', 'A'] },
     tempo: [90, 140],
     steps: [
       'Shapes on strings 3-2-1: E at frets 9-9-7, A at 9-10-9, B at 11-12-11.',
-      'Alternate picking, small motions, a light clean tone.',
+      'Pick down-up with small motions and a light, clean tone.',
       'Repeat a variation for three minutes without speeding up.',
       'Keep the left hand down; let notes ring into each other.'
     ],
     variations: [
       {
         name: 'Eighths',
-        how: 'Low, middle, high, middle in eighth notes.',
+        how: 'Low, middle, high, middle, two notes per beat (count “1 & 2 &”).',
         bars: P('64:8 68:8 71:8 68:8 64:8 68:8 71:8 68:8 | 64:8 69:8 73:8 69:8 64:8 69:8 73:8 69:8 | 66:8 71:8 75:8 71:8 66:8 71:8 75:8 71:8 | 64:8 69:8 73:8 69:8 64:8 69:8 73:8 69:8'),
         time: '4/4', key: 'E',
         positions: [[3, 9], [2, 9], [1, 7]]
       },
       {
         name: 'Sixteenths',
-        how: 'The same cells, twice as fast.',
+        how: 'The same, twice as fast: four notes per beat (count “1 e & a”).',
         bars: P('64:16 68:16 71:16 68:16 64:16 68:16 71:16 68:16 64:16 68:16 71:16 68:16 64:16 68:16 71:16 68:16 | 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 | 66:16 71:16 75:16 71:16 66:16 71:16 75:16 71:16 66:16 71:16 75:16 71:16 66:16 71:16 75:16 71:16 | 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16'),
         time: '4/4', key: 'E'
       },
       {
         name: 'Top down',
-        how: 'High, middle, low, middle in sixteenths.',
+        how: 'High, middle, low, middle, four notes per beat.',
         bars: P('71:16 68:16 64:16 68:16 71:16 68:16 64:16 68:16 71:16 68:16 64:16 68:16 71:16 68:16 64:16 68:16 | 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 | 75:16 71:16 66:16 71:16 75:16 71:16 66:16 71:16 75:16 71:16 66:16 71:16 75:16 71:16 66:16 71:16 | 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16 73:16 69:16 64:16 69:16'),
         time: '4/4', key: 'E'
       },
-      { name: 'Accent the “a”', how: 'Sixteenths, with an accent on the last sixteenth of each beat to push the dancers forward.' }
+      { name: 'Loud on the a', how: 'Four notes per beat, with the last one of each beat (the a) louder, to push the dancers forward.',
+        grid: { rows: { pick: 'xxxXxxxXxxxXxxxX' } } }
     ],
     listen: { artist: 'Franco & TPOK Jazz', work: 'Mario' }
   },
@@ -1159,20 +1226,20 @@ export default [
     focus: 'harmony',
     level: 2,
     minutes: 8,
-    goal: 'Harmonise a short sebene line in diatonic thirds, then sixths, over E–A–B–A.',
-    why: 'Congolese and Kenyan-Congolese bands voice their lines in parallel thirds and sixths. Playing one line in several harmonisations teaches the fretboard pairs, not just one riff.',
+    goal: 'Add a second note under a short lead line: first a third below, then a sixth below, over E, A, B, A.',
+    why: 'Congolese and Kenyan bands play their lead lines in two-note harmony. Playing one line with different harmonies teaches you the note pairs on the neck, not just one riff.',
     backing: { groove: 'soukous', bars: ['E', 'A', 'B', 'A'] },
     tempo: [90, 130],
     steps: [
       'Learn the top line alone first.',
-      'Thirds: the second voice sits on the next string down, a diatonic third below (E major scale).',
-      'Sixths: the second voice skips a string and sits a diatonic sixth below.',
-      'Pick both notes together, or pluck with pick and middle finger.'
+      'Thirds: the second note is on the next string down, two notes lower in the E major scale.',
+      'Sixths: the second note skips a string and is five notes lower in the scale.',
+      'Pick both notes together, or use the pick and your middle finger.'
     ],
     variations: [
       { name: 'Top line', how: 'Single notes high on strings 1 and 2.', bars: P('71:8 73:8 76:q 75:8 73:8 71:q | 73:8 76:8 78:q 76:8 73:8 69:q | 75:8 78:8 75:8 73:8 71:h | 73:8 71:8 69:8 68:8 69:h'), time: '4/4', key: 'E' },
-      { name: 'In thirds', how: 'Add a diatonic third below each note on the next string down.' },
-      { name: 'In sixths', how: 'Add a diatonic sixth below each note, skipping a string (strings 1 and 3, or 2 and 4).' },
+      { name: 'In thirds', how: 'Add a note a third below each note, on the next string down.' },
+      { name: 'In sixths', how: 'Add a note a sixth below each note, skipping a string (strings 1 and 3, or 2 and 4).' },
       { name: 'Lower voice alone', how: 'Play only the harmony voice while singing the top line.' }
     ],
     listen: { artist: 'Super Mazembe', work: 'Shauri Yako' }
@@ -1184,8 +1251,8 @@ export default [
     focus: 'melody',
     level: 2,
     minutes: 8,
-    goal: 'Play and vary phrases in Tizita major and Bati major over a C drone, with slides into notes and a wide vibrato.',
-    why: 'Each qenet has its own colour, and Ethiopian singers carry it with slides and vibrato. Switching qenet over the same drone makes the difference audible.',
+    goal: 'Play phrases in two Ethiopian scales (qenet), Tizita and Bati, over a C drone, sliding into notes and with a wide vibrato.',
+    why: 'Each Ethiopian scale has its own colour, and singers carry it with slides and vibrato. Switching scales over the same drone makes the difference easy to hear.',
     backing: { groove: 'drone', bars: ['C'] },
     tempo: [50, 90],
     steps: [
@@ -1209,21 +1276,27 @@ export default [
     focus: 'rhythm',
     level: 3,
     minutes: 10,
-    goal: 'Split a 12-pulse mbira-style pattern between a muted thumb bass and high finger notes, then shift the high part.',
-    why: 'Chimurenga guitarists copy the mbira’s interlocking low and high parts in 12/8. Moving one part against the other trains the three-against-two feel and the shifting downbeat.',
+    goal: 'Split a 12-pulse pattern in the style of the mbira (thumb piano) between a muted thumb bass and high finger notes, then move the high part.',
+    why: 'Zimbabwean chimurenga guitarists copy the mbira’s low and high parts that fit together. Moving one part against the other trains you to feel both the four beats and the twelve pulses.',
     backing: { click: { beats: 4, sub: 3 } },
+    grid: { count: '1 2 3 | 4 5 6 | 7 8 9 | 10 11 12' },
     tempo: [60, 100],
     steps: [
       'This is a practice pattern in the mbira style, not a transcription of a particular piece.',
-      'Twelve pulses per cycle. Thumb palm-muted on the low strings, fingers on strings 1 and 2.',
+      'Count 12 quick pulses: “1 2 3, 4 5 6, 7 8 9, 10 11 12”. The click’s beats are 1, 4, 7 and 10.',
+      'Thumb on the low strings with your palm resting on them; fingers on strings 1 and 2.',
       'Start on G for a whole minute. Then change the chord each cycle: G, Em, C, D.',
-      'Keep both parts steady; the interest comes from how they lock together.'
+      'Keep both parts steady; the interest comes from how they fit together.'
     ],
     variations: [
-      { name: 'Thumb bass', how: 'Palm-muted G on pulses 1 and 7, D on 4 and 10.', positions: [[6, 3], [5, 5]] },
-      { name: 'High notes on the last pulse', how: 'Fingers on pulses 3, 6, 9 and 12: B, D, B, G on the top strings.', positions: [[6, 3], [2, 0], [2, 3], [1, 3]] },
-      { name: 'Three against two', how: 'Fingers on the even pulses (2, 4, 6, 8, 10, 12), six notes against the thumb’s four.' },
-      { name: 'Shift the high part', how: 'Move the finger notes one pulse earlier and hear where the downbeat seems to go.' }
+      { name: 'Thumb bass', how: 'Muted G on 1 and 7, D on 4 and 10.', positions: [[6, 3], [5, 5]],
+        grid: { rows: { thumb: 'x..x..x..x..' } } },
+      { name: 'High notes at the end of each beat', how: 'Fingers on 3, 6, 9 and 12: B, D, B, G on the top strings.', positions: [[6, 3], [2, 0], [2, 3], [1, 3]],
+        grid: { rows: { thumb: 'x..x..x..x..', fingers: '..x..x..x..x' } } },
+      { name: 'Six against four', how: 'Fingers on the even pulses (2, 4, 6, 8, 10, 12): six notes against the thumb’s four.',
+        grid: { rows: { thumb: 'x..x..x..x..', fingers: '.x.x.x.x.x.x' } } },
+      { name: 'Move the high part', how: 'Move the finger notes one pulse earlier (2, 5, 8, 11) and hear where beat 1 seems to go.',
+        grid: { rows: { thumb: 'x..x..x..x..', fingers: '.x..x..x..x.' } } }
     ],
     listen: { artist: 'Thomas Mapfumo and the Blacks Unlimited', work: 'Corruption' }
   },
@@ -1236,19 +1309,21 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play la pompe on Am6–Dm6–E7–Am6 with short chops on 2 and 4 and a relaxed right arm.',
-    why: 'In gypsy jazz the rhythm guitar is the drum kit. Varying voicing and dynamics while the strokes stay identical builds a pompe that holds at any tempo.',
+    goal: 'Play the gypsy jazz rhythm (la pompe) on Am6, Dm6, E7, Am6: four downstrokes per bar, very short on 2 and 4, with a relaxed arm.',
+    why: 'In gypsy jazz the rhythm guitar is the drum kit. The strokes stay the same while you change the chord shape and the volume, so the rhythm holds at any tempo.',
     backing: { groove: 'pompe', bars: ['Am6', 'Dm6', 'E7', 'Am6'] },
     tempo: [110, 200],
     steps: [
       'Shapes: Am6 5-x-4-5-5-x, Dm6 x-5-3-4-3-x, E7 0-x-0-1-0-x.',
-      'Four downstrokes per bar from the wrist and forearm, never from the fingers.',
-      'Lift the left-hand pressure just after 2 and 4 so those chords are very short.',
+      'Count “1 2 3 4”. One downstroke on each count, moving from the wrist and forearm, not the fingers.',
+      'Just after 2 and 4, loosen your fretting fingers (keep touching the strings) so those chords stop at once.',
       'Raise the tempo only when your arm still feels loose.'
     ],
     variations: [
-      { name: 'Even fours', how: 'Four equal downstrokes, short on 2 and 4.', positions: [[6, 5], [4, 4], [3, 5], [2, 5]] },
-      { name: 'Bass on 1 and 3', how: 'Strike only the bass string on 1 and 3, the full chord on 2 and 4.' },
+      { name: 'Even fours', how: 'Four equal downstrokes, short on 2 and 4.', positions: [[6, 5], [4, 4], [3, 5], [2, 5]],
+        grid: { rows: { strum: 'x.X.x.X.' } } },
+      { name: 'Bass on 1 and 3', how: 'Play only the bass string on 1 and 3, and the full chord (short) on 2 and 4.',
+        grid: { rows: { bass: 'x...x...', chord: '..X...X.' } } },
       { name: 'Dm6 shape', how: 'Check the Dm6 shape alone for a few bars: root on string 5, muted string 6.', positions: [[5, 5], [4, 3], [3, 4], [2, 3]] },
       { name: 'Soft and loud', how: 'Four bars very soft, four bars loud, without the tempo moving.' }
     ],
@@ -1261,12 +1336,12 @@ export default [
     focus: 'harmony',
     level: 2,
     minutes: 8,
-    goal: 'Comp G6–G♯dim7–Am7–D7 with la pompe, moving each shape by the smallest step.',
-    why: 'Gypsy jazz uses dim7 chords as passing chords between beats. Learning that a dim7 shape repeats every three frets turns one shape into four chords.',
+    goal: 'Play G6, G♯dim7, Am7, D7 in the pompe rhythm, moving each shape as little as possible.',
+    why: 'Gypsy jazz slips a diminished chord in between two chords to connect them. One diminished shape works again every three frets, so one shape gives you four chords.',
     backing: { groove: 'pompe', bars: ['G6 G#dim7', 'Am7 D7'] },
     tempo: [100, 180],
     steps: [
-      'Two chords per bar: G6 on 1–2, G♯dim7 on 3–4, Am7 on 1–2, D7 on 3–4.',
+      'Two chords per bar: G6 on 1 and 2, G♯dim7 on 3 and 4; then Am7 on 1 and 2, D7 on 3 and 4.',
       'Notice the bass climbing G–G♯–A.',
       'Keep the pompe strokes identical when the chord changes.'
     ],
@@ -1286,20 +1361,20 @@ export default [
     level: 2,
     minutes: 10,
     goal: 'Play Am6, Dm6 and E7 arpeggios in eighths, starting each from a half step below, with rest strokes.',
-    why: 'Django’s lines outline the chord and slide in from a half step below. Adding the approach and the rest stroke one at a time makes the sound and the picking automatic.',
+    why: 'Django’s lines play the notes of the chord and slide in from one fret below. You add the extra note and the special picking one at a time, until both are automatic.',
     backing: { groove: 'pompe', bars: ['Am6', 'Dm6', 'E7', 'Am6'] },
     tempo: [90, 180],
     steps: [
-      'Am6 is A C E F♯; Dm6 is D F A B; E7 here adds F, the ♭9.',
-      'Downstroke on every string change (rest stroke): the pick lands on the next string.',
-      'Learn the plain version, then the approach version.',
-      'Swing the eighths lightly, more even than in bebop.'
+      'Am6 is A C E F♯. Dm6 is D F A B. E7 here also has F (one fret above the E).',
+      'When you move to the next string, use a downstroke and let the pick come to rest on that next string (a rest stroke).',
+      'Learn the plain version, then the version with an extra note one fret below each chord note.',
+      'Count “1 & 2 & 3 & 4 &”, the & notes slightly shorter than the numbers (a light swing).'
     ],
     variations: [
       { name: 'Plain arpeggios', how: 'Chord tones only.', bars: P('57:8 60:8 64:8 66:8 69:8 66:8 64:8 60:8 | 62:8 65:8 69:8 71:8 74:8 71:8 69:8 65:8 | 64:8 68:8 71:8 74:8 71:8 68:8 64:8 62:8 | 57:h r:h'), time: '4/4', key: 'Am' },
       { name: 'Approach from below', how: 'Each arpeggio starts a half step under its root.', bars: P('56:8 57:8 60:8 64:8 66:8 64:8 60:8 57:8 | 61:8 62:8 65:8 69:8 71:8 69:8 65:8 62:8 | 63:8 64:8 68:8 71:8 74:8 77:8 74:8 71:8 | 69:h r:h'), time: '4/4', key: 'Am' },
-      { name: 'Rest strokes', how: 'The approach version with a downstroke rest stroke on every string change, even when going up.' },
-      { name: 'Start on the third', how: 'Same idea, but each arpeggio starts a half step below its 3rd instead of its root.' }
+      { name: 'Rest strokes', how: 'The version with extra notes, using a rest stroke on every string change, even going up.' },
+      { name: 'Start on the third', how: 'Same idea, but start each chord one fret below its 3rd (C for Am6) instead of its root.' }
     ],
     listen: { artist: 'Django Reinhardt', work: 'Minor Swing' }
   },
@@ -1310,20 +1385,20 @@ export default [
     focus: 'technique',
     level: 3,
     minutes: 10,
-    goal: 'Run a diminished arpeggio up and down the neck over E7 and resolve it cleanly onto Am6.',
-    why: 'Fast diminished runs are a gypsy jazz signature. Because the shape repeats every three frets, practising it as one shift-and-repeat motion is efficient chunking.',
+    goal: 'Play a fast diminished-chord run up and down the neck over E7 and end it cleanly on Am6.',
+    why: 'Fast diminished runs are a gypsy jazz trademark. The shape repeats every three frets, so you learn one shape and one jump instead of many notes.',
     backing: { groove: 'pompe', bars: ['E7', 'Am6'] },
     tempo: [90, 180],
     steps: [
-      'Over E7, F A♭ B D is E7♭9 without the root.',
-      'The four-string shape x-x-3-4-3-4 repeats three frets higher with the same fingering.',
-      'Resolve: the run ends on a chord tone of Am6 on beat 1.',
-      'Rest strokes on string changes, alternate picking within a string.'
+      'The run uses F A♭ B D. Over E7 these sound like E7 with an added F (E7♭9).',
+      'The four-string shape x-x-3-4-3-4 works again three frets higher with the same fingers.',
+      'End the run on a note of Am6 (A, C, E or F♯) exactly on 1 of the Am6 bar.',
+      'Rest strokes when you change string, down-up picking on one string.'
     ],
     variations: [
-      { name: 'Up, eighths', how: 'Two octaves up from F, resolving to E.', bars: P('53:8 56:8 59:8 62:8 65:8 68:8 71:8 74:8 | 76:q 72:q 69:h'), time: '4/4', key: 'Am', positions: [[4, 3], [3, 4], [2, 3], [1, 4]] },
-      { name: 'Down, eighths', how: 'From high F down, resolving to A.', bars: P('77:8 74:8 71:8 68:8 65:8 62:8 59:8 56:8 | 57:q 60:q 64:h'), time: '4/4', key: 'Am' },
-      { name: 'Up and down, sixteenths', how: 'Up two octaves and straight back down in one bar.', bars: P('53:16 56:16 59:16 62:16 65:16 68:16 71:16 74:16 77:16 74:16 71:16 68:16 65:16 62:16 59:16 56:16 | 57:q 60:q 64:h'), time: '4/4', key: 'Am' },
+      { name: 'Up, eighths', how: 'Two octaves up from F, resolving to E.', bars: P('53:8 56:8 59:8 62:8 65:8 68:8 71:8 74:8 | 76:q 72:q 69:h'), time: '4/4', key: 'Am', spell: 'b', positions: [[4, 3], [3, 4], [2, 3], [1, 4]] },
+      { name: 'Down, eighths', how: 'From high F down, resolving to A.', bars: P('77:8 74:8 71:8 68:8 65:8 62:8 59:8 56:8 | 57:q 60:q 64:h'), time: '4/4', key: 'Am', spell: 'b' },
+      { name: 'Up and down, sixteenths', how: 'Up two octaves and straight back down in one bar.', bars: P('53:16 56:16 59:16 62:16 65:16 68:16 71:16 74:16 77:16 74:16 71:16 68:16 65:16 62:16 59:16 56:16 | 57:q 60:q 64:h'), time: '4/4', key: 'Am', spell: 'b' },
       { name: 'Shape shifts', how: 'Play the four-note shape as a chord, then as an arpeggio, moving it up three frets each beat.' }
     ],
     listen: { artist: 'Django Reinhardt', work: 'Djangology' }
@@ -1337,12 +1412,12 @@ export default [
     focus: 'harmony',
     level: 1,
     minutes: 8,
-    goal: 'Play the 3rds and 7ths of Dm7–G7–Cmaj7 as smooth lines, then turn them into a melody.',
-    why: 'The 3rd and 7th define each chord, and they move by half step or not at all through a ii–V–I. Building from one note per bar to a melodic line is whole–part practice for hearing the changes.',
+    goal: 'Play the 3rds and 7ths of Dm7, G7, Cmaj7 as smooth lines, then turn them into a melody.',
+    why: 'The 3rd and 7th are the notes that make each chord sound like itself, and through these chords they move by one fret or stay put. Going from one note per bar to a melody teaches you to hear the chords change.',
     backing: { groove: 'swing', bars: ['Dm7', 'G7', 'Cmaj7', 'Cmaj7'] },
     tempo: [80, 180],
     steps: [
-      'Say the guide tones: Dm7 F and C, G7 B and F, Cmaj7 E and B.',
+      'Say the 3rd and 7th of each chord: Dm7 F and C, G7 B and F, Cmaj7 E and B.',
       'Find each line on one string set before playing with the backing.',
       'Let each note ring for its full length.',
       'Listen to the half-step resolutions (C to B, F to E).'
@@ -1362,21 +1437,26 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 10,
-    goal: 'Comp shell voicings on a 12-bar blues in F with four different rhythmic approaches.',
-    why: 'Good comping is mostly rhythm. Keeping the voicings fixed and changing only the rhythm builds a vocabulary you can choose from while listening to a soloist.',
+    goal: 'Accompany a 12-bar blues in F with three-note chords, in four different rhythms.',
+    why: 'Good accompaniment (comping) is mostly rhythm. The chord shapes stay the same and only the rhythm changes, so you build a set of rhythms to choose from while a soloist plays.',
     backing: { groove: 'swing', bars: ['F7', 'Bb7', 'F7', 'F7', 'Bb7', 'Bb7', 'F7', 'D7', 'Gm7', 'C7', 'F7 D7', 'Gm7 C7'] },
+    grid: { count: '1 & a 2 & a 3 & a 4 & a' },
     tempo: [80, 160],
     steps: [
-      'Shells (root, 7th, 3rd) on strings 6-4-3 or 5-4-3, muting the strings in between.',
+      'Swing: split each beat in three and count “1 & a 2 & a 3 & a 4 & a”. The swung “and” is the a, the last of the three.',
+      'Three-note chords (root, 7th, 3rd) on strings 6-4-3 or 5-4-3, muting the strings in between.',
       'F7: 1-x-1-2-x-x. B♭7: 6-x-6-7-x-x, or x-1-0-1-x-x.',
       'Keep the comp short and light, and leave space.',
       'Play each variation for at least two full choruses.'
     ],
     variations: [
-      { name: 'Four to the bar', how: 'Short quarter notes on every beat, Freddie Green style, accents on 2 and 4.', positions: [[6, 1], [4, 1], [3, 2]] },
-      { name: 'Charleston', how: 'Beat 1 and the “and” of 2 in every bar.', positions: [[6, 6], [4, 6], [3, 7]] },
-      { name: 'Anticipate', how: 'Play each new chord on the “and” of 4 of the bar before and let it ring over the bar line.' },
-      { name: 'Leave space', how: 'Comp only in bars 2 and 4 of each four-bar phrase, with one or two syncopated hits, as if answering a soloist.' }
+      { name: 'Four to the bar', how: 'A short chord on every beat, a little louder on 2 and 4, like Freddie Green in the Basie band.', positions: [[6, 1], [4, 1], [3, 2]],
+        grid: { rows: { comp: 'x..X..x..X..' } } },
+      { name: 'Charleston', how: 'Two hits per bar: on 1 and on the a of 2 (the swung “and” of 2).', positions: [[6, 6], [4, 6], [3, 7]],
+        grid: { rows: { comp: 'x....x......' } } },
+      { name: 'Early chords', how: 'One hit per bar, on the a of 4 (the swung “and” of 4): each chord arrives early and rings over into its own bar.',
+        grid: { rows: { comp: '...........x' } } },
+      { name: 'Leave space', how: 'Play only in bars 2 and 4 of each four bars, one or two hits off the beat, as if answering a soloist.' }
     ],
     listen: { artist: 'Count Basie Orchestra', work: 'Shiny Stockings' }
   },
@@ -1388,19 +1468,19 @@ export default [
     level: 3,
     minutes: 10,
     goal: 'Target a chord tone of Cmaj7 on beat 1 by surrounding it with the notes above and below.',
-    why: 'Enclosures are how bebop lines make chord tones land. Hitting a different target with the same idea in each variation builds the skill rather than one lick.',
+    why: 'Playing the notes just above and just below a target note (an enclosure) is how bebop lines make chord notes land. Aiming at a different target with the same idea builds the skill, not one lick.',
     backing: { groove: 'swing', bars: ['Dm7', 'G7', 'Cmaj7', 'Cmaj7'] },
     tempo: [80, 200],
     steps: [
       'Each line runs through Dm7 and G7 and lands on beat 1 of the Cmaj7 bar.',
       'Learn the last beat of the G7 bar plus the target first, then add the rest.',
-      'Swing the eighths and accent the upbeats lightly.',
+      'Swing the notes in long–short pairs: count “1 & a” and play on the number and the a. Make the a notes slightly louder.',
       'Stop after the target and listen to it against the chord.'
     ],
     variations: [
       { name: 'Enclose the 3rd', how: 'F above, D♯ below, land on E.', bars: P('62:8 65:8 69:8 72:8 71:8 69:8 67:8 65:8 | 67:8 71:8 74:8 72:8 71:8 69:8 65:8 63:8 | 64:q r:q r:h | r:w'), time: '4/4', key: 'C' },
       { name: 'Enclose the 5th', how: 'A above, F♯ below, land on G.', bars: P('62:8 65:8 69:8 72:8 71:8 69:8 67:8 65:8 | 67:8 71:8 74:8 72:8 71:8 65:8 69:8 66:8 | 67:q r:q r:h | r:w'), time: '4/4', key: 'C' },
-      { name: 'Enclose the root', how: 'D♭ above, B below, land on C.', bars: P('62:8 65:8 69:8 72:8 71:8 69:8 67:8 65:8 | 67:8 71:8 74:8 77:8 76:8 74:8 73:8 71:8 | 72:q r:q r:h | r:w'), time: '4/4', key: 'C' },
+      { name: 'Enclose the root', how: 'D♭ above, B below, land on C.', bars: P('62:8 65:8 69:8 72:8 71:8 69:8 67:8 65:8 | 67:8 71:8 74:8 77:8 76:8 74:8 73b:8 71:8 | 72:q r:q r:h | r:w'), time: '4/4', key: 'C' },
       { name: 'Three-note enclosure', how: 'F above, then D and D♯ below, land on E.', bars: P('62:8 65:8 69:8 72:8 71:8 69:8 67:8 65:8 | 67:8 71:8 74:8 72:8 71:8 65:8 62:8 63:8 | 64:q r:q r:h | r:w'), time: '4/4', key: 'C' }
     ],
     listen: { artist: 'Charlie Parker', work: 'Donna Lee' }
@@ -1413,7 +1493,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Sing the root, then the 3rd, then the 7th of each chord of an Autumn Leaves-type progression in time.',
-    why: 'Players who can sing the changes can hear them while they improvise. Singing one chord tone at a time through the form, then playing what you sang, is retrieval with immediate feedback.',
+    why: 'Players who can sing the chords can hear them while they improvise. You sing one chord note at a time through the whole progression, then play what you sang to check it.',
     backing: { groove: 'swing', bars: ['Am7', 'D7', 'Gmaj7', 'Cmaj7', 'F#m7b5', 'B7', 'Em', 'Em'] },
     tempo: [70, 140],
     steps: [
@@ -1439,22 +1519,28 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Strum six eighths per bar and move the accents between 6/8 and 3/4 on Am–E7, with a muted slap on the accents.',
-    why: 'The shift between two big beats and three is the heart of chacarera, zamba and joropo. Keeping the hand moving the same way while only the accents move builds the feel into the strum.',
+    goal: 'Strum six counts per bar on Am and E7, and move the loud strums so the bar feels like two big beats or three.',
+    why: 'Switching between two big beats and three in the same bar is the heart of chacarera, zamba and joropo. Your hand keeps moving the same way and only the loud strums move, so the feel goes into your strum.',
     backing: { rhythm: 'sesqui' },
+    grid: { time: '2/4', count: '1 2 3 4 5 6', bars: 2 },
     tempo: [60, 100],
     steps: [
-      'The backing claps 6/8 in the first bar and 3/4 in the second.',
-      'Keep a constant down-up motion; only the accents change.',
-      'Am for one bar, E7 for the next.',
-      'Count “1 2 3 4 5 6” for each bar.'
+      'Count “1 2 3 4 5 6” in each bar.',
+      'The backing claps on 1 and 4 in the first bar (two big beats) and on 1, 3 and 5 in the second (three beats).',
+      'Strum down-up on every count without stopping; only the loud strums change.',
+      'Am for one bar, E7 for the next.'
     ],
     variations: [
-      { name: 'Always in 2', how: 'Accents on 1 and 4 in every bar (6/8).' },
-      { name: 'Always in 3', how: 'Accents on 1, 3 and 5 in every bar (3/4).' },
-      { name: 'Follow the backing', how: 'Bar one in 6/8, bar two in 3/4, matching the clap.' },
-      { name: 'Chasquido', how: 'On each accent, strike down and immediately damp the strings with the palm: the muted slap of Argentine strumming.' },
-      { name: 'Bass in 3, strum in 2', how: 'Thumb plays the bass on 1, 3 and 5 while the strum accents stay on 1 and 4.' }
+      { name: 'Always in 2', how: 'Loud on 1 and 4 in every bar.',
+        grid: { rows: { strum: 'XxxXxxXxxXxx' } } },
+      { name: 'Always in 3', how: 'Loud on 1, 3 and 5 in every bar.',
+        grid: { rows: { strum: 'XxXxXxXxXxXx' } } },
+      { name: 'Follow the backing', how: 'Loud on 1 and 4 in the first bar, on 1, 3 and 5 in the second, with the claps.',
+        grid: { rows: { strum: 'XxxXxxXxXxXx' } } },
+      { name: 'Muted slap', how: 'On each loud strum, strike down and stop the strings at once with your palm (the chasquido of Argentine strumming).',
+        grid: { rows: { strum: 'XxxXxxXxXxXx' } } },
+      { name: 'Bass in 3, strum in 2', how: 'Thumb plays a bass note on 1, 3 and 5 while the loud strums stay on 1 and 4.',
+        grid: { rows: { bass: 'x.x.x.x.x.x.', strum: 'X..X..X..X..' } } }
     ],
     listen: { artist: 'Atahualpa Yupanqui', work: 'Chacarera de las piedras' }
   },
@@ -1465,20 +1551,24 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 8,
-    goal: 'Accompany Am–E7 in tango marcato in 4 and in 2, add arrastre drags and the 3+3+2 accent.',
-    why: 'Tango accompaniment changes feel constantly while the chords stay simple. Practising each articulation on the same progression builds a palette rather than one strum.',
+    goal: 'Accompany Am and E7 with heavy, short tango chords (marcato), then add a drag into 1 (arrastre) and the 3+3+2 rhythm.',
+    why: 'Tango accompaniment keeps changing its feel while the chords stay simple. You try each way of playing on the same chords, so you get several strums instead of one.',
     backing: { groove: 'tango', bars: ['Am', 'E7', 'E7', 'Am'] },
     tempo: [80, 130],
     steps: [
-      'Strike with short downstrokes and release the left hand right after each one.',
-      'Marcato is heavy and detached; think of a bandoneón section.',
-      'Keep the tempo steady through the changes in articulation.'
+      'Count “1 & 2 & 3 & 4 &”.',
+      'Short, heavy downstrokes. Loosen the fretting hand right after each one so the chord stops.',
+      'Keep the tempo steady when you change from one variation to the next.'
     ],
     variations: [
-      { name: 'Marcato in 4', how: 'Four equal, heavy, short chords per bar.' },
-      { name: 'Marcato in 2', how: 'Strong on 1 and 3, lighter on 2 and 4.' },
-      { name: 'Arrastre', how: 'Drag into beat 1: slide up the bass string from a few frets below on the last eighth of the bar so the root arrives on the beat.' },
-      { name: '3+3+2', how: 'Accents on 1, the “and” of 2 and 4, as in the habanera’s bass.' }
+      { name: 'Four heavy chords', how: 'Four equal, heavy, short chords per bar, on 1, 2, 3 and 4.',
+        grid: { rows: { chord: 'X.X.X.X.' } } },
+      { name: 'Heavy in two', how: 'Loud on 1 and 3, lighter on 2 and 4.',
+        grid: { rows: { chord: 'X.x.X.x.' } } },
+      { name: 'Drag into 1', how: 'On the & of 4, start sliding up the bass string from a few frets below, so the root arrives exactly on 1.',
+        grid: { rows: { chord: 'X.x.X.x.', slide: '.......x' } } },
+      { name: '3+3+2', how: 'Loud on 1, the & of 2 and 4, like the habanera bass.',
+        grid: { rows: { chord: 'X..X..X.' } } }
     ],
     listen: { artist: 'Juan D’Arienzo', work: 'La Cumparsita' }
   },
@@ -1490,7 +1580,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Play the line A–G♯–G–F♯–F–E under and inside A minor chords, ending on E7.',
-    why: 'Chromatic bass lines over a minor chord are everywhere in tango and Latin American song. Hearing the line alone, then inside the chord, connects voice leading to the shapes you already know.',
+    why: 'A line that falls one fret at a time over a minor chord is everywhere in tango and Latin American song. Hearing the line alone, then inside the chord, connects it to shapes you already know.',
     backing: { groove: 'tango', bars: ['Am', 'Ammaj7', 'Am7', 'Am6', 'F', 'E7'] },
     tempo: [70, 120],
     steps: [
@@ -1502,8 +1592,10 @@ export default [
     variations: [
       { name: 'The line alone', how: 'One whole note per bar on the bass strings.', bars: P('45:w | 44:w | 43:w | 42:w | 41:w | 40:w'), time: '4/4', key: 'Am' },
       { name: 'Inside the chord', how: 'Strum the chords with the moving note on string 3 (then 4) clearly louder.' },
-      { name: 'Arpeggio p-i-m-a', how: 'Thumb on the bass, then i-m-a on the top strings, two groups per bar.' },
-      { name: 'With marcato', how: 'Four short marcato strokes per bar, the moving voice on top.' }
+      { name: 'Picked one note at a time', how: 'Thumb on the bass note, then index, middle and ring fingers on strings 3, 2 and 1, twice per bar (count “1 & 2 & 3 & 4 &”).',
+        grid: { rows: { thumb: 'x...x...', fingers: '.xxx.xxx' } } },
+      { name: 'Heavy and short', how: 'Four short, heavy chords per bar, with the moving note on top.',
+        grid: { rows: { chord: 'X.X.X.X.' } } }
     ],
     listen: { artist: 'Astor Piazzolla', work: 'Libertango' }
   },
@@ -1514,13 +1606,13 @@ export default [
     focus: 'technique',
     level: 3,
     minutes: 10,
-    goal: 'Keep a 3+3+2 milonga bass in the thumb on Em–B7 while the fingers play a melody.',
-    why: 'In the milonga campera of Yupanqui and others the guitar plays bass and melody at once. Learning the bass to automaticity, then adding the melody in stages, is part–whole practice for independence.',
+    goal: 'Keep a milonga bass going in your thumb on Em and B7 (on 1, the & of 2 and 4) while your fingers play a melody.',
+    why: 'In the country milonga of Yupanqui and others, one guitar plays bass and melody at once. You learn the bass until it runs by itself, then add the melody in small steps.',
     backing: { groove: 'tango', bars: ['Em', 'B7'] },
     tempo: [60, 100],
     steps: [
       'Thumb on strings 6 to 4, fingers on strings 1 to 3.',
-      'The bass groups eight eighth notes as 3+3+2.',
+      'Count “1 & 2 & 3 & 4 &”. The bass plays on 1, the & of 2 and 4 (groups of 3 + 3 + 2 counts).',
       'Learn the bass until you can talk while playing it.',
       'Then add the melody one bar at a time.'
     ],

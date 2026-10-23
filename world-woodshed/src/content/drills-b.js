@@ -8,7 +8,7 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Chop a short, even, relaxed skank on beats 2 and 4 over a one-drop groove without rushing.',
+    goal: 'Play a short, even, relaxed chord chop (the skank) on 2 and 4 over a reggae one-drop groove, without rushing.',
     why: 'In reggae the guitar is a percussion part with pitch, and the length of the chop matters as much as its timing. Changing the voicing and the stroke while the groove stays fixed builds a skank that survives any song, not one memorised shape.',
     backing: { groove: 'reggae', bars: ['Am', 'D'] },
     tempo: [66, 84],
@@ -20,11 +20,14 @@ export default [
       'Record a minute and check that every chop is the same length and sits a hair behind the beat, never ahead of it.'
     ],
     variations: [
-      { name: 'Single chop, strings 4–2', how: 'One short downstroke on 2 and 4: Am at 7-5-5, D at 7-7-7. Stop each chord by releasing pressure.', positions: [[4, 7], [3, 5], [2, 5]] },
-      { name: 'Double chop', how: 'On 2 and 4 play two quick strokes, down on the beat and up on the next 16th (“chu-ka”), both short. Then go back to the single chop and feel the difference.' },
+      { name: 'Single chop, strings 4–2', how: 'One short downstroke on 2 and 4: Am at 7-5-5, D at 7-7-7. Stop each chord by releasing pressure.', positions: [[4, 7], [3, 5], [2, 5]],
+        grid: { rows: { chop: '..x...x.' } } },
+      { name: 'Double chop', how: 'On 2 and 4 play two quick strokes, down on the beat and up right after it on the e (“chu-ka”), both short. Then go back to the single chop and feel the difference.',
+        grid: { rows: { chop: '....xx......xx..' } } },
       { name: 'Top-string voicings', how: 'Move to strings 3–1: Am at the 5th fret (5-5-5) and D in open position (2-3-2). Same short stroke, brighter colour.', positions: [[1, 5], [3, 5], [2, 5]] },
       { name: 'Lay back', how: 'Keep the single chop but place it a little later each time, until it feels relaxed and slightly behind the snare. Stop before it sounds late.' },
-      { name: 'Silent 1 and 3', how: 'On 1 and 3 brush the muted strings very softly with a downstroke, then chop on 2 and 4 with an upstroke. Many players keep this motion so the chop never rushes.' }
+      { name: 'Silent 1 and 3', how: 'On 1 and 3 brush the muted strings very softly with a downstroke, then chop on 2 and 4 with an upstroke. Many players keep this motion so the chop never rushes.',
+        grid: { rows: { brush: 'x...x...', chop: '..X...X.' } } }
     ],
     listen: { artist: 'Bob Marley & the Wailers', work: 'Stir It Up' }
   },
@@ -35,22 +38,24 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 6,
-    goal: 'Play clean, short upstrokes on every “and” of the bar at ska tempo while the chords change under them.',
-    why: 'Ska doubles the reggae skank and puts it on every offbeat, which builds endurance and a steady picking motion. Keeping the hand moving down on the beat and up on the offbeat chunks the bar into a single motion you can then speed up.',
+    goal: 'Play clean, short upstrokes on every & of the bar (1 & 2 & 3 & 4 &) at ska tempo while the chords change.',
+    why: 'Ska plays the reggae chop twice as often, on every &, which builds stamina and a steady picking motion. Your hand moves down on the numbers and up on the &s, so the whole bar becomes one motion you can speed up.',
     backing: { click: { beats: 4, sub: 2 } },
     tempo: [110, 160],
     steps: [
       'Choose a C–F–G progression, one chord per bar, using small shapes on the top three or four strings.',
       'Move the picking hand down on every beat without touching the strings and up on every “and”, striking only on the way up.',
-      'Release the chord right after each upstroke so the offbeat is short and the beat is silent.',
+      'Release the chord right after each upstroke, so each & is short and each number is silent.',
       'Change chords on beat 1 while the hand is in the air, so the next upstroke is ready on time.',
       'Raise the tempo only when every upstroke is the same length and volume.'
     ],
     variations: [
-      { name: 'One chord, offbeats only', how: 'Stay on C and play upstrokes on all four “ands”. Listen for even length.' },
-      { name: 'C–F–G–C, one bar each', how: 'Change chords on beat 1 with no gap in the offbeat pattern.' },
+      { name: 'One chord, the &s only', how: 'Stay on C and play upstrokes on all four &s. Listen for even length.',
+        grid: { rows: { up: '.x.x.x.x' } } },
+      { name: 'C–F–G–C, one bar each', how: 'Change chords on 1, while the hand is in the air, with no gap in the pattern.' },
       { name: 'C–Am–F–G', how: 'The I–vi–IV–V change that early ska shared with the American R&B it grew from. Keep the shapes small so the hand moves as little as possible.' },
-      { name: 'Accent 2 and 4', how: 'Keep every offbeat but play the “and” of 2 and the “and” of 4 a little louder, to lock with the snare.' }
+      { name: 'Louder after 2 and 4', how: 'Keep every & but play the & of 2 and the & of 4 a little louder, to lock with the snare.',
+        grid: { rows: { up: '.x.X.x.X' } } }
     ],
     listen: { artist: 'The Skatalites', work: 'Guns of Navarone' }
   },
@@ -62,7 +67,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Play a roots bass line an octave up, palm-muted and picked near the bridge, locked to the one drop.',
-    why: 'On many roots records one guitar skanks while the other doubles the bass in muted single notes, so learning the bass first teaches you the song. Changing one thing per variation (placement, rhythm, approach notes) keeps the line flexible instead of fixed.',
+    why: 'On many reggae records one guitar plays the chop while the other copies the bass in muted single notes, so learning the bass teaches you the song. Each variation changes one thing (where it starts, the rhythm, the leading notes), so the line stays flexible.',
     backing: { groove: 'reggae', bars: ['Am', 'D'] },
     tempo: [66, 84],
     steps: [
@@ -70,7 +75,7 @@ export default [
       'Pick every note with a downstroke, close to the bridge.',
       'Play the line in the staff on strings 6–4 around the 5th fret.',
       'Hum the line while you play it; if you can hum it, you know it.',
-      'Leave the rests empty: the space is part of the line.'
+      'Count “1 & 2 & 3 & 4 &”. Leave the rests empty: the space is part of the line.'
     ],
     variations: [
       {
@@ -80,20 +85,20 @@ export default [
         time: '4/4', key: 'Am', positions: [[6, 5], [6, 8], [5, 7]]
       },
       {
-        name: 'Start on the offbeat',
-        how: 'Leave the first eighth empty and push the line forward.',
+        name: 'Start on the &',
+        how: 'Leave 1 empty and start on the & of 1, which pushes the line forward.',
         bars: [[{ m: null, d: '8' }, { m: 45, d: '8' }, { m: 45, d: '8' }, { m: 48, d: '8' }, { m: 52, d: 'q' }, { m: 50, d: '8' }, { m: 48, d: '8' }], [{ m: null, d: '8' }, { m: 50, d: '8' }, { m: 50, d: '8' }, { m: 54, d: '8' }, { m: 57, d: 'q' }, { m: 55, d: '8' }, { m: 54, d: '8' }]],
         time: '4/4', key: 'Am'
       },
       {
         name: 'Drop beat 1',
-        how: 'Rest on beat 1, the way the one drop leaves it open, and land the long note on beat 4.',
+        how: 'Rest on 1 and 2, the way the one-drop drums leave 1 open, and land the long note on 4.',
         bars: [[{ m: null, d: 'q' }, { m: 45, d: '8' }, { m: 48, d: '8' }, { m: 52, d: '8' }, { m: 55, d: '8' }, { m: 57, d: 'q' }], [{ m: null, d: 'q' }, { m: 50, d: '8' }, { m: 54, d: '8' }, { m: 57, d: '8' }, { m: 60, d: '8' }, { m: 62, d: 'q' }]],
         time: '4/4', key: 'Am'
       },
       {
         name: 'Approach notes',
-        how: 'Each bar ends a half step below the next root: C♯ into D, G♯ back into A.',
+        how: 'Each bar ends one fret below the next root: C♯ into D, G♯ back into A.',
         bars: [[{ m: 45, d: 'q' }, { m: null, d: '8' }, { m: 45, d: '8' }, { m: 48, d: '8' }, { m: 52, d: '8' }, { m: 49, d: 'q' }], [{ m: 50, d: 'q' }, { m: null, d: '8' }, { m: 50, d: '8' }, { m: 54, d: '8' }, { m: 57, d: '8' }, { m: 44, d: 'q' }]],
         time: '4/4', key: 'Am'
       }
@@ -107,7 +112,7 @@ export default [
     level: 3,
     minutes: 8,
     goal: 'Answer a two-bar vocal space with a one-bar fill in A Dorian that ends cleanly before the next line.',
-    why: 'Reggae lead guitar answers the singer in short phrases and gets out of the way, like Ernest Ranglin’s quick, jazzy answers. Rotating fills of different shapes over the same gap trains choosing and stopping, not just playing.',
+    why: 'Reggae lead guitar answers the singer in short phrases and gets out of the way, like Ernest Ranglin’s quick, jazzy answers. Playing different fills in the same gap trains you to choose and to stop, not just to play.',
     backing: { groove: 'reggae', bars: ['Am', 'D'] },
     tempo: [66, 84],
     steps: [
@@ -132,7 +137,7 @@ export default [
       },
       {
         name: 'Quick turn at the top',
-        how: 'A sixteenth-note pickup to C, then down through A and F♯ to D.',
+        how: 'Two quick notes on the & and a of 1 lead up to C on 2, then down through A and F♯ to D.',
         bars: [[{ m: null, d: 'w' }], [{ m: null, d: '8' }, { m: 69, d: '16' }, { m: 71, d: '16' }, { m: 72, d: '8' }, { m: 71, d: '8' }, { m: 69, d: '8' }, { m: 66, d: '8' }, { m: 62, d: 'q' }]],
         time: '4/4', key: 'Am'
       },
@@ -150,21 +155,23 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Keep a steady oom-pah in D freygish and lay the 3+3+2 bulgar accent on top of it.',
-    why: 'The chord player in a klezmer band holds the dance together with bass on the beat and a dry chop off it. Adding the accent pattern as a separate layer is part practice: first the even oom-pah, then the 3+3+2 over it.',
+    goal: 'Keep a steady oom-pah (bass, chop, bass, chop) on D and add the bulgar’s loud notes on 1, the & of 2 and 4.',
+    why: 'The chord player in a klezmer band holds the dance together with a bass note on each beat and a dry chop between. You learn the even oom-pah first, then add the loud notes on top.',
     backing: { rhythm: 'bulgar' },
     tempo: [100, 150],
     steps: [
       'Fret D on strings 4–2 at the 7th fret (A D F♯). Play the open D string as the bass with your thumb or a downstroke.',
-      'Oom-pah: bass on every beat, a short chord chop on every “and”. Damp the chop at once.',
-      'Count eight eighths per bar and say the bulgar grouping: 1 2 3, 4 5 6, 7 8.',
-      'Accent the notes that fall on 1, 4 and 7 while the oom-pah carries on underneath.',
+      'Count “1 & 2 & 3 & 4 &”. Oom-pah: bass on each number, a short chord chop on each &. Stop the chop at once.',
+      'The bulgar groups the eight counts 3 + 3 + 2, so its loud notes fall on 1, the & of 2 and 4, like the clap in the backing.',
+      'Make those three louder while the oom-pah carries on underneath.',
       'Change to E♭ (the same shape one fret up, 8-8-8) when the variation asks, without losing the pulse.'
     ],
     variations: [
-      { name: 'Plain oom-pah on D', how: 'Bass on each beat, chop on each “and”, all at the same volume.', positions: [[3, 7], [4, 7], [2, 7]] },
-      { name: '3+3+2 accents', how: 'Keep the oom-pah but accent eighths 1, 4 and 7 of the bar, matching the clap in the backing.' },
-      { name: 'D and E♭', how: 'Two bars of D, one bar of E♭ (8-8-8 on strings 4–2), one bar of D. The ♭II chord is the sound of freygish.', positions: [[3, 8], [4, 8], [2, 8]] },
+      { name: 'Plain oom-pah on D', how: 'Bass on each number, chop on each &, all at the same volume.', positions: [[3, 7], [4, 7], [2, 7]],
+        grid: { rows: { bass: 'x.x.x.x.', chop: '.x.x.x.x' } } },
+      { name: '3+3+2 accents', how: 'Keep the oom-pah but play 1, the & of 2 and 4 louder, with the clap in the backing.',
+        grid: { rows: { bass: 'X.x.x.X.', chop: '.x.X.x.x' } } },
+      { name: 'D and E♭', how: 'Two bars of D, one bar of E♭ (8-8-8 on strings 4–2), one bar of D. The chord one fret above home is the sound of freygish, the main klezmer mode.', positions: [[3, 8], [4, 8], [2, 8]] },
       { name: 'Add Gm', how: 'D – D – Gm – D. Gm on strings 4–2 is 8-7-8 (B♭ D G). Keep the accents.', positions: [[2, 8], [4, 8], [3, 7]] }
     ],
     listen: { artist: 'Dave Tarras', work: 'Yiddish-American Klezmer Music 1925–1956' }
@@ -176,7 +183,7 @@ export default [
     focus: 'technique',
     level: 2,
     minutes: 8,
-    goal: 'Play a short D freygish phrase and place a clean krekhts (sob) and a turn exactly where the line needs them.',
+    goal: 'Play a short klezmer phrase on D and add a clean “sob” ornament (krekhts) and a turn exactly where the line needs them.',
     why: 'Klezmer melody is shaped by a few well-placed ornaments, not by covering every note. Learning the plain line first and then adding one ornament at a time keeps the melody clear and lets you hear what each ornament does.',
     backing: { groove: 'drone', bars: ['D'] },
     tempo: [56, 88],
@@ -222,19 +229,21 @@ export default [
     focus: 'harmony',
     level: 2,
     minutes: 7,
-    goal: 'Accompany a slow hora in D mi sheberakh, bass on the long beat and the chord on the short one, moving between Dm and E7.',
-    why: 'The hora (zhok) limps long–short, and the chord player makes the sway by placing the chord late in the bar. Using the right chords for the mode (Dm and E7, not D and E) trains your ear to follow the mode, not a stock progression.',
+    goal: 'Accompany a slow klezmer hora on Dm and E7: bass on the long beat, chord on the short one.',
+    why: 'The hora limps long–short, and the chord player makes the sway by playing the chord late in the bar. Using the chords of the mode (Dm and E7, not D and E) trains your ear to follow the mode.',
     backing: { click: { beats: 3, sub: 1 } },
+    grid: { time: '3/8', count: '1 2 3' },
     tempo: [120, 168],
     steps: [
-      'The click counts eighth notes, three to a bar. Play the bass on 1, nothing on 2, and the chord on 3.',
+      'The click counts 1 2 3 in each bar. Play the bass on 1, nothing on 2, and the chord on 3.',
       'Dm on strings 4–2: 7-7-6 (A D F). E7 on strings 4–2: 6-7-5 (G♯ D E). Only two notes move.',
       'Keep the chord short and soft, the bass a little longer.',
       'Change chords on the bass note, never on the chord stroke.',
       'Play the mode’s melody in the last variation so you hear where G♯ and B come from.'
     ],
     variations: [
-      { name: 'Dm only', how: 'Bass D (open 4th string) on 1, Dm chord on 3, over and over until the sway feels natural.', positions: [[3, 7], [4, 7], [2, 6]] },
+      { name: 'Dm only', how: 'Bass D (open 4th string) on 1, Dm chord on 3, over and over until the sway feels natural.', positions: [[3, 7], [4, 7], [2, 6]],
+        grid: { rows: { bass: 'x..', chord: '..x' } } },
       { name: 'Dm – E7', how: 'Two bars each. Bass E (open 6th string) under E7.', positions: [[2, 5], [4, 6], [3, 7]] },
       { name: 'Dm – E7 – Am – Dm', how: 'Am on strings 4–2 is 7-5-5 (A C E). One bar each.' },
       {
@@ -252,8 +261,8 @@ export default [
     focus: 'melody',
     level: 3,
     minutes: 10,
-    goal: 'Improvise unmetered doina phrases in D freygish that breathe, use ornaments sparingly and always come home to D.',
-    why: 'The doina is free in time, so it trains phrasing and silence rather than tempo. Each variation fixes one shape (a cell, a climb, an echo) so you build a vocabulary of phrase types instead of noodling.',
+    goal: 'Improvise free-time phrases (a doina) on D with room to breathe, few ornaments, and always come home to D.',
+    why: 'The doina has no steady beat, so it trains phrasing and silence instead of tempo. Each variation gives you one kind of phrase (three notes, a climb, an echo), so you collect phrase types instead of noodling.',
     backing: { groove: 'drone', bars: ['D'] },
     tempo: [40, 60],
     steps: [
@@ -282,7 +291,7 @@ export default [
     level: 1,
     minutes: 7,
     goal: 'Play the in scale on E on the 1st string, reaching F and C by bending in tune instead of fretting them.',
-    why: 'On the koto the player shapes a note after it starts by pressing behind the bridge, and guitar bends are the nearest equivalent. Comparing the fretted note with the bent one is immediate feedback for pitch, and silence between phrases is part of the drill.',
+    why: 'On the koto the player bends a note after it starts by pressing the string behind the bridge; guitar bends are the nearest thing. Comparing the fretted note with the bent one tells you at once if you are in tune, and the silence between phrases is part of the drill.',
     backing: { groove: 'drone', bars: ['Esus4'] },
     tempo: [50, 72],
     steps: [
@@ -328,27 +337,27 @@ export default [
     focus: 'rhythm',
     level: 2,
     minutes: 8,
-    goal: 'Play the on-beat (polos) and off-beat (sangsih) halves of an interlocking line so that together they sound like one player.',
-    why: 'Balinese kotekan splits a fast line between two players, so each part must be exact for the whole to work. Practising each half alone and then together is part–whole practice, and the off-beat part trains you to hear the beat you are not playing.',
+    goal: 'Play the two halves of a Balinese interlocking line: the notes on the numbers (polos) and the notes on the &s (sangsih), so together they sound like one player.',
+    why: 'Balinese kotekan splits a fast line between two players, so each part must be exact for the whole to work. You learn each half alone, then together, and the & part trains you to feel the beat you are not playing.',
     backing: { click: { beats: 4, sub: 2 } },
     tempo: [70, 120],
     steps: [
       'Learn the combined line first (variation 3), slowly.',
-      'Play the polos alone: only the notes on the beats, with rests between.',
-      'Play the sangsih alone: only the notes between the beats. Tap your foot on the beat you are not playing.',
+      'Count “1 & 2 & 3 & 4 &”. Play the polos alone: only the notes on the numbers.',
+      'Play the sangsih alone: only the notes on the &s. Tap your foot on the numbers you are not playing.',
       'With a looper or a friend, play one part against the other until the line sounds continuous.',
       'Then try the double-density version, where the same idea runs twice as fast.'
     ],
     variations: [
       {
-        name: 'Polos (on the beat)',
-        how: 'Notes on the beats only. Keep the rests silent.',
+        name: 'Polos (on the numbers)',
+        how: 'Notes on 1, 2, 3 and 4 only. Keep the rests silent.',
         bars: [[{ m: 64, d: '8' }, { m: null, d: '8' }, { m: 69, d: '8' }, { m: null, d: '8' }, { m: 69, d: '8' }, { m: null, d: '8' }, { m: 64, d: '8' }, { m: null, d: '8' }]],
         time: '4/4'
       },
       {
-        name: 'Sangsih (between the beats)',
-        how: 'Notes on the offbeats only. This is the hard half.',
+        name: 'Sangsih (on the &s)',
+        how: 'Notes on the four &s only. This is the hard half.',
         bars: [[{ m: null, d: '8' }, { m: 67, d: '8' }, { m: null, d: '8' }, { m: 71, d: '8' }, { m: null, d: '8' }, { m: 67, d: '8' }, { m: null, d: '8' }, { m: 67, d: '8' }]],
         time: '4/4'
       },
@@ -360,7 +369,7 @@ export default [
       },
       {
         name: 'Double density',
-        how: 'The combined line in sixteenths, twice per bar, as when the irama changes.',
+        how: 'The combined line twice as fast (count “1 e & a”), twice per bar, as when the gamelan changes to a denser level.',
         bars: [[{ m: 64, d: '16' }, { m: 67, d: '16' }, { m: 69, d: '16' }, { m: 71, d: '16' }, { m: 69, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 67, d: '16' }, { m: 69, d: '16' }, { m: 71, d: '16' }, { m: 69, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 67, d: '16' }]],
         time: '4/4'
       }
@@ -375,14 +384,14 @@ export default [
     level: 2,
     minutes: 7,
     goal: 'Play one yo-scale phrase slowly, then building, then fast, giving each note shape and weight at every speed.',
-    why: 'Many Japanese pieces follow jo-ha-kyū: a slow opening, a gradual build and a fast close. Playing the same notes at three densities is variable practice, and it shows that the slow version needs as much care as the fast one.',
+    why: 'Many Japanese pieces follow jo-ha-kyū: a slow opening, a gradual build and a fast close. Playing the same notes at three speeds shows that the slow version needs as much care as the fast one.',
     backing: { click: { beats: 4, sub: 1 } },
     tempo: [50, 80],
     steps: [
       'The yo scale here is D E G A B, five notes with no half steps.',
-      'Jo: half notes. Pluck near the bridge for a sharp attack and add a slight bend or slide into each note.',
-      'Ha: the same idea in quarters, a little stronger.',
-      'Kyū: eighths, driving, then stop on a long D.',
+      'Jo (slow): one note every two beats. Pluck near the bridge for a sharp attack and add a slight bend or slide into each note.',
+      'Ha (building): one note per beat, a little stronger.',
+      'Kyū (fast): two notes per beat, driving, then stop on a long D.',
       'Finally play the whole arc without stopping, letting the speed grow instead of jumping.'
     ],
     variations: [
@@ -420,7 +429,7 @@ export default [
     level: 3,
     minutes: 10,
     goal: 'Play a slow core melody, then elaborations at two and four times its density that move toward each next core note, and close the cycle with a gong tone.',
-    why: 'Gamelan has no chords; its “harmony” is layers of one melody at different densities. Building the layers one at a time on a looper is part–whole practice and trains you to hear where each layer is heading.',
+    why: 'Gamelan has no chords; its “harmony” is one melody played in layers at different speeds. Building the layers one at a time trains you to hear where each layer is heading.',
     backing: { click: { beats: 4, sub: 2 } },
     tempo: [60, 100],
     steps: [
@@ -445,12 +454,12 @@ export default [
       },
       {
         name: 'Four-times elaboration',
-        how: 'Sixteenths that alternate around each target and land on it.',
+        how: 'Four notes per beat that circle each core note and land on it.',
         bars: [[{ m: 62, d: '16' }, { m: 60, d: '16' }, { m: 62, d: '16' }, { m: 60, d: '16' }, { m: 60, d: '16' }, { m: 62, d: '16' }, { m: 60, d: '16' }, { m: 62, d: '16' }, { m: 62, d: '16' }, { m: 64, d: '16' }, { m: 62, d: '16' }, { m: 64, d: '16' }, { m: 64, d: '16' }, { m: 62, d: '16' }, { m: 64, d: '16' }, { m: 62, d: '16' }], [{ m: 64, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 67, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 64, d: '16' }, { m: 62, d: '16' }, { m: 64, d: '16' }, { m: 62, d: '16' }, { m: 62, d: 'q' }]],
         time: '4/4'
       },
       {
-        name: 'Slower core (irama change)',
+        name: 'Slower core',
         how: 'The core melody spread to half notes while the elaboration stays as fast as before, so it now fits twice as many notes per core note.',
         bars: [[{ m: 60, d: 'h' }, { m: 62, d: 'h' }], [{ m: 64, d: 'h' }, { m: 62, d: 'h' }], [{ m: 67, d: 'h' }, { m: 64, d: 'h' }], [{ m: 62, d: 'w' }]],
         time: '4/4'
@@ -467,22 +476,25 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Strum a steady 6/8 jig pattern in DADGAD that marks the first of each three and lets open strings ring.',
-    why: 'A session guitarist’s main job is rhythm with lift that never rushes. Trying both common jig strokes (down-up-down and down-down-up) is variable practice; you will feel which one suits which tune.',
+    goal: 'Strum a steady jig (two beats per bar, each split in three) in DADGAD tuning, louder on 1 and 4, letting open strings ring.',
+    why: 'A session guitarist’s main job is rhythm with a lift that never rushes. You try both common jig strums (down-up-down and down-down-up) and feel which one suits which tune.',
     backing: { click: { beats: 2, sub: 3 } },
+    grid: { time: '6/8', count: '1 2 3 4 5 6' },
     tempo: [80, 116],
     steps: [
       'Tune to DADGAD (lower strings 6, 2 and 1 a whole step).',
       'Shapes: D5 = 0 0 0 2 0 0; G = 5 5 0 0 0 0; Asus4 = x 0 2 2 0 0. Let the open strings ring.',
       'The click gives two beats per bar, each split in three. Count “1 2 3, 4 5 6”.',
-      'Strum down-up-down for each group of three and accent the first stroke.',
+      'Strum down-up-down for each group of three and make the first stroke louder (1 and 4).',
       'Keep the arm moving the same way through chord changes.'
     ],
     variations: [
-      { name: 'Down-up-down, D5 only', how: 'Accent the first stroke of each group; keep the other two light.' },
-      { name: 'Down-down-up', how: 'Same chord, the other common pattern. It gives a heavier, rounder feel.' },
+      { name: 'Down-up-down, D5 only', how: 'Loud on 1 and 4; keep the other strokes light.',
+        grid: { rows: { down: 'X.xX.x', up: '.x..x.' } } },
+      { name: 'Down-down-up', how: 'Same chord, the other common pattern. It gives a heavier, rounder feel.',
+        grid: { rows: { down: 'Xx.Xx.', up: '..x..x' } } },
       { name: 'D5 – G – D5 – Asus4', how: 'One bar each, any stroke pattern, with no gap at the changes.' },
-      { name: 'Push the change', how: 'Change to the next chord on the last eighth of the bar, just before the downbeat, then hold it. Push only the change into Asus4.' }
+      { name: 'Early change', how: 'Change to Asus4 one count early, on 6 of the bar before, then hold it. Only this change comes early.' }
     ],
     listen: { artist: 'The Bothy Band', work: 'Old Hag You Have Killed Me' }
   },
@@ -493,14 +505,14 @@ export default [
     focus: 'technique',
     level: 2,
     minutes: 8,
-    goal: 'Flatpick even reel eighths with strict alternate picking, adding lift on the offbeats and a hammer-on cut.',
-    why: 'Strict alternate picking makes the picking hand the clock, so the tune stays even at speed. Changing one thing at a time (accent, mode, ornament) builds a flexible phrase you can carry into any reel.',
+    goal: 'Pick even reel notes (two per beat) with strict down-up picking, then add lift on the &s and a hammer-on ornament.',
+    why: 'Strict down-up picking makes your picking hand the clock, so the tune stays even at speed. You change one thing at a time (accents, a note, an ornament), so the phrase works in any reel.',
     backing: { click: { beats: 4, sub: 2 } },
     tempo: [80, 160],
     steps: [
-      'Standard tuning. Pick down on every beat and up on every “and”, without exception.',
+      'Standard tuning. Count “1 & 2 & 3 & 4 &”. Pick down on every number and up on every &, without exception.',
       'Play the phrase slowly with all notes equal.',
-      'Then lift: play the offbeats a little stronger, the way fiddlers push a reel.',
+      'Then lift: play the &s a little stronger, the way fiddlers push a reel.',
       'Session reels are faster than this drill’s goal; build toward them over weeks and stay relaxed.',
       'Learn real reels by ear from a fiddle, flute or pipes recording and apply the same picking.'
     ],
@@ -512,8 +524,8 @@ export default [
         time: '4/4', key: 'D'
       },
       {
-        name: 'Lift on the offbeats',
-        how: 'The same notes, accenting each upstroke slightly.',
+        name: 'Lift on the &s',
+        how: 'The same notes, with each & (each upstroke) slightly louder.',
         bars: [[{ m: 62, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '8' }, { m: 66, d: '8' }, { m: 62, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '8' }, { m: 74, d: '8' }], [{ m: 76, d: '8' }, { m: 74, d: '8' }, { m: 71, d: '8' }, { m: 69, d: '8' }, { m: 67, d: '8' }, { m: 66, d: '8' }, { m: 64, d: '8' }, { m: 62, d: '8' }]],
         time: '4/4', key: 'D'
       },
@@ -525,7 +537,7 @@ export default [
       },
       {
         name: 'Hammer-on cut',
-        how: 'On beat 2, hammer from A to B and back as two sixteenths, like a fiddler’s cut. Keep the picking pattern.',
+        how: 'On 2, hammer from A to B and pull back to A, two quick notes in the time of one, like a fiddler’s cut. Keep the picking pattern.',
         bars: [[{ m: 62, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '16' }, { m: 71, d: '16' }, { m: 69, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '8' }, { m: 74, d: '8' }, { m: 69, d: '8' }]],
         time: '4/4', key: 'D'
       }
@@ -539,7 +551,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Back a modal tune with open DADGAD shapes that leave out the 3rd, a ringing drone and a simple moving bass.',
-    why: 'Many Irish tunes are modal, and a full major chord can fight the melody; open fifths and drones support it instead. Changing one element per variation (voicing, drone, bass, push) builds a backing vocabulary rather than one set of chords.',
+    why: 'Many Irish tunes use old scales (modes), and a full major chord can fight the melody; chords without the 3rd and ringing open strings support it instead. Each variation changes one thing (shape, drone, bass, early change), so you collect ways to back a tune.',
     backing: { groove: 'drone', bars: ['D', 'C', 'G', 'D'] },
     tempo: [70, 110],
     steps: [
@@ -552,8 +564,10 @@ export default [
     variations: [
       { name: 'Open shapes', how: 'D5, C, G, D5 as given in the steps. No 3rds on top.' },
       { name: 'Drone on top', how: 'Keep the open 1st and 2nd strings ringing through every chord and change only the bass strings.' },
-      { name: 'Moving bass', how: 'Single bass notes on beats 1 and 3: D, then C, then G, then D, with a passing note on beat 4 leading to the next root.' },
-      { name: 'Pushes', how: 'Change to each chord an eighth note early, on the “and” of 4, and hold it into the bar.' }
+      { name: 'Moving bass', how: 'Single bass notes on 1 and 3: D, then C, then G, then D, with one extra note on 4 leading to the next root.',
+        grid: { rows: { bass: 'x...x.x.' } } },
+      { name: 'Early changes', how: 'Strum on each beat, but play each new chord on the & of 4, just before the bar line, and hold it into the bar.',
+        grid: { rows: { strum: '..x.x.xX' } } }
     ],
     listen: { artist: 'Martin Hayes & Dennis Cahill', work: 'The Lonesome Touch' }
   },
@@ -565,7 +579,7 @@ export default [
     level: 3,
     minutes: 9,
     goal: 'Decorate a 6/8 jig phrase with a cut and a roll played with hammer-ons and pull-offs, keeping the jig pulse steady.',
-    why: 'Irish ornaments are rhythmic, not decorative extras: a roll fills a long note with the same pulse as the tune. Adding them to a fixed plain phrase one at a time (the plain phrase first) keeps the melody recognisable and the ornament in time.',
+    why: 'Irish ornaments are part of the rhythm, not decoration: a roll fills a long note with the same pulse as the tune. You add them one at a time to a phrase you already know, so the melody stays clear and the ornament stays in time.',
     backing: { click: { beats: 2, sub: 3 } },
     tempo: [60, 100],
     steps: [
@@ -573,12 +587,12 @@ export default [
       'A cut is a very short higher note just before the main note, here a quick hammer-on and pull-off.',
       'A roll on a long note is: the note, a cut above, the note, a tap below, the note, all within the length of the long note.',
       'Pick only the first note of a roll and play the rest with the left hand.',
-      'Keep the jig pulse (two beats per bar) exactly the same with or without ornaments.'
+      'Count “1 & a 2 & a”: two beats per bar, three notes per beat. Keep that pulse exactly the same with or without ornaments.'
     ],
     variations: [
       {
         name: 'Plain phrase',
-        how: 'No ornaments, even eighths in groups of three.',
+        how: 'No ornaments, three even notes per beat.',
         bars: [[{ m: 62, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '8' }, { m: 67, d: 'q' }, { m: 66, d: '8' }], [{ m: 64, d: '8' }, { m: 62, d: '8' }, { m: 64, d: '8' }, { m: 66, d: 'q', dot: true }]],
         time: '6/8', key: 'D'
       },
@@ -590,7 +604,7 @@ export default [
       },
       {
         name: 'Roll on G',
-        how: 'G, A, G, F♯, G inside one dotted quarter.',
+        how: 'G, A, G, F♯, G squeezed into the time of one beat.',
         bars: [[{ m: 62, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '8' }, { m: 67, d: '16' }, { m: 69, d: '16' }, { m: 67, d: '16' }, { m: 66, d: '16' }, { m: 67, d: '8' }], [{ m: 64, d: '8' }, { m: 62, d: '8' }, { m: 64, d: '8' }, { m: 66, d: 'q', dot: true }]],
         time: '6/8', key: 'D'
       },
@@ -612,22 +626,26 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play the root–5th / root–6th boogie with a long–short shuffle feel through all twelve bars without losing your place.',
-    why: 'This low-string figure is the backbone of electric blues rhythm guitar, and the 12-bar form is learned best by playing it, not counting it. Each variation changes one thing (the shape, the ♭7, the muting, the ending) so the boogie becomes flexible.',
+    goal: 'Play the classic blues boogie (root with 5th, then root with 6th) with a long–short shuffle feel through all twelve bars without losing your place.',
+    why: 'This low-string figure is the backbone of electric blues rhythm guitar, and the 12-bar form is learned best by playing it. Each variation changes one thing (the shape, the ♭7, the muting, the ending), so the boogie becomes flexible.',
     backing: { groove: 'shuffle', bars: ['A7', 'A7', 'A7', 'A7', 'D7', 'D7', 'A7', 'A7', 'E7', 'D7', 'A7', 'E7'] },
+    grid: { count: '1 & a 2 & a 3 & a 4 & a' },
     tempo: [70, 120],
     steps: [
       'A: open 5th string with 4th string at fret 2, then fret 4. D: open 4th with 3rd string at 2 and 4. E: open 6th with 5th at 2 and 4.',
-      'Play two notes per beat, long–short, like the backing’s ride cymbal.',
+      'Play two notes per beat, long–short: split each beat in three (“1 & a 2 & a”) and play on the number and the a, like the backing’s cymbal.',
       'Rest the picking palm lightly on the strings near the bridge.',
       'Follow the chord name on screen and say the bar number out loud for the first few rounds.',
       'Keep going through mistakes; the form keeps moving.'
     ],
     variations: [
-      { name: 'Root–5th, root–6th', how: 'Per beat: 5th, 5th, 6th, 6th, over and over on each chord.', positions: [[5, 0], [4, 2], [4, 4]] },
-      { name: 'Add the ♭7', how: 'Per bar: 5th, 6th, ♭7, 6th. On A, the ♭7 is the 4th string at fret 5.', positions: [[5, 0], [4, 2], [4, 4], [4, 5]] },
+      { name: 'Root–5th, root–6th', how: 'Beat 1: the 5th shape twice (long–short). Beat 2: the 6th shape twice. Repeat on beats 3 and 4.', positions: [[5, 0], [4, 2], [4, 4]],
+        grid: { rows: { strum: 'x.xx.xx.xx.x' } } },
+      { name: 'Add the ♭7', how: 'One shape per beat, each played long–short: 5th on 1, 6th on 2, ♭7 on 3, 6th on 4. On A, the ♭7 is the 4th string at fret 5.', positions: [[5, 0], [4, 2], [4, 4], [4, 5]],
+        grid: { rows: { strum: 'x.xx.xx.xx.x' } } },
       { name: 'Open and muted', how: 'Palm-mute bars 1–8 and lift the palm in bars 9–12 for a lift in energy.' },
-      { name: 'Turnaround', how: 'In bar 12 (E7), stop the boogie and play E7 on beat 1 only, then come back in at the top.' }
+      { name: 'Stop on bar 12', how: 'In bar 12 (E7), stop the boogie and play E7 on 1 only, then come back in at the top.',
+        grid: { rows: { strum: 'x...........' } } }
     ],
     listen: { artist: 'Jimmy Reed', work: 'Baby What You Want Me to Do' }
   },
@@ -639,7 +657,7 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Bend the 4th to the 5th and the ♭7 to the root exactly in tune, and nudge the ♭3 a quarter tone sharp.',
-    why: 'Out-of-tune bends are the most common weakness in blues guitar. Playing the target note fretted first gives you an immediate pitch reference, and alternating different bends keeps the ear checking instead of the hand repeating.',
+    why: 'Out-of-tune bends are the most common weakness in blues guitar. Playing the target note fretted first tells you exactly where to bend to, and switching between bends keeps your ear checking instead of your hand repeating.',
     backing: { groove: 'shuffle', bars: ['A7'] },
     tempo: [60, 90],
     steps: [
@@ -690,14 +708,16 @@ export default [
     tempo: [70, 110],
     steps: [
       'A7 shell: 5 x 5 6 x x. D9: x 5 4 5 5 x. E9: x 7 6 7 7 x.',
-      'Strum short chords on beats 2 and 4 only, like a horn section’s stabs.',
+      'Strum short chords on 2 and 4 only, like a horn section’s stabs.',
       'Notice bar 2: the quick change to IV and straight back.',
       'Keep the shapes small and the strums light; the bass player has the root.',
       'Count the form until you feel bars 9–12 coming.'
     ],
     variations: [
-      { name: 'Shapes on 2 and 4', how: 'One short stab on each backbeat. The D9 shape is shown.', positions: [[5, 5], [4, 4], [3, 5], [2, 5]] },
-      { name: 'Slide in from below', how: 'Hit each 9th chord a fret low on the “and” before the beat and slide it up into place.' },
+      { name: 'Shapes on 2 and 4', how: 'One short stab on 2 and one on 4. The D9 shape is shown.', positions: [[5, 5], [4, 4], [3, 5], [2, 5]],
+        grid: { count: '1 & a 2 & a 3 & a 4 & a', rows: { stab: '...x.....x..' } } },
+      { name: 'Slide in from below', how: 'Hit each 9th chord one fret low on the a just before 2 and 4, and slide it up into place on the beat.',
+        grid: { count: '1 & a 2 & a 3 & a 4 & a', rows: { slide: '..x.....x...', stab: '...x.....x..' } } },
       { name: 'Same shape, three places', how: 'Play D9 at the 5th fret, E9 at the 7th fret and A9 at the 12th fret, so the whole blues uses one shape.' },
       { name: 'Turnaround stab', how: 'In bars 11–12, play A7 on beat 1, then E9 on beat 4 of bar 12, sliding up from E♭9.' }
     ],
@@ -711,7 +731,7 @@ export default [
     level: 3,
     minutes: 10,
     goal: 'Leave the first two bars of each line to the singer and answer in bars 3–4 with a phrase that ends on A and stops before bar 5.',
-    why: 'Blues guitar grew out of answering the voice, and a good answer is short and ends somewhere definite. Rotating minor, bent and major-pentatonic answers over the same gap trains choice and restraint, and making your own is retrieval practice.',
+    why: 'Blues guitar grew out of answering the voice, and a good answer is short and ends somewhere definite. Trying different answers in the same gap trains you to choose and to hold back, and making your own puts it to use.',
     backing: { groove: 'shuffle', bars: ['A7', 'A7', 'A7', 'A7'] },
     tempo: [60, 90],
     steps: [
@@ -753,13 +773,13 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Play palm-muted, all-downstroke eighths that are identical in volume and length, then carry that into a riff with silent rests.',
-    why: 'Rock is judged by its rhythm guitar, and evenness comes from one repeated motion. Keeping the stroke fixed while the riff, the rests and the gallop change one at a time builds control instead of a single memorised riff.',
+    goal: 'Play palm-muted downstrokes on every count (1 & 2 & 3 & 4 &), all the same volume and length, then carry that into a riff with silent rests.',
+    why: 'Rock is judged by its rhythm guitar, and evenness comes from one repeated motion. The stroke stays the same while the riff, the rests and the gallop change one at a time, which builds control instead of one memorised riff.',
     backing: { rhythm: 'backbeat' },
     tempo: [90, 150],
     steps: [
       'Rest the side of the picking hand lightly on the low strings right at the bridge.',
-      'Down-pick every eighth note on the open low E. Keep the forearm loose; the motion comes from the wrist.',
+      'Count “1 & 2 & 3 & 4 &” and play a downstroke on every count, on the open low E. Keep the forearm loose; the motion comes from the wrist.',
       'Lock to the kick drum, and make every note the same volume and length.',
       'In rests, mute with both hands so the rest is truly silent.',
       'Record yourself and listen for uneven notes before raising the tempo.'
@@ -773,7 +793,7 @@ export default [
       },
       {
         name: 'E5 – G5 – A5',
-        how: 'Roots shown; play them as power chords (root and fifth). Four eighths of E5, two of G5, two of A5.',
+        how: 'Roots shown; play them as power chords (root and fifth). E5 on 1 & 2 &, G5 on 3 &, A5 on 4 &.',
         bars: [[{ m: 40, d: '8' }, { m: 40, d: '8' }, { m: 40, d: '8' }, { m: 40, d: '8' }, { m: 43, d: '8' }, { m: 43, d: '8' }, { m: 45, d: '8' }, { m: 45, d: '8' }]],
         time: '4/4', key: 'Em', positions: [[6, 0], [6, 3], [6, 5]]
       },
@@ -785,7 +805,7 @@ export default [
       },
       {
         name: 'Gallop',
-        how: 'An eighth and two sixteenths on each beat (down, down-up), palm-muted, as in heavy metal.',
+        how: 'Three notes per beat: on the number, the & and the a (count “1 e & a” and skip the e), picked down, down-up, palm-muted, as in heavy metal.',
         bars: [[{ m: 40, d: '8' }, { m: 40, d: '16' }, { m: 40, d: '16' }, { m: 40, d: '8' }, { m: 40, d: '16' }, { m: 40, d: '16' }, { m: 40, d: '8' }, { m: 40, d: '16' }, { m: 40, d: '16' }, { m: 40, d: '8' }, { m: 40, d: '16' }, { m: 40, d: '16' }]],
         time: '4/4', key: 'Em'
       }
@@ -876,15 +896,15 @@ export default [
     focus: 'melody',
     level: 3,
     minutes: 10,
-    goal: 'Play descending sixteenth-note sequences in fours and threes with strict alternate picking, then hear Aeolian and Phrygian colours in the same pattern.',
-    why: 'Sequences turn a scale into phrases and train the picking hand at speed. Changing the grouping and then the scale, one at a time, is variable practice: the hand learns the motion and the ear learns the colour.',
+    goal: 'Play fast patterns down a scale (four notes per beat, in groups of four and of three) with strict down-up picking, then hear two other scales in the same pattern.',
+    why: 'Patterns like these (sequences) turn a scale into phrases and train the picking hand at speed. You change the grouping, then the scale, one at a time: the hand learns the motion and the ear learns the colour.',
     backing: { rhythm: 'backbeat' },
     tempo: [60, 120],
     steps: [
       'E minor pentatonic box at the 12th fret.',
-      'Alternate pick strictly, starting with a downstroke on each beat.',
+      'Count “1 e & a” per beat, four notes per beat. Pick down-up strictly, with a downstroke on each number.',
       'Start at a tempo where every note is clean; raise it 4 bpm at a time.',
-      'Accent the first note of each group so you hear the shape.',
+      'Make the first note of each group a little louder so you hear the shape.',
       'Then play the same pattern in E Aeolian and E Phrygian and listen for F♯ against F.'
     ],
     variations: [
@@ -896,7 +916,7 @@ export default [
       },
       {
         name: 'Groups of three',
-        how: 'Three-note groups in sixteenths, so the accent moves across the beat.',
+        how: 'Groups of three notes, still four notes per beat, so the loud first note of each group moves around the beat.',
         bars: [[{ m: 76, d: '16' }, { m: 74, d: '16' }, { m: 71, d: '16' }, { m: 74, d: '16' }, { m: 71, d: '16' }, { m: 69, d: '16' }, { m: 71, d: '16' }, { m: 69, d: '16' }, { m: 67, d: '16' }, { m: 69, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 67, d: '16' }, { m: 64, d: '16' }, { m: 62, d: '16' }, { m: null, d: '16' }], [{ m: 64, d: '16' }, { m: 62, d: '16' }, { m: 59, d: '16' }, { m: 62, d: '16' }, { m: 59, d: '16' }, { m: 57, d: '16' }, { m: 59, d: '16' }, { m: 57, d: '16' }, { m: 55, d: '16' }, { m: 57, d: '16' }, { m: 55, d: '16' }, { m: 52, d: '16' }, { m: null, d: 'q' }]],
         time: '4/4', key: 'Em'
       },
@@ -924,23 +944,27 @@ export default [
     focus: 'rhythm',
     level: 1,
     minutes: 8,
-    goal: 'Keep the strumming hand moving in even sixteenths and let chosen accents ring out of a muted scratch.',
-    why: 'In funk the right hand is a drum: the motion never stops, and the groove lives in which strokes sound. Moving the accent while the motion stays fixed is variable practice that frees the hand from one pattern.',
+    goal: 'Keep the strumming hand moving on every count (1 e & a), mostly muted, and let chosen strokes ring out.',
+    why: 'In funk the strumming hand is a drum: the motion never stops, and the groove lives in which strokes ring out. The motion stays the same while the ringing strokes move, which frees your hand from one pattern.',
     backing: { rhythm: 'funk16' },
     tempo: [76, 104],
     steps: [
       'E9 on strings 4–1: 6 7 7 7. Rest the fingers on the strings without pressing for the muted scratch.',
-      'Strum sixteenths: down on the beat and the “&”, up on the “e” and the “a”. Small, loose wrist motion.',
-      'Press the chord down only for the accented stroke, then release at once.',
+      'Count “1 e & a 2 e & a 3 e & a 4 e & a” and strum on every count: down on the numbers and &s, up on e and a. Small, loose wrist motion.',
+      'Press the chord down only for the loud strokes, then release at once.',
       'Count “1 e & a 2 e & a” out loud for the first rounds.',
       'Lock with the hi-hat, not the snare.'
     ],
     variations: [
-      { name: 'All muted', how: 'Every stroke scratched, none pressed. Listen for even volume.', positions: [[4, 6], [3, 7], [2, 7], [1, 7]] },
-      { name: 'Accent on 1', how: 'Press the chord on beat 1 only; everything else muted.' },
-      { name: '1 and the “a” of 2', how: 'Two accents: a downstroke on 1 and an upstroke on the “a” of 2.' },
-      { name: 'With the snare', how: 'Accents on 2 and 4, plus the “e” of 3.' },
-      { name: 'Your own cell', how: 'Choose three accents in the bar and repeat them for a full minute without changing.' }
+      { name: 'All muted', how: 'Every stroke muted, none pressed. Listen for even volume.', positions: [[4, 6], [3, 7], [2, 7], [1, 7]],
+        grid: { rows: { strum: 'xxxxxxxxxxxxxxxx' } } },
+      { name: 'Ring on 1', how: 'Press the chord on 1 only; everything else muted.',
+        grid: { rows: { strum: 'Xxxxxxxxxxxxxxxx' } } },
+      { name: '1 and the a of 2', how: 'Two ringing strokes: a downstroke on 1 and an upstroke on the a of 2.',
+        grid: { rows: { strum: 'XxxxxxxXxxxxxxxx' } } },
+      { name: 'With the snare', how: 'Ring on 2 and 4, plus the e of 3.',
+        grid: { rows: { strum: 'xxxxXxxxxXxxXxxx' } } },
+      { name: 'Your own pattern', how: 'Choose three counts to ring in the bar and repeat them for a full minute without changing.' }
     ],
     listen: { artist: 'James Brown', work: 'Papa’s Got a Brand New Bag' }
   },
@@ -958,7 +982,7 @@ export default [
     steps: [
       'The staff shows the top note; the lower note is a 6th below on the 3rd string (or a 3rd below on the 2nd string).',
       'Pluck the two strings together with pick and middle finger, or two fingers, and mute the string between.',
-      'Leave beats 1 and 2 for the singer and fill in beats 3 and 4.',
+      'Leave 1 and 2 for the singer and fill in 3 and 4.',
       'Slide into the first shape from a fret below for a soul sound.',
       'Never play two fills in a row; leave a bar empty.'
     ],
@@ -981,7 +1005,7 @@ export default [
         bars: [[{ m: null, d: 'h' }, { m: 72, d: '8' }, { m: 74, d: '8' }, { m: 76, d: 'q' }]],
         time: '4/4', key: 'G', positions: [[3, 9], [1, 8], [3, 10], [1, 10], [3, 12], [1, 12]]
       },
-      { name: 'Fill only after the change', how: 'Play one fill in the last bar of G and one in the last bar of C, nowhere else.' }
+      { name: 'Fill only before the change', how: 'Play one fill in the last bar of G and one in the last bar of C, nowhere else.' }
     ],
     listen: { artist: 'Otis Redding', work: '(Sittin’ On) The Dock of the Bay' }
   },
@@ -993,21 +1017,22 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Hold an Em7 groove for minutes while moving between small shapes: Em7, Em9, the Dorian IV and a neighbour chord.',
-    why: 'Funk often stays on one chord, and the interest comes from small voicing moves and the rhythm. Rotating shapes over the same vamp teaches the Dorian sound (the major IV over a minor chord) by ear, not by theory.',
+    why: 'Funk often stays on one chord, and the interest comes from small changes of shape and the rhythm. Switching shapes over the same chord teaches the Dorian sound (an A major chord over E minor) by ear.',
     backing: { groove: 'funk', bars: ['Em7', 'Em7'] },
     tempo: [84, 104],
     steps: [
-      'Keep the sixteenth motion from the scratch drill.',
+      'Keep the strumming hand moving on every count (1 e & a), as in the scratch drill.',
       'Use one rhythm cell for the whole drill; only the shapes change.',
       'Em7 on strings 4–2: 9 7 8. Em9: x 7 5 7 7 x. A on strings 3–1: 6 5 5.',
-      'Change shapes on beat 1 or on the “a” of 2 and come back by the next bar.',
+      'Change shapes on 1 or on the a of 2 and come back by the next bar.',
       'Stay on each variation for at least two full rounds.'
     ],
     variations: [
-      { name: 'Em7, strings 4–2', how: 'Just the one shape, accents on 1 and the “a” of 2.', positions: [[4, 9], [3, 7], [2, 8]] },
+      { name: 'Em7, strings 4–2', how: 'Just the one shape, ringing on 1 and the a of 2.', positions: [[4, 9], [3, 7], [2, 8]],
+        grid: { rows: { strum: 'XxxxxxxXxxxxxxxx' } } },
       { name: 'Em9', how: 'x 7 5 7 7 x: richer and darker. Same rhythm.', positions: [[5, 7], [4, 5], [3, 7], [2, 7]] },
-      { name: 'Em7 – A (Dorian IV)', how: 'Em7 on strings 3–1 (7 8 7) for one bar, A on strings 3–1 (6 5 5) for the next.', positions: [[3, 7], [2, 8], [1, 7]] },
-      { name: 'Neighbour F♯m7', how: 'On the “a” of 4 slide the Em7 shape up two frets to F♯m7 and back down on the 1.' }
+      { name: 'Em7 – A', how: 'Em7 on strings 3–1 (7 8 7) for one bar, A on strings 3–1 (6 5 5) for the next.', positions: [[3, 7], [2, 8], [1, 7]] },
+      { name: 'Slide up to F♯m7', how: 'On the a of 4, slide the Em7 shape up two frets to F♯m7, and back down on 1.' }
     ],
     listen: { artist: 'Chic', work: 'Good Times' }
   },
@@ -1018,13 +1043,13 @@ export default [
     focus: 'technique',
     level: 3,
     minutes: 9,
-    goal: 'Play syncopated single-note lines in E Dorian inside a constant sixteenth motion, with every rest a muted ghost stroke.',
-    why: 'New Orleans and James Brown players built grooves from single notes as much as chords, and the muted strokes between notes are what make them funky. Keeping the hand moving while note placement shifts is the hardest part of funk timing, so the lines change one placement at a time.',
+    goal: 'Play short single-note lines with the picking hand moving on every count (1 e & a), and a muted “ghost” stroke on every rest.',
+    why: 'New Orleans and James Brown players built grooves from single notes as much as chords, and the muted strokes between notes are what make them funky. Keeping the hand moving while the notes move is the hardest part of funk timing, so the lines change one note position at a time.',
     backing: { rhythm: 'funk16' },
     tempo: [70, 100],
     steps: [
       'Play on strings 4 and 3 around the 2nd–7th frets.',
-      'The picking hand moves in sixteenths all the time: down on the beat and the “&”, up on the “e” and the “a”.',
+      'Count “1 e & a 2 e & a 3 e & a 4 e & a”. The picking hand moves on every count: down on the numbers and &s, up on e and a.',
       'Every rest in the staff is a muted stroke: lift the fretting finger slightly so the string goes dead.',
       'Notes must be short and percussive; release each one before the next stroke.',
       'Use a clean, bright tone.'
@@ -1037,8 +1062,8 @@ export default [
         time: '4/4', key: 'Em'
       },
       {
-        name: 'Starting on the “e”',
-        how: 'The same idea pushed off the beat; B on beat 3.',
+        name: 'Starting on the e',
+        how: 'The same idea moved off the beat; B on 3.',
         bars: [[{ m: null, d: '16' }, { m: 52, d: '16' }, { m: null, d: '16' }, { m: 52, d: '16' }, { m: 55, d: '16' }, { m: null, d: '16' }, { m: 57, d: '16' }, { m: null, d: '16' }, { m: 59, d: '16' }, { m: null, d: '16' }, { m: 57, d: '16' }, { m: 55, d: '16' }, { m: 52, d: 'q' }]],
         time: '4/4', key: 'Em'
       },
@@ -1067,7 +1092,7 @@ export default [
     level: 1,
     minutes: 8,
     goal: 'Play a strong boom-chick on G, C and D with alternating bass notes and a walk-up into each new chord.',
-    why: 'In country and bluegrass the guitar’s bass notes drive the band as much as the strums. Adding one element at a time (alternation, then walk-ups) is part practice that keeps the strum steady while the bass gets busier.',
+    why: 'In country and bluegrass the guitar’s bass notes drive the band as much as the strums. You add one thing at a time (switching bass notes, then walk-ups), so the strum stays steady while the bass gets busier.',
     backing: { groove: 'boomchick', bars: ['G', 'G', 'C', 'C', 'D', 'D', 'G', 'G'] },
     tempo: [80, 130],
     steps: [
@@ -1077,17 +1102,19 @@ export default [
       'Walk-ups go in the last two beats before a change; use them only there.'
     ],
     variations: [
-      { name: 'Root only', how: 'The root on 1 and 3 under every chord.', positions: [[6, 3], [4, 0]] },
-      { name: 'Root and fifth', how: 'Root on 1, the alternate bass on 3.' },
+      { name: 'Root only', how: 'The root on 1 and 3 under every chord, a strum on 2 and 4.', positions: [[6, 3], [4, 0]],
+        grid: { rows: { bass: 'x...x...', strum: '..x...x.' } } },
+      { name: 'Root and fifth', how: 'Root on 1, the other bass note (from the steps) on 3, a strum on 2 and 4.',
+        grid: { rows: { bass: 'x...x...', strum: '..x...x.' } } },
       {
         name: 'Walk up from G to C',
-        how: 'In the second bar of G, replace beats 3 and 4 with A and B, landing on C. Rests are where the strums go.',
+        how: 'In the second bar of G, play A and B on 3 and 4 instead of bass and strum, landing on C. Rests are where the strums go.',
         bars: [[{ m: 43, d: 'q' }, { m: null, d: 'q' }, { m: 50, d: 'q' }, { m: null, d: 'q' }], [{ m: 43, d: 'q' }, { m: null, d: 'q' }, { m: 45, d: 'q' }, { m: 47, d: 'q' }], [{ m: 48, d: 'q' }, { m: null, d: 'q' }, { m: 43, d: 'q' }, { m: null, d: 'q' }]],
         time: '4/4', key: 'G'
       },
       {
         name: 'Walk down from D to G',
-        how: 'In the second D bar play D, a strum, then C and B on beats 3 and 4, landing on G.',
+        how: 'In the second D bar play D, a strum, then C and B on 3 and 4, landing on G.',
         bars: [[{ m: 50, d: 'q' }, { m: null, d: 'q' }, { m: 45, d: 'q' }, { m: null, d: 'q' }], [{ m: 50, d: 'q' }, { m: null, d: 'q' }, { m: 48, d: 'q' }, { m: 47, d: 'q' }], [{ m: 43, d: 'q' }, { m: null, d: 'q' }, { m: 50, d: 'q' }, { m: null, d: 'q' }]],
         time: '4/4', key: 'G'
       }
@@ -1102,13 +1129,13 @@ export default [
     level: 2,
     minutes: 10,
     goal: 'Keep the thumb steady on the bass strings like a clock while the fingers add notes between the beats.',
-    why: 'Travis picking needs a thumb that runs without thought, so it is built one layer at a time: thumb alone, then one finger, then the full pattern. That part–whole order is how Merle Travis’s style is usually taught.',
+    why: 'Travis picking needs a thumb that runs without thought, so it is built one layer at a time: thumb alone, then one finger, then the full pattern. That is how Merle Travis’s style is usually taught.',
     backing: { click: { beats: 4, sub: 2 } },
     tempo: [60, 110],
     steps: [
       'Thumb only first: on C, strings 5, 4, 6, 4 (C, E, G, E) on the beats. Palm-mute lightly with the edge of the hand.',
-      'Add one finger note on the “and” of 2.',
-      'Then the full pattern: a finger note on every “and”, the thumb never stopping.',
+      'Count “1 & 2 & 3 & 4 &”. Thumb on the numbers. Add one finger note on the & of 2.',
+      'Then the full pattern: a finger note on every &, the thumb never stopping.',
       'Check that the thumb has not slowed or rushed when the fingers come in.',
       'Move to G with the same pattern; the thumb alternates strings 6, 4, 5, 4.'
     ],
@@ -1121,7 +1148,7 @@ export default [
       },
       {
         name: 'One finger note',
-        how: 'Add C on the 2nd string (index) on the “and” of 2.',
+        how: 'Add C on the 2nd string (index finger) on the & of 2.',
         bars: [[{ m: 48, d: 'q' }, { m: 52, d: '8' }, { m: 60, d: '8' }, { m: 43, d: 'q' }, { m: 52, d: 'q' }]],
         time: '4/4', key: 'C'
       },
@@ -1148,12 +1175,12 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Flatpick fiddle-tune style eighth-note lines in G with strict alternate picking and a strong, round tone, then try a crosspicked roll.',
-    why: 'Flatpicked fiddle tunes make the picking hand the clock: down on the beat, up on the offbeat, always. Moving between lines, a pickup and a crosspicking roll keeps the hand honest when the pattern changes.',
+    why: 'Flatpicked fiddle tunes make the picking hand the clock: down on the numbers, up on the &s, always. Moving between lines, a late start and a rolling pattern keeps the hand honest when the pattern changes.',
     backing: { groove: 'boomchick', bars: ['G', 'D7'] },
     tempo: [70, 130],
     steps: [
       'Use a heavy pick and play from the wrist.',
-      'Down on every beat, up on every “and”, even when you change strings.',
+      'Count “1 & 2 & 3 & 4 &”. Down on every number, up on every &, even when you change strings.',
       'Aim for each note to be full and even before you raise the tempo; Doc Watson’s power comes from solid notes, not speed.',
       'Learn real fiddle tunes from fiddle recordings as well as guitar ones.'
     ],
@@ -1165,8 +1192,8 @@ export default [
         time: '4/4', key: 'G'
       },
       {
-        name: 'Pickup on an upstroke',
-        how: 'Rest for a beat and a half, then start on an upstroke.',
+        name: 'Start on an upstroke',
+        how: 'Rest on 1, the & of 1 and 2, then start on the & of 2 with an upstroke.',
         bars: [[{ m: null, d: 'q', dot: true }, { m: 62, d: '8' }, { m: 67, d: '8' }, { m: 66, d: '8' }, { m: 64, d: '8' }, { m: 62, d: '8' }], [{ m: 66, d: '8' }, { m: 69, d: '8' }, { m: 62, d: '8' }, { m: 66, d: '8' }, { m: 69, d: '8' }, { m: 72, d: '8' }, { m: 71, d: '8' }, { m: 69, d: '8' }]],
         time: '4/4', key: 'G'
       },
@@ -1178,7 +1205,7 @@ export default [
       },
       {
         name: 'Crosspicking roll',
-        how: 'G, B, G (strings 3, 2, 1) repeating in eighths, picked down-down-up, so the three-note pattern rolls across the four beats.',
+        how: 'G, B, G (strings 3, 2, 1) repeating, two notes per beat, picked down-down-up. The three-note pattern rolls across the beats, so it starts on a different count each time.',
         bars: [[{ m: 55, d: '8' }, { m: 59, d: '8' }, { m: 67, d: '8' }, { m: 55, d: '8' }, { m: 59, d: '8' }, { m: 67, d: '8' }, { m: 55, d: '8' }, { m: 59, d: '8' }]],
         time: '4/4', key: 'G', positions: [[3, 0], [2, 0], [1, 3]]
       }
@@ -1222,14 +1249,14 @@ export default [
     level: 1,
     minutes: 8,
     goal: 'Play even arpeggios with p, i, m and a in several orders, with a still hand and a round tone.',
-    why: 'Arpeggio studies such as Giuliani’s right-hand exercises train each finger to play on its own string with the same tone. Changing the finger order while the chord stays the same is variable practice that prevents a single locked-in motion.',
+    why: 'Arpeggio studies such as Giuliani’s right-hand exercises train each finger to play its own string with the same tone. Changing the finger order while the chord stays the same keeps your hand from locking into one motion.',
     backing: { click: { beats: 4, sub: 4 } },
     tempo: [50, 80],
     steps: [
       'Sit with the guitar raised on the left leg (footstool or support).',
-      'Assign strings: p on the bass, i on the 3rd, m on the 2nd, a on the 1st.',
+      'Finger names: p is the thumb, i the index, m the middle, a the ring finger. p plays the bass, i the 3rd string, m the 2nd, a the 1st.',
       'Prepare each finger on its string an instant before it plays.',
-      'Play four notes per click, all at the same volume.',
+      'Play four notes per click (count “1 e & a”), all at the same volume.',
       'Keep the hand still; the fingers move from the knuckle.'
     ],
     variations: [
@@ -1376,14 +1403,16 @@ export default [
     backing: { groove: 'fado', bars: ['Am', 'Am', 'E7', 'E7', 'E7', 'E7', 'Am', 'Am'] },
     tempo: [60, 90],
     steps: [
-      'Thumb on the bass on the beat, fingers brushing a short, soft chord after it.',
+      'Count “1 & 2 & 3 & 4 &”. Thumb on the bass on each number, fingers brushing a short, soft chord on each &.',
       'Am: bass A on the 5th string. E7: bass E on the 6th string.',
       'Keep the chord quieter than the bass, and both quieter than a voice would be.',
       'Change chords exactly where the backing does; in fado you follow the singer, so practise listening, not leading.'
     ],
     variations: [
-      { name: 'Root and chord', how: 'Root on each beat, chord on each offbeat.', positions: [[5, 0], [4, 2], [3, 2], [2, 1]] },
-      { name: 'Alternating bass', how: 'Root on beat 1, fifth on beat 2 (E under Am, B under E7), chord after each.' },
+      { name: 'Root and chord', how: 'Root on each number, chord on each &.', positions: [[5, 0], [4, 2], [3, 2], [2, 1]],
+        grid: { rows: { bass: 'x.x.x.x.', chord: '.x.x.x.x' } } },
+      { name: 'Alternating bass', how: 'Bass switches between the root and the fifth (A and E under Am, E and B under E7), chord on each &.',
+        grid: { rows: { bass: 'x.x.x.x.', chord: '.x.x.x.x' } } },
       { name: 'Walk into E7', how: 'In the last bar of Am walk the bass down A–G–F to the E.' },
       { name: 'Wait for the singer', how: 'At the end of the second E7 bar, stop and hold the bass for a full bar, then come back in on Am.' }
     ],
@@ -1421,20 +1450,20 @@ export default [
     level: 2,
     minutes: 8,
     goal: 'Answer the singer with short fills high on the neck that resolve to the chord exactly as the next line begins.',
-    why: 'The guitarra answers each vocal line with a brief fill, often in harmonic minor, and stops before the singer returns. Rotating fills of different shapes over the same gap trains timing the resolution, not just the notes.',
+    why: 'The Portuguese guitar answers each vocal line with a brief fill and stops before the singer returns. Playing different fills in the same gap trains you to time the ending, not just the notes.',
     backing: { groove: 'fado', bars: ['Am', 'E7'] },
     tempo: [60, 84],
     steps: [
       'Bar 1 belongs to the singer. Play the fill in bar 2 over E7.',
-      'Pick near the bridge with a bright, crisp attack; alternate thumb and index (figueta) or use a pick.',
-      'The fill leads to A on beat 1 of the next bar; play that A as the backing returns to Am.',
-      'Use G♯, the raised 7th of harmonic minor, as the note that pulls to A.',
+      'Pick near the bridge with a bright, crisp attack; alternate thumb and index finger (figueta) or use a pick.',
+      'The fill leads to A on 1 of the next bar; play that A as the backing returns to Am.',
+      'Use G♯ (one fret below A) as the note that pulls to A.',
       'Keep each fill to one bar or less.'
     ],
     variations: [
       {
         name: 'Down to G♯',
-        how: 'E F E D B G♯, then A on the next downbeat.',
+        how: 'E F E D B G♯, then A on the next 1.',
         bars: [[{ m: null, d: 'w' }], [{ m: null, d: 'q' }, { m: 76, d: '8' }, { m: 77, d: '8' }, { m: 76, d: '8' }, { m: 74, d: '8' }, { m: 71, d: '8' }, { m: 68, d: '8' }]],
         time: '4/4', key: 'Am'
       },
@@ -1452,7 +1481,7 @@ export default [
       },
       {
         name: 'Tremolo on a held note',
-        how: 'Hold E with fast, light tremolo for three beats, then resolve to A on the next downbeat.',
+        how: 'Hold E with fast, light repeated picking (tremolo) for three beats, then land on A on the next 1.',
         bars: [[{ m: null, d: 'w' }], [{ m: null, d: 'q' }, { m: 76, d: 'h', dot: true }]],
         time: '4/4', key: 'Am'
       },
@@ -1468,13 +1497,13 @@ export default [
     level: 3,
     minutes: 9,
     goal: 'Play running notes with alternating thumb and index and switch to an even tremolo on every long note.',
-    why: 'Guitarra players pick moving notes with thumb and index (figueta) and sustain long notes with tremolo (dedilho). Switching between the two inside one phrase is the hard part, so the drill builds each alone and then joins them.',
+    why: 'Portuguese guitar players pick moving notes with thumb and index (figueta) and hold long notes with fast repeated picking (tremolo). Switching between the two inside one phrase is the hard part, so you build each alone and then join them.',
     backing: { click: { beats: 4, sub: 2 } },
     tempo: [50, 80],
     steps: [
-      'Tremolo on the open 1st string with a pick or i-m: first four, then six notes per beat.',
+      'Tremolo (fast repeated picking) on the open 1st string with a pick or index and middle: first four, then six notes per beat.',
       'Figueta: alternate thumb (down) and index (up) on single notes, near the bridge.',
-      'In the phrase, play the eighths with figueta and the half notes with tremolo.',
+      'In the phrase, play the short notes (two per beat) with figueta and the long notes with tremolo.',
       'Keep the tremolo light and even; it should sound like one sustained note.'
     ],
     variations: [
@@ -1488,7 +1517,7 @@ export default [
       },
       {
         name: 'Figueta into tremolo',
-        how: 'Eighths with thumb and index, then tremolo on the half-note A.',
+        how: 'Short notes with thumb and index, then tremolo on the long A.',
         bars: [[{ m: 76, d: '8' }, { m: 74, d: '8' }, { m: 72, d: '8' }, { m: 71, d: '8' }, { m: 69, d: 'h' }], [{ m: 72, d: '8' }, { m: 71, d: '8' }, { m: 69, d: '8' }, { m: 68, d: '8' }, { m: 69, d: 'h' }]],
         time: '4/4', key: 'Am'
       }
@@ -1546,16 +1575,16 @@ export default [
     steps: [
       'Use a small, stiff pick close to the bridge for a tar-like attack.',
       'Alternate pick on one string, very small motions, wrist loose.',
-      'Start with four even strokes per click, then speed up only while it stays even.',
+      'Start with four even strokes per click (count “1 e & a”), then speed up only while it stays even.',
       'Use riz only on long notes; short notes are single strokes.'
     ],
     variations: [
-      { name: 'Measured, four per beat', how: 'Sixteenth notes on the open 3rd string (G), even in volume.' },
+      { name: 'Measured, four per beat', how: 'Four strokes per beat on the open 3rd string (G), even in volume.' },
       { name: 'Free riz', how: 'As fast as you can while still even, for two beats, then two beats of silence.' },
       { name: 'Swell', how: 'Riz on one note growing louder over two beats and softer over the next two.' },
       {
         name: 'Riz in a phrase',
-        how: 'Single strokes on the quarters, riz on the half and dotted half. The A is koron.',
+        how: 'Single strokes on the one-beat notes, riz on the long notes. The A is koron.',
         bars: [[{ m: 67, d: 'h' }, { m: 69, d: 'q' }, { m: 70, d: 'q' }], [{ m: 69, d: 'q' }, { m: 67, d: 'h', dot: true }]],
         time: '4/4', key: 'Gm'
       }
@@ -1569,7 +1598,7 @@ export default [
     level: 2,
     minutes: 9,
     goal: 'Play a voice-like line, rest, then answer it with a short javab that echoes its ending.',
-    why: 'In avaz the instrument answers each line of the singer, usually by echoing its ending. Answering in several ways (exact, lower, ornamented) trains listening and memory, and the rests teach that silence is part of the phrase.',
+    why: 'In Persian vocal music (avaz) the instrument answers each line of the singer, usually by echoing its ending. Answering in several ways (exact, lower, ornamented) trains listening and memory, and the rests teach that silence is part of the phrase.',
     backing: { groove: 'drone', bars: ['Gm'] },
     tempo: [44, 66],
     steps: [
@@ -1604,15 +1633,15 @@ export default [
     focus: 'rhythm',
     level: 3,
     minutes: 9,
-    goal: 'Play a fast 6/8 figure that alternates a melody note with a repeated open-string pedal, keeping both voices even.',
-    why: 'The chaharmezrab is a fast instrumental piece built over a repeated note or ostinato that shows off the right hand. Moving the melody and the pedal pattern one at a time trains string crossing and accent control at speed.',
+    goal: 'Play a fast figure (two beats per bar, three notes per beat) that switches between a melody note and a repeated open string, keeping both even.',
+    why: 'The chaharmezrab is a fast Persian instrumental piece built over a repeated note that shows off the picking hand. You move the melody and the repeated note one at a time, which trains string crossing and control at speed.',
     backing: { click: { beats: 2, sub: 3 } },
     tempo: [60, 110],
     steps: [
-      'The pedal is the open 3rd string (G). The melody is on strings 1 and 2. Every A is koron.',
-      'Alternate pick: down on the pedal, up on the melody note, or as the pattern requires.',
-      'Keep the pedal softer than the melody.',
-      'Count two beats per bar, each split in three.'
+      'Count “1 & a 2 & a”: two beats per bar, three notes per beat.',
+      'The repeated note (the pedal) is the open 3rd string (G). The melody is on strings 1 and 2. Every A is koron.',
+      'Pick down on the pedal, up on the melody note, or as the pattern needs.',
+      'Keep the pedal softer than the melody.'
     ],
     variations: [
       {
@@ -1623,7 +1652,7 @@ export default [
       },
       {
         name: 'Double pedal',
-        how: 'Two quick pedal notes before each melody note.',
+        how: 'Two pedal notes before each melody note.',
         bars: [[{ m: 55, d: '16' }, { m: 55, d: '16' }, { m: 67, d: '8' }, { m: 55, d: '16' }, { m: 55, d: '16' }, { m: 69, d: '8' }, { m: 55, d: '16' }, { m: 55, d: '16' }, { m: 70, d: '8' }]],
         time: '6/8', key: 'Gm'
       },
@@ -1662,11 +1691,14 @@ export default [
       'The fretboard and staff in this app assume standard tuning, so this drill uses words only.'
     ],
     variations: [
-      { name: 'Thumb alone', how: 'Strings 5 and 4, alternating on the beats. Even and soft.' },
-      { name: 'Melody on the offbeats', how: 'Add the open 1st or 2nd string between thumb notes.' },
-      { name: 'Pinch on 1', how: 'Play the 1st string together with the thumb on beat 1, then continue the pattern.' },
+      { name: 'Thumb alone', how: 'Strings 5 and 4, switching on each beat. Even and soft.',
+        grid: { rows: { thumb: 'x.x.x.x.' } } },
+      { name: 'Melody on the &s', how: 'Count “1 & 2 & 3 & 4 &”. Add the open 1st or 2nd string on each &, between thumb notes.',
+        grid: { rows: { thumb: 'x.x.x.x.', fingers: '.x.x.x.x' } } },
+      { name: 'Pinch on 1', how: 'Play the 1st string together with the thumb on 1, then continue the pattern.',
+        grid: { rows: { thumb: 'x.x.x.x.', fingers: 'xx.x.x.x' } } },
       { name: 'G – C – D – G', how: 'Barre the 5th fret for C and the 7th fret for D, one bar each, thumb unbroken.' },
-      { name: 'Nahenahe', how: 'Set the tempo to 60 and play as softly and warmly as you can, letting every note decay.' }
+      { name: 'Nahenahe (sweet and soft)', how: 'Set the tempo to 60 and play as softly and warmly as you can, letting every note decay.' }
     ],
     listen: { artist: 'Gabby Pahinui', work: 'Hiʻilawe' }
   },
@@ -1734,8 +1766,10 @@ export default [
       'Play the vamp several times in a row, as you would while waiting for the singer.'
     ],
     variations: [
-      { name: 'Chords and thumb', how: 'One chord per bar, thumb on the beats, a light brush on the offbeats.' },
-      { name: 'Bass line', how: 'Roots only on beats 1 and 3: A (5th string, 2nd fret), D (open 4th), G (open 5th).' },
+      { name: 'Chords and thumb', how: 'One chord per bar, thumb on each number, a light brush on each &.',
+        grid: { rows: { thumb: 'x.x.x.x.', brush: '.x.x.x.x' } } },
+      { name: 'Bass line', how: 'Roots only, on 1 and 3: A (5th string, 2nd fret), D (open 4th), G (open 5th).',
+        grid: { rows: { bass: 'x...x...' } } },
       {
         name: 'Broken-chord line',
         how: 'The top of each chord as a line, ending on the low G.',

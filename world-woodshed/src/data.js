@@ -119,15 +119,15 @@ const SCALES = [
    target = the track you tap in tap-along tests.
 */
 const RHYTHMS = [
-  { id: 'son32', name: 'Son clave 3-2', region: 'cuba', meter: '4/4 (2 bars)', steps: 16, spb: 4, bpm: 100, tier: 1, target: 'clave',
+  { id: 'son32', name: 'Son clave 3-2', region: 'cuba', meter: '4/4 (one bar here, two in the slow count)', steps: 16, spb: 4, bpm: 100, tier: 1, target: 'clave', alt: '1 & 2 & 3 & 4 & 1 & 2 & 3 & 4 &'.split(' '),
     tracks: { clave: 'X..x..x...x.x...', bell: 'x...x...x...x...', high: '....x...........', mid: '............x.x.', low: '......x.....x...' },
-    note: 'The key pattern of Cuban son and salsa. Every part locks to it.' },
-  { id: 'son23', name: 'Son clave 2-3', region: 'cuba', meter: '4/4 (2 bars)', steps: 16, spb: 4, bpm: 100, tier: 2, target: 'clave',
+    note: 'The key pattern of Cuban son and salsa. Every part locks to it. Here one bar is one round: clave on 1, the a of 1, the & of 2, the & of 3 and 4. Many teachers count the same round twice as slowly, over two bars (the “slow” row): 1, 2 &, 4, then 2, 3. It is the same rhythm.' },
+  { id: 'son23', name: 'Son clave 2-3', region: 'cuba', meter: '4/4 (one bar here, two in the slow count)', steps: 16, spb: 4, bpm: 100, tier: 2, target: 'clave', alt: '1 & 2 & 3 & 4 & 1 & 2 & 3 & 4 &'.split(' '),
     tracks: { clave: '..X.x...x..x..x.', bell: 'x...x...x...x...', high: '....x...........', mid: '............x.x.', low: '......x.....x...' },
-    note: 'The same clave, starting from the 2-side. Songs pick a direction and stay in it.' },
-  { id: 'rumba32', name: 'Rumba clave 3-2', region: 'cuba', meter: '4/4 (2 bars)', steps: 16, spb: 4, bpm: 105, tier: 2, target: 'clave',
+    note: 'The same clave, started from its second half: the two-hit half comes first. Here it plays on the & of 1, 2, 3, the a of 3 and the & of 4 (in the slow count: 2, 3, then 1, 2 &, 4). Songs pick one way round and keep it.' },
+  { id: 'rumba32', name: 'Rumba clave 3-2', region: 'cuba', meter: '4/4 (one bar here, two in the slow count)', steps: 16, spb: 4, bpm: 105, tier: 2, target: 'clave', alt: '1 & 2 & 3 & 4 & 1 & 2 & 3 & 4 &'.split(' '),
     tracks: { clave: 'X..x...x..x.x...', mid: '............x.x.', high: '....x.......x...', shaker: 'x.x.x.x.x.x.x.x.' },
-    note: 'Like son clave but the third note is delayed. Used in rumba and Afro-Cuban folkloric music.' },
+    note: 'Like son clave, but the third hit comes a little later: 1, the a of 1, the a of 2, the & of 3 and 4 (in the slow count: 1, 2 &, 4 &, then 2, 3). Used in rumba and Afro-Cuban folkloric music.' },
   { id: 'tresillo', name: 'Tresillo (3+3+2)', region: 'cuba', meter: '4/4', steps: 8, spb: 2, bpm: 100, tier: 1, target: 'clap',
     tracks: { clap: 'X..x..x.', low: 'x.......', shaker: 'xxxxxxxx' },
     note: 'Eight pulses grouped 3+3+2. The seed of habanera, reggaeton, the klezmer bulgar and much more.' },
@@ -140,7 +140,7 @@ const RHYTHMS = [
   { id: 'bossa', name: 'Bossa nova', region: 'brazil', meter: '4/4 (2 bars)', steps: 16, spb: 4, bpm: 128, tier: 2, target: 'clave',
     tracks: { clave: 'x..x..x...x..x..', low: 'x.....x.x.....x.', shaker: 'x.x.x.x.x.x.x.x.' },
     note: 'The rim-click pattern of bossa nova. On guitar, the thumb plays the bass while the fingers play syncopated chords.' },
-  { id: 'samba', name: 'Samba (surdo + ganzá)', region: 'brazil', meter: '2/4 (2 bars)', steps: 16, spb: 4, bpm: 96, tier: 3, target: 'low',
+  { id: 'samba', name: 'Samba (surdo + ganzá)', region: 'brazil', meter: '2/4 (2 bars)', steps: 16, spb: 4, bpm: 96, tier: 3, target: 'low', count: '1 e & a 2 e & a 1 e & a 2 e & a'.split(' '),
     tracks: { low: '....X.......X...', mid: 'x.......x.......', shaker: 'Xxxxxxxx' + 'Xxxxxxxx' },
     note: 'The deep surdo stroke lands on beat 2 of each 2/4 bar; the ganzá shakes steady 16ths.' },
   { id: 'maqsum', name: 'Maqsum', region: 'arabic', meter: '4/4', steps: 8, spb: 2, bpm: 100, tier: 1, target: 'all',
@@ -592,6 +592,7 @@ RHY_NEW.extra.forEach(x => { if (!RHYTHMS.some(r => r.id === x.id)) RHYTHMS.push
 RHYTHMS.forEach(r => {
   const v = RHY_VAR.rhythms[r.id] || RHY_NEW.rhythms[r.id];
   if (v) r.var = v;
+  if (RHY_VAR.words[r.region]) r.words = RHY_VAR.words[r.region];
   const reg = REGIONS.find(g => g.id === r.region);
   if (reg && !(reg.rhythms = reg.rhythms || []).includes(r.id)) reg.rhythms.push(r.id);
 });
