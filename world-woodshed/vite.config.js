@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { alphaTab } from '@coderline/alphatab-vite';
 import contentIndex from './scripts/content-index.mjs';
 
 // BASE_PATH lets the GitHub Pages build live under /<repo>/; locally it is '/'.
@@ -9,6 +10,9 @@ export default defineConfig({
   worker: { format: 'es' },
   plugins: [
     contentIndex(),
+    // the Library's score reader: bundles alphaTab's worker and audio worklet, and copies its music font
+    // (font/) and sound font (soundfont/) next to the app
+    alphaTab(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png', 'samples/LICENSES.md'], // the sound credits, linked from Train → Display
@@ -37,12 +41,19 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // pdf.js's worker (the Library's PDF reader), so PDFs open offline
+        // The score reader (alphaTab, its worker and audio worklet, music font and sound font) is about 7 MB:
+        // kept the first time a score is opened rather than installed with the app.
+        globIgnores: ['**/alphaTab.*', '**/scoreview-*', 'font/**', 'soundfont/**'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         // Instrument samples are too big to install with the app: each is kept the first time it is
         // fetched (when the instrument first plays, or from Train → Display → Download all sounds).
         // The cache name matches SAMPLE_CACHE in src/samples.js.
         runtimeCaching: [{
+          urlPattern: /\/(assets\/(alphaTab\.|scoreview-)|font\/Bravura|soundfont\/)/,
+          handler: 'CacheFirst',
+          options: { cacheName: 'ww-score', expiration: { maxEntries: 30 }, cacheableResponse: { statuses: [200] } }
+        }, {
           urlPattern: /\/samples\/.+\.mp3$/,
           handler: 'CacheFirst',
           options: { cacheName: 'ww-samples', cacheableResponse: { statuses: [200] } }
