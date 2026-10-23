@@ -201,7 +201,7 @@ tool('commute', {
       const left = h('button', { class: 'pk-half pk-miss', 'aria-label': 'Missed it' }, h('span', { text: '✗ missed' }));
       const right = h('button', { class: 'pk-half pk-got', 'aria-label': 'Got it' }, h('span', { text: '✓ got it' }));
       const stopBtn = h('button', { class: 'pk-stop', onclick: () => stopHf() }, '■ Stop');
-      const pauseBtn = h('button', { class: 'pk-stop', onclick: () => { r.paused = !r.paused; pauseBtn.textContent = r.paused ? '▶ Resume' : '❚❚ Pause'; if (!r.paused && r.wake) r.wake(); } }, '❚❚ Pause');
+      const pauseBtn = h('button', { class: 'pk-stop', onclick: () => { r.paused = !r.paused; if (r.paused) A.fresh(); pauseBtn.textContent = r.paused ? '▶ Resume' : '❚❚ Pause'; if (!r.paused && r.wake) r.wake(); } }, '❚❚ Pause');
       scr.append(h('div', { class: 'pk-top' }, status, h('div', { class: 'row' }, pauseBtn, stopBtn)), h('div', { class: 'pk-mid' }, big, sub), h('div', { class: 'pk-halves' }, left, right));
       document.body.append(scr);
       keepAwake(true, 'handsfree');
@@ -215,7 +215,7 @@ tool('commute', {
           navigator.mediaSession.metadata = new MediaMetadata({ title: 'Hands-free ear training', artist: 'World Woodshed' });
           navigator.mediaSession.setActionHandler('nexttrack', () => grade(true));
           navigator.mediaSession.setActionHandler('previoustrack', () => grade(false));
-          navigator.mediaSession.setActionHandler('pause', () => { r.paused = true; pauseBtn.textContent = '▶ Resume'; });
+          navigator.mediaSession.setActionHandler('pause', () => { r.paused = true; A.fresh(); pauseBtn.textContent = '▶ Resume'; });
           navigator.mediaSession.setActionHandler('play', () => { r.paused = false; pauseBtn.textContent = '❚❚ Pause'; if (r.wake) r.wake(); });
         } catch (e) { /* not supported */ }
       }
@@ -236,6 +236,7 @@ tool('commute', {
           if (!q) { stopHf(); break; }
           status.textContent = r.n + ' answered · ' + r.got + ' right';
           big.textContent = q.prompt; sub.textContent = 'Listen…';
+          A.fresh();
           const len = q.play();
           await sleep(len); if (!r.alive) break;
           if (pref.twice) { await sleep(0.6); if (!r.alive) break; await sleep(q.play()); if (!r.alive) break; }
@@ -261,6 +262,7 @@ tool('commute', {
       if (!run) return;
       const r = run; run = null;
       r.alive = false; if (r.wake) r.wake(); if (r.grade) r.grade(null);
+      A.fresh(); // Stop silences the question still sounding
       r.cleanup();
       ctx.setActive(false);
       if (r.n) toast(r.got + ' of ' + r.n + ' right · saved to your reviews');

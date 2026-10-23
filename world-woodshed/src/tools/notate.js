@@ -238,7 +238,7 @@ tool('notate', {
     /* ----- hearing it back ----- */
     function startPlay() {
       if (rec || !draft.notes.length) return;
-      A.ensure();
+      A.ensure(); A.fresh();
       const q = quantize(draft), qps = draft.bpm / 60 * q.ts.beatQ, t0 = A.now() + 0.15;
       q.notes.forEach(n => A.note(n.midi, t0 + n.s / qps, 0.8, (n.e - n.s) / qps + 0.05));
       const end = t0 + (q.notes.length ? q.notes[q.notes.length - 1].e : 0) / qps + 0.3;

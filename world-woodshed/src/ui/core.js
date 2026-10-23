@@ -327,6 +327,8 @@ export function Quiz(container, ctx, gen, opts = {}) {
   const card = h('div', { class: 'card' });
   container.append(card);
   let q = null, t0 = 0, answered = false, autoTimer = null, alive = true;
+  // every sound the quiz plays starts over: whatever the last button played stops first
+  const hear = fn => () => { A.ensure(); A.fresh(); return fn(); };
   function next() {
     clearTimeout(autoTimer);
     if (!alive) return;
@@ -346,8 +348,8 @@ export function Quiz(container, ctx, gen, opts = {}) {
     if (q.sub) top.append(h('p', { class: 'muted small', text: q.sub }));
     card.append(top);
     const ctrl = h('div', { class: 'row' });
-    if (q.play) ctrl.append(h('button', { class: 'btn primary', onclick: () => { A.ensure(); q.play(); } }, '▶ ', q.replayLabel || 'Play again'));
-    (q.extraButtons || []).forEach(b => ctrl.append(h('button', { class: 'btn small', onclick: b.onclick }, b.label)));
+    if (q.play) ctrl.append(h('button', { class: 'btn primary', onclick: hear(q.play) }, '▶ ', q.replayLabel || 'Play again'));
+    (q.extraButtons || []).forEach(b => ctrl.append(h('button', { class: 'btn small', onclick: hear(b.onclick) }, b.label)));
     const hintBox = h('div', { class: 'hint', hidden: true });
     if (q.hint && q.hint.text) {
       if (q.hint.mode === 'auto') { hintBox.hidden = false; hintBox.textContent = q.hint.text; }
@@ -366,7 +368,8 @@ export function Quiz(container, ctx, gen, opts = {}) {
     // keyboard users keep their place: the next question starts on its first answer
     if (keepFocus) { const first = grid.querySelector('.choice'); if (first) first.focus({ preventScroll: true }); }
     A.ensure();
-    setTimeout(() => { if (alive && q.play && !q.noAutoplay) q.play(); t0 = performance.now(); }, 120);
+    const asked = q;
+    setTimeout(() => { if (alive && q === asked && q.play && !q.noAutoplay) hear(q.play)(); t0 = performance.now(); }, 120);
     t0 = performance.now();
   }
   function answer(id) {
@@ -390,8 +393,8 @@ export function Quiz(container, ctx, gen, opts = {}) {
     if (ex) fb.append(typeof ex === 'string' ? h('span', { text: ex }) : ex);
     const row = h('div', { class: 'row' });
     if (!correct && q.compare) {
-      row.append(h('button', { class: 'btn small', onclick: () => q.compare(id) }, 'Hear yours'));
-      if (q.play) row.append(h('button', { class: 'btn small', onclick: () => q.play() }, 'Hear correct'));
+      row.append(h('button', { class: 'btn small', onclick: hear(() => q.compare(id)) }, 'Hear yours'));
+      if (q.play) row.append(h('button', { class: 'btn small', onclick: hear(() => q.play()) }, 'Hear correct'));
     }
     const nextBtn = h('button', { class: 'btn primary small', onclick: next }, 'Next →');
     row.append(nextBtn);
@@ -407,7 +410,7 @@ export function Quiz(container, ctx, gen, opts = {}) {
     const n = parseInt(e.key, 10);
     if (!answered && n >= 1 && q && n <= q.choices.length) answer(q.choices[n - 1].id);
     else if (answered && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); }
-    else if (!answered && (e.key === 'r' || e.key === ' ') && q && q.play) { e.preventDefault(); q.play(); }
+    else if (!answered && (e.key === 'r' || e.key === ' ') && q && q.play) { e.preventDefault(); hear(q.play)(); }
   }
   document.addEventListener('keydown', onKey);
   next();

@@ -64,7 +64,7 @@ onAudio(() => Samples.load('wood'));
 A.setHitSampler((type, when, vel, out, o) => {
   const s = sampleFor(type, o.kit, o.region);
   // the sample plays to its own end (each was cut to length with a fade when it was built)
-  return !!(s && Samples.play(s[0], 60 + s[1], when, vel, 10, out, { gain: s[2] || 1 }));
+  return s ? Samples.play(s[0], 60 + s[1], when, vel, 10, out, { gain: s[2] || 1 }) : null;
 });
 
 export default { KITS, kitFor, sampleFor, prepare };

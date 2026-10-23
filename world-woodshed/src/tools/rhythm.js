@@ -398,7 +398,7 @@ tool('rhythmid', {
       if (ctx.params.contrast) pool = ctx.params.contrast.filter(id => id !== r.id);
       else if (pool.length < 3) pool = D.RHYTHMS.filter(x => x.id !== r.id && x.tier <= r.tier + 1).map(x => x.id);
       const opts = shuffle(shuffle(pool).slice(0, 3).concat([r.id])).map(id => D.RHYTHMS.find(x => x.id === id));
-      const play = (rr = r) => { stopLoop(); loop = A.Loop({ steps: rr.steps, stepDur: stepDurFn(rr, rr.bpm), maxSteps: rr.steps * 2, onStep: (i, t) => playRhythmStep(rr, i, t) }); loop.start(); };
+      const play = (rr = r) => { stopLoop(); loop = A.Loop({ shot: true, steps: rr.steps, stepDur: stepDurFn(rr, rr.bpm), maxSteps: rr.steps * 2, onStep: (i, t) => playRhythmStep(rr, i, t) }); loop.start(); };
       return {
         prompt: 'Which rhythm?', play: () => play(r), wide: true, autoDelay: 1800,
         choices: opts.map(x => ({ id: x.id, label: x.name, sub: regionName(x.region) + ' · ' + x.meter })), answer: r.id,

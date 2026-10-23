@@ -65,7 +65,7 @@ export const ready = id => !!(state[id] && state[id].status === 'ready');
 /* Play one note. vel 0–1 picks the velocity layer and the level within it. Starts loading the
    instrument and returns null if it isn't ready, so the caller can play its synth voice instead.
    o: { gain, detune (cents), release (seconds), pan (-1 left to 1 right) }.
-   Returns the source node (already scheduled to stop). */
+   Returns the source node (already scheduled to stop), with its level's gain node as gainNode. */
 export function play(id, midi, when, vel = 0.8, dur = 1, out = null, o = {}) {
   const st = state[id], set = SAMPLE_SETS[id];
   if (!st || st.status !== 'ready') { load(id); return null; }
@@ -100,6 +100,7 @@ export function play(id, midi, when, vel = 0.8, dur = 1, out = null, o = {}) {
   const left = (smp.buf.duration - smp.onset) / src.playbackRate.value;
   src.start(when, smp.onset);
   src.stop(when + Math.min(left, dur + rel * 1.5));
+  src.gainNode = g; // so the audio engine can fade it out early (A.fresh)
   return src;
 }
 

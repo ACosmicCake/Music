@@ -241,8 +241,8 @@ function notesMode(root, lv, ctx) {
     fb.append(h('b', { text: (ok ? 'Correct: ' : 'It’s ') + q.card.name + '.' }));
     if (msg) fb.append(h('span', { text: msg }));
     fb.append(h('span', { class: 'small', text: 'Sounds as ' + soundName(sounding) + '. ' + (best ? 'Lowest place: ' + E.STRINGS[best.s].name + ' string, ' + (best.f ? 'fret ' + best.f : 'open') + '.' : '') }));
-    fb.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => { A.ensure(); if (mic.on) Mic.muteUntil(A.now() + 1.8); A.note(sounding, A.now() + 0.02, 0.8, 1.4); } }, '▶ Hear it'), h('button', { class: 'btn primary small', onclick: next }, 'Next →')));
-    if (!mic.on) { A.ensure(); A.note(sounding, A.now() + 0.02, 0.7, 1.2); }
+    fb.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => { A.ensure(); A.fresh(); if (mic.on) Mic.muteUntil(A.now() + 1.8); A.note(sounding, A.now() + 0.02, 0.8, 1.4); } }, '▶ Hear it'), h('button', { class: 'btn primary small', onclick: next }, 'Next →')));
+    if (!mic.on) { A.ensure(); A.fresh(); A.note(sounding, A.now() + 0.02, 0.7, 1.2); }
     if (ok) auto = setTimeout(next, mic.on ? 1500 : 1300);
   }
   function answer(letter, alter) {

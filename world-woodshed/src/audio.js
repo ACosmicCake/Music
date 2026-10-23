@@ -1,7 +1,7 @@
 /* World Woodshed — audio engine (Web Audio, synthesized) */
 let ctx = null, master = null, noiseBuf = null;
 const ksCache = new Map();
-const voices = new Set();
+const voices = new Map(); // every sounding or scheduled source -> { g: its gain node, at: start time, shot }
 const chan = {}; // per-instrument channel inputs: guitar, perc
 
 /* A small room: 0.5 s of decaying noise, a little darker as it fades, slightly different in each ear */
@@ -115,7 +115,51 @@ function ksBuffer(midi) {
   return entry;
 }
 
-function track(node, stopAt) { voices.add(node); node.onended = () => voices.delete(node); }
+/* One-shot sounds and play buttons. What a play button plays (an interval, a chord, a phrase, a scale) is a
+   one-shot sound: every source not scheduled by a running Loop. A.fresh() is called when a play button is
+   pressed: it fades out the one-shot sounds still ringing, cancels the ones not yet started, the timers
+   set with A.later and the loops started with { shot: true }, so pressing Play again starts over instead
+   of piling a second sound on the first. Loops the player starts and stops (the metronome, a drone, the
+   band, a reading run) and the notes they schedule are left alone. */
+let inLoop = null; // { mine, shot } while a loop schedules a step: the sources it starts are its own
+const shotTimers = new Map(), shotLoops = new Set(); // timer id -> what to do if it is cancelled
+const FADE = 0.03;
+function track(node, g, at) {
+  const scope = inLoop;
+  voices.set(node, { g, at: at || 0, shot: !scope || scope.shot });
+  if (scope) scope.mine.add(node);
+  node.addEventListener('ended', () => { voices.delete(node); if (scope) scope.mine.delete(node); });
+}
+/* Silence one source: not started yet, it never plays; sounding, its level falls to nothing in FADE
+   seconds (a sudden stop clicks) and then it stops. */
+function silence(node, t) {
+  const v = voices.get(node);
+  voices.delete(node);
+  try {
+    if (!v || v.at > t + 0.005 || !v.g) { node.stop(); return; }
+    const p = v.g.gain;
+    if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t);
+    else { p.cancelScheduledValues(t); p.setValueAtTime(p.value, t); }
+    p.linearRampToValueAtTime(0, t + FADE);
+    node.stop(t + FADE + 0.01);
+  } catch (e) { /* already stopped */ }
+}
+function fresh() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const cancelled = [...shotTimers];
+  shotTimers.clear();
+  cancelled.forEach(([id, onCancel]) => { clearTimeout(id); if (onCancel) onCancel(); });
+  [...shotLoops].forEach(lp => lp.halt());
+  voices.forEach((v, node) => { if (v.shot) silence(node, t); });
+}
+/* setTimeout for a one-shot sound's visuals (highlighting the chord that sounds): A.fresh() cancels it,
+   and then runs onCancel, if given, to put the display back */
+function later(fn, ms, onCancel) {
+  const id = setTimeout(() => { shotTimers.delete(id); fn(); }, Math.max(0, ms));
+  shotTimers.set(id, onCancel || null);
+  return id;
+}
 
 /* Guitar notes. A recorded guitar (src/guitars.js) can take over a note; it returns null while its
    samples load, or when the player chose the synth, and the plucked string below plays instead.
@@ -127,7 +171,7 @@ function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
   const smp = noteSampler && !o.synth ? noteSampler(midi, when, vel, dur, Object.assign({}, o, { out: o.out || chan.guitar })) : null;
-  if (smp) { track(smp); return when; }
+  if (smp) { track(smp, smp.gainNode, when); return when; }
   const base = Math.round(midi);
   const e = ksBuffer(base);
   const src = ctx.createBufferSource();
@@ -142,7 +186,7 @@ function note(midi, when, vel = 0.8, dur = 1.6, o = {}) {
   tone.type = 'lowpass'; tone.frequency.value = o.tone || 4200;
   src.connect(tone); tone.connect(g); g.connect(o.out || chan.guitar);
   src.start(when); src.stop(when + dur + rel + 0.05);
-  track(src);
+  track(src, g, when);
   return when;
 }
 
@@ -184,7 +228,7 @@ function noiseHit(when, vel, type, freq, q, decay, out) {
   const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
   const g = ctx.createGain(); env(g, when, vel, decay);
   s.connect(f); f.connect(g); g.connect(out || chan.perc);
-  s.start(when, Math.random() * 0.5); s.stop(when + decay + 0.05); track(s);
+  s.start(when, Math.random() * 0.5); s.stop(when + decay + 0.05); track(s, g, when);
 }
 function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
   const o = ctx.createOscillator(); o.type = wave;
@@ -192,18 +236,20 @@ function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
   if (f1) o.frequency.exponentialRampToValueAtTime(f1, when + (glide || decay * 0.6));
   const g = ctx.createGain(); env(g, when, vel, decay);
   o.connect(g); g.connect(out || chan.perc);
-  o.start(when); o.stop(when + decay + 0.05); track(o);
+  o.start(when); o.stop(when + decay + 0.05); track(o, g, when);
 }
 
-/* Percussion voices. A recorded kit (src/drumkit.js) can take over a hit; it returns false while its
-   samples load, or for sounds it has no recording of, and the synth voice below plays instead.
+/* Percussion voices. A recorded kit (src/drumkit.js) can take over a hit and returns the source it
+   plays; it returns null while its samples load, or for sounds it has no recording of, and the synth
+   voice below plays instead.
    o: { kit: which recorded instruments play low, mid and high (see drumkit.js), synth: true to skip them } */
 let hitSampler = null;
 function setHitSampler(fn) { hitSampler = fn; }
 function hit(type, when, vel = 0.8, out, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
-  if (hitSampler && !o.synth && hitSampler(type, when, vel, out || chan.perc, o)) return;
+  const smp = hitSampler && !o.synth ? hitSampler(type, when, vel, out || chan.perc, o) : null;
+  if (smp) { if (typeof smp === 'object') track(smp, smp.gainNode, when); return; }
   switch (type) {
     case 'low': toneHit(when, 0.95 * vel, 'sine', 140, 52, 0.42, 0.12, out); break;
     case 'mid': toneHit(when, 0.6 * vel, 'sine', 260, 200, 0.22, undefined, out); noiseHit(when, 0.08 * vel, 'bandpass', 900, 1, 0.05, out); break;
@@ -224,15 +270,22 @@ function hit(type, when, vel = 0.8, out, o = {}) {
 }
 
 /* Look-ahead step scheduler.
-   opts: { steps, stepDur(i) -> seconds, onStep(i, time, cycle), onVisual(i, cycle) } */
+   opts: { steps, stepDur(i) -> seconds, onStep(i, time, cycle), onVisual(i, cycle), maxSteps, onEnd(),
+   shot: true for a loop a play button starts to be heard once (two cycles of a rhythm): A.fresh() stops
+   it, and calls onEnd so its button is reset }.
+   Stopping a loop cancels the sounds it had already scheduled ahead that haven't started. */
 function Loop(opts) {
   let timer = null, nextTime = 0, step = 0, running = false;
-  const visTimers = new Set();
+  const visTimers = new Set(), mine = new Set(), scope = { mine, shot: !!opts.shot };
   function tick() {
     while (nextTime < ctx.currentTime + 0.12) {
       const i = step % opts.steps, cycle = Math.floor(step / opts.steps);
       const t = nextTime;
-      if (opts.onStep) opts.onStep(i, t, cycle);
+      if (opts.onStep) {
+        const outer = inLoop;
+        inLoop = scope;
+        try { opts.onStep(i, t, cycle); } finally { inLoop = outer; }
+      }
       if (opts.onVisual) {
         const delay = Math.max(0, (t - ctx.currentTime + latency()) * 1000);
         const id = setTimeout(() => { visTimers.delete(id); if (running) opts.onVisual(i, cycle); }, delay);
@@ -243,27 +296,35 @@ function Loop(opts) {
       if (opts.maxSteps && step >= opts.maxSteps) {
         const endDelay = Math.max(0, (nextTime - ctx.currentTime + latency()) * 1000);
         clearInterval(timer); timer = null;
-        setTimeout(() => { if (running) { running = false; opts.onEnd && opts.onEnd(); } }, endDelay + 30);
+        setTimeout(() => { if (running) { running = false; shotLoops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
         return;
       }
     }
   }
-  return {
+  const api = {
     start(at) {
       ensure();
+      if (opts.shot) shotLoops.add(api);
       running = true; step = 0; nextTime = Math.max(at || 0, ctx.currentTime + 0.08);
-      this.startTime = nextTime;
+      api.startTime = nextTime;
       tick();
       if (!timer && running) timer = setInterval(tick, 25);
       return nextTime;
     },
     stop() {
       running = false;
+      shotLoops.delete(api);
       if (timer) clearInterval(timer); timer = null;
       visTimers.forEach(clearTimeout); visTimers.clear();
+      const t = ctx ? ctx.currentTime : 0;
+      mine.forEach(n => { const v = voices.get(n); if (v && v.at > t + 0.005) silence(n, t); });
+      mine.clear();
     },
+    /* stopped by A.fresh: as stop, and onEnd runs so whoever started it can reset its button */
+    halt() { const was = running; api.stop(); if (was && opts.onEnd) opts.onEnd(); },
     get running() { return running; }
   };
+  return api;
 }
 
 /* Tanpura-like drone: Pa, Sa', Sa', Sa (low) */
@@ -292,7 +353,7 @@ function tone(midi, when, dur = 4, vel = 0.35) {
   const oscs = [[1, 1], [2, 0.35], [3, 0.18], [4, 0.08]].map(([k, a]) => {
     const o = ctx.createOscillator(), og = ctx.createGain();
     o.frequency.value = f * k; og.gain.value = a;
-    o.connect(og); og.connect(g); o.start(when); o.stop(when + dur + 0.45); track(o);
+    o.connect(og); og.connect(g); o.start(when); o.stop(when + dur + 0.45); track(o, g, when);
     return o;
   });
   return () => {
@@ -302,9 +363,12 @@ function tone(midi, when, dur = 4, vel = 0.35) {
   };
 }
 
+/* Everything off (leaving a tool): the one-shot sounds, their timers and loops, and whatever the loops
+   had scheduled, all faded out rather than cut */
 function stopAll() {
-  voices.forEach(v => { try { v.stop(); } catch (e) { /* already stopped */ } });
-  voices.clear();
+  fresh();
+  const t = ctx ? ctx.currentTime : 0;
+  [...voices.keys()].forEach(n => silence(n, t));
 }
 
 function eventToAudioTime(ev) {
@@ -317,4 +381,4 @@ function eventToAudioTime(ev) {
 /* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
 const channel = name => { ensure(); return chan[name]; };
 
-export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, eventToAudioTime };
+export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, fresh, later, eventToAudioTime };

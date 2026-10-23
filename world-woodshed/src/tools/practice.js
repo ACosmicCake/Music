@@ -352,7 +352,7 @@ tool('explorer', {
       fb.mark(marks);
     }
     function playIt(iv) {
-      A.ensure(); const t = A.now() + 0.05;
+      A.ensure(); A.fresh(); const t = A.now() + 0.05;
       if (st.mode === 'scale') {
         const up = iv.concat([12]), seq = up.concat(up.slice(0, -1).reverse());
         seq.forEach((x, i) => A.note(48 + st.root + x, t + i * 0.28, 0.7, 0.5));
@@ -375,7 +375,7 @@ tool('explorer', {
           const ivs = st.sev ? c.iv7 : c.iv;
           const on = st.focus && st.focus.root === c.root && st.focus.n === ivs.length;
           return h('button', { class: 'dchord' + (on ? ' on' : ''), onclick: () => {
-            A.ensure(); A.strum(guitarMidis(c.root, ivs), A.now() + 0.03, 0.65, 0.025, 1.8);
+            A.ensure(); A.fresh(); A.strum(guitarMidis(c.root, ivs), A.now() + 0.03, 0.65, 0.025, 1.8);
             st.focus = on ? null : { root: c.root, n: ivs.length, pcs: ivs.map(x => (c.root + x) % 12) };
             mark(scaleOf(st.scale).steps, flats); drawChords(flats);
           } }, h('span', { class: 'mono small', text: c.roman }), h('b', { text: prettySym(st.sev ? c.seventh : c.triad) }));
@@ -412,7 +412,7 @@ export function CircleWidget(opts = {}) {
       const [tx, ty] = pt(130, i * Math.PI / 6), [mx, my] = pt(79, i * Math.PI / 6), [sx, sy] = pt(46, i * Math.PI / 6);
       g.append(s('text', { x: tx, y: ty, class: 'maj' }, MAJ_LABEL[i].split('/')[0]), s('text', { x: mx, y: my, class: 'min' }, MIN_LABEL[i].split('/')[0]));
       if (i === sel) g.append(s('text', { x: sx, y: sy, class: 'sig' }, SIG[i] || '0'));
-      g.addEventListener('click', () => { sel = i; draw(); A.ensure(); A.strum(guitarMidis(MAJ_ORDER[i], [0, 4, 7]), A.now() + 0.03, 0.6, 0.02, 1.5); });
+      g.addEventListener('click', () => { sel = i; draw(); A.ensure(); A.fresh(); A.strum(guitarMidis(MAJ_ORDER[i], [0, 4, 7]), A.now() + 0.03, 0.6, 0.02, 1.5); });
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); g.dispatchEvent(new Event('click')); } });
       svg.append(g);
     }
@@ -430,12 +430,12 @@ export function CircleWidget(opts = {}) {
     panel.append(
       h('div', { class: 'spread' }, h('h2', { text: MAJ_LABEL[sel] + ' major · ' + MIN_LABEL[sel] }), h('span', { class: 'mono small muted', text: SIG[sel] || '0 ♯/♭' })),
       h('p', { class: 'small', text: 'Key signature: ' + acc + '. Neighbours on the circle (' + MAJ_LABEL[(sel + 11) % 12].split('/')[0] + ' and ' + MAJ_LABEL[(sel + 1) % 12].split('/')[0] + ') share all but one note: they are the IV and V keys.' }),
-      h('div', { class: 'dchords' }, dc.map(c => h('button', { class: 'dchord', onclick: () => { A.ensure(); A.strum(guitarMidis(c.root, c.iv), A.now() + 0.03, 0.65, 0.025, 1.6); } }, h('span', { class: 'mono small', text: c.roman }), h('b', { text: prettySym(c.triad) })))),
+      h('div', { class: 'dchords' }, dc.map(c => h('button', { class: 'dchord', onclick: () => { A.ensure(); A.fresh(); A.strum(guitarMidis(c.root, c.iv), A.now() + 0.03, 0.65, 0.025, 1.6); } }, h('span', { class: 'mono small', text: c.roman }), h('b', { text: prettySym(c.triad) })))),
       h('div', { class: 'row' },
         h('button', { class: 'btn small', onclick: () => playProg([0, 3, 4, 0]) }, '▶ I–IV–V–I'),
         h('button', { class: 'btn small', onclick: () => playProg([0, 4, 5, 3]) }, '▶ I–V–vi–IV'),
         h('button', { class: 'btn small', onclick: () => playProg([1, 4, 0, 0]) }, '▶ ii–V–I')));
-    function playProg(degs) { A.ensure(); const t = A.now() + 0.05; progressionMidis(degs.map(d => [dc[d].root, dc[d].iv])).forEach((ms, i) => A.strum(ms, t + i * 0.9, 0.6, 0.02, 0.85)); }
+    function playProg(degs) { A.ensure(); A.fresh(); const t = A.now() + 0.05; progressionMidis(degs.map(d => [dc[d].root, dc[d].iv])).forEach((ms, i) => A.strum(ms, t + i * 0.9, 0.6, 0.02, 0.85)); }
   }
   draw();
   return wrap;
@@ -489,7 +489,7 @@ tool('tuner', {
       card.append(h('h3', { text: 'Reference tones' }), selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; draw(); }),
         h('div', { class: 'strings' }, midis.map((m, i) => h('button', { class: 'stringbtn' + (playing === i ? ' on' : ''), onclick: () => {
           A.ensure(); const was = playing === i; stopTone();
-          if (!was) { stopFn = A.tone(m, A.now() + 0.02, 30); playing = i; }
+          if (!was) { stopFn = A.tone(m, A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
           draw();
         } }, h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
         h('div', { class: 'row' },
@@ -699,7 +699,7 @@ tool('away', {
           h('p', { text: 'A drone holds the tonic (Sa, Do, 1). Sing the degree shown, hold it against the drone, then tap Check to hear the right note. Sing quietly; humming is fine.' }),
           droneBtn, prompt, sub, mic.el, sungEl,
           h('div', { class: 'row' },
-            h('button', { class: 'btn primary', onclick: () => { A.ensure(); A.note(tonic + 12 + cur.semi, A.now() + 0.02, 0.8, 1.6); } }, '▶ Check'),
+            h('button', { class: 'btn primary', onclick: () => { A.ensure(); A.fresh(); A.note(tonic + 12 + cur.semi, A.now() + 0.02, 0.8, 1.6); } }, '▶ Check'),
             h('button', { class: 'btn brass', onclick: next }, 'Next degree →')),
           h('p', { class: 'small muted', text: 'Singing builds the same inner ear that lets you play what you hear.' }));
       }

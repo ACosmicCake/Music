@@ -78,7 +78,7 @@ tool('callresp', {
   desc: 'Hear a short phrase, then play it back on your guitar (the mic listens) or by tapping the fretboard. Any octave counts.',
   render(body, ctx) {
     const card = h('div', { class: 'card' }); body.append(card);
-    let item, lick = [], played = [], done = false, tonic, sc;
+    let item, lick = [], played = [], done = false, tonic, sc, autoT = null;
     const prompt = h('div', { class: 'prompt' }), sub = h('p', { class: 'small muted' });
     const slots = h('div', { class: 'row mono' });
     const fbk = h('div', { class: 'feedback', hidden: true });
@@ -113,6 +113,7 @@ tool('callresp', {
       lick.forEach((m, i) => slots.append(h('span', { class: 'chip', text: played[i] ? noteName(played[i].m) : '·' })));
     }
     function playLick() {
+      A.ensure(); A.fresh();
       const at = A.now() + 0.05;
       A.strum([tonic - 12, tonic - 5, tonic, tonic + (sc.steps.includes(3) && !sc.steps.includes(4) ? 3 : 4)], at, 0.4, 0.02, 0.9);
       lick.forEach((m, i) => A.note(m, at + 1.1 + i * 0.42, 0.85, 0.8));
@@ -140,7 +141,7 @@ tool('callresp', {
       prompt.textContent = 'Play it back: ' + li.len + ' notes';
       sub.textContent = sc.name + ' in ' + noteName(tonic) + '. A chord sets the key first.';
       renderSlots();
-      setTimeout(playLick, 150);
+      clearTimeout(autoT); autoT = setTimeout(playLick, 150);
     }
     function check(gaveUp) {
       done = true;
@@ -159,7 +160,7 @@ tool('callresp', {
     undoBtn.onclick = () => { if (done) return; played.pop(); fb.mark(played.map(p => ({ s: p.si, f: p.f, kind: 'tone', label: noteName(p.m) }))); renderSlots(); };
     giveBtn.onclick = () => { if (!done) check(true); };
     gen();
-    return () => mic.cleanup();
+    return () => { clearTimeout(autoT); mic.cleanup(); };
   }
 });
 
