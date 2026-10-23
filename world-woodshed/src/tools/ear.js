@@ -147,6 +147,7 @@ tool('progressions', {
         return [r - 12, r, r + third, r + 7];
       };
       const play = () => {
+        A.ensure(); A.fresh();
         let at = A.now() + 0.05;
         for (let rep = 0; rep < 2; rep++) seq.forEach(n => { A.strum(voicing(n), at, 0.65, 0.02, 1.0); at += 1.0; });
       };
@@ -273,18 +274,19 @@ tool('drone', {
       if (micro) {
         const tempered = sc.steps.map(Math.ceil);
         const at = (steps, when) => playScale(tonicMidi() + 12, steps, when || A.now() + 0.1);
+        const go = fn => () => { A.ensure(); A.fresh(); fn(); };
         abBox.append(h('b', { text: 'Real quarter tones vs. the piano' }),
           h('p', { class: 'small', text: 'The ¼ notes sit between two frets. Hear the scale as it is sung and played on the oud or ney, then rounded to the nearest piano note, and listen for how the neutral steps lose their colour.' }),
           h('div', { class: 'row' },
-            h('button', { class: 'btn small', onclick: () => { A.ensure(); at(sc.steps); } }, '▶ Real'),
-            h('button', { class: 'btn small', onclick: () => { A.ensure(); at(tempered); } }, '▶ Rounded (12-TET)'),
-            h('button', { class: 'btn small brass', onclick: () => { A.ensure(); at(tempered, at(sc.steps) + 0.6); toast('Real first, then rounded'); } }, '▶ Compare')));
+            h('button', { class: 'btn small', onclick: go(() => at(sc.steps)) }, '▶ Real'),
+            h('button', { class: 'btn small', onclick: go(() => at(tempered)) }, '▶ Rounded (12-TET)'),
+            h('button', { class: 'btn small brass', onclick: go(() => { at(tempered, at(sc.steps) + 0.6); toast('Real first, then rounded'); }) }, '▶ Compare')));
       }
     }
     function startDrone() { drone = A.Drone(tonicMidi()); drone.start(); droneBtn.textContent = 'Stop drone'; ctx.setActive(true); }
     function stop() { if (drone) drone.stop(); drone = null; droneBtn.textContent = 'Start drone'; ctx.setActive(false); }
     droneBtn.onclick = () => { A.ensure(); drone ? stop() : startDrone(); };
-    playBtn.onclick = () => { A.ensure(); playScale(tonicMidi() + 12, D.SCALES.find(x => x.id === scId).steps, A.now() + 0.1); };
+    playBtn.onclick = () => { A.ensure(); A.fresh(); playScale(tonicMidi() + 12, D.SCALES.find(x => x.id === scId).steps, A.now() + 0.1); };
     sel.onchange = () => { scId = sel.value; refresh(); };
     refresh();
     return () => stop();

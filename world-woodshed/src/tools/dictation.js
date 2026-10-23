@@ -115,7 +115,7 @@ tool('dictation', {
     const playBtn = h('button', { class: 'btn primary', type: 'button', onclick: () => play() }, '▶ Play again');
     const melBtn = h('button', { class: 'btn small', type: 'button', onclick: () => play({ melodyOnly: true }) }, 'Melody only');
     const slowBtn = h('button', { class: 'btn small', type: 'button', onclick: () => play({ melodyOnly: true, speed: 0.6 }) }, 'Slower');
-    const tonicBtn = h('button', { class: 'btn small', type: 'button', onclick: () => { A.ensure(); A.note(tonic, A.now() + 0.03, 0.85, 1.4); muteMic(A.now() + 1.6); } }, 'Tonic');
+    const tonicBtn = h('button', { class: 'btn small', type: 'button', onclick: () => { A.ensure(); A.fresh(); A.note(tonic, A.now() + 0.03, 0.85, 1.4); muteMic(A.now() + 1.6); } }, 'Tonic');
     const hintBox = h('div', { class: 'hint', hidden: true });
     const slots = h('div', { class: 'dict-slots', role: 'list', 'aria-label': 'Your answer' });
     const pad = h('div', { class: 'dict-pad' });

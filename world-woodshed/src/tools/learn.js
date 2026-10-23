@@ -325,7 +325,7 @@ function example(ex, loops) {
       const sc = D.SCALES.find(x => x.id === ex.scale); if (!sc) return h('span');
       const root = ex.tonic || 0, flats = flatsFor(root, sc.steps[2] === 3);
       wrap.append(h('span', { class: 'mono small', text: sc.steps.map(st => Number.isInteger(st) ? spell(root + st, flats) : spell(root + Math.ceil(st), flats) + '¼♭').join(' ') }));
-      btn.onclick = () => { A.ensure(); const t = A.now() + 0.05; const up = sc.steps.concat([12]); up.concat(up.slice(0, -1).reverse()).forEach((st, i) => A.note(48 + root + st, t + i * 0.27, 0.7, 0.5)); };
+      btn.onclick = () => { A.ensure(); A.fresh(); const t = A.now() + 0.05; const up = sc.steps.concat([12]); up.concat(up.slice(0, -1).reverse()).forEach((st, i) => A.note(48 + root + st, t + i * 0.27, 0.7, 0.5)); };
       wrap.append(fbFor(sc.steps.filter(Number.isInteger).map(st => [(root + st) % 12, st]), root));
       break;
     }
@@ -333,14 +333,14 @@ function example(ex, loops) {
       const c = D.CHORDS.find(x => x.id === ex.chord); if (!c) return h('span');
       const root = ex.root || 0, flats = flatsFor(root, c.iv[1] === 3);
       wrap.append(h('span', { class: 'mono small', text: c.iv.map(x => spell(root + x, flats)).join(' ') }));
-      btn.onclick = () => { A.ensure(); const ms = guitarMidis(root, c.iv); const t = A.now() + 0.05; ms.forEach((m, i) => A.note(m, t + i * 0.2, 0.6, 1)); A.strum(ms, t + ms.length * 0.2 + 0.15, 0.7, 0.03, 2); };
+      btn.onclick = () => { A.ensure(); A.fresh(); const ms = guitarMidis(root, c.iv); const t = A.now() + 0.05; ms.forEach((m, i) => A.note(m, t + i * 0.2, 0.6, 1)); A.strum(ms, t + ms.length * 0.2 + 0.15, 0.7, 0.03, 2); };
       wrap.append(fbFor(c.iv.map(x => [(root + x) % 12, x % 12]), root));
       break;
     }
     case 'interval': {
       const root = 48 + (ex.root || 0), semi = ex.semi || 0;
       wrap.append(h('span', { class: 'mono small', text: spell(root, true) + ' → ' + spell(root + semi, semi === 6 ? false : true) }));
-      btn.onclick = () => { A.ensure(); const t = A.now() + 0.05; A.note(root, t, 0.8, 0.8); A.note(root + semi, t + 0.7, 0.8, 0.8); A.note(root, t + 1.6, 0.6, 1.2); A.note(root + semi, t + 1.6, 0.6, 1.2); };
+      btn.onclick = () => { A.ensure(); A.fresh(); const t = A.now() + 0.05; A.note(root, t, 0.8, 0.8); A.note(root + semi, t + 0.7, 0.8, 0.8); A.note(root, t + 1.6, 0.6, 1.2); A.note(root + semi, t + 1.6, 0.6, 1.2); };
       break;
     }
     case 'progression': {
@@ -348,15 +348,16 @@ function example(ex, loops) {
       const chips = chords.map(c => h('span', { class: 'chip', text: prettySym(c.sym) }));
       wrap.append(h('div', { class: 'chips' }, chips));
       btn.onclick = () => {
-        A.ensure(); const t = A.now() + 0.05, bar = 1.4;
+        A.ensure(); A.fresh(); const t = A.now() + 0.05, bar = 1.4;
         const shapes = progressionMidis(chords.map(c => [c.root, c.iv]));
         chords.forEach((c, i) => {
           const ms = shapes[i];
           A.note(28 + (((c.root - 28) % 12) + 12) % 12, t + i * bar, 0.7, bar * 0.9); // bass: that root from E1 up
           A.strum(ms, t + i * bar, 0.55, 0.02, bar * 0.45); A.strum(ms, t + i * bar + bar / 2, 0.45, 0.02, bar * 0.4, { dir: 'up' });
-          setTimeout(() => chips.forEach((ch, k) => ch.setAttribute('aria-pressed', k === i ? 'true' : 'false')), (t + i * bar - A.now()) * 1000);
+          A.later(() => chips.forEach((ch, k) => ch.setAttribute('aria-pressed', k === i ? 'true' : 'false')), (t + i * bar - A.now()) * 1000);
         });
-        setTimeout(() => chips.forEach(ch => ch.setAttribute('aria-pressed', 'false')), (t + chords.length * bar - A.now()) * 1000);
+        const off = () => chips.forEach(ch => ch.setAttribute('aria-pressed', 'false'));
+        A.later(off, (t + chords.length * bar - A.now()) * 1000, off); // cut short by another play button: unlight too
       };
       break;
     }
@@ -366,8 +367,8 @@ function example(ex, loops) {
       let lp = null;
       btn.onclick = () => {
         if (lp) { lp.stop(); lp = null; grid.setNow(-1); btn.textContent = '▶ ' + (ex.label || 'Play'); return; }
-        A.ensure();
-        lp = A.Loop({ steps: r.steps, stepDur: stepDurFn(r, r.bpm), maxSteps: r.steps * 4, onStep: (i, t) => playRhythmStep(r, i, t), onVisual: i => grid.setNow(i), onEnd: () => { lp = null; grid.setNow(-1); btn.textContent = '▶ ' + (ex.label || 'Play'); } });
+        A.ensure(); A.fresh();
+        lp = A.Loop({ shot: true, steps: r.steps, stepDur: stepDurFn(r, r.bpm), maxSteps: r.steps * 4, onStep: (i, t) => playRhythmStep(r, i, t), onVisual: i => grid.setNow(i), onEnd: () => { lp = null; grid.setNow(-1); btn.textContent = '▶ ' + (ex.label || 'Play'); } });
         loops.push(lp); lp.start(); btn.textContent = '■ Stop';
       };
       wrap.append(h('span', { class: 'small muted', text: r.name + ' · ' + r.meter }), grid.el,
@@ -376,7 +377,7 @@ function example(ex, loops) {
     }
     case 'melody': {
       const bpm = ex.bpm || 90, beat = 60 / bpm;
-      btn.onclick = () => { A.ensure(); const t = A.now() + 0.05; (ex.notes || []).forEach((m, i) => { if (m !== null && m !== undefined) A.note(m, t + i * beat, 0.75, beat * 0.95); }); };
+      btn.onclick = () => { A.ensure(); A.fresh(); const t = A.now() + 0.05; (ex.notes || []).forEach((m, i) => { if (m !== null && m !== undefined) A.note(m, t + i * beat, 0.75, beat * 0.95); }); };
       wrap.append(h('span', { class: 'mono small', text: (ex.notes || []).map(m => m === null ? '–' : spell(m, true)).join(' ') }));
       break;
     }

@@ -235,7 +235,8 @@ function soundsSection() {
   const btn = h('button', { class: 'btn small' }, 'Download all sounds · ' + mb(total));
   // the guitar heard everywhere: a recording or the synthesized plucked string; choosing one plays a chord in it
   const gtr = E.state.settings.guitarSound in VOICES ? E.state.settings.guitarSound : 'nylon';
-  const demo = k => { const strum = () => A.strum([40, 47, 52, 56, 59, 64], A.now() + 0.05, 0.75, 0.02, 1.8); if (VOICES[k]) Samples.load(VOICES[k]).then(strum); else strum(); };
+  let demoFor = null; // only the last guitar chosen plays, once it has loaded, and it stops the one before
+  const demo = k => { demoFor = k; const strum = () => { if (demoFor !== k) return; A.ensure(); A.fresh(); A.strum([40, 47, 52, 56, 59, 64], A.now() + 0.05, 0.75, 0.02, 1.8); }; if (VOICES[k]) Samples.load(VOICES[k]).then(strum); else strum(); };
   const gtrSeg = h('div', { class: 'seg' }, [['nylon', 'Nylon'], ['steel', 'Steel-string'], ['synth', 'Synth']].map(([k, t]) => h('button', { 'aria-pressed': String(k === gtr), onclick: e => {
     [...gtrSeg.children].forEach(b => b.setAttribute('aria-pressed', String(b === e.currentTarget)));
     E.setSetting('guitarSound', k); demo(k);
