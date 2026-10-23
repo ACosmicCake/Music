@@ -71,8 +71,12 @@ export function whenLoaded(load, ui, view, toast, page, optional = true) {
 }
 
 /* How the changes of each Repertoire tune work and how to solo over them (t.harmony, t.harmony.solo on D.TUNES),
-   and the words they use (D.HARMONY_WORDS) */
-export const loadTuneNotes = once(() => import('./tunes-harmony.js').then(m => {
-  D.TUNES.forEach(t => { if (m.default[t.id]) t.harmony = Object.assign({ solo: m.SOLO[t.id] }, m.default[t.id]); });
+   the words they use (D.HARMONY_WORDS), and the app's own melodies for the tunes that have one (t.melody:
+   { key, mel } in the text form src/melody.js reads) */
+export const loadTuneNotes = once(() => Promise.all([import('./tunes-harmony.js'), import('./tunes-melody.js')]).then(([m, mm]) => {
+  D.TUNES.forEach(t => {
+    if (m.default[t.id]) t.harmony = Object.assign({ solo: m.SOLO[t.id] }, m.default[t.id]);
+    if (mm.default[t.id]) t.melody = mm.default[t.id];
+  });
   D.HARMONY_WORDS = m.WORDS;
 }));

@@ -605,6 +605,17 @@ html.compact .strings { grid-template-columns: repeat(3, 1fr); } /* six across l
 .ww-staff .st-fret { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; fill: currentColor; }
 .ww-staff .st-tabbg { fill: var(--surface); }
 .ww-staff .st-cur { fill: var(--brass); opacity: 0.2; transition: transform 0.08s linear; }
+.ww-staff .st-chord { font-family: var(--font-display); font-weight: 700; font-size: 13px; fill: var(--patina); }
+.ww-staff .st-band { fill: transparent; transition: fill 0.12s; }
+.ww-staff .st-band.now { fill: var(--brass-soft); }
+/* the melody under a Repertoire tune's chart */
+.melbox { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
+.melbox .melhead { flex-wrap: wrap; gap: 0.5rem; }
+.melbox .melhead h3 { margin: 0; }
+.melbox .melstaff { margin: 0.5rem 0; }
+.melbox .melstaff .ww-staff { margin-inline: 0; }
+.melbox .meltools { margin-top: 0.5rem; }
+.melbox .melfrom .btn { text-align: left; white-space: normal; }
 .ww-staff .nt { transition: color 0.12s; }
 .ww-staff .nt.now { color: var(--brass); }
 .ww-staff .nt.good { color: var(--good); }

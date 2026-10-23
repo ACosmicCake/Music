@@ -145,7 +145,7 @@ function freshState() {
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
     tech: {}, scaleTime: {}, records: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
-    routine: null, placementDone: false, songs: {}, tunes: {}, library: {},
+    routine: null, placementDone: false, songs: {}, tunes: {}, melodies: {}, library: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
   };
 }
@@ -778,7 +778,20 @@ function saveTune(tune) {
   scheduleSave(); emit();
   return t;
 }
-function deleteTune(id) { delete tunesObj()[id]; tombstone('tune:' + id); scheduleSave(); emit(); }
+function deleteTune(id) { delete tunesObj()[id]; tombstone('tune:' + id); deleteMelody(id); }
+
+/* ---------- Melodies added to Repertoire tunes, by tune id (checked by src/melody.js cleanMelody) ---------- */
+function melodiesObj() { if (!state.melodies || typeof state.melodies !== 'object') state.melodies = {}; return state.melodies; }
+function getMelody(id) { return melodiesObj()[id] || null; }
+function saveMelody(id, mel) {
+  if (!id || !mel) return null;
+  const m = JSON.parse(JSON.stringify(mel));
+  m.updatedAt = Date.now();
+  melodiesObj()[id] = m;
+  scheduleSave(); emit();
+  return m;
+}
+function deleteMelody(id) { if (melodiesObj()[id]) delete melodiesObj()[id]; tombstone('mel:' + id); scheduleSave(); emit(); }
 
 /* ---------- Library (src/library.js): scores, photos of scores and songs learned. These are the details,
    which sync; the files themselves stay in this device's IndexedDB (src/libfiles.js). ---------- */
@@ -883,7 +896,7 @@ export default {
   routines, getRoutine, saveRoutine, deleteRoutine, activeRoutineId, setActiveRoutine, uid,
   session, startSession, touchSession, sessionChanged, endSession, journal,
   lessonDone, setLessonDone, heard, setHeard, techPick,
-  listSongs, getSong, saveSong, deleteSong, listTunes, getTune, saveTune, deleteTune,
+  listSongs, getSong, saveSong, deleteSong, listTunes, getTune, saveTune, deleteTune, getMelody, saveMelody, deleteMelody,
   listLibrary, getLibEntry, saveLibEntry, deleteLibEntry, removeLibFile,
   SKILLS, CAT_NAMES, STRINGS, TUNINGS, guitar, setGuitar, FOCUS, init, get state() { return state; }, onChange, emit,
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,

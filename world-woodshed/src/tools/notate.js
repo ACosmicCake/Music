@@ -5,12 +5,13 @@
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
-import { h, tool, toast, Fretboard } from '../ui/core.js';
+import { h, tool, toast, Fretboard, openTool } from '../ui/core.js';
 import { noteLabel } from '../ui/mic.js';
 import { renderStaff, parseTime, keyName, KEYS } from '../notation.js';
 import { cleanDraft, quantize, takeNotes, keyOf, guessKey, placeFrets, toMusicXML, toMidi, fileBase, TIMES } from '../notate.js';
 import { keepAwake, openBlob } from '../native.js';
 import { addToLibrary, addFiles, getEntry, getFile, removeFile, updateEntry } from '../library.js';
+import { packNotes, trimLead } from '../melody.js';
 import './notate.css';
 
 const STORE = 'ww-notate-draft';
@@ -335,8 +336,24 @@ tool('notate', {
       libNote,
       h('div', { class: 'row' }, libBtn));
 
+    /* ----- the melody of a Repertoire tune (params.forTune: { id, name }, from the tune's Add the melody) ----- */
+    const forTune = ctx.params.forTune && typeof ctx.params.forTune.id === 'string' ? ctx.params.forTune : null;
+    const tuneBox = forTune ? h('div', { class: 'callout patina stack' },
+      h('b', { text: 'The melody of ' + forTune.name }),
+      h('p', { class: 'small', text: 'Play it from bar 1 of the chart, straight after the count-in, at any tempo you can manage: it is kept in beats, and the band plays it at the tune’s tempo. Fix any wrong note by tapping it, then use it.' }),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn brass', type: 'button', onclick: () => {
+          const notes = trimLead(draft.notes, parseTime(draft.time).barQ);
+          if (!notes.length) { toast('Record or tap the melody first'); return; }
+          E.saveMelody(forTune.id, { notes: packNotes(notes), from: 'notate', name: draft.title || 'Write by playing' });
+          toast('Melody added to ' + forTune.name);
+          openTool('repertoire', { params: { tune: forTune.id }, returnTab: 'play' });
+        } }, 'Use it as the melody'),
+        h('button', { class: 'btn ghost', type: 'button', onclick: () => openTool('repertoire', { params: { tune: forTune.id }, returnTab: 'play' }) }, 'Back to the tune'))) : null;
+    if (forTune && !draft.notes.length && !draft.title) { draft.title = forTune.name; title.value = draft.title; save(); }
+
     /* ----- layout ----- */
-    body.append(
+    body.append(...(tuneBox ? [tuneBox] : []),
       h('div', { class: 'card stack nt-setup' },
         title,
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tempo' }), bpmRow),

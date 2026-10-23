@@ -165,7 +165,7 @@ describe('loading a save from every past format', () => {
     expect(E.streaks()).toMatchObject({ best: 41, goalBest: 12 }); // kept though the history no longer shows them
     expect(s.library).toEqual({});
   });
-  it('schema 6 (current): the Library loads as it was saved, deletions included', async () => {
+  it('schema 6 (before melodies): the Library loads as it was saved, deletions included, with no melodies', async () => {
     const saved = JSON.parse(fixture(6));
     localStorage.setItem(LS_KEY, fixture(6));
     const E = await boot();
@@ -175,6 +175,18 @@ describe('loading a save from every past format', () => {
     expect(s.tomb).toMatchObject({ 'lib:lbold': 1760300000000, 'libfile:lfgone': 1760300000000 });
     expect(E.listLibrary().map(e => e.title).sort()).toEqual(['Asturias', 'Blackbird']);
     expect(s.records).toEqual({ streak: 41, goalStreak: 12 });
+    expect(s.melodies).toEqual({});
+  });
+  it('schema 7 (current): a melody added to a tune loads as it was saved, a removed one stays removed', async () => {
+    const saved = JSON.parse(fixture(7));
+    localStorage.setItem(LS_KEY, fixture(7));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.melodies).toEqual(saved.melodies);
+    expect(E.getMelody('autumn').name).toBe('Autumn Leaves.mxl');
+    expect(E.getMelody('solar')).toBe(null);
+    expect(s.library).toEqual(saved.library);
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');
