@@ -227,11 +227,24 @@ async function loadIdb() {
   } catch (e) { /* IndexedDB unavailable */ }
 }
 
+/* Make the state equal to next while keeping its objects, so an open tool that holds a part of it
+   (an exercise's tempo, a skill's items) still reads and writes the live state after a sync. */
+function patchInPlace(dst, src) {
+  Object.keys(dst).forEach(k => { if (!(k in src)) delete dst[k]; });
+  Object.keys(src).forEach(k => {
+    const a = dst[k], b = src[k];
+    if (a && b && a !== b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) patchInPlace(a, b);
+    else dst[k] = b;
+  });
+  return dst;
+}
+function replaceState(next) { patchInPlace(state, next); }
+
 /* Fold another copy of the progress (IndexedDB, the cloud, a sync file) into this one.
    Nothing practised on either side is lost; returns true when anything changed. */
 function adopt(other, save = true) {
   const before = digest(state);
-  state = Object.assign(freshState(), merge(state, other));
+  replaceState(Object.assign(freshState(), merge(state, other)));
   const changed = digest(state) !== before;
   if (changed) { applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); saveLocal(); emit(); }
   if (save && changed) scheduleSave(300);
@@ -248,7 +261,7 @@ function importBackup(obj, mode = 'merge') {
   const s = obj && obj.app === 'world-woodshed' ? obj.state : obj;
   if (!s || s.v !== 1 || typeof s.skills !== 'object') throw new Error('This file is not a World Woodshed backup');
   const m = migrate(JSON.parse(JSON.stringify(s)), obj.device || 'file');
-  if (mode === 'replace') { state = Object.assign(freshState(), m); applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); scheduleSave(100); emit(); return true; }
+  if (mode === 'replace') { replaceState(Object.assign(freshState(), m)); applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); scheduleSave(100); emit(); return true; }
   return adopt(m);
 }
 
@@ -729,7 +742,8 @@ function techCount(id, count) {
   scheduleSave(); emit();
   return t;
 }
-function setTechBpm(id, bpm) { techState(id).bpm = Math.max(30, Math.min(300, Math.round(bpm))); scheduleSave(); }
+// ts (not last, which means practised) makes a tempo set by hand win the next sync
+function setTechBpm(id, bpm) { const t = techState(id); t.bpm = Math.max(30, Math.min(300, Math.round(bpm))); t.ts = Date.now(); scheduleSave(); }
 
 /* ---------- Anchors & settings ---------- */
 function anchor(ivId, dir) {
@@ -742,7 +756,7 @@ function setAnchor(ivId, dir, text) { state.anchors[ivId + ':' + dir] = text; sc
 function setSetting(k, v) { state.settings[k] = v; scheduleSave(); emit(); }
 // save and notify after changing state in place (used by the curriculum)
 function touch() { scheduleSave(); emit(); }
-function resetAll() { state = freshState(); scheduleSave(100); emit(); }
+function resetAll() { replaceState(freshState()); scheduleSave(100); emit(); }
 
 function init() {
   loadLocal();

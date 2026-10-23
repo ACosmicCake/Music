@@ -309,7 +309,7 @@ tool('rhythms', {
             cyc = cycle;
             const p = sched(cycle), nx = sched(cycle + 1);
             showGrid(p);
-            tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl();
+            tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl(); tempo.value = Math.round(bpm);
             now.innerHTML = '';
             now.className = 'studio-now ' + p.kind;
             now.append(h('span', { class: 'mono small', text: 'Cycle ' + (cycle + 1) }),
@@ -323,7 +323,8 @@ tool('rhythms', {
       loop.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true);
     }
     playBtn.onclick = () => (loop ? stop() : play());
-    tempo.oninput = () => { bpm = +tempo.value; tempoLbl.textContent = bpm + ' ' + unitLbl(); if (loop && !testing) { stop(); play(); } };
+    // the studio reads the tempo on every step, so it changes on the next note without starting over
+    tempo.oninput = () => { if (testing) { tempo.value = Math.round(bpm); return; } bpm = +tempo.value; tempoLbl.textContent = bpm + ' ' + unitLbl(); };
     sel.onchange = () => setR(D.RHYTHMS.find(x => x.id === sel.value));
     testBtn.onclick = () => runTest();
 
@@ -478,7 +479,7 @@ tool('metronome', {
   tab: 'rhythm', skill: 'clock', title: 'Metronome & calibration', eyebrow: 'Rhythm · tools',
   desc: 'A metronome with gap bars and subdivisions, plus a tap calibration that makes every timing score fair on your device.',
   render(body, ctx) {
-    const st = { bpm: 90, beats: 4, sub: feel16On() ? 4 : 1, play: 4, mute: 0 };
+    const st = { bpm: E.state.settings.metBpm || 90, beats: 4, sub: feel16On() ? 4 : 1, play: 4, mute: 0 };
     let loop = null, calLoop = null, calPad = null;
     const card = h('div', { class: 'card' }); body.append(card);
     const big = h('div', { class: 'big-number mono', text: st.bpm });
@@ -491,7 +492,10 @@ tool('metronome', {
       wrapper.append(sg); return wrapper;
     };
     const btn = h('button', { class: 'btn primary' }, '▶ Start');
-    card.append(h('div', { class: 'spread' }, big, dots), bpmIn,
+    // the click reads the tempo on every step, so it changes on the next beat without starting over
+    const setBpm = (v, keep = true) => { st.bpm = Math.max(30, Math.min(260, Math.round(v))); bpmIn.value = st.bpm; big.textContent = st.bpm; if (keep) E.setSetting('metBpm', st.bpm); };
+    const nudge = (d, label) => h('button', { class: 'btn small', 'aria-label': (d < 0 ? 'Slower by ' : 'Faster by ') + Math.abs(d), onclick: () => setBpm(st.bpm + d) }, label);
+    card.append(h('div', { class: 'spread' }, h('div', { class: 'row' }, nudge(-1, '−1'), big, nudge(1, '+1')), dots), bpmIn,
       h('div', { class: 'row' }, seg('Beats', 'beats', [2, 3, 4, 5, 7]), seg('Subdivision', 'sub', [1, 2, 3, 4], v => ['♩', '♫', '3', '4'][v - 1])),
       h('div', { class: 'row' }, seg('Play bars', 'play', [1, 2, 4]), seg('Then mute bars', 'mute', [0, 1, 2, 4], v => v === 0 ? 'off' : String(v))), btn);
     function renderDots(active) { dots.innerHTML = ''; for (let i = 0; i < st.beats; i++) dots.append(h('span', { style: { width: '14px', height: '14px', borderRadius: '50%', display: 'inline-block', background: i === active ? 'var(--brass)' : 'var(--sunk)' } })); }
@@ -512,7 +516,8 @@ tool('metronome', {
     }
     function stopMet() { if (loop) loop.stop(); loop = null; btn.textContent = '▶ Start'; ctx.setActive(false); renderDots(-1); }
     btn.onclick = () => (loop ? stopMet() : startMet());
-    bpmIn.oninput = () => { st.bpm = +bpmIn.value; big.textContent = st.bpm; if (loop) { stopMet(); startMet(); } };
+    bpmIn.oninput = () => setBpm(+bpmIn.value, false);
+    bpmIn.onchange = () => setBpm(+bpmIn.value);
     renderDots(-1);
 
     const cal = h('div', { class: 'card' }); body.append(cal);

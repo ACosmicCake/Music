@@ -24,7 +24,7 @@ const yt = q => 'https://www.youtube.com/results?search_query=' + encodeURICompo
 /* A backing loop for a drill. Each pass through it is a "round". */
 function Backing(d, getBpm, onRound) {
   const b = d.backing || {};
-  let loop = null, band = null;
+  let loop = null, band = null, anchor = 0; // anchor: the time of a recent step, so a tempo change keeps the timing meter on the grid
   const r = b.rhythm ? D.RHYTHMS.find(x => x.id === b.rhythm) : null;
   const g = b.groove ? D.GROOVES[b.groove] : null;
   const bars = g ? (b.bars && b.bars.length ? b.bars : ['C']).map(x => x.split(' ').map(parseChord).filter(Boolean)) : null;
@@ -33,6 +33,7 @@ function Backing(d, getBpm, onRound) {
   return {
     spec, rhythm: r, bars,
     get loop() { return loop; },
+    get anchor() { const x = band && band.barAt(Infinity); return x ? x.t : anchor || (loop && loop.startTime) || 0; },
     start() {
       A.ensure();
       let lastCycle = -1;
@@ -44,7 +45,8 @@ function Backing(d, getBpm, onRound) {
       }
       loop = A.Loop({
         steps: spec.steps, stepDur: () => 60 / getBpm() / spec.spb,
-        onStep: (i, t, cycle) => {
+        onStep: (i, t) => {
+          anchor = t;
           if (r) playRhythmStep(r, i, t);
           else {
             const beat = i % click.sub === 0;
@@ -55,7 +57,7 @@ function Backing(d, getBpm, onRound) {
       });
       loop.start();
     },
-    stop() { if (loop) loop.stop(); loop = null; },
+    stop() { if (loop) loop.stop(); loop = null; band = null; anchor = 0; },
     chordAt(i) { if (!g) return null; const bi = Math.floor(i / g.steps), st = i % g.steps, bar = bars[bi]; return bar.length === 1 ? bar[0] : bar[st < g.steps / 2 ? 0 : 1]; }
   };
 }
@@ -152,7 +154,7 @@ tool('drill', {
           varBox.append(fb.el);
         }
       }
-      const meter = TimingMeter(() => (back && back.loop ? { start: back.loop.startTime, step: 60 / bpm / back.spec.spb } : null), { idle: 'Press Play and play along.' });
+      const meter = TimingMeter(() => (back && back.loop ? { start: back.anchor, step: 60 / bpm / back.spec.spb } : null), { idle: 'Press Play and play along.' });
       const meterBox = h('div', { hidden: true }, meter.el);
       const mic = MicToggle({ label: 'Check my timing', onLabel: 'Listening to your timing', hint: 'Headphones help: the mic should hear your guitar, not the backing.',
         onOn: () => { meterBox.hidden = false; meter.reset(); meter.start('onset'); }, onOff: () => { meterBox.hidden = true; meter.stop(); } });
