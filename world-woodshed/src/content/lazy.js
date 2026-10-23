@@ -28,7 +28,10 @@ const fill = (list, mods) => {
   mods.forEach(m => m.default.forEach(full => { const x = byId.get(full.id); if (x) Object.assign(x, full); }));
 };
 export const loadGuides = once(() => Promise.all([import('./techniques-a.js'), import('./techniques-b.js')]).then(m => fill(D.TECHNIQUES, m)));
-export const loadDrills = once(() => Promise.all([import('./drills-a.js'), import('./drills-b.js')]).then(m => fill(D.DRILLS, m)));
+export const loadDrills = once(() => Promise.all([import('./drills-a.js'), import('./drills-b.js'), import('./drills-solo.js')]).then(m => {
+  fill(D.DRILLS, m.slice(0, 2));
+  D.DRILLS.forEach(d => { if (m[2].default[d.id]) d.solo = m[2].default[d.id]; }); // how to solo, for the drills where you improvise
+}));
 export const loadLessons = once(() => import('./lessons.js').then(m => fill(D.LESSONS, [m])));
 
 /* Inside a tool or a card: show "Loading…" in `el`, then call draw() (which may return a cleanup).
@@ -67,8 +70,9 @@ export function whenLoaded(load, ui, view, toast, page, optional = true) {
   });
 }
 
-/* How the changes of each jazz standard work (t.harmony on D.TUNES) and the words they use (D.HARMONY_WORDS) */
+/* How the changes of each Repertoire tune work and how to solo over them (t.harmony, t.harmony.solo on D.TUNES),
+   and the words they use (D.HARMONY_WORDS) */
 export const loadTuneNotes = once(() => import('./tunes-harmony.js').then(m => {
-  D.TUNES.forEach(t => { if (m.default[t.id]) t.harmony = m.default[t.id]; });
+  D.TUNES.forEach(t => { if (m.default[t.id]) t.harmony = Object.assign({ solo: m.SOLO[t.id] }, m.default[t.id]); });
   D.HARMONY_WORDS = m.WORDS;
 }));

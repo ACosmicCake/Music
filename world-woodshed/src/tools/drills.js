@@ -10,6 +10,7 @@ import { MicToggle, TimingMeter } from '../ui/mic.js';
 import Cur from '../curriculum.js';
 import { Band } from '../band.js';
 import { loadDrills, drawWhenLoaded } from '../content/lazy.js';
+import { SoloTips } from '../ui/solo.js';
 import { phraseGrid, patternGrid, backingRows, offBeat } from '../countgrid.js';
 
 /* ======================================================
@@ -164,6 +165,7 @@ tool('drill', {
         h('h2', { text: d.name }), h('p', { class: 'lede', text: d.goal }),
         h('p', { class: 'small muted', text: d.why }),
         h('ol', { class: 'list steps' }, d.steps.map(x => h('li', { text: x }))),
+        SoloTips(d.solo, 'How to solo or make up your own'),
         varBox,
         h('div', { class: 'spread' }, h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setTempo(bpm - 4) }, '−4'), h('div', { class: 'stack', style: { gap: '0', justifyItems: 'center' } }, h('span', { class: 'eyebrow', text: unit }), bpmLbl), h('button', { class: 'btn small', onclick: () => setTempo(bpm + 4) }, '+4')),
           h('div', { class: 'stack', style: { gap: '2px', justifyItems: 'end' } }, playBtn, roundLbl)),

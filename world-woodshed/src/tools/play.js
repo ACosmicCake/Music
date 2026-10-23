@@ -12,6 +12,7 @@ import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { loadTuneNotes, drawWhenLoaded } from '../content/lazy.js';
 import { chartNumerals, keyName, prettyNumeral } from '../harmony.js';
+import { SoloTips } from '../ui/solo.js';
 
 /* ======================================================
    PLAY TOOLS
@@ -397,9 +398,11 @@ tool('repertoire', {
         return h('div', { class: 'card harmony' },
           h('div', { class: 'spread' }, h('h3', { text: 'How the changes work' }), rnBtn),
           h('p', { text: hm.intro }),
+          SoloTips(hm.solo),
+          h('h3', { text: 'Section by section' }),
           h('p', { class: 'small muted', text: 'The small numerals under each chord name it by its place in the key (ii, V7, I); a key name marks where the key changes. Notes named below are in the original key; the numerals hold in any key.' }),
           hm.sections.map(sec => h('div', { class: 'hsec' },
-            h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: (sec.bars[0] === sec.bars[1] ? 'Bar ' + sec.bars[0] : 'Bars ' + sec.bars[0] + '–' + sec.bars[1]) + ' · ' + keyName(sec.key) }),
+            h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: (sec.bars[0] === sec.bars[1] ? 'Bar ' + sec.bars[0] : 'Bars ' + sec.bars[0] + '–' + sec.bars[1]) + ' · ' + (sec.name || keyName(sec.key)) }),
               h('button', { class: 'btn small ghost', onclick: () => { setRange(sec.bars[0] === 1 && sec.bars[1] === bars.length ? null : [sec.bars[0] - 1, sec.bars[1] - 1]); chartEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }, 'Loop these bars')),
             h('b', { text: sec.title }), h('p', { class: 'small', text: sec.text }), line('Aim for', sec.aim), line('Scale', sec.scale))),
           D.HARMONY_WORDS ? h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Words used here' }), h('ul', { class: 'list small' }, D.HARMONY_WORDS.map(([w, m]) => h('li', {}, h('b', { text: w }), ': ' + m)))) : null);

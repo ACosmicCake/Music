@@ -1,4 +1,4 @@
-/* World Woodshed — how the changes of each jazz standard work, in plain words (loaded with loadTuneNotes,
+/* World Woodshed — how the changes of each Repertoire tune work, in plain words (loaded with loadTuneNotes,
    attached to D.TUNES as t.harmony and shown under the chart in the Repertoire gym).
    rn: one Roman numeral per chord, bar by bar, in the key of the section the bar is in (src/harmony.js);
    ":Key" after a numeral puts that one chord in another key. sections: bars counted from 1, in order, with
@@ -162,5 +162,247 @@ export default {
       { bars: [1, 7], key: 'B', title: 'Three keys, each reached by a V7', text: 'B, then D7 to G, then B♭7 to E♭. Bars 4–7 go round again: Am7–D7 to G, B♭7 to E♭, F♯7 to B. Every V7 is the dominant of the next key.', aim: 'The 7th of each V7 falls a half step to the 3rd of the next major chord: C to B (D7 to Gmaj7), A♭ to G (B♭7 to E♭maj7), E to D♯ (F♯7 to Bmaj7).', scale: 'B major, G major and E♭ major; over each V7, the major scale of the key it leads to.' },
       { bars: [8, 16], key: 'Eb', title: 'The same keys by ii–Vs', text: 'From bar 8 each key is reached by a ii–V lasting one bar: Fm7–B♭7 to E♭, Am7–D7 to G, C♯m7–F♯7 to B. The last bar (C♯m7–F♯7) leads back to Bmaj7 at the top.', aim: 'Coltrane’s own approach: play notes 1, 2, 3 and 5 of each key (B C♯ D♯ F♯, G A B D, E♭ F G B♭) and move the shape into place.' }
     ]
+  },
+
+  /* ---------- Blues, rock and roots; world grooves ---------- */
+  minorswing: {
+    intro: 'A gypsy jazz tune in A minor with three chords: Am6 (i), Dm6 (iv) and E7 (V). Each lasts two bars, so there is time to outline every chord.',
+    rn: ['i6', 'i6', 'iv6', 'iv6', 'i6', 'i6', 'V7', 'V7', 'iv6', 'iv6', 'i6', 'i6', 'V7', 'V7', 'i6', 'i6'],
+    sections: [
+      { bars: [1, 8], key: 'Am', title: 'i, iv, i, V', text: 'Am6 for two bars, Dm6 for two, Am6 for two, E7 for two.', aim: 'G♯ (the 3rd of E7) rising to A at the top of the next section.' },
+      { bars: [9, 16], key: 'Am', title: 'iv, i, V, i', text: 'Dm6, Am6, E7, then home on Am6.', aim: 'F (the 3rd of Dm6) falls to E on Am6; G♯ on E7 rises to A.' }
+    ]
+  },
+
+  andalusian: {
+    intro: 'The flamenco cadence: Am, G, F, E, each chord a step lower. Flamenco hears E as home (E Phrygian, the mode with F a half step above E), so the line falls home to E rather than away from A.',
+    rn: ['iv', 'bIII', 'bII', 'I', 'iv', 'bIII', 'bII', 'I'],
+    sections: [
+      { bars: [1, 4], key: 'E', name: 'E Phrygian', title: 'Falling to E', text: 'Am (iv), G (♭III), F (♭II), E (I). The F–E half step at the end is the cadence.', aim: 'The 3rds fall with the bass: C (Am), B (G), A (F), G♯ (E).' },
+      { bars: [5, 8], key: 'E', name: 'E Phrygian', title: 'Again', text: 'The same four chords.' }
+    ]
+  },
+
+  sonmontuno: {
+    intro: 'C major, two chords a bar: I–IV, then V–IV. Nothing leaves C, so the interest is in the rhythm: every part has to sit with the clave.',
+    rn: ['I IV', 'V IV', 'I IV', 'V IV'],
+    sections: [
+      { bars: [1, 4], key: 'C', title: 'I–IV–V–IV', text: 'C and F, then G and F, twice. The chords change on 1 and 3; the bass and the piano play each new chord early, on the & of 2 and the & of 4.', aim: 'E on C, A on F, B on G: the 3rds.' }
+    ]
+  },
+
+  bossavamp: {
+    intro: 'D minor with a minor ii–V–i (Em7♭5–A7–Dm7) every four bars. Bossa nova is quiet and even: few notes, long lines, straight eighths.',
+    rn: ['i7', 'i7', 'iiø7', 'V7', 'i7', 'i7', 'iiø7', 'V7'],
+    sections: [
+      { bars: [1, 4], key: 'Dm', title: 'i, then a minor ii–V', text: 'Two bars of Dm7, then Em7♭5 (E G B♭ D) and A7 lead back to Dm7.', aim: 'C♯ (the 3rd of A7) rises to D; G (the 7th of A7) falls to F (the 3rd of Dm7).' },
+      { bars: [5, 8], key: 'Dm', title: 'Again', text: 'The same four bars.' }
+    ]
+  },
+
+  highlife: {
+    intro: 'G major with I, IV and V, one chord a bar. The harmony stays simple so that the interlocking guitar lines can dance over it.',
+    rn: ['I', 'IV', 'I', 'V', 'I', 'IV', 'V', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'G', title: 'I–IV–I–V, I–IV–V–I', text: 'G, C, G, D, then G, C, D and home to G.', aim: 'B on G, E on C, F♯ on D: the 3rds.' }
+    ]
+  },
+
+  soukous: {
+    intro: 'E major, two chords a bar: I–IV, V–IV, looping. In the sebene (the fast dance section) the guitars repeat short bright cells high on the neck.',
+    rn: ['I IV', 'V IV', 'I IV', 'V IV'],
+    sections: [
+      { bars: [1, 4], key: 'E', title: 'I–IV–V–IV', text: 'E and A, then B and A, round and round.', aim: 'G♯ on E, C♯ on A, D♯ on B: the 3rds.' }
+    ]
+  },
+
+  reggae: {
+    intro: 'Two chords, Am and D. D major has F♯, so the key is A Dorian: A minor with a raised 6th.',
+    rn: ['i', 'IV', 'i', 'IV'],
+    sections: [
+      { bars: [1, 4], key: 'Am', name: 'A Dorian', title: 'i–IV', text: 'Am for a bar, D for a bar. The F♯ in D is what makes the mode Dorian.', aim: 'C on Am, F♯ on D: the 3rds, a tritone apart.' }
+    ]
+  },
+
+  tango: {
+    intro: 'A minor with E7, the V7 from A harmonic minor, and Dm (iv). The bass plays the habanera rhythm; the melody leans on the G♯ that E7 brings.',
+    rn: ['i', 'V7', 'V7', 'i', 'iv', 'i', 'V7', 'i'],
+    sections: [
+      { bars: [1, 4], key: 'Am', title: 'i–V7–i', text: 'Am, two bars of E7, back to Am.', aim: 'G♯ (the 3rd of E7) rising to A; D (the 7th of E7) falling to C.' },
+      { bars: [5, 8], key: 'Am', title: 'iv, i, V7, i', text: 'Dm, Am, E7 and home.', aim: 'F (the 3rd of Dm) falls to E on Am.' }
+    ]
+  },
+
+  hijazvamp: {
+    intro: 'D Hijaz, also called Phrygian dominant or freygish: D E♭ F♯ G A B♭ C. The D chord is home; E♭ (♭II), a half step above, pulls back down to it, and Cm comes from the upper notes of the scale.',
+    rn: ['I', 'I', 'bII', 'I', 'I', 'bvii', 'bII', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'D', name: 'D Hijaz', title: 'Home, ♭II and back', text: 'D for two bars, E♭ for one, back to D, then Cm and E♭ leading home to D.', aim: 'E♭ falls a half step to D at the end of each phrase; F♯ (the 3rd of D) is the note that makes the chord major.' }
+    ]
+  },
+
+  blues12: {
+    intro: 'The 12-bar blues in A: A7 (I7), D7 (IV7) and E7 (V7). All three are dominant 7ths, so the key is neither plain major nor plain minor: that mix is the blues sound.',
+    rn: ['I7', 'I7', 'I7', 'I7', 'IV7', 'IV7', 'I7', 'I7', 'V7', 'IV7', 'I7', 'V7'],
+    sections: [
+      { bars: [1, 4], key: 'A', title: 'Four bars of I7', text: 'A7 for four bars: the singer’s first line.', aim: 'C♯, the 3rd of A7.' },
+      { bars: [5, 8], key: 'A', title: 'IV7 and back', text: 'D7 for two bars, then A7 for two: the line again over a new chord.', aim: 'C♯ (A7) falls to C (the 7th of D7); F♯ is the 3rd of D7.' },
+      { bars: [9, 12], key: 'A', title: 'V7, IV7, I7, turnaround', text: 'E7, D7, A7, and E7 to send it round again.', aim: 'G♯ on E7 rising to A.' }
+    ]
+  },
+
+  rockvamp: {
+    intro: 'D, C and G: I–♭VII–IV. The C chord comes from D Mixolydian (D major with C instead of C♯), the classic rock sound.',
+    rn: ['I', 'bVII', 'IV', 'I', 'I', 'bVII', 'IV', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'D', name: 'D Mixolydian', title: 'I–♭VII–IV–I', text: 'D, C, G, D, twice. Each chord is a major triad; the C natural is the borrowed note.', aim: 'A falling line through the chords: F♯ (D), E (C), D (G).' }
+    ]
+  },
+
+  funkvamp: {
+    intro: 'One chord, E9, for as long as the groove lasts. The interest is all in the rhythm and in how much tension you choose.',
+    rn: ['I9', 'I9', 'I9', 'I9'],
+    sections: [
+      { bars: [1, 4], key: 'E', name: 'E, one chord', title: 'E9', text: 'E9 is E G♯ B D F♯: a dominant 7th with a 9th on top.', aim: 'G♯ and D, the 3rd and 7th.' }
+    ]
+  },
+
+  country145: {
+    intro: 'G major with I, IV and V7, two bars each: the backbone of country, bluegrass and folk songs.',
+    rn: ['I', 'I', 'IV', 'IV', 'I', 'I', 'V7', 'V7', 'I', 'I', 'IV', 'IV', 'I', 'V7', 'I', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'G', title: 'I, IV, I, V7', text: 'G, C, G, D7, two bars each.', aim: 'B (G), E (C), F♯ (D7): the 3rds. C, the 7th of D7, falls to B on G.' },
+      { bars: [9, 16], key: 'G', title: 'I, IV, then faster to V7 and home', text: 'G and C two bars each, then G, D7, G, G one bar each.' }
+    ]
+  },
+
+  fadominor: {
+    intro: 'A minor with E7 (V7) and a turn to Dm (iv) through A7, the V7 of D minor. The guitar answers the singer between lines.',
+    rn: ['i', 'i', 'V7', 'V7', 'V7', 'V7', 'i', 'i', 'i', 'V7/iv', 'iv', 'iv', 'i', 'V7', 'i', 'i'],
+    sections: [
+      { bars: [1, 8], key: 'Am', title: 'i and V7', text: 'Two bars of Am, four of E7, two of Am.', aim: 'G♯ (the 3rd of E7) rising to A.' },
+      { bars: [9, 16], key: 'Am', title: 'A turn to iv, then home', text: 'Am becomes A7 for a bar, leading to Dm; then Am, E7 and Am.', aim: 'C♯ (the 3rd of A7) rises to D; G (the 7th of A7) falls to F (the 3rd of Dm).' }
+    ]
+  },
+
+  slackkey: {
+    intro: 'G major with I, IV and V7, played in Taro Patch tuning (D G D G B D), where the open strings make a G chord.',
+    rn: ['I', 'I', 'IV', 'I', 'I', 'V7', 'I', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'G', title: 'I, IV, I, V7, I', text: 'G for two bars, C, G for two, D7, then G.', aim: 'B on G, E on C, F♯ on D7.' }
+    ]
+  }
+};
+
+/* How to solo over each tune: the notes to aim for and how to move between chords (harmony), then the
+   scales, modes and colour notes and why they fit (theory). Shown under "How to solo over it". */
+export const SOLO = {
+  autumn: {
+    harmony: ['Start with one guide tone per bar: E♭ (Cm7), E♭ (F7), D (B♭maj7), D (E♭maj7), C (Am7♭5), C (D7), B♭ (Gm6). The line falls a step every two bars.', 'Then arpeggiate each chord up from that note (3, 5, 7, 9) and land on the next guide tone on beat 1.', 'On D7, aim for F♯ and resolve it up to G: the strongest pull in the tune.'],
+    theory: ['G natural minor (the same notes as B♭ major) fits every bar except D7. Over D7 use G harmonic minor: its F♯ is the 3rd of D7.', 'For tension on D7, add E♭ (the ♭9) and B♭ (the ♭13), both from G harmonic minor; E♭ falls to D, the 5th of Gm.', 'Approach a chord tone from a half step below on the & before the beat, such as C♯ into D on B♭maj7.']
+  },
+  bluebossa: {
+    harmony: ['Land on the 3rd of each new chord on beat 1: E♭ (Cm7), A♭ (Fm7), F (Dm7♭5), B (G7), G♭ (E♭m7), C (A♭7), F (D♭maj7).', 'On G7, B rising to C on Cm7 tells the listener you are home.', 'Keep the bossa feel: long notes, straight eighths, space between phrases.'],
+    theory: ['C natural minor (C D E♭ F G A♭ B♭) over bars 1–8; on G7 switch to C harmonic minor (B instead of B♭).', 'D♭ major in bars 9–12. Only two notes change from C minor: D becomes D♭ and G becomes G♭.', 'Over G7, A♭ (the ♭9) and E♭ (the ♭13) add tension; A♭ falls to G and E♭ becomes the 3rd of Cm7.']
+  },
+  summertime: {
+    harmony: ['Target C (the 3rd of Am) and G♯ (the 3rd of E7): the half step G♯–A is the sound of the tune.', 'On Dm7 land on F; over Bm7♭5–E7 hold D, then let it fall to C.', 'Keep phrases short and vocal, like the melody: play for two bars, leave two.'],
+    theory: ['A minor pentatonic (A C D E G) works over almost every bar and gives the blues colour; do not linger on G over E7.', 'A Dorian (with F♯) over Am6, A harmonic minor (with G♯ and F) over E7.', 'The blue note: slide from E♭ up to E for a bluesy cry.']
+  },
+  flyme: {
+    harmony: ['Play the falling guide-tone line, one note every bar: G (Am7), F (Dm7), F (G7), E (Cmaj7), E (Fmaj7), D (Bm7♭5), D (E7), C (Am7).', 'Then arpeggiate each chord from that note, so the next guide tone is always the nearest note.', 'On E7 aim for G♯ and on A7 for C♯: the borrowed notes carry the colour.'],
+    theory: ['C major covers bars 1–5 and 9–14: one scale for many chords (a key-centre approach).', 'A harmonic minor (C major with G♯) over Bm7♭5–E7.', 'Approach notes: play the note a half step below a chord tone on the & of 4 and land on the chord tone on 1.']
+  },
+  fblues: {
+    harmony: ['Aim for the 3rds: A on F7, D on B♭7, F♯ on D7, B♭ on Gm7, E on C7. The 3rd makes each change audible.', 'The A–A♭ move from F7 to B♭7 (bars 1–2 and 4–5) is the heart of the blues: play it.', 'In bars 11–12, outline D7 and Gm7–C7 to lead back to F7 at the top.'],
+    theory: ['The F blues scale (F A♭ B♭ B C E♭) over the whole form for bluesy phrases: its A♭ against the A of F7 is the blue note.', 'F Mixolydian (F G A B♭ C D E♭) over F7, B♭ Mixolydian over B♭7: mix them with the blues scale.', 'Bebop: add E as a passing note to F Mixolydian, so the chord tones fall on the beats in eighth-note lines.']
+  },
+  satin: {
+    harmony: ['Treat each ii–V as one idea: the 3rd of the ii on beat 1, the 3rd of the V on beat 3: F then B, G then C♯, C then F♯, C♭ (B) then F.', 'Play a short motif on Dm7–G7, then move the same shape up a step for Em7–A7, as the melody does.', 'Land on E or B on Cmaj7 and let it ring.'],
+    theory: ['One major scale per ii–V: C over Dm7–G7, D over Em7–A7, G over Am7–D7, G♭ over A♭m7–D♭7.', 'Because the ii–Vs never land, the tension keeps building until Cmaj7: save your strongest resolution for bar 7.', 'Satin Doll swings lazily: fewer notes, repeated rhythms.']
+  },
+  atrain: {
+    harmony: ['Aim for E (the 3rd) and B (the 7th) on Cmaj7, then F♯ (the 3rd) on D7: the step from E to F♯ is the colour of the tune.', 'On D7♯11, the melody’s G♯ is the ♯11: hold it against the chord.', 'In bars 5–8 follow the guide tones F (Dm7), F (G7), E (Cmaj7).'],
+    theory: ['C major over Cmaj7.', 'D Lydian dominant (D E F♯ G♯ A B C) over D7♯11: it is the scale that contains the ♯11.', 'C major over the ii–V–I; on G7 add A♭ (the ♭9) and resolve it to G.']
+  },
+  sowhat: {
+    harmony: ['With no changes to follow, make your own: outline Dm7 (D F A C), then for tension play Em7 or Fmaj7 shapes inside the same scale, and come back.', 'Lean on B, the 6th, to sound Dorian; end phrases on D, F or A.', 'Try stacked fourths, like the So What chord (E A D G and B over D): they sound open and modal.'],
+    theory: ['D Dorian (D E F G A B C) for 16 bars, E♭ Dorian (E♭ F G♭ A♭ B♭ C D♭) for 8, D Dorian again.', 'D minor pentatonic (D F G A C) is a safe start; add E and B for the full Dorian sound.', 'Side-slipping: inside the D bars, play one phrase a half step up (in E♭ Dorian) and come back: the same move the tune makes.']
+  },
+  rhythm: {
+    harmony: ['At this tempo, think two bars at a time: D (B♭maj7) and B (G7) in bar 1, E♭ (Cm7) and A (F7) in bar 2.', 'Outline Fm7–B♭7 and land on G, the 3rd of E♭maj7, in bar 6.', 'Practise plain chord tones (1, 3, 5, 7) in eighths for a few choruses before you make lines.'],
+    theory: ['B♭ major pentatonic or the B♭ blues scale over the whole A section: the classic swing approach.', 'B♭ major with B over G7 and E over E°7 for the moving chords.', 'The bebop dominant scale (Mixolydian plus the major 7th as a passing note) on G7 and F7.']
+  },
+  atttya: {
+    harmony: ['Learn the line of 3rds and 7ths for each section before soloing: it moves by half and whole steps through every key change.', 'At each new key, land on the 3rd of its I chord: C (A♭), E (C), G (E♭), B (G), G♯ (E).', 'Use the shared notes: G♯ on Emaj7 is the A♭ of Fm7, and F links D♭maj7 to G7.'],
+    theory: ['One major scale per key centre: A♭, C, E♭, G, E, then A♭.', 'Over the ii–V into each key, already play the new key’s scale.', 'Over B°7 in bar 32, use the chord’s own four notes (B D F A♭).']
+  },
+  solar: {
+    harmony: ['Learn the 3rds of the chords each ii–V lands on: A (Fmaj7), G (E♭maj7), F (D♭maj7), then E♭ (Cm6).', 'When a maj7 chord turns minor, lower its 3rd by a half step: A to A♭ (Fmaj7 to Fm7), G to G♭ (E♭maj7 to E♭m7). Play that move.', 'Twelve bars go by quickly: make phrases that cross the key changes, not ones that stop at them.'],
+    theory: ['C melodic minor (C D E♭ F G A B) or C Dorian over Cm6.', 'F major, E♭ major and D♭ major for the three ii–V–Is.', 'C harmonic minor over Dm7♭5–G7.']
+  },
+  giant: {
+    harmony: ['Learn the three major triads first (B D♯ F♯, G B D, E♭ G B♭) and arpeggiate each in its bar.', 'Then the V7s: D7 (D F♯ A C), B♭7 (B♭ D F A♭), F♯7 (F♯ A♯ C♯ E). Each 7th falls a half step to the next 3rd.', 'Play 1-2-3-5 shapes on every chord, as Coltrane did: they keep you in the key at speed.'],
+    theory: ['Three major scales (B, G, E♭), switching every bar or two.', 'On each V7 or ii–V, the scale of the key it leads to.', 'Start at 60–80 bpm and loop bars 1–4 until the changes feel automatic.']
+  },
+  minorswing: {
+    harmony: ['Arpeggiate the chords, as Django did: Am6 (A C E F♯), Dm6 (D F A B), E7 (E G♯ B D, adding F for the ♭9).', 'Land on G♯ over E7 and resolve it to A on Am6.', 'Slide into chord notes from a half step below (see the drill “Arpeggios with chromatic approach”).'],
+    theory: ['A Dorian (with F♯) over Am6 and D Dorian (with B) over Dm6: the 6ths in the chords come from those modes.', 'A harmonic minor over E7, or the diminished arpeggio G♯ B D F: the E7♭9 sound gypsy jazz loves.', 'A minor pentatonic sounds bluesy but misses the 6ths: add F♯ on Am6 and B on Dm6.']
+  },
+  andalusian: {
+    harmony: ['Let your top note fall with the bass: C (Am), B (G), A (F), G♯ (E). These are the 3rds of each chord.', 'On E, lean on G♯ and resolve phrases to E.', 'End each line with the F–E half step.'],
+    theory: ['E Phrygian dominant (E F G♯ A B C D) over E; E Phrygian (with G) over the other chords.', 'The G against G♯ is part of the sound: G over Am and G, G♯ over E.', 'Finish phrases with the chord change, on the strong beat, as flamenco does.']
+  },
+  sonmontuno: {
+    harmony: ['Target the 3rds on the changes: E on C, A on F, B on G.', 'Anticipate: play the next chord’s note on the & before the change, as the bass does.', 'Repeat a short figure, like a guajeo, and change one note to fit each chord.'],
+    theory: ['C major pentatonic (C D E G A) and C major; F and B colour the IV and V.', 'Start phrases on a clave hit (the a of 1 or the & of 2) rather than on 1.', 'For the style, see the drill “Tres-style guajeo in octaves”.']
+  },
+  bossavamp: {
+    harmony: ['Guide tones: F and C on Dm7, G and D on Em7♭5, C♯ and G on A7, then F on Dm7.', 'Hear the two resolutions: C♯ (A7) up to D, G (A7) down to F.', 'Add the 9th (E) on Dm7 for the soft bossa colour.'],
+    theory: ['D Dorian (with B) over Dm7 for a bright, soft minor; D natural minor (with B♭) over Em7♭5.', 'D harmonic minor (with C♯ and B♭) over A7.', 'Play straight eighths, not swung, and quietly.']
+  },
+  highlife: {
+    harmony: ['Short arpeggios that change with each chord: G B D, C E G, D F♯ A.', 'Keep a shared note and move the others: G is in G and C, D is in G and D.', 'Play in the gaps of the bell pattern, so your line interlocks with the band.'],
+    theory: ['G major pentatonic (G A B D E) works everywhere.', 'G major for runs; C over C and F♯ over D are the chord notes to bring out.', 'Thirds and sixths are the classic highlife double stops.']
+  },
+  soukous: {
+    harmony: ['Bright arpeggios high on the neck: E G♯ B, A C♯ E, B D♯ F♯.', 'Loop a one-bar cell and move it to fit the next chord.', 'Target the 3rds: G♯, C♯ and D♯.'],
+    theory: ['E major pentatonic (E F♯ G♯ B C♯) fits every chord.', 'E major for runs. The sebene repeats, so build intensity by climbing the neck, not by changing scale.', 'Play in 3rds or 6ths for the two-guitar sound.']
+  },
+  reggae: {
+    harmony: ['Target C and E over Am, F♯ and A over D.', 'The F♯ makes the D chord: land on it in the D bar.', 'Leave space: reggae lead answers the singer and stops.'],
+    theory: ['A Dorian (A B C D E F♯ G).', 'A minor pentatonic for bluesy fills; add F♯ for the Dorian colour.', 'See the drill “Short fills between vocal lines”.']
+  },
+  tango: {
+    harmony: ['G♯ on E7 resolving to A: the tango’s strongest pull.', 'Over Dm land on F or A; over Am on C or E.', 'Phrase with the habanera rhythm of the bass: a long note, then shorter ones.'],
+    theory: ['A harmonic minor (A B C D E F G♯) over E7 and Am.', 'A natural minor over Dm.', 'Contrast a short, accented phrase (marcato) with a long, dragged one (arrastre).']
+  },
+  hijazvamp: {
+    harmony: ['Bring out the step from E♭ to F♯: that wide gap is the sound of Hijaz.', 'Over E♭ play E♭ G B♭ and resolve E♭ down to D; over Cm play C E♭ G.', 'End phrases on D, or rest on G halfway, as the maqam does.'],
+    theory: ['D Hijaz (Phrygian dominant): D E♭ F♯ G A B♭ C.', 'Stay in the lower four notes (D E♭ F♯ G) first, rest on G, then go higher (see the drill “Maqam Hijaz”).', 'Klezmer players call the same scale freygish: add a krekhts, a sobbing ornament, on long notes.']
+  },
+  blues12: {
+    harmony: ['Aim for each chord’s 3rd: C♯ on A7, F♯ on D7, G♯ on E7.', 'Each chord’s 7th is a blue note: G on A7, C on D7, D on E7.', 'Play a phrase in bars 1–2 and answer it in bars 3–4 (call and response), then follow the change to D7 in bar 5.'],
+    theory: ['A minor pentatonic (A C D E G) over everything: its C rubs against the C♯ of A7, and that rub is the blues.', 'A major pentatonic (A B C♯ E F♯) for sweeter phrases, especially over A7.', 'Mix them: slide from C to C♯, minor 3rd to major 3rd.']
+  },
+  rockvamp: {
+    harmony: ['Target the 3rds: F♯ on D, E on C, B on G.', 'Play the C natural over the C chord and hear it fit: it is the borrowed note.', 'A falling line through the chords: F♯ (D), E (C), D (G).'],
+    theory: ['D minor pentatonic (D F G A C) for a hard rock sound; its F against the F♯ of D is the bluesy clash.', 'D Mixolydian (D E F♯ G A B C) for melodic lines.', 'D major pentatonic over D; switch to C major pentatonic over C to follow the change.']
+  },
+  funkvamp: {
+    harmony: ['E9 is E G♯ B D F♯: target G♯ and D, its 3rd and 7th.', 'Slide from G to G♯ (minor to major 3rd) for the funk-blues rub.', 'Short, percussive phrases with ghost notes, locked to the sixteenths.'],
+    theory: ['E Mixolydian (E F♯ G♯ A B C♯ D) matches the chord.', 'E Dorian (with G) or E minor pentatonic for the funkier side.', 'Repeat one riff and change only its rhythm.']
+  },
+  country145: {
+    harmony: ['Target the 3rds: B on G, E on C, F♯ on D7; C, the 7th of D7, falls to B on G.', 'Hammer from B♭ to B over G: minor to major 3rd, the country-blues move.', 'Outline each chord with its triad and connect them by step.'],
+    theory: ['G major pentatonic (G A B D E) everywhere; C major pentatonic over C.', 'B♭ as a passing note into B gives the bluesy country sound.', 'Double stops in 3rds and 6ths imitate a pedal steel.']
+  },
+  fadominor: {
+    harmony: ['On E7 aim for G♯ and resolve it to A; B (the 5th of E7) can rise to C, the 3rd of Am.', 'On A7, C♯ rises to D, the root of Dm.', 'Answer the singer: fill only the gaps and end on A or E.'],
+    theory: ['A harmonic minor (A B C D E F G♯) over E7.', 'A natural minor over Am and Dm; add C♯ over A7.', 'See the drill “Guitarra-style fills in A harmonic minor”.']
+  },
+  slackkey: {
+    harmony: ['Play melody notes on the top strings over the alternating thumb: G B D on G, C E G on C, D F♯ A C on D7.', 'In Taro Patch (D G D G B D) the open strings are all notes of G: use them as drones.', 'Hammer-ons from open strings into chord tones.'],
+    theory: ['G major pentatonic (G A B D E) and G major.', 'Add C and E over the C chord, C and F♯ over D7.', 'Slack key melodies are simple and singable: play the song first, then decorate it.']
   }
 };

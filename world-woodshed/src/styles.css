@@ -217,6 +217,8 @@ input[type="range"] { accent-color: var(--brass); width: 100%; }
 .crn .ckey { color: var(--brass); margin-right: 3px; }
 .harmony .hsec { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
 .harmony .hsec p { margin: 0; }
+.solotips { gap: 8px; }
+.solotips ul { margin: 0; }
 .notegrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .notegrid .choice { min-height: 46px; padding: 6px 2px; }
 

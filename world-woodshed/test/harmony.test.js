@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
 import { parseChord } from '../src/theory.js';
-import { loadTuneNotes } from '../src/content/lazy.js';
+import { loadTuneNotes, loadDrills } from '../src/content/lazy.js';
+import SOLO_DRILLS from '../src/content/drills-solo.js';
 import { parseKey, keyName, parseNumeral, numeralRoot, chartNumerals, prettyNumeral } from '../src/harmony.js';
 
 /* Roman numerals (src/harmony.js) and the jazz standards' walk-throughs (src/content/tunes-harmony.js):
@@ -27,10 +28,13 @@ describe('numerals', () => {
   });
 });
 
-describe('the jazz standards', () => {
-  it('explains every jazz standard', async () => {
+describe('the Repertoire tunes', () => {
+  it('explains every tune and how to solo over it', async () => {
     await loadTuneNotes();
-    for (const t of D.TUNES.filter(x => x.group === 'Jazz standards')) expect(t.harmony, t.id).toBeTruthy();
+    for (const t of D.TUNES) {
+      expect(t.harmony, t.id).toBeTruthy();
+      for (const k of ['harmony', 'theory']) expect(t.harmony.solo[k].length, t.id + ' ' + k).toBeGreaterThan(1);
+    }
     expect(D.HARMONY_WORDS.length).toBeGreaterThan(5);
   });
   it('sections cover every bar in order', async () => {
@@ -60,9 +64,22 @@ describe('the jazz standards', () => {
           expect(numeralRoot(x.rn, parseKey(x.key).pc), where).toBe(c.root);
           expect(n.minor, where).toBe(c.third === 3);
           const kind = c.iv.join() === '0,3,6,10' ? 'ø7' : c.iv.join() === '0,3,6,9' ? '°7' : c.seventh === 11 ? 'maj7' : c.seventh === 10 ? '7' : c.seventh === 9 ? '6' : '';
-          expect(n.rest, where).toBe(kind);
+          // a dominant with extensions (E9, D7♯11) may be written as V7 or with its extension
+          expect([kind, kind === '7' ? chords[ci].replace(/^[A-G][b#]?m?/, '') : kind], where).toContain(n.rest);
         });
       });
+    }
+  });
+});
+
+describe('improvising drills', () => {
+  it('every solo note belongs to a drill and has both parts', async () => {
+    await loadDrills();
+    for (const [id, solo] of Object.entries(SOLO_DRILLS)) {
+      const d = D.DRILLS.find(x => x.id === id);
+      expect(d, id).toBeTruthy();
+      expect(d.solo).toBe(solo);
+      expect(solo.harmony.length && solo.theory.length, id).toBeTruthy();
     }
   });
 });
