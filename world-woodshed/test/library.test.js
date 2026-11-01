@@ -89,6 +89,21 @@ describe('storing files on this device', () => {
     expect(r.failed).toEqual([['nothing', 'not a file']]);
     expect((await L.addFiles('no-such-entry', [blob('a')])).failed[0][1]).toMatch(/deleted/);
   });
+  it('replaces a file whose content changed in the same place, moving its section tempos', async () => {
+    const id = await L.addToLibrary({ title: 'Read', files: [new File(['p'], 'p1.jpg'), { blob: blob('<old/>'), name: 'Read (notes read).musicxml' }] });
+    const old = L.getEntry(id).files[1].id;
+    L.markClean(id, old, 1, 4, 80, 100);
+    const nid = await L.replaceFile(id, old, blob('<new/>', 'application/vnd.recordare.musicxml+xml'));
+    expect(nid).not.toBe(old);
+    const e = L.getEntry(id);
+    expect(e.files.map(f => f.name)).toEqual(['p1.jpg', 'Read (notes read).musicxml']);
+    expect(e.files[1].id).toBe(nid);
+    expect(await (await L.getFile(nid)).blob.text()).toBe('<new/>');
+    expect(await L.getFile(old)).toBeNull();
+    expect(E.state.tomb['libfile:' + old]).toBeGreaterThan(0);
+    expect(L.sectionTempos(id, nid)).toHaveLength(1);
+    expect(await L.replaceFile(id, 'nope', blob('x'))).toBeNull();
+  });
   it('orders photos among photos, and other files among other files', async () => {
     const id = await L.addToLibrary({ title: 'x', files: [new File(['1'], 'p1.jpg'), new File(['s'], 's.pdf'), new File(['2'], 'p2.jpg')] });
     const ids = () => L.getEntry(id).files.map(f => f.name);
