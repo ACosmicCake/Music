@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
-import { LEVELS, STAGES, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
+import { LEVELS, STAGES, withAccidentals, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
 import { parseChord } from '../src/theory.js';
 import { parseTime, keyScale, KEYS } from '../src/notation.js';
 import { loadDrills } from '../src/content/lazy.js';
@@ -69,6 +69,36 @@ describe('sight-reading generators', () => {
       expect(L.times, 'level ' + L.id).toContain(m.time);
       if (!L.chords) for (const n of m.bars.flat()) if (n.midi != null) expect(L.notes, 'level ' + L.id).toContain(n.midi);
     }
+  });
+  it('with sharps and flats switched on, every level still makes full melodies, with keys and accidentals beyond C', () => {
+    let sharpOrFlat = 0, outsideKey = 0;
+    for (const L0 of LEVELS) {
+      const L = withAccidentals(L0);
+      expect(L.keys.slice(0, L0.keys.length), 'level ' + L0.id).toEqual(L0.keys);
+      expect(L.keys.length, 'level ' + L0.id).toBeGreaterThan(1);
+      for (let i = 0; i < 12; i++) {
+        const m = genMelody(L, { bars: 8 });
+        expect(m.bars.length, 'level ' + L0.id).toBe(8);
+        expect(L.keys, 'level ' + L0.id).toContain(m.key);
+        if (m.key !== 'C' && m.key !== 'Am') sharpOrFlat++;
+        if (!L.chords) {
+          const sc = keyScale(m.key);
+          for (const n of m.bars.flat()) if (n.midi != null) {
+            expect(n.midi, 'level ' + L0.id).toBeGreaterThanOrEqual(Math.min(...L0.notes));
+            expect(n.midi, 'level ' + L0.id).toBeLessThanOrEqual(Math.max(...L0.notes));
+            if (!sc.includes(n.midi % 12)) outsideKey++;
+          }
+        }
+      }
+    }
+    expect(sharpOrFlat).toBeGreaterThan(LEVELS.length * 4);
+    expect(outsideKey).toBeGreaterThan(LEVELS.length);
+  });
+  it('leaves the levels themselves alone', () => {
+    const before = JSON.stringify(LEVELS[0]);
+    withAccidentals(LEVELS[0]);
+    expect(JSON.stringify(LEVELS[0])).toBe(before);
+    expect(LEVELS[0].acc).toBeUndefined();
   });
   it('bring in each new figure at its own level and not before', () => {
     const has = (L, test) => { for (let i = 0; i < 30; i++) if ([genMelody(L, { bars: 8 }), rhythmPiece(L, { bars: 8 })].some(p => p.bars.flat().some(test))) return true; return false; };

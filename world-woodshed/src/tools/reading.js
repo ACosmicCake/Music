@@ -6,7 +6,7 @@ import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
-import { LEVELS, STAGES, HOW_TO, readingItems, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts } from '../content/reading.js';
+import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts } from '../content/reading.js';
 import { placeFrets } from '../notate.js';
 import { parseChord } from '../theory.js';
 import { guitarMidis } from '../voicings.js';
@@ -166,6 +166,7 @@ function playRun(o) {
 function staffWidth(holder) { return Math.max(260, (holder.clientWidth || 320) - 4); }
 
 const paperOn = () => !!E.state.settings.readingPaper;
+const accOn = () => !!E.state.settings.readingAcc;
 /* how many bars a rhythm or melody runs to, and whether the next one follows by itself */
 const LENGTHS = [4, 8, 16];
 const lenFor = kind => { const v = (E.state.settings.readingLen || {})[kind]; return LENGTHS.includes(v) ? v : 8; };
@@ -198,10 +199,11 @@ tool('sightread', {
     const how = h('details', { class: 'card sr-how' },
       h('summary', {}, h('b', { text: 'How to sight-read' })),
       h('ul', { class: 'sr-howlist' }, HOW_TO.map(([t, d]) => h('li', {}, h('b', { text: t + '. ' }), d))));
-    wrap.append(levelCard, modeSeg, paper, modeBody, how);
+    const accBox = h('label', { class: 'check small sr-acctoggle' }, h('input', { type: 'checkbox', checked: accOn() ? true : null, onchange: e => { E.setSetting('readingAcc', e.target.checked); renderLevel(); renderMode(); } }), 'Sharps and flats: add accidentals and sharp and flat keys to any level');
+    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, how);
     body.append(wrap);
 
-    const L = () => LEVELS[level - 1];
+    const L = () => accOn() ? withAccidentals(LEVELS[level - 1]) : LEVELS[level - 1];
     const go = n => { level = clampLevel(n); renderLevel(); renderMode(); };
     function renderLevel() {
       const top = unlocked(), lv = L();
@@ -228,6 +230,7 @@ tool('sightread', {
           h('h2', { text: lv.name }),
           h('button', { class: 'btn small', 'aria-label': 'Next level', disabled: level >= LEVELS.length ? true : null, onclick: () => go(level + 1) }, '→')),
         h('p', { text: lv.goal }),
+        lv.acc ? h('p', { class: 'small muted sr-accnote', text: 'With sharps and flats: ' + lv.keys.map(keyName).join(', ') + ', and accidentals inside the bar.' }) : '',
         locked ? h('p', { class: 'small sr-preview', text: 'Preview: this level unlocks when you read level ' + top + ' reliably (notes, rhythm and melody). You can still try it.' }) : '',
         h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))),
         path);
