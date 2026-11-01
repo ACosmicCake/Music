@@ -265,7 +265,7 @@ tool('rhythms', {
       stop(); r = nr; bpm = r.bpm; sel.value = r.id; opt.fixed = undefined;
       if (r.var && r.var.layaRamp) opt.laya = true;
       const lo = r.var && r.var.tempo ? r.var.tempo[0] : Math.round(r.bpm * 0.45), hi = r.var && r.var.tempo ? r.var.tempo[1] : Math.round(r.bpm * 1.6);
-      tempo.min = Math.min(lo, r.bpm); tempo.max = Math.max(hi, r.bpm); tempo.value = bpm;
+      tempo.min = Math.min(40, lo, r.bpm); tempo.max = Math.max(hi, r.bpm); tempo.value = bpm; // every rhythm can be slowed to 40 to learn it
       tempoLbl.textContent = bpm + ' ' + unitLbl();
       head.innerHTML = '';
       const st = E.skillState('rhythmTap').items[r.id];
