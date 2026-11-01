@@ -67,23 +67,25 @@ function hann(n) {
 const princarg = x => x - TAU * Math.round(x / TAU);
 
 /* ---------- onset detection on the input (fixed resolution, independent of speed) ----------
-   Returns sorted sample positions of percussive onsets: frames where a large share of
-   bins jump by more than 3 dB, kept only at local maxima of that share. */
-function findOnsets(chs, sr) {
-  const inLen = chs[0].length;
-  const N = sr > 64000 ? 2048 : sr > 32000 ? 1024 : 512, H = N / 2;
+   Percussive onsets: frames where a large share of bins jump by more than 3 dB, kept only at
+   local maxima of that share. Incremental, so a stream can start before the whole input is read:
+   advance(upTo) makes sure every onset at or before sample upTo is in `list`. */
+function onsetTracker(src, sr) {
+  const chs = src.chs, inLen = src.length, nCh = chs.length;
+  const N = sr > 64000 ? 2048 : sr > 32000 ? 1024 : 512, H = N / 2, half = N / 2;
   const T = fftTables(N), w = hann(N);
   const re = new Float64Array(N), im = new Float64Array(N);
-  const half = N / 2;
-  let mono = chs[0];
-  if (chs.length > 1) { mono = new Float32Array(inLen); for (const x of chs) for (let i = 0; i < inLen; i++) mono[i] += x[i]; }
+  const lo = Math.max(1, Math.round(150 * N / sr)), gap = Math.round(sr * 0.05);
   let prev = new Float64Array(half + 1), cur = new Float64Array(half + 1);
-  const feat = [], pos = [];
-  const lo = Math.max(1, Math.round(150 * N / sr));
-  for (let c = 0; c - half < inLen; c += H) {
-    for (let i = 0; i < N; i++) {
-      const j = c - half + i;
-      re[i] = j >= 0 && j < inLen ? mono[j] * w[i] : 0; im[i] = 0;
+  const list = [];
+  let c = 0, i = 0, fA = 0, fB = 0, pB = 0;
+  function frame() {
+    src.ensure(c + half);
+    for (let k = 0; k < N; k++) {
+      const j = c - half + k;
+      let v = 0;
+      if (j >= 0 && j < inLen) for (let ch = 0; ch < nCh; ch++) v += chs[ch][j];
+      re[k] = v * w[k]; im[k] = 0;
     }
     fft(re, im, T, false);
     let count = 0, total = 0;
@@ -92,36 +94,47 @@ function findOnsets(chs, sr) {
       cur[k] = e;
       if (e > 1e-6) { total++; if (e > 2 * prev[k]) count++; }
     }
-    feat.push(total > 8 ? count / (half + 1 - lo) : 0);
-    pos.push(c);
+    const fC = total > 8 ? count / (half + 1 - lo) : 0;
+    // frame i-1 is a peak if it beats both neighbours (frame 0 never counts)
+    if (i >= 2 && fB > 0.3 && fB > fA && fB >= fC && (!list.length || pB - list[list.length - 1] > gap)) list.push(pB);
+    fA = fB; fB = fC; pB = c;
     const t = prev; prev = cur; cur = t;
+    c += H; i++;
   }
-  const onsets = [];
-  const gap = Math.round(sr * 0.05);
-  for (let i = 1; i < feat.length - 1; i++) {
-    const f = feat[i];
-    if (f > 0.3 && f > feat[i - 1] && f >= feat[i + 1] && (!onsets.length || pos[i] - onsets[onsets.length - 1] > gap)) onsets.push(pos[i]);
-  }
-  return onsets;
+  return {
+    list,
+    advance(upTo) { while (c - half < inLen && c <= upTo + H) frame(); }
+  };
+}
+function findOnsets(chs, sr) {
+  const tr = onsetTracker({ chs, length: chs[0].length, ensure() {} }, sr);
+  tr.advance(Infinity);
+  return tr.list;
 }
 
-/* ---------- phase vocoder: output length = input length / tempo (tempo < 1 slows down) ---------- */
-function vocoder(chs, sr, tempo, onProgress, pStart, pSpan) {
-  const inLen = chs[0].length, nCh = chs.length;
-  const outLen = Math.max(1, Math.round(inLen / tempo));
+/* ---------- phase vocoder, streamed ----------
+   Reads src ({ chs, length, ensure(j) }: ensure makes samples before j readable) and yields the output
+   in order, `first` samples and then `block` at a time, as arrays of Float32Array (one per channel).
+   outLen samples in all; tempo < 1 slows down. Between blocks it yields null every few frames, so a
+   caller on the main thread can stop for breath. */
+function* vocoderStream(src, sr, tempo, outLen, first, block) {
+  const chs = src.chs, inLen = src.length, nCh = chs.length;
   // ~93 ms frames: long enough for clean tones when slowed down a lot
   const N = sr > 64000 ? 8192 : sr > 32000 ? 4096 : 2048;
   const half = N / 2, Hs = N / 4;
   const T = fftTables(N), win = hann(N);
-  const onsets = findOnsets(chs, sr);
+  const onsets = onsetTracker(src, sr);
   const resetFrom = Math.max(1, Math.round(150 * N / sr)); // keep bass phase continuous through resets
 
   // channels are processed in pairs packed as real + imaginary of one complex FFT
   const pairs = [];
   for (let c = 0; c < nCh; c += 2) pairs.push([chs[c], c + 1 < nCh ? chs[c + 1] : null]);
-  const out = [];
-  for (let c = 0; c < nCh; c++) out.push(new Float64Array(outLen + N));
-  const norm = new Float64Array(outLen + N);
+  // overlap-add accumulators, a sliding window over the output: acc[i] is padded output sample base + i
+  const size = Math.max(first, block) + 2 * N;
+  const acc = [];
+  for (let c = 0; c < nCh; c++) acc.push(new Float64Array(size));
+  const norm = new Float64Array(size);
+  let base = 0, emitted = 0;
 
   const re = pairs.map(() => new Float64Array(N)), im = pairs.map(() => new Float64Array(N));
   const mr = new Float64Array(half + 1), mi = new Float64Array(half + 1); // guide (sum of channels) spectrum
@@ -135,6 +148,8 @@ function vocoder(chs, sr, tempo, onProgress, pStart, pSpan) {
   let prevA = 0, onsetIdx = 0;
   for (let m = 0; m < frames; m++) {
     const a = Math.round(m * Hs * tempo); // analysis centre in the input
+    src.ensure(a + half);
+    onsets.advance(a);
     // window and pack each pair
     for (let p = 0; p < pairs.length; p++) {
       const [x0, x1] = pairs[p], r = re[p], q = im[p];
@@ -162,8 +177,8 @@ function vocoder(chs, sr, tempo, onProgress, pStart, pSpan) {
     }
 
     let reset = false;
-    const hopA = a - prevA;
-    while (onsetIdx < onsets.length && onsets[onsetIdx] <= a) { if (m > 0 && onsets[onsetIdx] > prevA) reset = true; onsetIdx++; }
+    const hopA = a - prevA, ol = onsets.list;
+    while (onsetIdx < ol.length && ol[onsetIdx] <= a) { if (m > 0 && ol[onsetIdx] > prevA) reset = true; onsetIdx++; }
 
     if (m === 0 || hopA <= 0) {
       delta.fill(0); cosD.fill(1); sinD.fill(0);
@@ -212,7 +227,7 @@ function vocoder(chs, sr, tempo, onProgress, pStart, pSpan) {
     delta[0] = 0; cosD[0] = 1; sinD[0] = 0; delta[half] = 0; cosD[half] = 1; sinD[half] = 0;
 
     // rotate every channel by the same delta and resynthesise
-    const o0 = m * Hs; // output frame start (frame centre at m*Hs - half + half)
+    const o0 = m * Hs - base; // frame m covers padded output samples m*Hs .. m*Hs + N
     for (let p = 0; p < pairs.length; p++) {
       const r = re[p], q = im[p];
       const stereo = !!pairs[p][1];
@@ -229,7 +244,7 @@ function vocoder(chs, sr, tempo, onProgress, pStart, pSpan) {
         if (nk !== k) { r[nk] = yr0 + yi1; q[nk] = -yi0 + yr1; }
       }
       fft(r, q, T, true);
-      const y0 = out[p * 2], y1 = stereo ? out[p * 2 + 1] : null;
+      const y0 = acc[p * 2], y1 = stereo ? acc[p * 2 + 1] : null;
       for (let i = 0; i < N; i++) {
         const w = win[i] / N;
         y0[o0 + i] += r[i] * w;
@@ -241,14 +256,43 @@ function vocoder(chs, sr, tempo, onProgress, pStart, pSpan) {
     pr.set(mr); pi.set(mi);
     const t = prevDelta; prevDelta = delta; delta = t;
     prevA = a;
-    if (onProgress && m % 64 === 0) onProgress(pStart + pSpan * (m / frames));
+
+    // padded samples before (m+1)*Hs get nothing more; output sample i is padded sample i + half
+    const ready = Math.min(outLen, (m + 1) * Hs - half);
+    if (ready - emitted >= (emitted ? block : first) || (m === frames - 1 && ready > emitted)) {
+      const n = ready - emitted, off = emitted + half - base;
+      const outs = acc.map(o => {
+        const y = new Float32Array(n);
+        for (let i = 0; i < n; i++) { const g = norm[off + i]; y[i] = g > 1e-3 ? o[off + i] / g : 0; }
+        return y;
+      });
+      // slide the window past what was handed out
+      const sh = off + n;
+      for (const o of acc) { o.copyWithin(0, sh); o.fill(0, size - sh); }
+      norm.copyWithin(0, sh); norm.fill(0, size - sh);
+      base += sh; emitted = ready;
+      yield outs;
+    } else if ((m & 7) === 7) yield null;
   }
-  // frame m is centred at output sample m*Hs, stored at m*Hs + half
-  return out.map(o => {
-    const y = new Float32Array(outLen);
-    for (let i = 0; i < outLen; i++) { const g = norm[i + half]; y[i] = g > 1e-3 ? o[i + half] / g : 0; }
-    return y;
-  });
+  if (emitted < outLen) yield chs.map(() => new Float32Array(outLen - emitted));
+}
+
+/* the whole output at once, from vocoderStream */
+function vocoder(chs, sr, tempo) {
+  const inLen = chs[0].length, outLen = Math.max(1, Math.round(inLen / tempo));
+  return collect(vocoderStream({ chs, length: inLen, ensure() {} }, sr, tempo, outLen, 1 << 16, 1 << 16), chs.length, outLen);
+}
+function collect(gen, nCh, len, onProgress) {
+  const out = Array.from({ length: nCh }, () => new Float32Array(len));
+  let at = 0;
+  for (const b of gen) {
+    if (!b) continue;
+    const n = Math.min(b[0].length, len - at);
+    b.forEach((y, c) => out[c].set(n < y.length ? y.subarray(0, n) : y, at));
+    at += n;
+    if (onProgress) onProgress(at / len);
+  }
+  return out;
 }
 
 /* ---------- windowed-sinc resampler: plays input `ratio` times faster ---------- */
@@ -268,43 +312,108 @@ function sincTab() {
   }
   return sincTable;
 }
-function resample(chs, ratio, outLen) {
-  const inLen = chs[0].length;
-  outLen = outLen || Math.max(1, Math.floor(inLen / ratio));
+/* y[j - yOff] for j0 <= j < j1: the input x played `ratio` times faster. x holds input samples from
+   xBase on; inLen is the input's whole length (so the ends are treated as silence, not as missing) */
+function resampleRange(x, y, ratio, j0, j1, xBase = 0, inLen = x.length + xBase, yOff = 0) {
   const tab = sincTab();
   const fc = Math.min(1, 1 / ratio) * 0.97; // cutoff below the new Nyquist when shifting up
   const reach = Math.ceil(ZC / fc);
-  return chs.map(x => {
-    const y = new Float32Array(outLen);
-    for (let j = 0; j < outLen; j++) {
-      const t = j * ratio, i0 = Math.floor(t);
-      let acc = 0;
-      const from = Math.max(0, i0 - reach + 1), to = Math.min(inLen - 1, i0 + reach);
-      for (let i = from; i <= to; i++) {
-        const pos = Math.abs(t - i) * fc * OS;
-        const k = pos | 0;
-        if (k >= ZC * OS) continue;
-        const f = pos - k;
-        acc += x[i] * (tab[k] + (tab[k + 1] - tab[k]) * f);
-      }
-      y[j] = acc * fc;
+  for (let j = j0; j < j1; j++) {
+    const t = j * ratio, i0 = Math.floor(t);
+    let acc = 0;
+    const from = Math.max(0, i0 - reach + 1), to = Math.min(inLen - 1, i0 + reach);
+    for (let i = from; i <= to; i++) {
+      const pos = Math.abs(t - i) * fc * OS;
+      const k = pos | 0;
+      if (k >= ZC * OS) continue;
+      const f = pos - k;
+      acc += x[i - xBase] * (tab[k] + (tab[k + 1] - tab[k]) * f);
     }
-    return y;
-  });
+    y[j - yOff] = acc * fc;
+  }
+}
+const reachFor = ratio => Math.ceil(ZC / (Math.min(1, 1 / ratio) * 0.97));
+/* resamples a stream of blocks (as vocoderStream yields them, inLen samples in all) as it arrives */
+function* resampleStream(gen, ratio, inLen, outLen, first, block) {
+  const reach = reachFor(ratio);
+  let buf = null, xBase = 0, have = 0, j = 0;
+  const flush = all => {
+    // outputs whose window lies inside what has arrived (or everything, at the end)
+    let j1 = all ? outLen : Math.min(outLen, Math.floor((have - reach - 1) / ratio));
+    if (!all && j1 - j < (j ? block : first)) return null;
+    if (j1 <= j) return null;
+    const outs = buf.map(x => { const y = new Float32Array(j1 - j); resampleRange(x, y, ratio, j, j1, xBase, inLen, j); return y; });
+    j = j1;
+    // keep only the input the next outputs can still reach
+    const keep = Math.max(xBase, Math.floor(j * ratio) - reach - 1);
+    if (keep > xBase) { buf = buf.map(x => x.slice(keep - xBase)); xBase = keep; }
+    return outs;
+  };
+  for (const b of gen) {
+    if (!b) { yield null; continue; }
+    buf = buf ? buf.map((x, c) => { const y = new Float32Array(x.length + b[c].length); y.set(x); y.set(b[c], x.length); return y; }) : b;
+    have += b[0].length;
+    const outs = flush(false);
+    yield outs;
+  }
+  const outs = buf && flush(true);
+  if (outs) yield outs;
+}
+function resample(chs, ratio, outLen) {
+  outLen = outLen || Math.max(1, Math.floor(chs[0].length / ratio));
+  return chs.map(x => { const y = new Float32Array(outLen); resampleRange(x, y, ratio, 0, outLen); return y; });
+}
+/* the input played `ratio` times faster, worked out only as far as it is read */
+function lazyResampled(chs, ratio) {
+  const length = Math.max(1, Math.floor(chs[0].length / ratio));
+  const out = chs.map(() => new Float32Array(length));
+  let filled = 0;
+  return {
+    chs: out, length,
+    ensure(j) {
+      // in steps of a quarter second or so, so each call does a useful amount
+      const to = Math.min(length, Math.max(j, filled + 8192));
+      if (to <= filled) return;
+      chs.forEach((x, c) => resampleRange(x, out[c], ratio, filled, to));
+      filled = to;
+    }
+  };
 }
 
 /* speed: 0.25–2 (1 = original tempo). semitones: pitch shift.
-   The output is always round(input length / speed) samples long. */
-function process(chs, sr, speed, semitones, onProgress) {
+   Streams the result: yields arrays of Float32Array (one per channel) in order, the first `first` samples
+   long and then `block` (the last may be shorter), round(input length / speed) samples in all, and
+   null now and then while working. A pitch shift resamples before or after the phase vocoder, whichever
+   has fewer samples to make: shifting up while slowing down resamples the input first, so the vocoder
+   only ever makes the final length instead of stretching further and resampling the longer result. */
+function* stream(chs, sr, speed, semitones, first, block) {
   const r = Math.pow(2, (semitones || 0) / 12);
   const tempo = speed / r;
   const finalLen = Math.max(1, Math.round(chs[0].length / speed));
-  let out = chs;
+  first = Math.max(1024, Math.round(first || sr));
+  block = Math.max(1024, Math.round(block || 2 * sr));
   const shift = Math.abs(r - 1) > 1e-4;
-  if (Math.abs(tempo - 1) > 1e-4) out = vocoder(out, sr, tempo, onProgress, 0, shift ? 0.8 : 1);
-  if (shift) { if (onProgress) onProgress(0.82); out = resample(out, r, finalLen); }
-  if (onProgress) onProgress(1);
-  return out;
+  const plain = { chs, length: chs[0].length, ensure() {} };
+  if (shift && r < speed) {
+    // shifting down by more than it slows: stretch first (to fewer samples), then resample
+    const midLen = Math.max(1, Math.round(chs[0].length / tempo));
+    yield* resampleStream(vocoderStream(plain, sr, tempo, midLen, Math.ceil(first * r) + 64, Math.ceil(block * r) + 64), r, midLen, finalLen, first, block);
+    return;
+  }
+  const src = shift ? lazyResampled(chs, r) : plain;
+  if (Math.abs(tempo - 1) > 1e-4) { yield* vocoderStream(src, sr, tempo, finalLen, first, block); return; }
+  // no stretching needed (the speed and the pitch shift cancel out, or neither applies)
+  for (let at = 0, n = first; at < finalLen; at += n, n = block) {
+    const end = Math.min(finalLen, at + n);
+    src.ensure(end);
+    yield src.chs.map(x => { const y = new Float32Array(end - at); y.set(x.subarray(Math.min(at, x.length), Math.min(end, x.length))); return y; });
+  }
 }
 
-export default { process, vocoder, resample, findOnsets };
+/* the whole result at once (tests, and anything that wants it in one piece) */
+function process(chs, sr, speed, semitones, onProgress) {
+  const len = Math.max(1, Math.round(chs[0].length / speed));
+  return collect(stream(chs, sr, speed, semitones, 1 << 16, 1 << 16), chs.length, len, onProgress);
+}
+
+export default { process, stream, vocoder, resample, findOnsets };

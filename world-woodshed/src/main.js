@@ -68,4 +68,5 @@ if (startHash === '#go') openTool('commute', { returnTab: 'today' }); // the 'On
 window.addEventListener('hashchange', () => { if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
 // The Android app has no service worker (it is already offline); its back button closes tools first.
 if (!isNative()) registerApp(toast);
-onBack(() => { if (ui.runner) { go(ui.tab || 'today'); return true; } if (ui.tab !== 'today') { go('today'); return true; } return false; });
+// a full-screen view inside a tool marks its close button with data-back-close: back closes that first
+onBack(() => { const x = document.querySelector('[data-back-close]'); if (x) { x.click(); return true; } if (ui.runner) { go(ui.tab || 'today'); return true; } if (ui.tab !== 'today') { go('today'); return true; } return false; });
