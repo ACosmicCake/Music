@@ -16,8 +16,8 @@ export const PACE = {
   steady: { name: 'Steady', newPerDay: 2, desc: 'Two new things a day, plus reviews. The default.' },
   fast: { name: 'Fast', newPerDay: 3, desc: 'Up to three new things a day if you practise most days for an hour or more.' }
 };
-const MOTOR = new Set(['warm', 'tech', 'rhythm', 'tune', 'drill']);
-const KIND_NAME = { warm: 'scale', tech: 'technique', rhythm: 'rhythm', tune: 'tune', lesson: 'lesson', drill: 'style drill' };
+const MOTOR = new Set(['warm', 'tech', 'rhythm', 'tune', 'drill', 'piece']);
+const KIND_NAME = { warm: 'scale', tech: 'technique', rhythm: 'rhythm', tune: 'tune', lesson: 'lesson', drill: 'style drill', piece: 'Library piece' };
 
 /* ---------- state ---------- */
 function cur() {
@@ -45,7 +45,14 @@ function today() {
 const SCALE_ORDER = ['major', 'minpent', 'aeolian', 'majpent', 'blues', 'dorian', 'mixolydian', 'harmmin', 'phrydom', 'lydian', 'phrygian', 'melmin', 'dbharm', 'lyddom', 'hirajoshi', 'inscale', 'hungmin', 'misheberakh', 'yo', 'malkauns', 'wholetone', 'hwdim', 'altered', 'todi', 'marwa', 'purvi', 'bati', 'anchihoye'];
 const TECH_ORDER = ['altpick', 'chords', 'spider', 'legato', 'travis', 'bends', 'strskip', 'hybrid', 'funkstrum', 'reststroke', 'pompe', 'pima', 'bossarh', 'picado', 'rasg', 'tremolo', 'sweep', 'konnakol'];
 let catCache = null;
-export function catalog() {
+/* The pieces in your Library that you are learning or have learned (not the ones you only want to learn).
+   They change as you add and edit entries, so they are read fresh each time rather than cached. */
+export function pieces() {
+  return E.listLibrary().filter(e => e.status === 'learning' || e.status === 'learned')
+    .map((e, i) => ({ id: 'piece:' + e.id, kind: 'piece', ref: e.id, name: String(e.title || 'Untitled').slice(0, 200), status: e.status, tier: 1, order: i, styles: [] }));
+}
+export function catalog() { return baseCatalog().concat(pieces()); }
+function baseCatalog() {
   if (catCache) return catCache;
   const list = [];
   const stylesOfScale = id => D.REGIONS.filter(r => r.scales.includes(id)).map(r => r.id);
@@ -85,7 +92,9 @@ export function review(id, grade, info = {}) {
   const isNew = !it;
   if (!it) {
     it = c.items[id] = { s: [0.3, 0.5, 1, 3][g], last: now, n: 1, lapses: 0, intro: now, g };
-    today().fresh.push({ id, t: now, motor: MOTOR.has((byId(id) || {}).kind) });
+    const kind = (byId(id) || {}).kind;
+    // a Library piece is your own choice, so it doesn't use up the day's budget of new material
+    today().fresh.push({ id, t: now, motor: MOTOR.has(kind) && kind !== 'piece' });
   } else {
     const elapsedDays = (now - it.last) / DAY;
     if (g === 0) { it.s = Math.max(0.5, it.s * 0.3); it.lapses++; }
@@ -163,8 +172,28 @@ export function context() {
   };
 }
 
+/* A Library piece for this session. Pieces are your own choice, so they skip the daily cap on new material:
+   a piece due for review comes first, then one you are learning and haven't practised yet, then the
+   learning piece you are most likely to have forgotten. A learned piece only comes back when it is due. */
+function choosePiece(ctx, used) {
+  const c = cur(), now = ctx.now;
+  const all = pieces().filter(x => !used.has(x.id) && !ctx.practisedToday(x.id));
+  const due = all.filter(x => c.items[x.id] && overdue(c.items[x.id], now) >= 0.9).sort((a, b) => overdue(c.items[b.id], now) - overdue(c.items[a.id], now));
+  if (due.length) {
+    const x = due[0], it = c.items[x.id];
+    return { item: x, why: 'Review: “' + x.name + '” from your Library, predicted recall ' + Math.round(recall(it, now) * 100) + '%.', tag: 'review' };
+  }
+  const learning = all.filter(x => x.status === 'learning');
+  const fresh = learning.filter(x => !c.items[x.id]);
+  if (fresh.length) return { item: fresh[0], why: 'From your Library: you are learning “' + fresh[0].name + '”. Rate it at the end and it comes back on its own schedule.', tag: 'new' };
+  const keep = learning.sort((a, b) => recall(c.items[a.id], now) - recall(c.items[b.id], now));
+  if (keep.length) return { item: keep[0], why: 'Keep it going: “' + keep[0].name + '” from your Library.', tag: 'maintain' };
+  return null;
+}
+
 /* Choose the item of one kind for this session, with the reason */
 export function choose(kind, ctx, used = new Set(), opts = {}) {
+  if (kind === 'piece') return choosePiece(ctx, used);
   const c = cur(), now = ctx.now;
   const mine = introduced(kind).filter(x => !used.has(x.id));
   const fmtAgo = t => { const hh = (now - t) / HOUR; return hh < 1 ? 'under an hour ago' : hh < 24 ? Math.round(hh) + ' h ago' : Math.round(hh / 24) + ' days ago'; };
@@ -281,6 +310,8 @@ export function planSession(minutes) {
   // tuplets and the 16th grid: spaced like the ear trainers, more often when the rhythm skill is weak
   if (minutes >= 15) cands.push(['gym', 0.1 + (1 - E.mastery('tuplets') / 100) * 0.06, {}]);
   const tune = pickItem('tune'); if (tune) cands.push(['tune', 0.2, tune]);
+  // a piece from your Library you are learning: your own repertoire, so it gets as much room as a tune
+  if (minutes >= 15) { const pc = choosePiece(ctx, used); if (pc) { used.add(pc.item.id); cands.push(['piece', pc.tag === 'review' ? 0.2 : 0.18, pc]); } }
   // style drills: the deepest material for the styles you put first
   if ((D.DRILLS || []).length && minutes >= 15) { const dr = pickItem('drill'); if (dr) cands.push(['drill', 0.16, dr]); }
   if (minutes >= 20 && E.SKILLS.reading) cands.push(['reading', 0.11, {}]);
@@ -339,9 +370,10 @@ function toBlock(b) {
     case 'tune': Object.assign(out, { type: 'repertoire', params: { tune: it.ref }, cur: it.id, reason: b.why }); break;
     case 'lesson': Object.assign(out, { type: 'lesson', params: { lesson: it.ref }, cur: it.id, reason: b.why }); break;
     case 'drill': Object.assign(out, { type: 'drill', params: { drill: it.ref }, cur: it.id, reason: b.why }); break;
+    case 'piece': Object.assign(out, { type: 'piece', params: { entry: it.ref }, cur: it.id, reason: b.why }); break;
     case 'rerun': {
-      const t = { warm: 'scalewarm', tech: 'technique', rhythm: 'rhythms', tune: 'repertoire', drill: 'drill' }[it.kind];
-      Object.assign(out, { type: t, params: it.kind === 'warm' ? warmDetails(it) : { exercise: it.ref, rhythm: it.ref, tune: it.ref, drill: it.ref }, cur: it.id, reason: b.why });
+      const t = { warm: 'scalewarm', tech: 'technique', rhythm: 'rhythms', tune: 'repertoire', drill: 'drill', piece: 'piece' }[it.kind];
+      Object.assign(out, { type: t, params: it.kind === 'warm' ? warmDetails(it) : { exercise: it.ref, rhythm: it.ref, tune: it.ref, drill: it.ref, entry: it.ref }, cur: it.id, reason: b.why });
       break;
     }
     case 'ear': Object.assign(out, { type: E.SKILLS[b.ear.k].tool, reason: 'Ear: ' + Math.round(b.ear.m) + '% mastered' + (b.ear.due >= 3 ? ', ' + b.ear.due + ' items due' : '') + '. Missed items come back sooner.' }); break;
@@ -376,7 +408,7 @@ export function migrate() {
 }
 
 /* ---------- swapping a block ---------- */
-const KIND_OF = { scalewarm: 'warm', technique: 'tech', rhythms: 'rhythm', repertoire: 'tune', lesson: 'lesson', drill: 'drill' };
+const KIND_OF = { scalewarm: 'warm', technique: 'tech', rhythms: 'rhythm', repertoire: 'tune', lesson: 'lesson', drill: 'drill', piece: 'piece' };
 /* A block for a chosen type and (optionally) specific content, wired for grading */
 export function blockFor(type, ref, minutes) {
   const kind = KIND_OF[type];
@@ -423,6 +455,10 @@ export function logSession(s, minutes) {
   E.touch();
 }
 
+/* One item's memory state (or null if never practised): for the Library's practice card */
+export function itemState(id) { return cur().items[id] || null; }
+export const dueInDays = (it, now = Date.now()) => (it ? (it.last + it.s * DAY - now) / DAY : 0);
+
 /* What the item looks like for a prompt or a list */
 export function describeItem(id) { const x = byId(id); return x ? x.name : id; }
 export function stats() {
@@ -432,12 +468,12 @@ export function stats() {
     learned: items.length,
     due: items.filter(o => overdue(o.it, now) >= 0.9 && MOTOR.has(o.x.kind)).length,
     strong: items.filter(o => o.it.s >= 21).length,
-    byKind: ['warm', 'tech', 'rhythm', 'tune', 'drill', 'lesson'].filter(k => k !== 'drill' || (D.DRILLS || []).length).map(k => ({ kind: k, name: KIND_NAME[k], n: items.filter(o => o.x.kind === k).length, total: catalog().filter(x => x.kind === k).length }))
+    byKind: ['warm', 'tech', 'rhythm', 'tune', 'drill', 'piece', 'lesson'].filter(k => (k !== 'drill' || (D.DRILLS || []).length) && (k !== 'piece' || pieces().length)).map(k => ({ kind: k, name: KIND_NAME[k], n: items.filter(o => o.x.kind === k).length, total: catalog().filter(x => x.kind === k).length }))
   };
 }
 export function upcoming(n = 6) {
   const c = cur(), now = Date.now();
-  return Object.entries(c.items).map(([id, it]) => ({ id, name: describeItem(id), dueIn: (it.last + it.s * DAY - now) / DAY, s: it.s }))
+  return Object.entries(c.items).filter(([id]) => byId(id)).map(([id, it]) => ({ id, name: describeItem(id), dueIn: (it.last + it.s * DAY - now) / DAY, s: it.s }))
     .sort((a, b) => a.dueIn - b.dueIn).slice(0, n);
 }
 /* Everything the planner will treat as a due review at time t (the rule choose() uses), most overdue first */
@@ -448,4 +484,4 @@ export function dueAt(t = Date.now()) {
     .sort((a, b) => b.overdue - a.overdue);
 }
 
-export default { alternatives, blockFor, migrate, PACE, prefs, setPrefs, catalog, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };
+export default { alternatives, blockFor, migrate, PACE, prefs, setPrefs, catalog, pieces, itemState, dueInDays, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };

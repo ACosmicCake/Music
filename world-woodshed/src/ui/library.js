@@ -6,7 +6,8 @@
 import './library.css';
 import * as L from '../library.js';
 import { STATUSES, KIND_LABEL, SCORE_KINDS, sizeLabel } from '../library.js';
-import { view, h, ui, go, toast, renderTabs, teardown, focusView, PAGES, TOOLS, ICONS, TABS, openTool } from './core.js';
+import { view, h, ui, go, toast, renderTabs, teardown, focusView, PAGES, TOOLS, ICONS, TABS, openTool, tool } from './core.js';
+import Cur from '../curriculum.js';
 import { shareBlob, openBlob, isNative } from '../native.js';
 import * as LS from '../libsync.js';
 
@@ -186,9 +187,13 @@ export function entryPage(id, opts = {}) {
     const saved = L.updateEntry(id, { status: sid });
     seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === ev.currentTarget)));
     learnedNote.textContent = sid === 'learned' && saved && saved.learned ? 'Learned ' + dateLabel(saved.learned) : '';
+    drawPractice();
   } }, label)));
   const learnedNote = h('p', { class: 'small muted', text: e.status === 'learned' && e.learned ? 'Learned ' + dateLabel(e.learned) : '' });
-  view.append(h('div', { class: 'stack' }, seg, learnedNote));
+  const practice = h('div');
+  const drawPractice = () => { practice.innerHTML = ''; practice.append(practiceCard(id, { onOpen: true })); };
+  view.append(h('div', { class: 'stack' }, seg, learnedNote), practice);
+  drawPractice();
 
   // pages and files
   const filesCard = h('section', { class: 'card' });
@@ -438,3 +443,70 @@ function viewer(pages, start) {
   closeBtn.focus();
 }
 
+
+/* ---------- practising a piece: in the daily plan like everything else ----------
+   A piece you are learning (or have learned) is an item of the smart plan (src/curriculum.js, 'piece:<entry id>'):
+   rated after you practise it, it comes back when it is due. */
+const dueLabel = days => (days <= 0.5 ? 'due now' : days < 1.5 ? 'due tomorrow' : 'due in ' + Math.round(days) + ' days');
+const agoLabel = t => { const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago'; };
+export function practiceLine(entryId) {
+  const it = Cur.itemState('piece:' + entryId);
+  return it ? 'Practised ' + agoLabel(it.last) + ' · ' + dueLabel(Cur.dueInDays(it)) : 'Not practised yet';
+}
+/* The practice card: when you last practised it, when it is due, and a one-tap rating for practice done
+   outside a session. opts.onOpen adds a "Practise now" button (the Library entry page). */
+function practiceCard(entryId, opts = {}) {
+  const e = L.getEntry(entryId);
+  const card = h('section', { class: 'card lib-practice' });
+  if (!e) return card;
+  card.append(h('h2', { text: 'Practice' }));
+  if (e.status === 'want') {
+    card.append(h('p', { class: 'small muted', text: 'Mark it Learning and it joins your daily plan: it comes up in your sessions and comes back for review when it is due.' }));
+    return card;
+  }
+  const line = h('p', { class: 'small', role: 'status', text: practiceLine(entryId) });
+  card.append(line);
+  if (opts.onOpen) card.append(h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => openTool('piece', { returnTab: 'library', params: { entry: entryId } }) }, 'Practise now')));
+  if (!opts.inSession) {
+    const rate = h('div', { class: 'row', role: 'group', 'aria-label': 'Practised it today' }, ['again', 'hard', 'good', 'easy'].map(g => h('button', { class: 'btn small rate-' + g, onclick: () => {
+      Cur.review('piece:' + entryId, g);
+      line.textContent = practiceLine(entryId);
+      toast(e.title + ': logged as ' + Cur.GRADE_LABEL[g].toLowerCase());
+    } }, Cur.GRADE_LABEL[g])));
+    card.append(h('p', { class: 'small muted', text: 'Practised it today? Say how it went, and it comes back when it is due:' }), rate);
+  }
+  return card;
+}
+
+tool('piece', {
+  tab: 'library', skill: 'pieces', title: 'Library piece', eyebrow: 'Your repertoire · from the Library',
+  desc: 'A piece you are learning: open its score, PDF or pages, play through it, and say how it went.',
+  render(body, ctx) {
+    const id = ctx.params.entry, e = id && L.getEntry(id);
+    ctx.setActive(true); // you are playing, not tapping: the time counts while the piece is open
+    if (!e) {
+      body.append(h('div', { class: 'card' }, h('p', { text: id ? 'This piece is no longer in your Library.' : 'No piece to practise yet: mark a Library entry as Learning and it comes up here.' }), h('button', { class: 'btn small', onclick: () => go('library') }, 'Open the Library')));
+      return leave;
+    }
+    const card = h('section', { class: 'card stack' }, h('h2', { text: e.title }), e.by ? h('p', { class: 'muted', text: e.by }) : '');
+    if (e.notes) card.append(h('p', { class: 'small lib-pnotes', text: e.notes }));
+    const files = h('div', { class: 'stack' });
+    card.append(files);
+    body.append(card, practiceCard(id, { inSession: !!ctx.block }));
+    card.append(h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => entryPage(id) }, 'Open in the Library')));
+    L.localIds().then(have => {
+      if (!files.isConnected) return;
+      const get = f => async fn => { const got = await L.getFile(f.id); if (got) fn(got); else toast('This file is not on this device'); };
+      const local = e.files.filter(f => have.has(f.id));
+      // the playable reading first: it is what you practise with (tempo, loop, speed up)
+      const order = f => (READABLE.has(f.kind) ? (isReading(f) ? 1 : 0) : f.kind === 'pdf' ? 2 : 3);
+      local.filter(f => READABLE.has(f.kind) || f.kind === 'pdf').sort((a, b) => order(a) - order(b)).forEach(f => files.append(h('div', { class: 'spread lib-file' },
+        h('span', { class: 'lib-fname', text: f.name }),
+        h('button', { class: 'btn small brass', onclick: () => get(f)(got => (f.kind === 'pdf' ? readPdf(got) : readScore(got, f.kind))) }, f.kind === 'pdf' ? 'Read' : 'Read and play'))));
+      const pages = local.filter(f => f.kind === 'image');
+      if (pages.length) files.append(h('button', { class: 'btn small', onclick: () => viewer(pages, 0) }, pages.length > 1 ? 'Look at the ' + pages.length + ' pages' : 'Open the photo'));
+      if (!files.children.length) files.append(h('p', { class: 'small muted', text: e.files.length ? 'Its files are on another device: open it in the Library to download them.' : 'No score yet: add a PDF, a photo or a MusicXML file in the Library, or just play it from memory.' }));
+    });
+    return leave;
+  }
+});
