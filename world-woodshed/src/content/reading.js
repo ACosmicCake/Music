@@ -10,6 +10,8 @@ const NAT = [0, 2, 4, 5, 7, 9, 11];
 const nat = (lo, hi) => range(lo, hi, NAT);
 const chrom = (lo, hi) => range(lo, hi);
 const uniq = a => [...new Set(a)].sort((x, y) => x - y);
+// a position (index finger at fret p): written low E string fret p − 1 to high e string fret p + 4, a stretch either side
+const posNotes = p => chrom(51 + p, 80 + p);
 // first position, written: low E (52, three ledger lines below) to G on the high e string, 3rd fret (79)
 const TOP2 = [71, 72, 74, 76, 77, 79];          // B C D on the B string, E F G on the high e
 const TOP3 = uniq(TOP2.concat([67, 69]));         // + G A on the G string
@@ -87,10 +89,22 @@ const PATH = [
     tips: ['A chord stacked line-line-line or space-space-space is a root-position triad: name the bottom note and you know the chord.', 'An inversion has a gap (a fourth) between two of its notes: the top note of the gap is the root.', 'Chords that follow each other usually share notes. Keep the common fingers down.'] },
   { name: 'Melody with chords', goal: 'Read a tune with chords under it on the strong beats, and single notes in between: chord melody.', chords: 'melody', feats: ['dq', 'sync'], notes: chrom(62, 84),
     tips: ['The melody is the top note of each chord. Hear it sing above the rest.', 'Fret the chord, then play the single notes with the fingers you have free.', 'Let the chord ring under the melody notes when the shape allows.'] },
-  { name: 'Fifth position: ledger lines above', stage: 'Range and beyond', goal: 'Read up to D above the staff in fifth position (index finger at the 5th fret).',
+  { name: 'Second position', stage: 'Up the neck', goal: 'Read with the index finger at the 2nd fret: one finger per fret from 2 to 5, so the sharp keys lie under the hand.',
+    chords: null, notes: posNotes(2), keys: ['D', 'A', 'E', 'Bm', 'F#m', 'G'], feats: ['dq', 'sync', '16mix', 'd8'], ties: true, rests: ['h', 'q', '8'], durs: ['w', 'h', 'q', '8', '16'], tempo: [50, 76], maxLeap: 7, leaps: 0.1, position: 2,
+    tips: ['Second position: index at fret 2, little finger at fret 5, and a stretch to 1 or 6 when a note asks for it.', 'The open strings are still there, but play the fretted note instead: B on the G string 4th fret, E on the B string 5th fret. It keeps the hand where it is.', 'A major and D major lie well here: the whole scale is under four fingers on every string.'] },
+  { name: 'Fifth position: ledger lines above', goal: 'Read up to D above the staff in fifth position (index finger at the 5th fret).',
     chords: null, notes: uniq(nat(57, 86).concat([61, 66, 68, 70, 73, 78, 80, 82, 85])), keys: ['C', 'G', 'F', 'D', 'Am', 'Em'], feats: ['dq', 'sync', '16mix', 'd8', 'trip8'], ties: true, rests: ['h', 'q', '8'], durs: ['w', 'h', 'q', '8', '16'], tempo: [50, 76], position: 5,
     tips: ['In fifth position the index finger covers fret 5 on every string: the high e string gives A B C D at frets 5, 7, 8, 10.', 'A above the staff sits on one ledger line; C has two. Count the ledger lines from the staff outward.', 'Many notes now have a second home: E at the top space is the open e or the B string, 5th fret. Stay in position.'] },
-  { name: 'Larger leaps', goal: 'Read leaps of a sixth, seventh and octave by recognising the shape of the interval on the staff.', notes: chrom(52, 86), keys: ['C', 'G', 'D', 'F', 'A', 'Bb', 'Am', 'Em', 'Dm'], maxLeap: 12, leaps: 0.3,
+  { name: 'Seventh position', goal: 'Index finger at the 7th fret: the middle of the neck, where the staff\'s top lines and the ledger lines above meet.',
+    notes: posNotes(7), keys: ['G', 'D', 'A', 'E', 'Em', 'Bm', 'C'], tempo: [48, 72], position: 7,
+    tips: ['Seventh position: the low E string gives B C♯ D E at frets 7 to 10, and the high e gives B C♯ D E an octave and a bit higher, two ledger lines and up.', 'The lowest note you can reach is B below middle C (written), on the low E string. Anything lower means leaving the position.', 'Learn one landmark per string: the 7th fret is B, E, A, D, F♯, B from the low string up.'] },
+  { name: 'Ninth position', goal: 'Index finger at the 9th fret: the high register, three and four ledger lines above the staff.',
+    notes: posNotes(9), keys: ['C', 'F', 'G', 'Am', 'Dm', 'Bb'], tempo: [46, 70], position: 9,
+    tips: ['Ninth position: the low E string gives C♯ D E F at frets 9 to 12, the high e gives C♯ D E F two octaves up.', 'The 12th fret is the open strings an octave up: E A D G B E, the same letters as first position.', 'Count ledger lines in pairs: two lines is C, three is E, four is G above the staff.'] },
+  { name: 'Across positions: shifting', goal: 'A melody too wide for one position: pick where to shift, and move the hand on an open string, a rest or a slide by a step.',
+    notes: chrom(52, 89), keys: MOST_KEYS, maxLeap: 9, leaps: 0.15, tempo: [48, 72], position: null,
+    tips: ['Scan for the highest and lowest notes first, and decide the shifts before you play: in a rest, on a long note, or on an open string.', 'Shift with a guide finger: keep the finger that played the last note on its string and slide it to the new fret.', 'Change position by a whole hand (first to fifth, fifth to ninth) more often than by a fret or two: you know where you land.'] },
+  { name: 'Larger leaps', stage: 'Range and beyond', position: null, goal: 'Read leaps of a sixth, seventh and octave by recognising the shape of the interval on the staff.', notes: chrom(52, 86), keys: ['C', 'G', 'D', 'F', 'A', 'Bb', 'Am', 'Em', 'Dm'], maxLeap: 12, leaps: 0.3,
     tips: ['Read intervals, not just letters: line to line is an odd interval (3rd, 5th, 7th), line to space an even one.', 'An octave is line to space (or space to line) seven steps away: on the guitar, two strings over and two or three frets up.', 'Look at where a leap lands before you reach it, so the hand moves early.'] },
   { name: 'Sixteenth-note triplets', goal: 'Three notes in half a beat: the quick triplet turn, and six to the beat.', feats: ['dq', 'sync', '16mix', 'd8', 'trip8', 'tripmix', 'tripq', 'trip16'], focus: ['trip16'], maxLeap: 7, leaps: 0.1, tempo: [44, 63],
     tips: ['Three sixteenth-triplets take the time of two sixteenths: half a beat.', 'Six of them fill a beat: count "1 la li & la li".', 'Practise them as a quick turn or a slur first: hammer-ons and pull-offs make them easy to play even.'] },
