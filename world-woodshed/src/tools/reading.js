@@ -2,7 +2,7 @@
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
-import { h, tool, toast, Fretboard } from '../ui/core.js';
+import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
@@ -190,7 +190,7 @@ tool('sightread', {
     const p = ctx.params || {};
     const unlocked = () => Math.max(1, Math.min(LEVELS.length, E.unlockedTier(SKILL) || 1));
     let level = p.level ? clampLevel(p.level) : unlocked();
-    let mode = ['notes', 'rhythm', 'melody'].includes(p.mode) ? p.mode : (E.state.settings.readingMode || 'notes');
+    let mode = ['notes', 'rhythm', 'melody', 'scores'].includes(p.mode) ? p.mode : (E.state.settings.readingMode || 'notes');
     let modeApi = null, pathOpen = false;
 
     const wrap = h('div', { class: 'stack sr-wrap' + (paperOn() ? ' sr-paper' : '') });
@@ -237,13 +237,14 @@ tool('sightread', {
     }
     function renderSeg() {
       modeSeg.innerHTML = '';
-      [['notes', 'Notes'], ['rhythm', 'Rhythm'], ['melody', 'Melody']].forEach(([k, t]) => modeSeg.append(h('button', { 'aria-pressed': mode === k ? 'true' : 'false', onclick: () => { if (mode === k) return; mode = k; E.setSetting('readingMode', k); renderSeg(); renderMode(); } }, t)));
+      [['notes', 'Notes'], ['rhythm', 'Rhythm'], ['melody', 'Melody'], ['scores', 'Your scores']].forEach(([k, t]) => modeSeg.append(h('button', { 'aria-pressed': mode === k ? 'true' : 'false', onclick: () => { if (mode === k) return; mode = k; E.setSetting('readingMode', k); renderSeg(); renderMode(); } }, t)));
     }
     function renderMode() {
       if (modeApi) { try { modeApi.cleanup(); } catch (e) { console.error(e); } }
       modeBody.innerHTML = '';
+      levelCard.hidden = mode === 'scores'; // your own scores have no level
       ctx.setActive(false);
-      modeApi = (mode === 'notes' ? notesMode : mode === 'rhythm' ? rhythmMode : melodyMode)(modeBody, L(), ctx);
+      modeApi = (mode === 'notes' ? notesMode : mode === 'rhythm' ? rhythmMode : mode === 'scores' ? scoresMode : melodyMode)(modeBody, L(), ctx, mode === 'scores' ? p : undefined);
     }
     let rsz = null, lastW = window.innerWidth;
     const onResize = () => { clearTimeout(rsz); rsz = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) < 40) return; lastW = window.innerWidth; if (modeApi && modeApi.redraw) modeApi.redraw(); }, 250); };
@@ -358,6 +359,86 @@ function notesMode(root, lv, ctx) {
 }
 
 /* ======================================================
+   YOUR SCORES: a score from the Library (MusicXML, MIDI, a Write by playing draft) read a section at a time
+   ====================================================== */
+const PERS = [2, 4, 8];
+const barsLabel = x => (x.to > x.from ? 'Bars ' + x.from + '–' + x.to : 'Bar ' + x.from);
+function scoresMode(root, lv, ctx, p) {
+  const card = h('div', { class: 'card stack' }); root.append(card);
+  const body = h('div', { class: 'section' }); root.append(body);
+  let api = null, gone = false, token = 0;
+  const saved = () => Object.assign({ per: 4 }, E.state.settings.readingOwn || {});
+  const keep = v => E.setSetting('readingOwn', Object.assign(saved(), v));
+  const done = () => { if (api) { try { api.cleanup(); } catch (e) { console.error(e); } } api = null; body.innerHTML = ''; ctx.setActive(false); };
+  card.append(h('span', { class: 'eyebrow', text: 'Read your own scores' }),
+    h('p', { class: 'small muted', text: 'A score from your Library, a few bars at a time, with the count-in, the cursor and the mic check of the melodies here. The top line of a MusicXML or MIDI file is read, or a score you wrote by playing.' }));
+  const status = h('p', { class: 'small', text: 'Looking through your Library…' });
+  card.append(status);
+  (async () => {
+    const [L, S] = await Promise.all([import('../library.js'), import('../scorepieces.js')]);
+    const have = await L.localIds();
+    if (gone) return;
+    const files = [];
+    L.sortEntries(L.listEntries(), 'recent').forEach(e => (e.files || []).forEach(f => { if (have.has(f.id) && L.READABLE_MELODY.test(f.name)) files.push({ e, f }); }));
+    if (!files.length) {
+      status.textContent = 'No score on this device to read yet. Add a MusicXML or MIDI file to the Library, have it read a PDF or a photo of a page, or write one by playing, and it shows up here.';
+      return;
+    }
+    status.remove();
+    const want = Object.assign(saved(), p && p.entry ? { entry: p.entry, file: p.file } : {});
+    let pick = files.find(x => x.f.id === want.file) || files.find(x => x.e.id === want.entry) || files[0];
+    const select = h('select', { 'aria-label': 'Score', onchange: () => { pick = files[+select.value]; keep({ entry: pick.e.id, file: pick.f.id, from: 0 }); load(0); } },
+      files.map((x, i) => h('option', { value: i, selected: x === pick ? true : null, text: x.e.title + (x.e.files.filter(f => L.READABLE_MELODY.test(f.name)).length > 1 ? ' · ' + x.f.name : '') })));
+    const perSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Bars at a time' });
+    const paintPer = () => perSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === saved().per ? 'true' : 'false'));
+    PERS.forEach(n => perSeg.append(h('button', { 'data-n': n, onclick: () => { if (saved().per === n) return; keep({ per: n, from: 0 }); paintPer(); load(0); } }, n + ' bars')));
+    paintPer();
+    const fromSel = h('select', { 'aria-label': 'Start at' });
+    const runKeep = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: runOn() ? true : null, onchange: e => E.setSetting('readingRunOn', e.target.checked) }), 'Keep going: the next section follows after a count-in bar');
+    card.append(h('label', { class: 'stack small' }, 'Score', select));
+    const msg = h('p', { class: 'small', role: 'status' });
+    card.append(msg);
+    async function load(at) {
+      const my = ++token;
+      done(); msg.textContent = 'Reading the notes…';
+      let mel = null;
+      try {
+        const got = await L.getFile(pick.f.id);
+        if (!got) throw new Error('the file is not on this device');
+        mel = await S.readScoreMelody(got.name, got.blob);
+      } catch (e) { if (my === token) msg.textContent = 'Could not read this score: ' + (e && e.message ? e.message : 'unknown error'); return; }
+      if (my !== token || gone) return;
+      const per = saved().per, secs = S.sections(mel, per);
+      if (!secs.length) { msg.textContent = 'There are no notes to read in this score.'; return; }
+      msg.textContent = '';
+      let idx = Math.max(0, Math.min(secs.length - 1, at || 0));
+      fromSel.innerHTML = '';
+      secs.forEach((x, i) => fromSel.append(h('option', { value: i, selected: i === idx ? true : null, text: barsLabel(x) })));
+      fromSel.onchange = () => { keep({ from: +fromSel.value }); load(+fromSel.value); };
+      const title = pick.e.title;
+      const bpm = mel.bpm > 0 ? Math.round(mel.bpm) : 0;
+      const own = {
+        title,
+        opts: h('div', { class: 'stack sr-opts' }, h('div', { class: 'row' }, perSeg, h('label', { class: 'row small' }, 'Start at', fromSel)), runKeep),
+        make() {
+          const x = secs[idx], label = barsLabel(x);
+          idx = (idx + 1) % secs.length;
+          return { piece: x.piece, label, of: title };
+        },
+        record(score) {
+          // practising a Library piece counts for it in the daily plan, as its own page does
+          if (hooks.signal) hooks.signal('piece:' + pick.e.id, { score });
+        }
+      };
+      const olv = { id: 'own', tempo: [60, 200], range: bpm ? 'written at ' + bpm + ' bpm' : 'your tempo' };
+      api = melodyMode(body, olv, ctx, own);
+    }
+    load(pick.f.id === want.file ? want.from || 0 : 0);
+  })().catch(e => { console.error(e); status.textContent = 'Could not open your Library here.'; });
+  return { redraw: () => { if (api && api.redraw) api.redraw(); }, cleanup: () => { gone = true; done(); } };
+}
+
+/* ======================================================
    THE LIBRARY: every piece you read is kept. New ones never run out; missed ones come back for a re-read.
    ====================================================== */
 const KIND_NAME = { r: 'Rhythm', m: 'Melody' }, KIND_PLURAL = { r: 'rhythms', m: 'melodies' };
@@ -423,13 +504,13 @@ function tempoControl(get, set, lv) {
   const paint = () => { lbl.textContent = get() + ' bpm'; };
   const bump = d => { set(Math.max(30, Math.min(220, get() + d))); paint(); };
   paint();
-  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] })), paint, bump };
+  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] })), paint, bump };
 }
 
 /* a short line per piece read in a run: "Rhythm 12 · 85%" */
 function runLine(list, kind, cur, pct, ok) {
   list.hidden = false;
-  list.append(h('li', { class: ok ? 'ok' : 'no' }, h('b', { text: KIND_NAME[kind] + ' ' + (cur.entry ? cur.entry.no : '') }), ' ', pct == null ? '' : h('span', { class: 'mono', text: pct + '%' })));
+  list.append(h('li', { class: ok ? 'ok' : 'no' }, h('b', { text: cur.label ? cur.label : KIND_NAME[kind] + ' ' + (cur.entry ? cur.entry.no : '') }), ' ', pct == null ? '' : h('span', { class: 'mono', text: pct + '%' })));
 }
 
 function rhythmMode(root, lv, ctx) {
@@ -530,13 +611,16 @@ function rhythmMode(root, lv, ctx) {
 /* ======================================================
    MELODY: read a melody at sight with a moving cursor
    ====================================================== */
-function melodyMode(root, lv, ctx) {
+/* own: a score of yours instead of the level's melodies ({ make, title }, from scoresMode below): nothing goes
+   into the reading library or the level's record, and the sections follow one another */
+function melodyMode(root, lv, ctx, own) {
   const card = h('div', { class: 'card' }); root.append(card);
-  const make = () => Lib.next(lv.id, 'm', () => genMelody(lv, { bars: lenFor('m') }));
+  const make = own ? own.make : () => Lib.next(lv.id, 'm', () => genMelody(lv, { bars: lenFor('m') }));
+  const NEXT = own ? 'Next section' : 'Next melody';
   let cur = make(), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
   const src = h('p', { class: 'small sr-src' });
-  const lib = libraryPanel('m', lv, id => { cur = Lib.open(id); piece = cur.piece; fresh(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
-  const libBtn = libButton('m', lv, lib);
+  const lib = own ? { el: '', toggle() {}, draw() {} } : libraryPanel('m', lv, id => { cur = Lib.open(id); piece = cur.piece; fresh(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+  const libBtn = own ? { el: '', paint() {} } : libButton('m', lv, lib);
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
   const phase = h('div', { class: 'phase', role: 'status' });
@@ -546,21 +630,22 @@ function melodyMode(root, lv, ctx) {
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'm', v); }, lv);
   const startBtn = h('button', { class: 'btn brass' }, '▶ Start reading');
   const hearBtn = h('button', { class: 'btn' }, 'Hear it');
-  const newBtn = h('button', { class: 'btn ghost' }, 'Next melody');
+  const newBtn = h('button', { class: 'btn ghost' }, NEXT);
   const stopBtn = h('button', { class: 'btn small', onclick: () => stop(true) }, '■ Stop');
   const runBar = h('div', { class: 'sr-runbar live', hidden: true }, h('div', { class: 'stack' }, phase, live), stopBtn);
   let micNoteOff = null;
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
-  const opts = lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
-  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
+  const opts = own ? own.opts : lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
+  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: own ? own.title : lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
     h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: 'A melody of ' + piece.bars.length + ' bars in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
     info.textContent = keyName(piece.key) + ' · ' + piece.time;
-    sourceLine(src, cur, 'm'); libBtn.paint();
+    if (own) { src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of); } else sourceLine(src, cur, 'm');
+    libBtn.paint();
     return staff;
   }
   let onStop = null;
@@ -621,6 +706,7 @@ function melodyMode(root, lv, ctx) {
     };
     const record = (seg, score) => {
       const c = seg.item.cur;
+      if (own) { own.record(score); ctx.tick(1); return; }
       E.record(SKILL, 'L' + lv.id + ':melody', score >= 0.75, { score });
       Lib.record(c, lv.id, 'm', score, bpm); libBtn.paint(); if (!lib.el.hidden) lib.draw();
       if (c === cur) sourceLine(src, cur, 'm');
@@ -638,14 +724,14 @@ function melodyMode(root, lv, ctx) {
       if (!read.length) return;
       if (listening) {
         const avg = read.reduce((a, x) => a + x.score, 0) / read.length, last = read[read.length - 1];
-        feedback(avg, read.length > 1 ? read.length + ' melodies · average ' + Math.round(avg * 100) + '%' : 'Score ' + Math.round(avg * 100) + '%', last.detail, last.score >= 0.9, last.seg.item.cur);
+        feedback(avg, read.length > 1 ? read.length + (own ? ' sections' : ' melodies') + ' · average ' + Math.round(avg * 100) + '%' : 'Score ' + Math.round(avg * 100) + '%', last.detail, last.score >= 0.9, last.seg.item.cur);
       } else askSelf();
     };
     function askSelf() {
       result.innerHTML = '';
       const n = read.length;
       const choose = (score, clean) => { read.forEach(x => record(x.seg, score)); feedback(score, null, null, clean, read[n - 1].seg.item.cur); };
-      result.append(h('div', { class: 'stack' }, h('b', { text: n > 1 ? 'How did those ' + n + ' melodies go?' : 'How did that go?' }),
+      result.append(h('div', { class: 'stack' }, h('b', { text: n > 1 ? 'How did those ' + n + (own ? ' sections' : ' melodies') + ' go?' : 'How did that go?' }),
         h('div', { class: 'row' },
           h('button', { class: 'btn small', onclick: () => choose(1, true) }, 'Got it all'),
           h('button', { class: 'btn small', onclick: () => choose(0.7, false) }, 'Most of it'),
@@ -664,7 +750,7 @@ function melodyMode(root, lv, ctx) {
           clean ? h('button', { class: 'btn brass small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm') : '',
           !ok && score < 0.5 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(-8); toast('Down to ' + bpm + ' bpm'); } }, '−8 bpm') : null,
           starButton(c),
-          h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'Next melody →'))));
+          h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, NEXT + ' →'))));
     }
     onStop = finishAll;
     run = playRun({

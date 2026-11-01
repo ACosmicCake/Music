@@ -351,6 +351,7 @@ function fileRow(entry, f, local, redraw, fetch) {
       const done = entry.files.some(x => x.name === pdfReadName(f.name));
       acts.append(h('button', { class: 'btn small', onclick: () => readNotes(entry.id, f.id) }, done ? 'Read the notes again' : 'Make it playable'));
     }
+    if (L.READABLE_MELODY.test(f.name) && TOOLS.sightread) acts.append(h('button', { class: 'btn small', onclick: () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: entry.id, file: f.id } }) }, 'Sight-read it'));
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
   }
