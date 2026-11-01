@@ -199,7 +199,7 @@ tool('sightread', {
     const how = h('details', { class: 'card sr-how' },
       h('summary', {}, h('b', { text: 'How to sight-read' })),
       h('ul', { class: 'sr-howlist' }, HOW_TO.map(([t, d]) => h('li', {}, h('b', { text: t + '. ' }), d))));
-    const accBox = h('label', { class: 'check small sr-acctoggle' }, h('input', { type: 'checkbox', checked: accOn() ? true : null, onchange: e => { E.setSetting('readingAcc', e.target.checked); renderLevel(); renderMode(); } }), 'Sharps and flats: add accidentals and sharp and flat keys to any level');
+    const accBox = h('label', { class: 'check small sr-acctoggle' }, h('input', { type: 'checkbox', checked: accOn() ? true : null, onchange: e => { E.setSetting('readingAcc', e.target.checked); renderLevel(); renderMode(); } }), 'Sharps and flats: add ♯ and ♭ beside the notes, at any level');
     wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, how);
     body.append(wrap);
 
@@ -230,7 +230,7 @@ tool('sightread', {
           h('h2', { text: lv.name }),
           h('button', { class: 'btn small', 'aria-label': 'Next level', disabled: level >= LEVELS.length ? true : null, onclick: () => go(level + 1) }, '→')),
         h('p', { text: lv.goal }),
-        lv.acc ? h('p', { class: 'small muted sr-accnote', text: 'With sharps and flats: ' + lv.keys.map(keyName).join(', ') + ', and accidentals inside the bar.' }) : '',
+        lv.acc ? h('p', { class: 'small muted sr-accnote', text: 'With sharps and flats: notes can carry a ♯ or ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' }) : '',
         locked ? h('p', { class: 'small sr-preview', text: 'Preview: this level unlocks when you read level ' + top + ' reliably (notes, rhythm and melody). You can still try it.' }) : '',
         h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))),
         path);

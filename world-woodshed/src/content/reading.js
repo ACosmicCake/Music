@@ -333,22 +333,13 @@ export function genRhythm(L, o = {}) {
 }
 
 /* ---------- sharps and flats on any level ----------
-   The player's switch (settings.readingAcc) turns a level into one with accidentals: every note between its
-   lowest and highest (so sharps and flats to name in Notes), keys with sharps and flats whose tonic and five
-   scale notes fit that range (the level's own keys stay first), and chromatic passing and neighbour notes
-   in melodies. Rhythm, meter and everything else stay as the level has them. */
-const ACC_KEYS = ['G', 'F', 'D', 'Bb', 'A', 'Eb', 'Em', 'Dm', 'Bm', 'Gm'];
+   The player's switch (settings.readingAcc) adds accidentals, sharps and flats written beside the notes, to
+   any level: every note between its lowest and highest (so Notes asks for sharps and flats too) and more
+   chromatic passing and neighbour notes in melodies. The level's own keys, rhythm and meter stay as they are. */
 export function withAccidentals(L) {
   if (!L || !L.notes || !L.notes.length) return L;
-  const lo = Math.min(...L.notes), hi = Math.max(...L.notes);
-  const notes = chrom(lo, hi);
-  const fits = k => {
-    if (!KEYS[k]) return false;
-    const sc = keyScale(k), dia = notes.filter(n => sc.includes(n % 12));
-    return dia.length >= 5 && dia.some(n => n % 12 === KEYS[k].tonic);
-  };
-  const keys = L.keys.concat(ACC_KEYS.filter(k => !L.keys.includes(k) && fits(k)));
-  return Object.assign({}, L, { notes, keys, chromatic: Math.max(L.chromatic || 0, 0.15), acc: true });
+  const notes = chrom(Math.min(...L.notes), Math.max(...L.notes));
+  return Object.assign({}, L, { notes, chromatic: Math.max(L.chromatic || 0, 0.3), acc: true });
 }
 
 /* ---------- melody generation ---------- */
@@ -365,6 +356,8 @@ export function genMelody(L, o = {}) {
     if (m && L.chords === 'melody') addChordsUnder(L, m, rng);
     if (m && L.arts) addArts(m, rng);
     if (m && L.repeats) addRepeat(m, rng);
+    // with the sharps and flats switch on, a melody shows at least one
+    if (m && L.acc && !L.chords && attempt < 200 && !m.bars.flat().some(n => n.midi != null && !keyScale(m.key).includes(n.midi % 12))) continue;
     if (m) return m;
   }
   // fall back to a plain scale fragment (should never be needed; the tests check this)
