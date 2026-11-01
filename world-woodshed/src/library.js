@@ -31,6 +31,8 @@ export const KIND_LABEL = {
   audio: 'Audio', text: 'Text', wwscore: 'Written by playing', other: 'File'
 };
 /* files MuseScore opens (it imports Guitar Pro too) */
+/* files whose melody the Sight-reading tool can read a section at a time (src/scorepieces.js) */
+export const READABLE_MELODY = /\.(musicxml|xml|mxl|mid|midi|wwscore\.json)$/i;
 export const SCORE_KINDS = new Set(['musicxml', 'musescore', 'guitarpro', 'midi']);
 export function fileKind(name, type) {
   const n = String(name || '').toLowerCase(), t = String(type || '').toLowerCase();
