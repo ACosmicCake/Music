@@ -4,7 +4,10 @@
    same offline on every device. Nothing here touches the DOM until renderStaff() is called.
 
    Notes: { midi: writtenMidi | null (rest), dur: 'w'|'h'|'q'|'8'|'16', dot?, tie? (to the next note),
-            spell?: '#'|'b' (how to spell a chromatic note) }
+            spell?: '#'|'b' (how to spell a chromatic note), tup?: 3 (a triplet: two thirds of the written length),
+            chord?: [writtenMidi…] (every pitch sounding together on one stem; midi is then the highest) }
+   Consecutive triplet notes form a group as long as two of the shortest written value in it (three eighths,
+   a quarter and an eighth, three quarters…), and get a 3 over the beam or a bracket.
    A bar holding a single whole rest is a full-bar rest in any meter. */
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -60,7 +63,10 @@ export function spell(midi, key = 'C', pref) {
 
 /* ---------- durations and meters ---------- */
 export const DUR = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
-export const durQ = n => DUR[n.dur] * (n.dot ? 1.5 : 1);
+export const durQ = n => DUR[n.dur] * (n.dot ? 1.5 : 1) * (n.tup ? 2 / 3 : 1);
+const writtenQ = n => DUR[n.dur] * (n.dot ? 1.5 : 1);
+/* the pitches of a note, lowest first (one for a single note) */
+export const pitchesOf = n => (n.midi == null ? [] : Array.isArray(n.chord) && n.chord.length ? [...n.chord].sort((a, b) => a - b) : [n.midi]);
 export function parseTime(time = '4/4') {
   const [num, den] = String(time).split('/').map(Number);
   const barQ = num * 4 / den;
@@ -172,18 +178,37 @@ export function renderStaff(opts) {
       const q = full ? ts.barQ : durQ(n);
       const it = { i: items.length, bar: bi, onset, q, n, rest: n.midi == null, full };
       onset += q;
+      it.lead = 0;
       if (!it.rest) {
-        const sp = spell(n.midi, key, n.spell);
-        it.sp = sp;
         const prev = items[items.length - 1];
-        const cur = sp.step in state ? state[sp.step] : keyAlt[LETTERS.indexOf(sp.letter)];
-        const tiedIn = prev && !prev.rest && prev.n.tie && prev.n.midi === n.midi;
-        // a note tied over from the one before keeps its accidental without repeating it
-        if (cur !== sp.alter && !tiedIn) it.acc = sp.alter;
-        state[sp.step] = sp.alter;
+        const prevP = prev && !prev.rest && prev.n.tie ? pitchesOf(prev.n) : [];
+        // the heads of a chord, lowest first; a single note is a chord of one
+        it.heads = pitchesOf(n).map(m => {
+          const sp = spell(m, key, n.spell);
+          const hd = { midi: m, sp, pos: sp.pos };
+          const cur = sp.step in state ? state[sp.step] : keyAlt[LETTERS.indexOf(sp.letter)];
+          // a note tied over from the one before keeps its accidental without repeating it
+          if (cur !== sp.alter && !prevP.includes(m)) hd.acc = sp.alter;
+          return hd;
+        });
+        it.heads.forEach(hd => { state[hd.sp.step] = hd.sp.alter; });
+        it.sp = it.heads[it.heads.length - 1].sp;
+        it.lo = it.heads[0].pos; it.hi = it.sp.pos;
+        // accidentals in columns, top down: one that would touch an accidental within a sixth moves further left
+        const cols = [];
+        [...it.heads].reverse().forEach(hd => {
+          if (hd.acc === undefined) return;
+          let c = 0;
+          while (cols[c] && cols[c].some(p => Math.abs(p - hd.pos) < 6)) c++;
+          (cols[c] = cols[c] || []).push(hd.pos);
+          hd.col = c;
+        });
+        const colW = cols.map((_, c) => Math.max(...it.heads.filter(hd => hd.col === c).map(hd => ACC_W[hd.acc])) + 1);
+        it.heads.forEach(hd => { if (hd.col !== undefined) hd.accX = colW.slice(0, hd.col).reduce((a, w) => a + w, 0) + ACC_W[hd.acc] / 2; });
+        it.lead = colW.reduce((a, w) => a + w, 0);
+        it.seconds = it.heads.some((hd, k) => k && hd.pos - it.heads[k - 1].pos === 1);
       }
-      it.lead = it.acc !== undefined ? ACC_W[it.acc] : 0;
-      it.space = full ? 40 : SPACE(q) + (n.dot ? 4 : 0) + (!it.rest && (n.dur === '8' || n.dur === '16') ? 2 : 0);
+      it.space = full ? 40 : SPACE(q) + (n.dot ? 4 : 0) + (!it.rest && (n.dur === '8' || n.dur === '16') ? 2 : 0) + (it.seconds ? 12 : 0);
       items.push(it);
       return it;
     });
@@ -193,7 +218,8 @@ export function renderStaff(opts) {
   });
 
   /* 2. systems: the fewest lines that fit, with bars spread evenly */
-  const header = first => 4 + 32 + (nKey ? nKey * 8 + 6 : 0) + (first && opts.showTime !== false ? 24 : 0);
+  const wideTime = String(ts.num).length > 1 || String(ts.den).length > 1; // 12/8 needs room for two digits
+  const header = first => 4 + 32 + (nKey ? nKey * 8 + 6 : 0) + (first && opts.showTime !== false ? 24 + (wideTime ? 12 : 0) : 0);
   function pack(W) {
     for (let n = Math.ceil(bars.length / maxPer) || 1; n <= Math.max(1, bars.length); n++) {
       const sizes = []; let left = bars.length;
@@ -257,31 +283,43 @@ export function renderStaff(opts) {
   });
   items.forEach(it => {
     if (it.rest) return;
-    it.y = ypos(it.sp.pos);
-    if (!it.beam) it.up = it.sp.pos < 4;
+    it.y = ypos(it.sp.pos); it.yTop = it.y; it.yBot = ypos(it.lo);
+    if (!it.beam) { const above = it.hi - 4, below = 4 - it.lo; it.up = above === below ? it.lo + it.hi < 8 : below > above; }
   });
   const beams = new Set(items.filter(it => it.beam).map(it => it.beam));
   beams.forEach(bm => {
-    const ps = bm.notes.map(it => it.sp.pos);
+    const ps = bm.notes.flatMap(it => [it.lo, it.hi]);
     const above = Math.max(...ps) - 4, below = 4 - Math.min(...ps);
     const up = above === below ? ps.reduce((a, p) => a + p - 4, 0) < 0 : below > above;
     bm.up = up;
     const d = up ? -1 : 1;
-    bm.notes.forEach(it => { it.up = up; it.sx = it.x + (up ? 5.5 : -5.5); });
+    bm.notes.forEach(it => { it.up = up; it.sx = it.x + (up ? 5.5 : -5.5); it.yEnd = up ? it.yTop : it.yBot; });
     const a = bm.notes[0], z = bm.notes[bm.notes.length - 1];
-    let slant = Math.max(-7, Math.min(7, (z.y - a.y) * 0.45));
+    let slant = Math.max(-7, Math.min(7, (z.yEnd - a.yEnd) * 0.45));
     const inner = bm.notes.slice(1, -1);
-    if (inner.some(it => (up ? it.y < Math.min(a.y, z.y) : it.y > Math.max(a.y, z.y)))) slant = 0;
+    if (inner.some(it => (up ? it.yEnd < Math.min(a.yEnd, z.yEnd) : it.yEnd > Math.max(a.yEnd, z.yEnd)))) slant = 0;
     const span = (z.sx - a.sx) || 1;
     const lvl2 = bm.notes.some(it => it.n.dur === '16');
     const len = STEM + (lvl2 ? 3 : 0);
-    let c = up ? Math.min(...bm.notes.map(it => it.y - len - slant * (it.sx - a.sx) / span))
-      : Math.max(...bm.notes.map(it => it.y + len - slant * (it.sx - a.sx) / span));
+    let c = up ? Math.min(...bm.notes.map(it => it.yEnd - len - slant * (it.sx - a.sx) / span))
+      : Math.max(...bm.notes.map(it => it.yEnd + len - slant * (it.sx - a.sx) / span));
     const ends = [c, c + slant];
     if (up && Math.max(...ends) > 20) c -= Math.max(...ends) - 20;
     if (!up && Math.min(...ends) < 20) c += 20 - Math.min(...ends);
     bm.yAt = x => c + slant * (x - a.sx) / span;
     bm.d = d;
+  });
+
+  /* triplet groups: consecutive triplet notes in a bar, closed when they fill two of their shortest written value */
+  const tuplets = [];
+  barInfo.forEach(b => {
+    let grp = null;
+    b.list.forEach(it => {
+      if (!it.n.tup || it.full) { grp = null; return; }
+      if (!grp) { grp = { notes: [], acc: 0, min: Infinity }; tuplets.push(grp.notes); }
+      grp.notes.push(it); grp.acc += it.q; grp.min = Math.min(grp.min, writtenQ(it.n));
+      if (grp.acc >= 2 * grp.min - 1e-6) grp = null;
+    });
   });
 
   /* 5. draw */
@@ -303,7 +341,7 @@ export function renderStaff(opts) {
       accidental(g, K.fifths > 0 ? 1 : -1, 40 + k * 8 + 4, ypos(pos)).setAttribute('class', 'st-key');
     }
     if (si === 0 && opts.showTime !== false) {
-      const tx = 36 + (nKey ? nKey * 8 + 6 : 0) + 10;
+      const tx = 36 + (nKey ? nKey * 8 + 6 : 0) + 10 + (wideTime ? 6 : 0);
       [[ts.num, 10], [ts.den, 30]].forEach(([v, y]) => el('text', { class: 'st-time', x: tx, y: y + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, g).textContent = v);
     }
     // bar lines
@@ -326,25 +364,40 @@ export function renderStaff(opts) {
         if (n.dot && !it.full) el('circle', { cx: f1(x + 9), cy: 15, r: 1.6, fill: 'currentColor' }, ng);
         return;
       }
-      const p = it.sp.pos, y = it.y;
-      for (let lp = -2; lp >= p; lp -= 2) el('rect', { x: f1(x - 9.5), y: f1(ypos(lp) - 0.6), width: 19, height: 1.2, fill: 'currentColor' }, ng);
-      for (let lp = 10; lp <= p; lp += 2) el('rect', { x: f1(x - 9.5), y: f1(ypos(lp) - 0.6), width: 19, height: 1.2, fill: 'currentColor' }, ng);
-      if (it.acc !== undefined) accidental(ng, it.acc, x - 6 - ACC_W[it.acc] / 2 - 1.5, y);
-      notehead(ng, n.dur, x, y);
-      track(y - 6, y + 6);
-      if (n.dot) { const dy = p % 2 === 0 ? y - 5 : y; el('circle', { cx: f1(x + (it.up && !it.beam && (n.dur === '8' || n.dur === '16') ? 16 : 9.5)), cy: dy, r: 1.7, fill: 'currentColor' }, ng); }
-      if (n.dur === 'w') return;
-      const sx = it.beam ? it.sx : x + (it.up ? 5.5 : -5.5);
+      const up = it.up;
+      // heads a second apart sit either side of the stem
+      const order = up ? it.heads : [...it.heads].reverse();
+      let lastPos = null, lastShift = false;
+      order.forEach(hd => {
+        hd.shift = lastPos !== null && Math.abs(hd.pos - lastPos) === 1 && !lastShift;
+        hd.hx = x + (hd.shift ? (up ? 11.6 : -11.6) : 0); hd.y = ypos(hd.pos);
+        lastPos = hd.pos; lastShift = hd.shift;
+      });
+      const xl = Math.min(...it.heads.map(hd => hd.hx)), xr = Math.max(...it.heads.map(hd => hd.hx));
+      for (let lp = -2; lp >= it.lo; lp -= 2) el('rect', { x: f1(xl - 9.5), y: f1(ypos(lp) - 0.6), width: f1(19 + xr - xl), height: 1.2, fill: 'currentColor' }, ng);
+      for (let lp = 10; lp <= it.hi; lp += 2) el('rect', { x: f1(xl - 9.5), y: f1(ypos(lp) - 0.6), width: f1(19 + xr - xl), height: 1.2, fill: 'currentColor' }, ng);
+      it.heads.forEach(hd => {
+        if (hd.acc !== undefined) accidental(ng, hd.acc, xl - 6 - hd.accX - 1.5, hd.y);
+        notehead(ng, n.dur, hd.hx, hd.y);
+      });
+      track(it.yTop - 6, it.yBot + 6);
+      if (n.dot) {
+        const dx = xr + (up && !it.beam && (n.dur === '8' || n.dur === '16') ? 16 : 9.5), done = new Set();
+        it.heads.forEach(hd => { const dy = hd.pos % 2 === 0 ? hd.y - 5 : hd.y; if (done.has(dy)) return; done.add(dy); el('circle', { cx: f1(dx), cy: f1(dy), r: 1.7, fill: 'currentColor' }, ng); });
+      }
+      if (n.dur === 'w') { it.tip = it.yTop - 6; return; }
+      const sx = it.beam ? it.sx : x + (up ? 5.5 : -5.5);
       let sy2;
       if (it.beam) sy2 = it.beam.yAt(sx);
       else {
         const extra = n.dur === '16' ? 4 : 0;
-        sy2 = it.up ? Math.min(y - STEM - extra, 20) : Math.max(y + STEM + extra, 20);
+        sy2 = up ? Math.min(it.yTop - STEM - extra, 20) : Math.max(it.yBot + STEM + extra, 20);
       }
-      const sy1 = y + (it.up ? -1.2 : 1.2);
+      const sy1 = up ? it.yBot - 1.2 : it.yTop + 1.2;
       el('rect', { x: f1(sx - 0.65), y: f1(Math.min(sy1, sy2)), width: 1.3, height: f1(Math.abs(sy2 - sy1)), fill: 'currentColor' }, ng);
       track(sy2, sy2);
-      if (!it.beam && (n.dur === '8' || n.dur === '16')) flags(ng, n.dur === '16' ? 2 : 1, sx + (it.up ? 0.6 : -0.6), sy2, it.up ? -1 : 1);
+      it.tip = up ? sy2 : it.yTop - 6;
+      if (!it.beam && (n.dur === '8' || n.dur === '16')) flags(ng, n.dur === '16' ? 2 : 1, sx + (up ? 0.6 : -0.6), sy2, up ? -1 : 1);
     }));
     // beams
     beams.forEach(bm => {
@@ -368,6 +421,26 @@ export function renderStaff(opts) {
         }
       });
     });
+    // triplets: a 3 on the beam side of a beamed group, otherwise a bracket over the notes
+    tuplets.forEach(tg => {
+      if (tg[0].sys !== si) return;
+      const a = tg[0], z = tg[tg.length - 1];
+      const bm = a.beam && tg.every(it => it.beam === a.beam) ? a.beam : null;
+      const tx = (it, end) => (bm ? it.sx : it.x + (end ? 6 : -6));
+      const x1 = tx(a, false), x2 = tx(z, true), mx = (x1 + x2) / 2;
+      const tg3 = el('g', { class: 'st-tup' }, g);
+      if (bm) {
+        const yb = bm.yAt(mx), ty = bm.d > 0 ? yb + 14 : yb - 8;
+        el('text', { class: 'st-tupn', x: f1(mx), y: f1(ty), 'text-anchor': 'middle' }, tg3).textContent = '3';
+        track(ty - 10, ty + 2);
+        return;
+      }
+      const top = Math.min(-8, ...tg.map(it => (it.rest ? 0 : it.tip) - 7));
+      const half = 5;
+      el('path', { d: `M${f1(x1)} ${f1(top + 4)}V${f1(top)}H${f1(mx - half)}M${f1(mx + half)} ${f1(top)}H${f1(x2)}V${f1(top + 4)}`, stroke: 'currentColor', 'stroke-width': 1, fill: 'none' }, tg3);
+      el('text', { class: 'st-tupn', x: f1(mx), y: f1(top + 4), 'text-anchor': 'middle' }, tg3).textContent = '3';
+      track(top - 6, top);
+    });
     // chord symbols above the staff (a lead sheet), at their place in the bar, and a band behind each bar
     // that bar(i, 'now') lights up
     if (opts.chords) {
@@ -389,20 +462,26 @@ export function renderStaff(opts) {
     });
     sy.minY = minY; sy.maxY = maxY; sy.g = g; sy.track = track;
   });
-  // ties (may cross a line break)
+  // ties (may cross a line break); in a chord, each pitch that sounds on in the next one
   items.forEach((it, i) => {
     const nx = items[i + 1];
-    if (it.rest || !it.n.tie || !nx || nx.rest || nx.n.midi !== it.n.midi) return;
-    const below = it.n.dur === 'w' ? it.sp.pos < 4 : it.up;
-    const s = below ? 1 : -1;
-    const draw = (sys, x1, x2, y) => {
-      const yy = y + s * 6, h = Math.min(7, 3 + (x2 - x1) * 0.06);
-      const mx = (x1 + x2) / 2;
-      el('path', { class: 'st-tie', d: `M${f1(x1)} ${f1(yy)}Q${f1(mx)} ${f1(yy + s * h * 2)} ${f1(x2)} ${f1(yy)}Q${f1(mx)} ${f1(yy + s * (h * 2 - 3))} ${f1(x1)} ${f1(yy)}z`, fill: 'currentColor' }, systems[sys].g);
-      systems[sys].track(yy, yy + s * h * 1.2);
-    };
-    if (nx.sys === it.sys) draw(it.sys, it.x + 6, nx.x - 6, it.y);
-    else { draw(it.sys, it.x + 6, systems[it.sys].x1 + 2, it.y); draw(nx.sys, systems[nx.sys].x0 - 4, nx.x - 6, nx.y); }
+    if (it.rest || !it.n.tie || !nx || nx.rest) return;
+    const nextP = pitchesOf(nx.n);
+    const held = it.heads.filter(hd => nextP.includes(hd.midi));
+    held.forEach(hd => {
+      const nh = nx.heads.find(x => x.midi === hd.midi);
+      const below = it.heads.length > 1 ? hd.pos * 2 < it.lo + it.hi || (hd.pos * 2 === it.lo + it.hi && !it.up) : it.n.dur === 'w' ? it.sp.pos < 4 : it.up;
+      const s = below ? 1 : -1;
+      const draw = (sys, x1, x2, y) => {
+        const yy = y + s * 6, h = Math.min(7, 3 + (x2 - x1) * 0.06);
+        const mx = (x1 + x2) / 2;
+        el('path', { class: 'st-tie', d: `M${f1(x1)} ${f1(yy)}Q${f1(mx)} ${f1(yy + s * h * 2)} ${f1(x2)} ${f1(yy)}Q${f1(mx)} ${f1(yy + s * (h * 2 - 3))} ${f1(x1)} ${f1(yy)}z`, fill: 'currentColor' }, systems[sys].g);
+        systems[sys].track(yy, yy + s * h * 1.2);
+      };
+      const y1 = ypos(hd.pos), y2 = ypos(nh.pos);
+      if (nx.sys === it.sys) draw(it.sys, it.x + 6, nx.x - 6, y1);
+      else { draw(it.sys, it.x + 6, systems[it.sys].x1 + 2, y1); draw(nx.sys, systems[nx.sys].x0 - 4, nx.x - 6, y2); }
+    });
   });
   // a tab staff under each system: opts.tab[i] = { si (0 = lowest string), f } for note i, or null
   if (opts.tab) systems.forEach(sy => {
@@ -455,6 +534,8 @@ export function renderStaff(opts) {
   const posOf = i => { const it = items[i]; if (!it) return null; return { x: it.x, y: systems[it.sys].top, sys: it.sys, bar: it.bar, onset: it.onset }; };
   return {
     el: svg, noteEls, items, systems: systems.length, width: VW, height: H,
+    /* where line k sits, in viewBox units (for keeping the line being read on screen) */
+    systemBox: k => (systems[k] ? { top: systems[k].top + systems[k].minY, bottom: systems[k].top + systems[k].maxY } : null),
     xOf: i => (items[i] ? items[i].x : null),
     posOf,
     mark(i, cls) { const e = noteEls[i]; if (!e) return; e.classList.remove('now', 'good', 'bad', 'near'); if (cls) cls.split(' ').forEach(c => e.classList.add(c)); },

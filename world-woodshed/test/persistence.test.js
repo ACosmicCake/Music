@@ -121,7 +121,9 @@ describe('loading a save from every past format', () => {
     expect(s.schema).toBe(SCHEMA);
     expect(s.hdev).toEqual(saved.hdev);
     expect(s.cur.prefs.styles).toEqual(['flamenco', 'jazz']);
-    expect(s.readLib.pieces).toEqual(saved.readLib.pieces);
+    // the same pieces; the level each sits at moved to the 36-step reading path (schema 8)
+    const moved = { 1: 2, 2: 3, 3: 7, 4: 10, 5: 11, 6: 9, 7: 13, 8: 16, 9: 18, 10: 19, 11: 23, 12: 20, 13: 24, 14: 31, 15: 32, 16: 36 };
+    expect(s.readLib.pieces).toEqual(Object.fromEntries(Object.entries(saved.readLib.pieces).map(([id, p]) => [id, Object.assign({}, p, { lv: moved[p.lv] || p.lv })])));
     expect(s.history['2025-10-20'].sec).toBe(600);
     expect(s.tunes).toEqual({});
     expect(E.listTunes()).toEqual([]);
@@ -177,7 +179,7 @@ describe('loading a save from every past format', () => {
     expect(s.records).toEqual({ streak: 41, goalStreak: 12 });
     expect(s.melodies).toEqual({});
   });
-  it('schema 7 (current): a melody added to a tune loads as it was saved, a removed one stays removed', async () => {
+  it('schema 7 (before the 36-step reading path): a melody added to a tune loads as it was saved, a removed one stays removed', async () => {
     const saved = JSON.parse(fixture(7));
     localStorage.setItem(LS_KEY, fixture(7));
     const E = await boot();
@@ -187,6 +189,18 @@ describe('loading a save from every past format', () => {
     expect(E.getMelody('autumn').name).toBe('Autumn Leaves.mxl');
     expect(E.getMelody('solar')).toBe(null);
     expect(s.library).toEqual(saved.library);
+    expect(Object.values(s.readLib.pieces).map(p => p.lv)).toEqual([2, 2]); // old level 1 is level 2 now
+  });
+  it('schema 8 (current): sight-reading progress, settings and kept pieces with chords and triplets load as saved', async () => {
+    const saved = JSON.parse(fixture(8));
+    localStorage.setItem(LS_KEY, fixture(8));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.skills.reading).toEqual(saved.skills.reading);
+    expect(s.readLib).toEqual(saved.readLib);
+    expect(s.settings).toMatchObject({ readingBpm: { m25: 58, r28: 64 }, readingLen: { m: 16, r: 4 }, readingRunOn: true, readingPaper: true });
+    expect(s.melodies).toEqual(saved.melodies);
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

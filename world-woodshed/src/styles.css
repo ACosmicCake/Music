@@ -634,6 +634,34 @@ html.compact .strings { grid-template-columns: repeat(3, 1fr); } /* six across l
 .sr-letters .choice { min-height: 54px; padding: 8px 2px; }
 .sr-acc button { font-size: 1.15rem; min-width: 46px; min-height: 40px; }
 .sr-tempo { gap: 8px; }
+.ww-staff .st-tupn { font-family: var(--font-display); font-weight: 700; font-style: italic; font-size: 12px; fill: currentColor; }
+.sr-step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.sr-step h2 { margin: 0; text-align: center; }
+.sr-path > summary { cursor: pointer; }
+.sr-path[open] { display: grid; gap: 10px; }
+.sr-stage { display: grid; gap: 4px; }
+.sr-opts { gap: 8px; }
+.sr-len button { min-width: 0; }
+.sr-run { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.sr-run li { font-size: 0.85rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunk); }
+.sr-run li.ok { border-color: var(--good); }
+.sr-run li.no { border-color: var(--bad); }
+/* while tapping a long rhythm, the pad stays at the bottom of the screen above the tab bar */
+.sr-padbox.live, .sr-runbar.live { position: sticky; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); z-index: 3; background: var(--surface); border-radius: 14px; }
+.sr-padbox.live { display: grid; gap: 8px; padding-top: 4px; }
+html.compact body.in-tool .sr-padbox.live, html.compact body.in-tool .sr-runbar.live { bottom: env(safe-area-inset-bottom, 0px); }
+.sr-padbox.live .tappad { min-height: 84px; }
+.sr-padbox.live .mic-note { display: none; }
+.sr-runbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.sr-runbar.live { padding: 6px 0; }
+.sr-runbar .stack { gap: 2px; min-width: 0; }
+/* White paper: the staff as printed music, black on white, in either theme */
+.sr-paper .sr-staff, .sr-paper .sr-staff.sr-card {
+  --ink: #111; --muted: #4a4a4a; --surface: #fff; --brass: #9a6a14; --brass-soft: #f3e6c8; --good: #1f7a3a; --bad: #b3261e; --patina: #2d6f66;
+  background: #fff; color: #111; border-radius: 6px; padding: 10px 6px; box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); border: 1px solid #d8d6cf;
+}
+.sr-paper .sr-staff .ww-staff .st-line { stroke: #111; opacity: 0.85; }
+.sr-paper .sr-staff .ww-staff .st-cur { opacity: 0.28; }
 .sr-bpm { min-width: 70px; text-align: center; }
 
 /* smart practice */

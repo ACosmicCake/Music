@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
 import { parseChord } from '../src/theory.js';
-import { LEVELS, genMelody, rhythmPiece, pieceLength } from '../src/content/reading.js';
-import { parseTime } from '../src/notation.js';
+import { LEVELS, STAGES, genMelody, rhythmPiece, pieceLength, attacks } from '../src/content/reading.js';
+import { parseTime, keyScale } from '../src/notation.js';
 import { loadDrills } from '../src/content/lazy.js';
 
 const SOUNDS = new Set(['clave', 'bell', 'low', 'mid', 'high', 'shaker', 'clap', 'chick', 'hat', 'ride']);
@@ -50,10 +50,63 @@ describe('tunes, drills and exercises', () => {
 });
 
 describe('sight-reading generators', () => {
-  it('fill every bar exactly, at every level', () => {
-    for (const L of LEVELS) for (let i = 0; i < 25; i++) for (const p of [genMelody(L), rhythmPiece(L)]) {
-      const ts = parseTime(p.time);
-      expect(pieceLength(p), 'level ' + L.id).toBeCloseTo(ts.barQ * p.bars.length, 6);
+  const lens = [4, 8, 16];
+  it('fill every bar exactly, at every level and length', () => {
+    for (const L of LEVELS) for (let i = 0; i < 24; i++) {
+      const bars = lens[i % 3];
+      for (const p of [genMelody(L, { bars }), rhythmPiece(L, { bars })]) {
+        const ts = parseTime(p.time);
+        expect(p.bars.length, 'level ' + L.id).toBe(bars);
+        expect(pieceLength(p), 'level ' + L.id).toBeCloseTo(ts.barQ * bars, 6);
+      }
     }
+  });
+  it('never fall back to the one-note stand-in, and keep to the level\'s notes, keys and meters', () => {
+    for (const L of LEVELS) for (let i = 0; i < 20; i++) {
+      const m = genMelody(L, { bars: 8 });
+      expect(m.bars.length, 'level ' + L.id).toBe(8);
+      expect(L.keys, 'level ' + L.id).toContain(m.key);
+      expect(L.times, 'level ' + L.id).toContain(m.time);
+      if (!L.chords) for (const n of m.bars.flat()) if (n.midi != null) expect(L.notes, 'level ' + L.id).toContain(n.midi);
+    }
+  });
+  it('bring in each new figure at its own level and not before', () => {
+    const has = (L, test) => { for (let i = 0; i < 30; i++) if ([genMelody(L, { bars: 8 }), rhythmPiece(L, { bars: 8 })].some(p => p.bars.flat().some(test))) return true; return false; };
+    const first = test => LEVELS.find(L => has(L, test)).id;
+    const named = name => LEVELS.find(L => L.name === name).id;
+    expect(first(n => n.dur === 'q')).toBe(named('Quarter notes'));
+    expect(first(n => n.midi == null)).toBe(named('Rests'));
+    expect(first(n => n.dur === '8')).toBe(named('Eighth notes'));
+    expect(first(n => n.tie)).toBe(named('Ties'));
+    expect(first(n => n.dur === '16')).toBe(named('Sixteenth notes'));
+    expect(first(n => n.tup && n.dur === '8')).toBe(named('Eighth-note triplets'));
+    expect(first(n => n.tup && n.dur === 'q')).toBe(named('Triplets with rests and longer notes'));
+    expect(first(n => n.tup && n.dur === '16')).toBe(named('Sixteenth-note triplets'));
+    expect(first(n => n.chord && n.chord.length === 2)).toBe(named('Two notes at once'));
+    expect(first(n => n.chord && n.chord.length === 3)).toBe(named('Three-note chords'));
+  });
+  it('write chords as thirds and sixths, close triads in the key, or a melody with chords under its strong beats', () => {
+    for (const L of LEVELS.filter(l => l.chords)) for (let i = 0; i < 20; i++) {
+      const m = genMelody(L, { bars: 8 }), sc = keyScale(m.key), flat = m.bars.flat();
+      const chords = flat.filter(n => n.chord);
+      expect(chords.length, 'level ' + L.id).toBeGreaterThan(0);
+      for (const n of chords) {
+        expect(n.midi).toBe(Math.max(...n.chord));
+        const iv = n.chord[n.chord.length - 1] - n.chord[0];
+        if (L.chords === 'dyad') expect([3, 4, 8, 9]).toContain(iv);
+        else expect(iv).toBeLessThanOrEqual(12);
+        // the chord tones are in the key (a raised 7th in minor allowed)
+        n.chord.forEach(x => expect(sc.includes(x % 12) || sc.includes((x + 11) % 12), 'level ' + L.id + ' ' + m.key).toBe(true));
+      }
+      if (L.chords === 'triad') expect(flat.filter(n => n.midi != null).every(n => n.chord && n.chord.length === 3)).toBe(true);
+      // attacks carry every pitch, so the mic can match any of them
+      attacks(m).forEach(a => { const n = flat[a.i]; if (n.chord) expect(a.chord).toEqual(n.chord); });
+    }
+  });
+  it('group the path into stages that cover every level once', () => {
+    expect(STAGES[0].from).toBe(1);
+    STAGES.forEach((st, k) => { expect(st.to).toBeGreaterThanOrEqual(st.from); if (k) expect(st.from).toBe(STAGES[k - 1].to + 1); });
+    expect(STAGES[STAGES.length - 1].to).toBe(LEVELS.length);
+    LEVELS.forEach(L => { expect(L.tips.length).toBeGreaterThanOrEqual(3); L.tips.forEach(t => expect(t, 'level ' + L.id).not.toMatch(/\?/)); });
   });
 });

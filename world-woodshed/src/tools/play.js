@@ -340,7 +340,7 @@ tool('repertoire', {
       const where = h('p', { class: 'mono small muted', text: (t.form ? 'Form ' + formName(t.form) + ' · ' : '') + bars.length + ' bars' });
       const legend = h('p', { class: 'small muted' });
       const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.2) });
-      const tempo = h('input', { type: 'range', min: 50, max: 300, value: bpm, id: 'tune-tempo', 'aria-label': 'Tempo' });
+      const tempo = h('input', { type: 'range', min: 40, max: 300, value: bpm, id: 'tune-tempo', 'aria-label': 'Tempo' });
       const tempoLbl = h('span', { class: 'mono small', text: bpm + ' bpm' });
       const playBtn = h('button', { class: 'btn primary' }, '▶ Play changes');
       const blindBtn = h('button', { class: 'btn small', 'aria-pressed': 'false' }, 'Hide chord names');

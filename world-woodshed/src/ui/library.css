@@ -49,3 +49,15 @@ html.compact .lib-vbar .btn { padding: 3px 8px; min-width: 0; }
 html.compact .lib-vtools { gap: 4px; padding: 4px; }
 html.compact .lib-vtools select { min-height: 36px; font-size: 0.8rem; flex: 1 1 30%; min-width: 0; }
 html.compact .lib-details input[type="url"] { min-height: 44px; }
+
+/* the score viewer's tempo and section controls */
+.lib-vgroup { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.lib-bpm { min-width: 5.5em; text-align: center; font-size: 0.9rem; }
+.lib-barin { width: 3.4em; min-height: 34px; padding: 4px 6px; }
+.lib-vtools .btn[aria-pressed="true"] { background: var(--patina); color: var(--bg); border-color: var(--patina); }
+.lib-check { margin: 0; padding: 6px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.lib-viewer:has(.lib-vtools):has(.lib-check:not([hidden])) { grid-template-rows: auto auto auto minmax(0, 1fr); }
+.lib-reading { padding: 6px 0; }
+.lib-reading progress { width: 100%; }
+html.compact .lib-barin { width: 3em; }
+html.compact .lib-bpm { min-width: 4.5em; font-size: 0.8rem; }

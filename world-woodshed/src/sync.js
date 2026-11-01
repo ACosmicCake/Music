@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 7;
+export const SCHEMA = 8;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide'];
@@ -70,6 +70,38 @@ const MIGRATIONS = {
   // 6 → 7: melodies added to Repertoire tunes (by tune id), for the standards the app can't include and your own tunes
   7(s) {
     if (!isObj(s.melodies)) s.melodies = {};
+    return s;
+  },
+  // 7 → 8: sight-reading went from 16 levels to a path of 36 small steps. Each old level's progress, tempos and
+  // kept pieces move to the level that now teaches the same thing, and the new steps below the highest level
+  // you had read (up to the end of the sixteenths, which the old levels covered) take a copy of the next level
+  // up, so nothing you had unlocked closes again. Triplets, chords, 5/4 and 12/8 are new and start fresh.
+  8(s) {
+    const map = { 1: 2, 2: 3, 3: 7, 4: 10, 5: 11, 6: 9, 7: 13, 8: 16, 9: 18, 10: 19, 11: 23, 12: 20, 13: 24, 14: 31, 15: 32, 16: 36 };
+    const rd = s.skills && s.skills.reading;
+    if (rd && isObj(rd.items)) {
+      const items = {};
+      Object.entries(rd.items).forEach(([id, it]) => {
+        const m = /^L(\d+):(rhythm|melody)$/.exec(id);
+        items[m && map[m[1]] ? 'L' + map[m[1]] + ':' + m[2] : id] = it;
+      });
+      ['rhythm', 'melody'].forEach(kind => {
+        let above = null;
+        for (let n = 36; n >= 1; n--) {
+          const id = 'L' + n + ':' + kind;
+          if (items[id]) above = items[id];
+          else if (above && n <= 24) items[id] = clone(above);
+        }
+      });
+      rd.items = items;
+    }
+    const bpm = s.settings && s.settings.readingBpm;
+    if (isObj(bpm)) {
+      const out = {};
+      Object.entries(bpm).forEach(([k, v]) => { const m = /^([rm])(\d+)$/.exec(k); out[m && map[m[2]] ? m[1] + map[m[2]] : k] = v; });
+      s.settings.readingBpm = out;
+    }
+    if (s.readLib && isObj(s.readLib.pieces)) Object.values(s.readLib.pieces).forEach(p => { if (p && map[p.lv]) p.lv = map[p.lv]; });
     return s;
   }
 };
