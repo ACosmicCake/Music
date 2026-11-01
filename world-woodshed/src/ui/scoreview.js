@@ -8,6 +8,9 @@ import { h } from './core.js';
 import { parseMidi, midiToDraft } from '../midiread.js';
 import { toMusicXML } from '../notate.js';
 import { editBeat, beatInfo, pitchName, barsToCheck, LENGTHS } from '../scoreedit.js';
+import { TPQ, expectedFrom, follower } from '../follow.js';
+import Mic from '../listen.js';
+import A from '../audio.js';
 
 const BASE = (import.meta.env && import.meta.env.BASE_URL) || '/';
 const VIEWS = [['both', 'Both', alphaTab.StaveProfile.Default], ['score', 'Notes', alphaTab.StaveProfile.Score], ['tab', 'Tab', alphaTab.StaveProfile.Tab]];
@@ -138,6 +141,134 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     checkNote.textContent = !bars.length ? '' : 'Read from a page by the app. ' + (bars.length === 1 ? 'Bar ' + bars[0] + ' doesn\'t' : 'Bars ' + (bars.length > 10 ? bars.slice(0, 10).join(', ') + '…' : bars.join(', ')) + ' don\'t') + ' add up and may be wrong: compare ' + (bars.length === 1 ? 'it' : 'them') + ' with the page' + (edit ? ' and use Fix notes to correct ' + (bars.length === 1 ? 'it.' : 'them.') : '.');
   };
 
+  // following you with the mic: each note you play is matched to the written one; at the end of a pass the
+  // notes are coloured and the bars with the most to fix are offered as a section to loop
+  const fo = { on: false, f: null, exp: [], refs: [], tick: 0, wall: 0, playing: false, off: null, styled: [], laps: 0 };
+  const followBtn = h('button', { class: 'btn small', 'aria-pressed': 'false', title: 'Play along: the mic hears your notes and marks them on the score', onclick: () => setFollow(!fo.on) }, '🎤 Follow me');
+  const soundBtn = h('button', { class: 'btn small', 'aria-pressed': 'false', hidden: true, title: 'With headphones you can hear the score while it listens', onclick: () => {
+    const on = soundBtn.getAttribute('aria-pressed') !== 'true';
+    soundBtn.setAttribute('aria-pressed', String(on)); muteScore(!on);
+  } }, 'Score sound');
+  // tapping instead of playing (no mic, or a quiet room): each tap is a note at that moment, timing only
+  const tapBtn = h('button', { class: 'btn small brass lib-tap', hidden: true, 'aria-label': 'Tap each note', onpointerdown: e => { e.preventDefault(); placeNote(performance.now(), null); } }, 'Tap');
+  const followLine = h('p', { class: 'small lib-follow', role: 'status', 'aria-live': 'polite', hidden: true });
+  const followBars = h('div', { class: 'row lib-recs', hidden: true, role: 'group', 'aria-label': 'Bars to work on' });
+  const COLORS = { right: [46, 125, 50], early: [183, 121, 31], late: [183, 121, 31], wrong: [198, 40, 40], missed: [140, 140, 140] };
+  const track = () => api.score && api.score.tracks[fx.part];
+  const muteScore = m => { const t = track(); if (t) api.changeTrackMute([t], m); };
+  // the notes to play: every staff and voice of the part, one entry per moment (a tab staff repeats the
+  // notation, and a chord may be split across voices), each with the beats to colour
+  function buildExpected() {
+    const t = track(), at = new Map();
+    if (!t) return;
+    const range = api.playbackRange;
+    t.staves.forEach(st => st.bars.forEach(bar => bar.voices.forEach(v => v.beats.forEach(b => {
+      const tick = b.absolutePlaybackStart;
+      if (range && (tick < range.startTick || tick >= range.endTick)) return;
+      const notes = b.isRest ? [] : b.notes.filter(n => !n.isTieDestination);
+      if (!notes.length) return;
+      const g = at.get(tick) || { tick, bar: bar.index, notes: [], refs: [] };
+      notes.forEach(n => g.notes.push({ midi: n.realValue }));
+      g.refs.push(b);
+      at.set(tick, g);
+    }))));
+    const groups = [...at.values()].sort((a, b) => a.tick - b.tick);
+    fo.exp = expectedFrom(groups);
+    fo.refs = groups.map(g => g.refs);
+  }
+  function clearColors() {
+    if (!fo.styled.length) return;
+    fo.styled.forEach(n => { n.style = undefined; });
+    fo.styled = [];
+    api.render();
+  }
+  function colorNotes(marks) {
+    clearColors();
+    const M = alphaTab.model;
+    marks.forEach((m, i) => {
+      const bs = fo.refs[i];
+      if (!m || !bs) return;
+      const c = new M.Color(...COLORS[m], 255);
+      bs.flatMap(b => b.notes).forEach(n => {
+        n.style = new M.NoteStyle();
+        n.style.colors.set(M.NoteSubElement.StandardNotationNoteHead, c);
+        n.style.colors.set(M.NoteSubElement.GuitarTabFretNumber, c);
+        fo.styled.push(n);
+      });
+    });
+    if (fo.styled.length) api.render();
+  }
+  function startPass() {
+    buildExpected();
+    fo.tried = true;
+    fo.f = fo.exp.length ? follower(fo.exp, bpm) : null;
+    drawFollow();
+  }
+  function drawFollow(final) {
+    if (!fo.on) return;
+    followLine.hidden = false;
+    if (!fo.f) { followLine.textContent = !fo.tried || fo.exp.length ? 'Press play and play along: a bar of clicks counts you in, and the notes you play are marked as you go.' : 'There are no notes to follow here.'; return; }
+    const r = fo.f.result(), s = r.summary;
+    if (!s.total) { followLine.textContent = 'Listening… play along from the count-in.'; return; }
+    followLine.textContent = (final ? 'That pass: ' : '') + s.right + ' right · ' + s.timing + ' early or late · ' + s.wrong + ' wrong · ' + s.missed + ' missed' + (final ? ' (' + Math.round(s.score * 100) + '%).' : '');
+    if (final) {
+      colorNotes(r.marks);
+      followBars.innerHTML = '';
+      const worst = s.bars.slice(0, 4);
+      followBars.hidden = !worst.length;
+      if (worst.length) followBars.append(h('span', { class: 'small', text: 'Work on:' }), ...worst.map(b => h('button', { class: 'chip', onclick: () => {
+        fromIn.value = Math.max(1, b - 1); toIn.value = Math.min(nBars, b + 1); range();
+        if (!sec.loop) loopBtn.click(); else applySection();
+        if (sec.only) applyView();
+        drawRecords();
+      } }, 'bar ' + b)));
+    }
+  }
+  // a pass ends at the end of the score or the loop (all notes count) or where you stopped (later ones don't)
+  function endPass(tick = fo.tick) {
+    if (!fo.f) return;
+    fo.f.passed(tick);
+    drawFollow(true);
+    fo.f = null;
+  }
+  // a note played (or tapped) at a wall-clock time, placed on the score's clock. alphaTab reports the position
+  // every few dozen ms while it plays (and holds still through the count-in), so carry it forward only a short way
+  function placeNote(wall, midi) {
+    if (!fo.playing || !fo.f) return;
+    const tick = fo.tick + Math.max(-250, Math.min(250, wall - fo.wall)) / 1000 * (bpm / 60) * TPQ;
+    if (fo.f.heard(tick, midi)) drawFollow();
+  }
+  async function setFollow(on) {
+    if (on) {
+      followBtn.textContent = '🎤 Starting…';
+      const ok = await Mic.start();
+      followBtn.textContent = '🎤 Follow me';
+      note.textContent = ok ? '' : (Mic.state === 'denied' ? 'The microphone is blocked, so tap along instead (or allow it for this site).' : 'No microphone here: tap along instead.');
+      fo.on = true;
+      if (ok) {
+        fo.off = Mic.on('note', ev => {
+          const ctx = A.ensure();
+          placeNote(performance.now() - (ctx.currentTime - ev.t) * 1000 - Mic.latencyMs(), ev.midi);
+        });
+      }
+      tapBtn.hidden = false;
+      muteScore(soundBtn.getAttribute('aria-pressed') !== 'true');
+      api.countInVolume = 1;
+      if (!pref.click) clickBtn.click();
+      soundBtn.hidden = false;
+      clearColors();
+      drawFollow();
+    } else {
+      fo.on = false;
+      if (fo.off) fo.off(); fo.off = null;
+      fo.f = null;
+      muteScore(false); api.countInVolume = 0;
+      soundBtn.hidden = true; tapBtn.hidden = true; followLine.hidden = true; followBars.hidden = true;
+      clearColors();
+    }
+    followBtn.setAttribute('aria-pressed', String(fo.on));
+  }
+
   // fixing the notes the reader got wrong: tap a note, then change it; the file is saved as you leave
   const fx = { on: false, sel: null, undo: [], dirty: false, saving: null, part: 0 };
   const fixBtn = h('button', { class: 'btn small', hidden: !edit, 'aria-pressed': 'false', onclick: () => setFix(!fx.on) }, 'Fix notes');
@@ -205,16 +336,16 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     fixBtn.setAttribute('aria-pressed', String(on));
     fixTools.hidden = !on;
     box.classList.toggle('lib-fixing', on); // the tempo and section controls step aside while you fix notes
-    if (on) { if (playBtn.textContent === '⏸') api.pause(); describeSel(); } else saveFixes();
+    if (on) { if (playBtn.textContent === '⏸') api.pause(); if (fo.on) setFollow(false); describeSel(); } else saveFixes();
   }
 
   const box = h('div', { class: 'lib-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Score' },
-    h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, fixBtn, note),
+    h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, followBtn, tapBtn, soundBtn, fixBtn, note),
     h('div', { class: 'lib-vtools' },
       h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Tempo' }, slower, bpmOut, faster, clickBtn),
       h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Section' }, h('span', { class: 'small', text: 'Bars' }), fromIn, h('span', { class: 'small', text: 'to' }), toIn, loopBtn, rampBtn, onlyBtn, cleanBtn),
       h('span', { class: 'lib-vgroup' }, viewSel, zoomSel, trackWrap)),
-    h('div', { class: 'lib-vinfo' }, fixTools, recLine, recList, checkNote), pane);
+    h('div', { class: 'lib-vinfo' }, fixTools, followLine, followBars, recLine, recList, checkNote), pane);
   document.body.append(box);
 
   const api = new alphaTab.AlphaTabApi(sheet, {
@@ -231,7 +362,7 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     describeSel();
   });
   playBtn.onclick = () => api.playPause();
-  stopBtn.onclick = () => api.stop();
+  stopBtn.onclick = () => { api.stop(); if (fo.on) endPass(); };
   let ready = false;
   api.playerReady.on(() => { ready = true; playBtn.disabled = false; stopBtn.disabled = false; if (note.textContent.startsWith('Loading the sounds')) note.textContent = ''; });
   api.soundFontLoad.on(e => { if (e.total) note.textContent = 'Loading the sounds… ' + Math.round(e.loaded / e.total * 100) + '%'; });
@@ -241,11 +372,19 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     if (sec.loop && !e.isSeek && e.currentTick < lastTick - 10) {
       sec.laps++;
       if (sec.ramp && bpm < written) setBpm(Math.min(written, bpm + 5));
+      if (fo.on) { endPass(Infinity); startPass(); } // each time round the loop is a new pass
     }
+    if (e.isSeek && fo.on && fo.f) { endPass(); }
     lastTick = e.currentTick;
+    fo.tick = e.currentTick; fo.wall = performance.now();
+    if (fo.f && fo.playing) fo.f.passed(e.currentTick);
   });
+  api.playerFinished.on(() => { if (fo.on) endPass(Infinity); });
   api.playerStateChanged.on(e => {
     const playing = e.state === alphaTab.synth.PlayerState.Playing;
+    fo.playing = playing;
+    if (playing && fo.on && !fo.f) { clearColors(); startPass(); }
+    else if (!playing && fo.on && fo.f) drawFollow();
     playBtn.textContent = playing ? '⏸' : '▶'; playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
   });
 
@@ -253,6 +392,7 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     if (closed) return;
     closed = true;
     saveFixes();
+    if (fo.off) fo.off();
     try { api.destroy(); } catch (e) { /* already gone */ }
     box.remove(); document.removeEventListener('keydown', key);
     if (onClose) onClose();
