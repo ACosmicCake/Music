@@ -27,8 +27,10 @@ async function scoreBytes(blob, kind) {
   return new TextEncoder().encode(toMusicXML(midiToDraft(parseMidi(bytes))));
 }
 
-/* Show a score full screen; resolves with a close function once it has loaded (throws if it can't) */
-export async function openScore(blob, { title, kind } = {}, onClose) {
+/* Show a score full screen; resolves with a close function once it has loaded (throws if it can't).
+   opts.tempos (from the Library): { list(), mark(from, to, bpm, written) } keeps how fast you can play each
+   section cleanly. */
+export async function openScore(blob, { title, kind, tempos } = {}, onClose) {
   const data = await scoreBytes(blob, kind);
   const toCheck = kind === 'musicxml' ? checkBars(data) : [];
   let closed = false;
@@ -73,10 +75,37 @@ export async function openScore(blob, { title, kind } = {}, onClose) {
     sec.laps = 0;
     if (!sec.ramp) return;
     if (!sec.loop) loopBtn.click();
-    if (bpm >= written) setBpm(written * 0.7); // start slower, and come up to the written tempo
+    // start a little under your best clean tempo for these bars (or at 70%), and come up to the written tempo
+    const rec = recordFor();
+    if (rec && rec.best < written) setBpm(Math.max(BPM_MIN, rec.best - 10));
+    else if (bpm >= written) setBpm(written * 0.7);
   });
   rampBtn.title = 'Each time round the loop, 5 beats a minute faster, up to the written tempo';
   const onlyBtn = toggle('Show only these', 'only', () => applyView());
+  // how fast you can play these bars: tap Clean when you got through them without a slip at this tempo
+  const recordFor = () => { if (!tempos) return null; const [a, b] = range(); return tempos.list().find(r => r.from === a && r.to === b) || null; };
+  const cleanBtn = h('button', { class: 'btn small', hidden: !tempos, title: 'You played these bars without a slip at this tempo', onclick: () => {
+    const [a, b] = range();
+    const before = recordFor();
+    tempos.mark(a, b, bpm, written);
+    drawRecords();
+    recLine.textContent = before && before.best >= bpm ? 'Clean again at ♩' + bpm + '. Your best for bars ' + a + '–' + b + ' is still ♩' + before.best + '.' : 'Bars ' + a + '–' + b + ': clean at ♩' + bpm + (bpm >= written ? ', the written tempo.' : ' (' + Math.round(bpm / written * 100) + '% of ♩' + written + ').');
+  } }, 'Clean ✓');
+  cleanBtn.setAttribute('aria-label', 'Mark these bars clean at this tempo');
+  const recLine = h('p', { class: 'small lib-rec', role: 'status', hidden: !tempos });
+  const recList = h('div', { class: 'row lib-recs', hidden: true, role: 'group', 'aria-label': 'Sections you have marked clean' });
+  function drawRecords() {
+    if (!tempos) return;
+    const rec = recordFor(), [a, b] = range();
+    recLine.textContent = rec ? 'Bars ' + a + '–' + b + ': clean at ♩' + rec.best + ' of ' + (rec.of || written) + (rec.best >= (rec.of || written) ? ', up to speed.' : ' (' + Math.round(rec.best / (rec.of || written) * 100) + '%).')
+      : 'Bars ' + a + '–' + b + ': loop them, and tap Clean when you get through without a slip. The app keeps your best tempo for each section.';
+    const all = tempos.list();
+    recList.innerHTML = '';
+    recList.hidden = !all.length;
+    all.forEach(r => recList.append(h('button', { class: 'chip lib-recchip' + (r.best >= (r.of || written) ? ' done' : ''), 'aria-pressed': String(r.from === a && r.to === b), onclick: () => {
+      fromIn.value = r.from; toIn.value = r.to; range(); if (sec.loop) applySection(); if (sec.only) applyView(); drawRecords();
+    } }, r.from + '–' + r.to + ' · ♩' + r.best)));
+  }
   const range = () => {
     let a = Math.max(1, Math.min(nBars || 1, Math.round(Number(fromIn.value) || 1)));
     let b = Math.max(1, Math.min(nBars || 1, Math.round(Number(toIn.value) || a)));
@@ -100,16 +129,16 @@ export async function openScore(blob, { title, kind } = {}, onClose) {
     api.settings.display.barCount = sec.only ? b - a + 1 : -1;
     api.updateSettings(); api.render();
   }
-  [fromIn, toIn].forEach(el => el.addEventListener('change', () => { range(); if (sec.loop) applySection(); if (sec.only) applyView(); }));
+  [fromIn, toIn].forEach(el => el.addEventListener('change', () => { range(); if (sec.loop) applySection(); if (sec.only) applyView(); drawRecords(); }));
   const checkNote = h('p', { class: 'small lib-check', hidden: true });
 
   const box = h('div', { class: 'lib-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Score' },
     h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, note),
     h('div', { class: 'lib-vtools' },
       h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Tempo' }, slower, bpmOut, faster, clickBtn),
-      h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Section' }, h('span', { class: 'small', text: 'Bars' }), fromIn, h('span', { class: 'small', text: 'to' }), toIn, loopBtn, rampBtn, onlyBtn),
+      h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Section' }, h('span', { class: 'small', text: 'Bars' }), fromIn, h('span', { class: 'small', text: 'to' }), toIn, loopBtn, rampBtn, onlyBtn, cleanBtn),
       h('span', { class: 'lib-vgroup' }, viewSel, zoomSel, trackWrap)),
-    checkNote, pane);
+    h('div', { class: 'lib-vinfo' }, recLine, recList, checkNote), pane);
   document.body.append(box);
 
   const api = new alphaTab.AlphaTabApi(sheet, {
@@ -166,6 +195,7 @@ export async function openScore(blob, { title, kind } = {}, onClose) {
       fromIn.max = nBars; toIn.max = nBars;
       if (Number(toIn.value) > nBars) toIn.value = nBars;
       if (!tempoSet) { tempoSet = true; setBpm(written); }
+      drawRecords();
       note.textContent = 'Loading the sounds…';
       if (tracks.length > 1) {
         trackWrap.hidden = false; trackWrap.innerHTML = '';

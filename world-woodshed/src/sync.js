@@ -199,6 +199,14 @@ function mergeLibrary(a = {}, b = {}, tomb = {}) {
       if (isObj(f) && f.id && !seen.has(f.id)) { seen.add(f.id); files.push(clone(f)); }
     }));
     n.files = files.filter(f => !tomb['libfile:' + f.id]);
+    // the fastest clean tempo for each section, from either copy
+    if (isObj(x.tempos) || isObj(y.tempos)) {
+      const t = {};
+      [x.tempos, y.tempos].forEach(src => Object.entries(isObj(src) ? src : {}).forEach(([k, v]) => {
+        if (isObj(v) && (!t[k] || (v.best || 0) > (t[k].best || 0))) t[k] = clone(v);
+      }));
+      n.tempos = t;
+    }
     return n;
   });
 }

@@ -172,6 +172,29 @@ export function updateEntry(id, fields) {
   const out = 'status' in fields ? withStatus(next, fields.status) : next;
   return E.saveLibEntry(out);
 }
+/* ---------- how fast you can play each section of a score ----------
+   entry.tempos: { '<file id>:<from>-<to>': { best, of, t } }: the fastest tempo (beats a minute) you marked a
+   section clean at, the score's written tempo, and when. Merged across devices by the faster tempo
+   (src/sync.js). Kept on the entry, so it syncs with the details and goes when the entry or file goes. */
+export const tempoKey = (fileId, a, b) => fileId + ':' + a + '-' + b;
+export function sectionTempos(entryId, fileId) {
+  const e = E.getLibEntry(entryId), all = (e && e.tempos) || {};
+  return Object.entries(all).map(([k, v]) => {
+    const m = k.match(/^(.+):(\d+)-(\d+)$/);
+    if (!m || m[1] !== fileId || !v || !(Number(v.best) > 0)) return null;
+    return { from: Number(m[2]), to: Number(m[3]), best: Math.round(v.best), of: Math.round(Number(v.of) || 0), t: Number(v.t) || 0 };
+  }).filter(Boolean).sort((x, y) => x.from - y.from || x.to - y.to);
+}
+/* Mark a section clean at a tempo; keeps the faster of this and the best so far → the record */
+export function markClean(entryId, fileId, a, b, bpm, written, now = Date.now()) {
+  const e = E.getLibEntry(entryId);
+  if (!e || !(bpm > 0)) return null;
+  const k = tempoKey(fileId, a, b), tempos = Object.assign({}, e.tempos || {}), old = tempos[k];
+  const rec = { best: Math.max(Math.round(bpm), old ? old.best || 0 : 0), of: Math.round(written) || (old && old.of) || 0, t: now };
+  tempos[k] = rec;
+  E.saveLibEntry(Object.assign({}, e, { tempos }));
+  return rec;
+}
 export async function removeFile(entryId, id) {
   E.removeLibFile(entryId, id);
   await delFile(id);

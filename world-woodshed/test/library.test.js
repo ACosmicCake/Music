@@ -128,3 +128,26 @@ describe('storing files on this device', () => {
     expect(L.getEntry(id).files).toHaveLength(1);
   });
 });
+
+describe('how fast you can play each section', () => {
+  it('keeps the fastest clean tempo per file and bar range, and lists them in bar order', () => {
+    const id = E.saveLibEntry(L.newEntry({ title: 'Étude' })).id;
+    expect(L.sectionTempos(id, 'f1')).toEqual([]);
+    L.markClean(id, 'f1', 9, 16, 72, 120, 1000);
+    L.markClean(id, 'f1', 9, 16, 66, 120, 2000); // slower: the best stays
+    L.markClean(id, 'f1', 1, 8, 100.4, 120, 3000);
+    L.markClean(id, 'f2', 1, 8, 50, 90, 3000);
+    expect(L.sectionTempos(id, 'f1')).toEqual([
+      { from: 1, to: 8, best: 100, of: 120, t: 3000 },
+      { from: 9, to: 16, best: 72, of: 120, t: 2000 }
+    ]);
+    expect(L.sectionTempos(id, 'f2')).toEqual([{ from: 1, to: 8, best: 50, of: 90, t: 3000 }]);
+    // the details shown for the entry are untouched
+    expect(L.getEntry(id).title).toBe('Étude');
+  });
+  it('ignores a missing entry or no tempo', () => {
+    expect(L.markClean('nope', 'f1', 1, 4, 80, 120)).toBeNull();
+    const id = E.saveLibEntry(L.newEntry({ title: 'x' })).id;
+    expect(L.markClean(id, 'f1', 1, 4, 0, 120)).toBeNull();
+  });
+});
