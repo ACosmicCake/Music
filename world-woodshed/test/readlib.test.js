@@ -22,15 +22,28 @@ describe('compact encoding', () => {
     expect(code).toBe('Bb/6/8/70q. r8 618b 61q~#|72h.');
     expect(RL.decode(code)).toEqual(piece);
   });
+  it('round-trips chords and triplets', () => {
+    const piece = { key: 'Am', time: '4/4', bars: [
+      [{ midi: 72, dur: '8', tup: 3 }, { midi: null, dur: '8', tup: 3 }, { midi: 68, dur: '8', tup: 3, spell: '#' }, { midi: 76, dur: 'q', chord: [64, 69, 76] }, { midi: 74, dur: 'h', chord: [62, 65, 71, 74], tie: true }],
+      [{ midi: 74, dur: 'w', chord: [62, 65, 71, 74] }]
+    ] };
+    const code = RL.encode(piece);
+    expect(code).toBe('Am/4/4/728t r8t 688#t 64+69+76q 62+65+71+74h~|62+65+71+74w');
+    expect(RL.decode(code)).toEqual(piece);
+  });
+  it('reads a code from a newer app without failing', () => {
+    expect(RL.decode('C/4/4/60q 60?q 60h').bars[0]).toHaveLength(3);
+  });
   it('round-trips generated melodies and rhythms at every level', () => {
     for (const [lv, L] of LEVELS.entries()) {
       for (let k = 0; k < 5; k++) {
-        const pieces = [genMelody(L), rhythmPiece(L)];
+        const pieces = [genMelody(L, { bars: 8 }), rhythmPiece(L, { bars: 8 })];
         pieces.forEach(p => {
           const small = { key: p.key, time: p.time, bars: p.bars };
           const back = RL.decode(RL.encode(small));
           expect(RL.encode(back), 'level ' + lv).toBe(RL.encode(small));
           expect(back.bars.flat().map(n => n.midi ?? null)).toEqual(small.bars.flat().map(n => n.midi ?? null));
+          expect(back.bars.flat().map(n => (n.chord || []).join('+') + (n.tup || ''))).toEqual(small.bars.flat().map(n => (n.chord || []).join('+') + (n.tup || '')));
         });
       }
     }

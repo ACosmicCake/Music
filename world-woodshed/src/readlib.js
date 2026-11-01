@@ -12,17 +12,22 @@ const lib = () => {
   return s.readLib;
 };
 
-/* One event: pitch (or r for a rest), duration, then . dot, ~ tie, # or b spelling. Bars split by |. */
+/* One event: pitch (r for a rest, or the pitches of a chord joined by +), duration, then . dot, ~ tie,
+   # or b spelling, t triplet. Bars split by |. */
 function encode(piece) {
-  const ev = n => (n.midi == null ? 'r' : n.midi) + n.dur + (n.dot ? '.' : '') + (n.tie ? '~' : '') + (n.spell || '');
+  const pitch = n => (n.midi == null ? 'r' : n.chord && n.chord.length > 1 ? n.chord.join('+') : n.midi);
+  const ev = n => pitch(n) + n.dur + (n.dot ? '.' : '') + (n.tie ? '~' : '') + (n.spell || '') + (n.tup ? 't' : '');
   return piece.key + '/' + piece.time + '/' + piece.bars.map(b => b.map(ev).join(' ')).join('|');
 }
 function decode(code) {
   const parts = code.split('/'), key = parts[0], time = parts[1] + '/' + parts[2], body = parts.slice(3).join('/');
   const bars = body.split('|').map(b => b.split(' ').map(t => {
-    const m = /^(r|\d+)(w|h|q|8|16)(\.?)(~?)([#b]?)$/.exec(t);
-    const n = { midi: m[1] === 'r' ? null : +m[1], dur: m[2] };
-    if (m[3]) n.dot = true; if (m[4]) n.tie = true; if (m[5]) n.spell = m[5];
+    const m = /^(r|\d+(?:\+\d+)*)(w|h|q|8|16)(\.?)(~?)([#b]?)(t?)$/.exec(t);
+    if (!m) return { midi: null, dur: 'q' }; // written by a newer app: keep the bar's place
+    const ps = m[1] === 'r' ? null : m[1].split('+').map(Number);
+    const n = { midi: ps ? Math.max(...ps) : null, dur: m[2] };
+    if (ps && ps.length > 1) n.chord = ps.sort((x, y) => x - y);
+    if (m[3]) n.dot = true; if (m[4]) n.tie = true; if (m[5]) n.spell = m[5]; if (m[6]) n.tup = 3;
     return n;
   }));
   return { key, time, bars };

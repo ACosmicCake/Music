@@ -6,7 +6,7 @@ import { h, tool, toast, Fretboard } from '../ui/core.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
-import { LEVELS, HOW_TO, readingItems, genMelody, rhythmPiece, noteCard, attacks, pieceLength } from '../content/reading.js';
+import { LEVELS, STAGES, HOW_TO, readingItems, genMelody, rhythmPiece, noteCard, attacks, pieceLength } from '../content/reading.js';
 import Lib from '../readlib.js';
 
 const SKILL = 'reading';
@@ -53,7 +53,7 @@ function countLabels(piece) {
     bar.forEach(n => {
       let t;
       if (ts.compound) { const e = q / 0.5; t = Number.isInteger(Math.round(e * 1000) / 1000) ? String(Math.round(e) + 1) : '+'; }
-      else { const b = Math.floor(q + 1e-6), f = Math.round((q - b) * 4); t = f === 0 ? String(b + 1) : ['', 'e', '&', 'a'][f]; }
+      else { const b = Math.floor(q + 1e-6), f = Math.round((q - b) * 12) % 12; t = f === 0 ? String(b + 1) : { 3: 'e', 6: '&', 9: 'a', 4: 'trip', 8: 'let' }[f] || '·'; }
       out.push(n.midi == null ? '(' + t + ')' : t);
       q += durQ(n);
     });
@@ -70,53 +70,118 @@ function eventStarts(piece) {
   return out;
 }
 
-/* Schedules a count-in bar and the piece on a sixteenth-note grid, moving the cursor along.
-   o: { piece, staff, bpm, countIn, click, notes (play the pitches), phase (element), onExpected(e), onEnd(expected) } */
-function playPiece(o) {
+/* Keep the line being read on screen: when the cursor moves to a line that is low on the screen (or above
+   it), scroll it to the upper part of the screen, so the lines after it are in view too. */
+function follow(staff, sys) {
+  const box = staff && staff.systemBox(sys);
+  if (!box || !staff.el.isConnected) return;
+  const r = staff.el.getBoundingClientRect(), k = r.height / staff.height;
+  const top = r.top + box.top * k, bottom = r.top + box.bottom * k, vh = window.innerHeight;
+  if (top < 70 || bottom > vh * 0.62) window.scrollBy({ top: top - vh * 0.22, behavior: 'smooth' });
+}
+
+/* Plays one piece, or a run of them, on a grid of twelfths of a quarter (so sixteenths and triplets both land
+   on it), moving the cursor along. Each piece starts with a count-in bar: the next piece of a run appears at
+   the start of its count-in, so there is a bar to look it over while the beat goes on.
+   o: { first: { piece }, staff (drawn for the first piece), bpm, countIn, click, notes (play the pitches),
+        phase (element), next(): the next { piece } of the run or null to stop, show(item): draws an item's piece
+        and returns its staff, onExpected(e, seg), onPieceEnd(seg): a piece was read to its end, onEnd() }
+   A seg is { item, piece, k, expected: [{ i, q, len, midi, chord, t, dur, j }], ats, spq, staff }. */
+const G = 1 / 12;
+function playRun(o) {
   A.ensure();
-  const ts = parseTime(o.piece.time), spq = 60 / o.bpm / ts.beatQ, G = 0.25;
-  const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
-  const pre = o.countIn ? barSteps : 0;
-  const total = pre + Math.round(pieceLength(o.piece) / G);
-  const byStep = new Map(); attacks(o.piece).forEach(a => byStep.set(Math.round(a.q / G), a));
-  const evAt = new Map(); eventStarts(o.piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
-  const expected = [];
-  let nowEl = null;
-  const setNow = i => {
-    if (nowEl) nowEl.classList.remove('now');
-    nowEl = i === null ? null : o.staff.noteEls[i];
-    if (nowEl) nowEl.classList.add('now');
-    o.staff.cursor(i);
+  const segs = [];
+  const opts = { steps: 1e9, maxSteps: 0 };
+  const make = (item, start) => {
+    const piece = item.piece, ts = parseTime(piece.time), spq = 60 / o.bpm / ts.beatQ;
+    const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
+    const pre = segs.length || o.countIn ? barSteps : 0;
+    const len = Math.round(pieceLength(piece) / G);
+    const ats = attacks(piece);
+    const byStep = new Map(); ats.forEach((a, j) => byStep.set(Math.round(a.q / G), Object.assign({ j }, a)));
+    const evAt = new Map(); eventStarts(piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
+    const seg = { item, piece, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
+    segs.push(seg);
+    return seg;
   };
-  const loop = A.Loop({
-    steps: total, maxSteps: total, stepDur: () => spq * G,
+  const segAt = i => { for (let k = segs.length - 1; k >= 0; k--) if (segs[k].start <= i) return segs[k]; return segs[0]; };
+  make(o.first, 0);
+  let nowEl = null, nowSys = -1, ended = false;
+  const setNow = (seg, i) => {
+    if (nowEl) nowEl.classList.remove('now');
+    nowEl = i === null || !seg.staff ? null : seg.staff.noteEls[i];
+    if (nowEl) nowEl.classList.add('now');
+    if (seg.staff) seg.staff.cursor(i);
+    const p = i === null || !seg.staff ? null : seg.staff.posOf(i);
+    if (p && p.sys !== nowSys) { nowSys = p.sys; follow(seg.staff, p.sys); }
+  };
+  const finish = seg => { if (seg.done) return; seg.done = true; if (o.onPieceEnd) o.onPieceEnd(seg); };
+  Object.assign(opts, {
+    stepDur: i => segAt(i).spq * G,
     onStep: (i, t) => {
-      const inPre = i < pre, k = inPre ? i : i - pre;
-      if (k % beatSteps === 0) {
-        const down = k % barSteps === 0;
+      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      if (kk % seg.beatSteps === 0) {
+        const down = kk % seg.barSteps === 0;
         if (inPre) A.hit(down ? 'clickHi' : 'click', t, 0.95);
         else if (o.click) A.hit(down ? 'clickHi' : 'click', t, 0.45);
-      } else if (inPre && ts.compound && k % 2 === 0) A.hit('click', t, 0.4);
-      if (!inPre && byStep.has(k)) {
-        const a = byStep.get(k), e = Object.assign({}, a, { t, dur: a.len * spq });
-        expected.push(e);
-        if (o.onExpected) o.onExpected(e);
-        if (o.notes) A.note(a.midi - 12, t, 0.8, Math.max(0.12, Math.min(2, a.len * spq - 0.03)));
+      } else if (inPre && seg.ts.compound && kk % 6 === 0) A.hit('click', t, 0.4);
+      if (!inPre && seg.byStep.has(kk)) {
+        const a = seg.byStep.get(kk), e = Object.assign({}, a, { t, dur: a.len * seg.spq });
+        seg.expected.push(e);
+        if (o.onExpected) o.onExpected(e, seg);
+        if (o.notes) (a.chord || [a.midi]).forEach((m, x) => A.note(m - 12, t + x * 0.014, a.chord ? 0.6 : 0.8, Math.max(0.12, Math.min(2, a.len * seg.spq - 0.03))));
+      }
+      // the last step of a piece: line up the next one, or end here
+      if (i === seg.end - 1 && seg.k === segs.length - 1) {
+        const nx = o.next ? o.next(seg) : null;
+        if (nx) make(nx, seg.end); else opts.maxSteps = seg.end;
       }
     },
     onVisual: i => {
-      const inPre = i < pre, k = inPre ? i : i - pre;
-      if (inPre) { if (o.phase && k % beatSteps === 0) o.phase.textContent = 'Count-in: ' + (k / beatSteps + 1) + ' …'; return; }
-      if (o.phase && k % beatSteps === 0) o.phase.textContent = 'Bar ' + (Math.floor(k / barSteps) + 1) + ' of ' + o.piece.bars.length + ' · beat ' + ((k % barSteps) / beatSteps + 1);
-      if (evAt.has(k)) setNow(evAt.get(k));
+      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      if (i === seg.start && seg.k > 0) {
+        const prev = segs[seg.k - 1];
+        setNow(prev, null);
+        setTimeout(() => finish(prev), 260); // late taps and notes still count
+        seg.staff = o.show(seg.item, seg); nowSys = -1;
+        follow(seg.staff, 0);
+      }
+      if (inPre) { if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : 'Count-in: ') + (kk / seg.beatSteps + 1) + ' …'; return; }
+      if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + (Math.floor(kk / seg.barSteps) + 1) + ' of ' + seg.piece.bars.length + ' · beat ' + ((kk % seg.barSteps) / seg.beatSteps + 1);
+      if (seg.evAt.has(kk)) setNow(seg, seg.evAt.get(kk));
     },
-    onEnd: () => { setNow(null); if (o.phase) o.phase.textContent = ''; o.onEnd && o.onEnd(expected); }
+    onEnd: () => {
+      if (ended) return; ended = true;
+      const last = segs[segs.length - 1];
+      setNow(last, null); if (o.phase) o.phase.textContent = '';
+      setTimeout(() => { finish(last); if (o.onEnd) o.onEnd(); }, 120);
+    }
   });
+  const loop = A.Loop(opts);
   const startAt = loop.start(A.now() + 0.15);
-  return { stop() { loop.stop(); setNow(null); if (o.phase) o.phase.textContent = ''; }, startAt, spq, pre: pre * spq * G };
+  return {
+    segs, startAt,
+    // stopping keeps the pieces already read to the end; the one under way is left unscored
+    stop() { if (ended) return; ended = true; loop.stop(); const cur = segs.find(sg => !sg.done && sg.staff); if (cur) setNow(cur, null); if (o.phase) o.phase.textContent = ''; }
+  };
 }
 
 function staffWidth(holder) { return Math.max(260, (holder.clientWidth || 320) - 4); }
+
+const paperOn = () => !!E.state.settings.readingPaper;
+/* how many bars a rhythm or melody runs to, and whether the next one follows by itself */
+const LENGTHS = [4, 8, 16];
+const lenFor = kind => { const v = (E.state.settings.readingLen || {})[kind]; return LENGTHS.includes(v) ? v : 8; };
+const setLen = (kind, v) => E.setSetting('readingLen', Object.assign({}, E.state.settings.readingLen || {}, { [kind]: v }));
+const runOn = () => E.state.settings.readingRunOn !== false;
+function lengthControls(kind, onChange) {
+  const seg = h('div', { class: 'seg sr-len', role: 'group', 'aria-label': 'Length' });
+  const paint = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === lenFor(kind) ? 'true' : 'false'));
+  LENGTHS.forEach(n => seg.append(h('button', { 'data-n': n, onclick: () => { if (lenFor(kind) === n) return; setLen(kind, n); paint(); onChange(); } }, n + ' bars')));
+  paint();
+  const keep = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: runOn() ? true : null, onchange: e => E.setSetting('readingRunOn', e.target.checked) }), 'Keep going: the next one follows after a count-in bar');
+  return h('div', { class: 'stack sr-opts' }, seg, keep);
+}
 
 tool('sightread', {
   tab: 'train', skill: SKILL, title: 'Sight-reading', eyebrow: 'Reading · notes, rhythm, melody',
@@ -126,37 +191,49 @@ tool('sightread', {
     const unlocked = () => Math.max(1, Math.min(LEVELS.length, E.unlockedTier(SKILL) || 1));
     let level = p.level ? clampLevel(p.level) : unlocked();
     let mode = ['notes', 'rhythm', 'melody'].includes(p.mode) ? p.mode : (E.state.settings.readingMode || 'notes');
-    let modeApi = null;
+    let modeApi = null, pathOpen = false;
 
+    const wrap = h('div', { class: 'stack sr-wrap' + (paperOn() ? ' sr-paper' : '') });
     const levelCard = h('div', { class: 'card sr-level' });
     const modeSeg = h('div', { class: 'seg big' });
+    const paper = h('label', { class: 'check small sr-papertoggle' }, h('input', { type: 'checkbox', checked: paperOn() ? true : null, onchange: e => { E.setSetting('readingPaper', e.target.checked); wrap.classList.toggle('sr-paper', e.target.checked); } }), 'White paper: black notes on a white page');
     const modeBody = h('div', { class: 'section' });
     const how = h('details', { class: 'card sr-how' },
       h('summary', {}, h('b', { text: 'How to sight-read' })),
       h('ul', { class: 'sr-howlist' }, HOW_TO.map(([t, d]) => h('li', {}, h('b', { text: t + '. ' }), d))));
-    body.append(levelCard, modeSeg, modeBody, how);
+    wrap.append(levelCard, modeSeg, paper, modeBody, how);
+    body.append(wrap);
 
     const L = () => LEVELS[level - 1];
+    const go = n => { level = clampLevel(n); renderLevel(); renderMode(); };
     function renderLevel() {
       const top = unlocked(), lv = L();
       levelCard.innerHTML = '';
-      const chips = h('div', { class: 'sr-levels', role: 'group', 'aria-label': 'Level' });
-      LEVELS.forEach(x => {
+      const stage = STAGES.find(st => level >= st.from && level <= st.to);
+      const chip = x => {
         const locked = x.id > top;
         const st = itemState('L' + x.id + ':melody');
-        const b = h('button', { class: 'chip sr-lv' + (locked ? ' locked' : '') + (st && st.ema >= 0.75 ? ' done' : ''), 'aria-pressed': x.id === level ? 'true' : 'false', title: 'Level ' + x.id + ': ' + x.name + (locked ? ' (locked)' : ''), onclick: () => { level = x.id; renderLevel(); renderMode(); } });
+        const b = h('button', { class: 'chip sr-lv' + (locked ? ' locked' : '') + (st && st.ema >= 0.75 ? ' done' : ''), 'aria-pressed': x.id === level ? 'true' : 'false', title: 'Level ' + x.id + ': ' + x.name + (locked ? ' (locked)' : ''), onclick: () => go(x.id) });
         if (locked) { const ic = h('span', { class: 'sr-lock' }); ic.innerHTML = LOCK; b.append(ic); }
         b.append(String(x.id));
-        chips.append(b);
-      });
+        return b;
+      };
+      const path = h('details', { class: 'sr-path', open: pathOpen ? true : null, ontoggle: e => { pathOpen = e.target.open; } },
+        h('summary', { class: 'small' }, 'All ' + LEVELS.length + ' levels'),
+        STAGES.map(st => h('div', { class: 'sr-stage' },
+          h('span', { class: 'small muted', text: st.name }),
+          h('div', { class: 'sr-levels', role: 'group', 'aria-label': st.name }, LEVELS.slice(st.from - 1, st.to).map(chip)))));
       const locked = level > top;
       levelCard.append(
-        h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Level ' + level + ' of ' + LEVELS.length }), h('span', { class: 'small muted', text: 'Unlocked up to ' + top })),
-        chips,
-        h('h2', { text: lv.name }),
+        h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Level ' + level + ' of ' + LEVELS.length + (stage ? ' · ' + stage.name : '') }), h('span', { class: 'small muted', text: 'Unlocked up to ' + top })),
+        h('div', { class: 'sr-step' },
+          h('button', { class: 'btn small', 'aria-label': 'Previous level', disabled: level <= 1 ? true : null, onclick: () => go(level - 1) }, '←'),
+          h('h2', { text: lv.name }),
+          h('button', { class: 'btn small', 'aria-label': 'Next level', disabled: level >= LEVELS.length ? true : null, onclick: () => go(level + 1) }, '→')),
         h('p', { text: lv.goal }),
         locked ? h('p', { class: 'small sr-preview', text: 'Preview: this level unlocks when you read level ' + top + ' reliably (notes, rhythm and melody). You can still try it.' }) : '',
-        h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))));
+        h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))),
+        path);
     }
     function renderSeg() {
       modeSeg.innerHTML = '';
@@ -349,9 +426,16 @@ function tempoControl(get, set, lv) {
   return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] })), paint, bump };
 }
 
+/* a short line per piece read in a run: "Rhythm 12 · 85%" */
+function runLine(list, kind, cur, pct, ok) {
+  list.hidden = false;
+  list.append(h('li', { class: ok ? 'ok' : 'no' }, h('b', { text: KIND_NAME[kind] + ' ' + (cur.entry ? cur.entry.no : '') }), ' ', pct == null ? '' : h('span', { class: 'mono', text: pct + '%' })));
+}
+
 function rhythmMode(root, lv, ctx) {
   const card = h('div', { class: 'card' }); root.append(card);
-  let cur = Lib.next(lv.id, 'r', () => rhythmPiece(lv)), piece = cur.piece, staff = null, run = null, pad = null, showCounts = !!E.state.settings.readingCounts;
+  const make = () => Lib.next(lv.id, 'r', () => rhythmPiece(lv, { bars: lenFor('r') }));
+  let cur = make(), piece = cur.piece, staff = null, run = null, pad = null, showCounts = !!E.state.settings.readingCounts;
   const src = h('p', { class: 'small sr-src' });
   const lib = libraryPanel('r', lv, id => { stop(); cur = Lib.open(id); piece = cur.piece; result.innerHTML = ''; draw(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
   const libBtn = libButton('r', lv, lib);
@@ -359,189 +443,238 @@ function rhythmMode(root, lv, ctx) {
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
   const phase = h('div', { class: 'phase', role: 'status' });
-  const padBox = h('div');
+  const padBox = h('div', { class: 'sr-padbox' });
+  const runList = h('ul', { class: 'sr-run', hidden: true, 'aria-label': 'Pieces read in this run' });
   const result = h('div', { class: 'stack' });
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'r', v); }, lv);
   const startBtn = h('button', { class: 'btn brass' }, 'Start: count-in, then tap');
   const hearBtn = h('button', { class: 'btn' }, '▶ Hear it');
   const newBtn = h('button', { class: 'btn ghost' }, 'Next rhythm');
-  const stopBtn = h('button', { class: 'btn', hidden: true, onclick: () => stop() }, '■ Stop');
-  const countBox = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: showCounts ? true : null, onchange: e => { showCounts = e.target.checked; E.setSetting('readingCounts', showCounts); draw(); } }), 'Show the counts');
-  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Read this rhythm' }), info), src, staffBox, countBox, tempo.el,
-    h('div', { class: 'row' }, startBtn, stopBtn, hearBtn, newBtn, libBtn.el), phase, padBox, result, lib.el);
+  const stopBtn = h('button', { class: 'btn small', onclick: () => stop(true) }, '■ Stop');
+  const runBar = h('div', { class: 'sr-runbar', hidden: true }, phase, stopBtn); // stays at the bottom of the screen while it runs
+  padBox.append(runBar);
+  const countBox = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: showCounts ? true : null, onchange: e => { showCounts = e.target.checked; E.setSetting('readingCounts', showCounts); if (!run) draw(); } }), 'Show the counts');
+  const opts = lengthControls('r', () => { if (!run && !cur.entry) newBtn.onclick(); });
+  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Read this rhythm' }), info), src, tempo.el, opts, countBox,
+    h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), staffBox, padBox, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), barsPerLine: 2, lyrics: showCounts ? countLabels(piece) : null, label: 'A two-bar rhythm' });
+    staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), barsPerLine: piece.bars.length <= 2 ? 2 : undefined, lyrics: showCounts ? countLabels(piece) : null, label: 'A rhythm of ' + piece.bars.length + ' bars' });
     staffBox.append(staff.el);
     sourceLine(src, cur, 'r'); libBtn.paint();
     info.textContent = piece.time + ' · ' + (parseTime(piece.time).compound ? 'beat = dotted quarter' : 'beat = quarter');
+    return staff;
   }
-  function stop() {
+  let summary = null;
+  function stop(byHand) {
     if (run) run.stop(); run = null;
-    if (pad) { pad.cleanup(); pad = null; } padBox.innerHTML = '';
-    ctx.setActive(false); startBtn.disabled = false; hearBtn.disabled = false; newBtn.disabled = false; stopBtn.hidden = true;
+    if (pad) { pad.cleanup(); pad.el.remove(); pad = null; } padBox.classList.remove('live'); runBar.hidden = true;
+    ctx.setActive(false); startBtn.disabled = false; hearBtn.disabled = false; newBtn.disabled = false;
+    const f = summary; summary = null;
+    if (byHand && f) setTimeout(f, 320); // after the piece that just ended is scored
   }
   hearBtn.onclick = () => {
-    stop(); draw(); ctx.setActive(true); hearBtn.disabled = true; stopBtn.hidden = false;
-    run = playPiece({ piece, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
+    stop(); draw(); ctx.setActive(true); hearBtn.disabled = true; runBar.hidden = false; padBox.classList.add('live');
+    run = playRun({ first: { piece }, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
   };
-  newBtn.onclick = () => { stop(); cur = Lib.next(lv.id, 'r', () => rhythmPiece(lv)); piece = cur.piece; result.innerHTML = ''; draw(); };
+  newBtn.onclick = () => { stop(); cur = make(); piece = cur.piece; result.innerHTML = ''; runList.innerHTML = ''; runList.hidden = true; draw(); };
   startBtn.onclick = () => {
-    stop(); draw(); result.innerHTML = '';
+    stop(); draw(); result.innerHTML = ''; runList.innerHTML = ''; runList.hidden = true;
     A.ensure(); ctx.setActive(true);
-    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; stopBtn.hidden = false;
-    const taps = [];
+    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; runBar.hidden = false;
+    const taps = [], scores = [];
+    let lastRes = null;
     const lat = (E.state.settings.latencyMs || 0) / 1000;
     pad = TapPad(ev => taps.push(ev.micTime !== undefined ? ev.micTime : A.eventToAudioTime(ev) - lat), 'Tap the rhythm here (or space bar)', { mic: true });
-    padBox.append(pad.el);
-    run = playPiece({
-      piece, staff, bpm, countIn: true, click: true, notes: false, phase,
-      onEnd: expected => setTimeout(() => {
-        const spq = 60 / bpm / parseTime(piece.time).beatQ;
-        const win = Math.max(0.05, Math.min(0.15, minGapQ(expected) * spq * 0.45));
-        const res = scoreTaps(expected, taps, win);
-        res.errs.forEach(x => markAttack(staff, piece, x.e, x.d !== null && Math.abs(x.d) <= Math.max(0.035, win * 0.55) ? 'good' : 'bad'));
-        const ok = res.score >= 0.7;
-        E.record(SKILL, 'L' + lv.id + ':rhythm', ok, { score: res.score });
-        Lib.record(cur, lv.id, 'r', res.score, bpm); sourceLine(src, cur, 'r'); libBtn.paint(); if (!lib.el.hidden) lib.draw();
-        ctx.tick(1);
-        run = null; stop();
-        result.innerHTML = '';
-        result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },
-          h('div', { class: 'spread' }, h('b', { text: 'Score ' + Math.round(res.score * 100) + '%' }), h('span', { class: 'mono small', text: Math.round(res.hitRate * 100) + '% of notes hit' + (res.extra ? ' · ' + res.extra + ' extra' : '') })),
-          h('span', { text: describeOffset(res.mean * 1000) }),
-          h('span', { class: 'small', text: 'Green notes landed on time; red ones were early, late or missed.' }),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => startBtn.onclick() }, 'Try again'),
-            ok && res.score >= 0.85 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm, next rhythm') : '',
-            starButton(cur),
-            h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'Next rhythm →'))));
-      }, 150)
+    padBox.append(pad.el); padBox.classList.add('live');
+    const chained = runOn();
+    const score = seg => {
+      const c = seg.item.cur, p = seg.piece, spq = seg.spq;
+      const win = Math.max(0.05, Math.min(0.15, minGapQ(seg.expected) * spq * 0.45));
+      const res = scoreTaps(seg.expected, taps, win);
+      if (seg.staff) res.errs.forEach(x => markAttack(seg.staff, p, x.e, x.d !== null && Math.abs(x.d) <= Math.max(0.035, win * 0.55) ? 'good' : 'bad'));
+      const ok = res.score >= 0.7;
+      E.record(SKILL, 'L' + lv.id + ':rhythm', ok, { score: res.score });
+      Lib.record(c, lv.id, 'r', res.score, bpm); libBtn.paint(); if (!lib.el.hidden) lib.draw();
+      if (c === cur) sourceLine(src, cur, 'r');
+      ctx.tick(1);
+      scores.push(res.score); lastRes = { res, ok, c };
+      if (chained) runLine(runList, 'r', c, Math.round(res.score * 100), ok);
+    };
+    summary = () => {
+      summary = null;
+      result.innerHTML = '';
+      if (!lastRes) return;
+      const { res, ok } = lastRes, avg = scores.reduce((a, x) => a + x, 0) / scores.length;
+      result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },
+        h('div', { class: 'spread' }, h('b', { text: scores.length > 1 ? scores.length + ' rhythms · average ' + Math.round(avg * 100) + '%' : 'Score ' + Math.round(res.score * 100) + '%' }), h('span', { class: 'mono small', text: (scores.length > 1 ? 'last one: ' : '') + Math.round(res.hitRate * 100) + '% of notes hit' + (res.extra ? ' · ' + res.extra + ' extra' : '') })),
+        h('span', { text: describeOffset(res.mean * 1000) }),
+        h('span', { class: 'small', text: 'Green notes landed on time; red ones were early, late or missed.' }),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => startBtn.onclick() }, scores.length > 1 ? 'Read this one again' : 'Try again'),
+          ok && avg >= 0.85 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm, next rhythm') : '',
+          starButton(lastRes.c),
+          h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'Next rhythm →'))));
+    };
+    run = playRun({
+      first: { piece, cur }, staff, bpm, countIn: true, click: true, notes: false, phase,
+      next: chained ? () => { const c = make(); return { piece: c.piece, cur: c }; } : null,
+      show: item => { cur = item.cur; piece = item.piece; return draw(); },
+      onPieceEnd: score,
+      onEnd: () => { const f = summary; run = null; stop(); if (f) f(); }
     });
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: stop };
+  return { redraw: () => { if (!run) draw(); }, cleanup: () => stop() };
 }
 
 /* ======================================================
-   MELODY: read four bars at sight with a moving cursor
+   MELODY: read a melody at sight with a moving cursor
    ====================================================== */
 function melodyMode(root, lv, ctx) {
   const card = h('div', { class: 'card' }); root.append(card);
-  let cur = Lib.next(lv.id, 'm', () => genMelody(lv)), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
+  const make = () => Lib.next(lv.id, 'm', () => genMelody(lv, { bars: lenFor('m') }));
+  let cur = make(), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
   const src = h('p', { class: 'small sr-src' });
   const lib = libraryPanel('m', lv, id => { cur = Lib.open(id); piece = cur.piece; fresh(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
   const libBtn = libButton('m', lv, lib);
   const staffBox = h('div', { class: 'sr-staff' });
   const info = h('span', { class: 'small muted' });
   const phase = h('div', { class: 'phase', role: 'status' });
+  const runList = h('ul', { class: 'sr-run', hidden: true, 'aria-label': 'Pieces read in this run' });
   const result = h('div', { class: 'stack' });
   const live = h('span', { class: 'mono small' });
   const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'm', v); }, lv);
   const startBtn = h('button', { class: 'btn brass' }, '▶ Start reading');
   const hearBtn = h('button', { class: 'btn' }, 'Hear it');
   const newBtn = h('button', { class: 'btn ghost' }, 'Next melody');
-  const stopBtn = h('button', { class: 'btn', hidden: true, onclick: () => stop() }, '■ Stop');
+  const stopBtn = h('button', { class: 'btn small', onclick: () => stop(true) }, '■ Stop');
+  const runBar = h('div', { class: 'sr-runbar live', hidden: true }, h('div', { class: 'stack' }, phase, live), stopBtn);
   let micNoteOff = null;
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
-  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Play this at sight' }), info), src, staffBox, tempo.el,
-    h('div', { class: 'row' }, startBtn, stopBtn, hearBtn, newBtn, libBtn.el), mic.el, phase, live, result, lib.el);
+  const opts = lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
+  card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
+    h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: 'A four-bar melody in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: 'A melody of ' + piece.bars.length + ' bars in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
     info.textContent = keyName(piece.key) + ' · ' + piece.time;
     sourceLine(src, cur, 'm'); libBtn.paint();
+    return staff;
   }
-  function stop() {
+  let onStop = null;
+  function stop(byHand) {
     if (run) run.stop(); run = null;
     if (micNoteOff) micNoteOff(); micNoteOff = null;
-    ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; stopBtn.hidden = true;
+    ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; runBar.hidden = true;
+    const f = onStop; onStop = null;
+    if (byHand && f) setTimeout(f, 320); // after the piece that just ended is scored
   }
-  function fresh() { stop(); marks = {}; result.innerHTML = ''; live.textContent = ''; draw(); }
+  function fresh() { stop(); marks = {}; result.innerHTML = ''; runList.innerHTML = ''; runList.hidden = true; live.textContent = ''; draw(); }
   hearBtn.onclick = () => {
-    fresh(); ctx.setActive(true); hearBtn.disabled = true; stopBtn.hidden = false;
-    run = playPiece({ piece, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
+    fresh(); ctx.setActive(true); hearBtn.disabled = true; runBar.hidden = false;
+    run = playRun({ first: { piece }, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
     if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + pieceLength(piece)) * 60 / bpm / parseTime(piece.time).beatQ + 1.5);
   };
-  newBtn.onclick = () => { cur = Lib.next(lv.id, 'm', () => genMelody(lv)); piece = cur.piece; fresh(); };
+  newBtn.onclick = () => { cur = make(); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
     fresh(); A.ensure(); ctx.setActive(true);
-    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; stopBtn.hidden = false;
-    const listening = mic.on;
-    const ats = attacks(piece), spq = 60 / bpm / parseTime(piece.time).beatQ;
-    const judged = new Map(); // attack index -> { pitch, d }
-    const exp = [];
-    const winOf = j => { const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.08, Math.min(0.25, gap * spq * 0.5)); };
+    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; runBar.hidden = false;
+    const listening = mic.on, chained = runOn();
+    const read = []; // pieces read to the end: { seg, score }
+    const exp = [];  // every expected attack so far, across the run
+    const winOf = (seg, j) => { const ats = seg.ats; const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.08, Math.min(0.25, gap * seg.spq * 0.5)); };
     let heardN = 0, goodN = 0;
     if (listening) {
       micNoteOff = Mic.on('note', ev => {
         if (!exp.length) return;
         const t = ev.t - Mic.latencyMs() / 1000;
-        let best = -1, bd = Infinity;
-        exp.forEach(e => { const d = t - e.t; if (Math.abs(d) < Math.abs(bd)) { bd = d; best = e.k; } });
-        if (best < 0 || judged.has(best) || Math.abs(bd) > winOf(best)) return;
-        const want = ats[best].midi - 12, got = Math.round(ev.midi);
-        const pitch = got === want ? 1 : (got - want) % 12 === 0 ? 0.5 : 0;
-        judged.set(best, { pitch, d: bd, got });
-        const good = pitch === 1 && Math.abs(bd) <= winOf(best) * 0.6;
-        marks[ats[best].i] = good ? 'good' : 'bad'; markAttack(staff, piece, ats[best], marks[ats[best].i]);
+        let best = null, bd = Infinity;
+        for (let x = exp.length - 1; x >= 0 && x >= exp.length - 24; x--) { const d = t - exp[x].t; if (Math.abs(d) < Math.abs(bd)) { bd = d; best = exp[x]; } }
+        if (!best) return;
+        const seg = best.seg, j = best.j;
+        seg.judged = seg.judged || new Map();
+        if (seg.judged.has(j) || Math.abs(bd) > winOf(seg, j)) return;
+        const a = seg.ats[j], got = Math.round(ev.midi), want = (a.chord || [a.midi]).map(m => m - 12);
+        const pitch = want.includes(got) ? 1 : want.some(w => (got - w) % 12 === 0) ? 0.5 : 0;
+        seg.judged.set(j, { pitch, d: bd, got });
+        const good = pitch === 1 && Math.abs(bd) <= winOf(seg, j) * 0.6;
+        if (seg.staff === staff) { marks[a.i] = good ? 'good' : 'bad'; markAttack(staff, piece, a, marks[a.i]); }
         heardN++; if (good) goodN++;
-        live.textContent = 'Heard ' + noteLabel(ev.midi).split(' ')[0] + (pitch === 1 ? ' ✓' : ' ✗ (wanted ' + soundName(want) + ')') + ' · ' + goodN + ' of ' + heardN + ' clean';
+        live.textContent = 'Heard ' + noteLabel(ev.midi).split(' ')[0] + (pitch === 1 ? ' ✓' : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' clean';
       });
     }
-    run = playPiece({
-      piece, staff, bpm, countIn: true, click: true, notes: false, phase,
-      onExpected: e => exp.push(Object.assign({ k: exp.length }, e)),
-      onEnd: () => setTimeout(() => {
-        run = null;
-        if (micNoteOff) micNoteOff(); micNoteOff = null;
-        if (listening) finishMic(); else finishSelf();
-      }, listening ? 400 : 50)
-    });
-    function finishMic() {
+    const scoreMic = seg => {
       let sum = 0, right = 0, absD = 0, nD = 0;
-      ats.forEach((a, j) => {
+      const judged = seg.judged || new Map();
+      seg.ats.forEach((a, j) => {
         const r = judged.get(j);
-        if (!r) { marks[a.i] = 'bad'; markAttack(staff, piece, a, 'bad'); return; }
-        const timing = Math.max(0, 1 - Math.abs(r.d) / winOf(j));
+        if (!r) { if (seg.staff) markAttack(seg.staff, seg.piece, a, 'bad'); if (seg.staff === staff) marks[a.i] = 'bad'; return; }
+        const timing = Math.max(0, 1 - Math.abs(r.d) / winOf(seg, j));
         sum += r.pitch * (0.6 + 0.4 * timing);
         if (r.pitch === 1) right++;
         absD += Math.abs(r.d); nD++;
       });
-      const score = ats.length ? sum / ats.length : 0;
-      const missed = ats.length - judged.size;
-      record(score, h('span', { class: 'small', text: right + ' of ' + ats.length + ' right notes' + (missed ? ', ' + missed + ' not heard' : '') + (nD ? ' · timing ±' + Math.round(absD / nD * 1000) + ' ms' : '') + '.' }), score >= 0.9);
-    }
-    function finishSelf() {
-      stop();
+      const score = seg.ats.length ? sum / seg.ats.length : 0, missed = seg.ats.length - judged.size;
+      return { score, detail: right + ' of ' + seg.ats.length + ' right notes' + (missed ? ', ' + missed + ' not heard' : '') + (nD ? ' · timing ±' + Math.round(absD / nD * 1000) + ' ms' : '') + '.' };
+    };
+    const record = (seg, score) => {
+      const c = seg.item.cur;
+      E.record(SKILL, 'L' + lv.id + ':melody', score >= 0.75, { score });
+      Lib.record(c, lv.id, 'm', score, bpm); libBtn.paint(); if (!lib.el.hidden) lib.draw();
+      if (c === cur) sourceLine(src, cur, 'm');
+      ctx.tick(1);
+    };
+    const pieceEnd = seg => {
+      if (!listening) { read.push({ seg }); if (chained) runLine(runList, 'm', seg.item.cur, null, true); return; }
+      const r = scoreMic(seg);
+      record(seg, r.score);
+      read.push({ seg, score: r.score, detail: r.detail });
+      if (chained) runLine(runList, 'm', seg.item.cur, Math.round(r.score * 100), r.score >= 0.75);
+    };
+    const finishAll = () => {
+      if (micNoteOff) micNoteOff(); micNoteOff = null;
+      if (!read.length) return;
+      if (listening) {
+        const avg = read.reduce((a, x) => a + x.score, 0) / read.length, last = read[read.length - 1];
+        feedback(avg, read.length > 1 ? read.length + ' melodies · average ' + Math.round(avg * 100) + '%' : 'Score ' + Math.round(avg * 100) + '%', last.detail, last.score >= 0.9, last.seg.item.cur);
+      } else askSelf();
+    };
+    function askSelf() {
       result.innerHTML = '';
-      const choose = (score, clean) => record(score, null, clean);
-      result.append(h('div', { class: 'stack' }, h('b', { text: 'How did that go?' }),
+      const n = read.length;
+      const choose = (score, clean) => { read.forEach(x => record(x.seg, score)); feedback(score, null, null, clean, read[n - 1].seg.item.cur); };
+      result.append(h('div', { class: 'stack' }, h('b', { text: n > 1 ? 'How did those ' + n + ' melodies go?' : 'How did that go?' }),
         h('div', { class: 'row' },
           h('button', { class: 'btn small', onclick: () => choose(1, true) }, 'Got it all'),
           h('button', { class: 'btn small', onclick: () => choose(0.7, false) }, 'Most of it'),
           h('button', { class: 'btn small', onclick: () => choose(0.35, false) }, 'Struggled')),
-        h('div', { class: 'row' }, h('button', { class: 'btn ghost small', onclick: () => hearBtn.onclick() }, '▶ Hear it'), h('span', { class: 'small muted', text: 'Listen back and check yourself against it.' }))));
+        h('div', { class: 'row' }, h('button', { class: 'btn ghost small', onclick: () => hearBtn.onclick() }, '▶ Hear ' + (n > 1 ? 'the last one' : 'it')), h('span', { class: 'small muted', text: 'Listen back and check yourself against it.' }))));
     }
-    function record(score, detail, clean) {
-      stop();
+    function feedback(score, title, detail, clean, c) {
       const ok = score >= 0.75;
-      E.record(SKILL, 'L' + lv.id + ':melody', ok, { score });
-      Lib.record(cur, lv.id, 'm', score, bpm); sourceLine(src, cur, 'm'); libBtn.paint(); if (!lib.el.hidden) lib.draw();
-      ctx.tick(1);
       result.innerHTML = '';
       result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },
-        h('b', { text: listening ? 'Score ' + Math.round(score * 100) + '%' : ok ? 'Nice read.' : score >= 0.5 ? 'Good: read a new one at this tempo.' : 'Try it 8 bpm slower, and keep going through mistakes.' }),
-        detail,
+        h('b', { text: title || (ok ? 'Nice read.' : score >= 0.5 ? 'Good: read a new one at this tempo.' : 'Try it 8 bpm slower, and keep going through mistakes.') }),
+        detail ? h('span', { class: 'small', text: detail }) : null,
         h('div', { class: 'row' },
           h('button', { class: 'btn small', onclick: () => startBtn.onclick() }, 'Again'),
           !listening ? null : h('button', { class: 'btn small', onclick: () => hearBtn.onclick() }, '▶ Hear it'),
           clean ? h('button', { class: 'btn brass small', onclick: () => { tempo.bump(4); toast('Up to ' + bpm + ' bpm'); newBtn.onclick(); } }, '+4 bpm') : '',
           !ok && score < 0.5 ? h('button', { class: 'btn small', onclick: () => { tempo.bump(-8); toast('Down to ' + bpm + ' bpm'); } }, '−8 bpm') : null,
-          starButton(cur),
+          starButton(c),
           h('button', { class: 'btn primary small', onclick: () => newBtn.onclick() }, 'Next melody →'))));
     }
+    onStop = finishAll;
+    run = playRun({
+      first: { piece, cur }, staff, bpm, countIn: true, click: true, notes: false, phase,
+      next: chained ? () => { const c = make(); return { piece: c.piece, cur: c }; } : null,
+      show: item => { cur = item.cur; piece = item.piece; marks = {}; return draw(); },
+      onExpected: (e, seg) => exp.push(Object.assign({ seg }, e)),
+      onPieceEnd: pieceEnd,
+      onEnd: () => setTimeout(() => { run = null; stop(); finishAll(); }, listening ? 300 : 0)
+    });
   };
   draw();
   return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); mic.cleanup(); } };
