@@ -86,3 +86,5 @@ html.compact .lib-fixtools .btn { min-width: 34px; padding-inline: 6px; }
 .lib-viewer.lib-fixing:has(.lib-vinfo) { grid-template-rows: auto auto minmax(0, 1fr); }
 .lib-vbar .btn[aria-pressed="true"] { background: var(--patina); color: var(--bg); border-color: var(--patina); }
 html.compact .lib-fixtools select { flex: 1 1 40%; min-width: 0; }
+.lib-follow { margin: 0; padding: 4px 10px; font-weight: 700; }
+html.compact .lib-follow { padding: 2px 6px; font-size: 0.78rem; }
