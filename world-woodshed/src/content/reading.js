@@ -332,6 +332,25 @@ export function genRhythm(L, o = {}) {
   return { time, bars };
 }
 
+/* ---------- sharps and flats on any level ----------
+   The player's switch (settings.readingAcc) turns a level into one with accidentals: every note between its
+   lowest and highest (so sharps and flats to name in Notes), keys with sharps and flats whose tonic and five
+   scale notes fit that range (the level's own keys stay first), and chromatic passing and neighbour notes
+   in melodies. Rhythm, meter and everything else stay as the level has them. */
+const ACC_KEYS = ['G', 'F', 'D', 'Bb', 'A', 'Eb', 'Em', 'Dm', 'Bm', 'Gm'];
+export function withAccidentals(L) {
+  if (!L || !L.notes || !L.notes.length) return L;
+  const lo = Math.min(...L.notes), hi = Math.max(...L.notes);
+  const notes = chrom(lo, hi);
+  const fits = k => {
+    if (!KEYS[k]) return false;
+    const sc = keyScale(k), dia = notes.filter(n => sc.includes(n % 12));
+    return dia.length >= 5 && dia.some(n => n % 12 === KEYS[k].tonic);
+  };
+  const keys = L.keys.concat(ACC_KEYS.filter(k => !L.keys.includes(k) && fits(k)));
+  return Object.assign({}, L, { notes, keys, chromatic: Math.max(L.chromatic || 0, 0.15), acc: true });
+}
+
 /* ---------- melody generation ---------- */
 const sum = a => a.reduce((x, y) => x + y, 0);
 /* A melody: { key, time, bars: [[{midi, dur, dot?, tie?, tup?, spell?, chord?}]] }; starts and ends on the tonic.
