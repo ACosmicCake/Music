@@ -308,7 +308,7 @@ export default {
       { artist: 'Shakti with John McLaughlin', work: 'Shakti with John McLaughlin', year: 1976, kind: 'album', note: 'Start here: acoustic guitar and violin trade fast lines with tabla and ghatam, using Carnatic rhythmic ideas.' },
       { artist: 'M.S. Subbulakshmi', work: 'Sri Venkatesa Suprabhatam', year: 1963, kind: 'track', note: 'A devotional piece heard every morning across South India; listen for her steady pitch and gentle gamakas.' },
       { artist: 'M.S. Subbulakshmi', work: 'Meera', year: 1945, kind: 'film', note: 'The Tamil film in which she plays the saint Meera; her songs show the voice Carnatic instrumentalists copy.' },
-      { artist: 'K. Viswanath', work: 'Sankarabharanam', year: 1979, kind: 'film', note: 'A Telugu film about a Carnatic singer, full of kritis and ragas sung by S.P. Balasubrahmanyam and Vani Jairam.' },
+      { artist: 'K. Viswanath', work: 'Sankarabharanam', year: 1980, kind: 'film', note: 'A Telugu film about a Carnatic singer, full of kritis and ragas sung by S.P. Balasubrahmanyam and Vani Jairam.' },
       { artist: 'L. Shankar', work: 'Who’s to Know', year: 1980, kind: 'album', note: 'Violin with mridangam and tabla, including a long ragam–tanam–pallavi; hear the form unfold.' },
       { artist: 'U. Srinivas & Michael Brook', work: 'Dream', year: 1995, kind: 'album', note: 'Electric mandolin over an ambient setting; notice how Srinivas gets gamakas from a fretted instrument.' },
       { artist: 'Remember Shakti', work: 'The Believer', year: 2000, kind: 'album', note: 'John McLaughlin with U. Srinivas on mandolin and V. Selvaganesh on kanjira; fast unison lines and konnakol.' },
