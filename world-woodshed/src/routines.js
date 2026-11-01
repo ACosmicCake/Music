@@ -38,6 +38,7 @@ export const BLOCKS = {
   explorer: { name: 'Chords & scales on the neck', cat: 'fret', tool: 'explorer', skill: 'fretboard', minutes: 8, fields: [], desc: 'Map a scale or chord across the whole neck and play through it.' },
   drill: { name: 'Style drill', cat: 'music', tool: 'drill', skill: null, minutes: 10, fields: ['drill'], desc: 'An exercise from one of the styles: a backing loop, rotating variations and a tempo ladder.' },
   repertoire: { name: 'Repertoire & improvising', cat: 'music', tool: 'repertoire', skill: 'repertoire', minutes: 15, fields: ['tune'], desc: 'Loop a tune\'s changes in its groove and improvise over them.' },
+  piece: { name: 'Library piece', cat: 'music', tool: 'piece', skill: 'pieces', minutes: 15, fields: [], desc: 'A piece from your Library that you are learning: its score, notes and pages, and when it is due again.' },
   transcribe: { name: 'Transcribe a song', cat: 'music', tool: 'transcribe', skill: 'transcribe', minutes: 15, fields: ['song'], desc: 'Slow down and loop a recording, then work out the notes.' },
   free: { name: 'Free practice', cat: 'music', tool: 'free', skill: null, minutes: 10, fields: ['title', 'notes', 'bpm'], desc: 'Your own item: songs, pieces, anything. A timer, notes and an optional click.' },
   lesson: { name: 'Theory lesson', cat: 'study', tool: 'lesson', skill: null, minutes: 10, fields: ['lesson'], desc: 'Read and play through a lesson from the course.' },
@@ -46,7 +47,7 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
-export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'fretboard', 'explorer', 'drill', 'repertoire', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'fretboard', 'explorer', 'drill', 'repertoire', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',
@@ -97,6 +98,7 @@ export function describe(b) {
     case 'rhythms': { const rid = st.rhythm || (b.params && b.params.rhythm); parts.push(rid && rid !== 'auto' ? (D.RHYTHMS.find(r => r.id === rid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || E.getTune(tid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'drill': { const did = st.drill && st.drill !== 'auto' ? st.drill : b.params && b.params.drill; const dd = did && (D.DRILLS || []).find(x => x.id === did); parts.push(dd ? dd.name + ' (' + ((D.REGIONS.find(r => r.id === dd.style) || {}).name || dd.style) + ')' : 'Smart choice: from the styles you put first'); break; }
+    case 'piece': { const pid = b.params && b.params.entry, pe = pid && E.getLibEntry(pid); parts.push(pe ? pe.title : 'Smart choice: a piece you are learning'); break; }
     case 'transcribe': { const sg = st.song && st.song !== 'auto' ? E.getSong(st.song) : null; parts.push(sg ? sg.title : 'Your most recent song'); break; }
     case 'lesson': { const lid = st.lesson && st.lesson !== 'auto' ? st.lesson : b.params && b.params.lesson; parts.push(lid ? (D.LESSONS.find(l => l.id === lid) || {}).title : 'Smart choice: new lessons and reviews'); break; }
     case 'listening': case 'atlasquiz': parts.push(st.style && st.style !== 'auto' ? (D.REGIONS.find(r => r.id === st.style) || {}).name : 'Style of the week'); break;
@@ -153,6 +155,7 @@ export function paramsFor(b, used = new Set()) {
       else if (!out.drill) { const it = smart('drill'); if (it) out.drill = it.ref; }
       break;
     }
+    case 'piece': if (!out.entry) { const it = smart('piece'); if (it) out.entry = it.ref; } break;
     case 'transcribe': {
       const id = st.song && st.song !== 'auto' ? st.song : out.song || (E.listSongs()[0] || {}).id;
       if (id) out.song = id;

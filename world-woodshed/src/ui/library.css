@@ -61,3 +61,7 @@ html.compact .lib-details input[type="url"] { min-height: 44px; }
 .lib-reading progress { width: 100%; }
 html.compact .lib-barin { width: 3em; }
 html.compact .lib-bpm { min-width: 4.5em; font-size: 0.8rem; }
+
+/* a Library piece in a practice session */
+.lib-pnotes { white-space: pre-wrap; }
+.lib-practice .row { flex-wrap: wrap; }

@@ -172,3 +172,44 @@ describe('planSession', () => {
     expect(blocks.filter(b => b.isNew).length).toBeLessThanOrEqual(1);
   });
 });
+
+describe('Library pieces in the plan', () => {
+  const add = (title, status) => E.saveLibEntry({ title, status, files: [] }).id;
+  it('puts a piece you are learning into a session, and leaves out the ones you only want to learn', () => {
+    const want = add('Someday', 'want'), learning = add('Recuerdos', 'learning');
+    const blocks = Cur.planSession(45).blocks;
+    const pcs = blocks.filter(b => b.type === 'piece');
+    expect(pcs).toHaveLength(1);
+    expect(pcs[0].params.entry).toBe(learning);
+    expect(pcs[0].cur).toBe('piece:' + learning);
+    expect(Cur.catalog().some(x => x.ref === want)).toBe(false);
+  });
+  it('is not in short sessions', () => {
+    add('Recuerdos', 'learning');
+    expect(Cur.planSession(10).blocks.some(b => b.type === 'piece')).toBe(false);
+  });
+  it('brings a learned piece back only when it is due', () => {
+    const id = add('Lágrima', 'learned');
+    expect(Cur.planSession(45).blocks.some(b => b.type === 'piece')).toBe(false);
+    Cur.review('piece:' + id, 'good'); // stability 1 day
+    at(T0 + 3 * DAY);
+    const b = Cur.planSession(45).blocks.find(x => x.type === 'piece');
+    expect(b && b.params.entry).toBe(id);
+    expect(b.reason).toMatch(/Review/);
+  });
+  it('forgets a deleted piece', () => {
+    const id = add('Gone', 'learning');
+    Cur.review('piece:' + id, 'good');
+    E.deleteLibEntry(id);
+    expect(Cur.catalog().some(x => x.ref === id)).toBe(false);
+    expect(Cur.upcoming().some(x => x.id === 'piece:' + id)).toBe(false);
+    expect(Cur.planSession(45).blocks.some(b => b.type === 'piece')).toBe(false);
+  });
+  it('does not count against the daily cap on new material', () => {
+    const id = add('Recuerdos', 'learning');
+    const before = Cur.context().newMotorToday;
+    Cur.review('piece:' + id, 'good');
+    expect(Cur.context().newMotorToday).toBe(before);
+    expect(Cur.context().practisedToday('piece:' + id)).toBe(1);
+  });
+});
