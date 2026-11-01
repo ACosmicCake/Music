@@ -1,0 +1,155 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import zlib from 'zlib';
+import { binarize, staffMetrics, findStaves, lineY, rotateGray, scaleGray } from '../src/omr/image.js';
+import { recognize } from '../src/omr/recognize.js';
+import { midiOf, buildScore } from '../src/omr/assemble.js';
+import { scoreToMusicXML, valueOf, splitQ } from '../src/omr/musicxml.js';
+import { classify } from '../src/omr/classify.js';
+import { CLASSES } from '../src/omr/templates.js';
+
+/* Score recognition (src/omr/): engraved test pages made by scripts/omr/make-pages.py (Verovio) with the notes
+   they hold, read back. The full benchmark (scripts/omr/bench.mjs) runs on many more pages; these keep the
+   pipeline from sliding backwards. */
+function fixture(name) {
+  const b = zlib.gunzipSync(fs.readFileSync(new URL('./fixtures/omr/' + name + '.pgm.gz', import.meta.url)));
+  const head = b.subarray(0, 40).toString('latin1').match(/^P5\s+(\d+)\s+(\d+)\s+255\s/);
+  const w = +head[1], h = +head[2];
+  return { gray: { w, h, d: new Uint8Array(b.subarray(head[0].length, head[0].length + w * h)) }, gt: JSON.parse(fs.readFileSync(new URL('./fixtures/omr/' + name + '.json', import.meta.url), 'utf8')) };
+}
+/* the top line of each staff row's notes, in order */
+const melodyOf = (score, row = 0) => {
+  const out = [];
+  let r0 = 0;
+  score.parts.forEach(p => { p.bars.forEach(bar => (bar[row - r0] || [[]])[0].forEach(e => { if (!e.rest) out.push(Math.max(...e.pitches.map(midiOf))); })); r0 += p.staves.length; });
+  return out;
+};
+const lcs = (a, b) => {
+  const d = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) { let prev = 0; for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = a[i - 1] === b[j - 1] ? prev + 1 : Math.max(d[j], d[j - 1]); prev = t; } }
+  return d[b.length];
+};
+const wantMelody = (gt, staff = 0) => gt.notes.filter(n => n.staff === staff && !n.rest).map(n => Math.max(...n.midi));
+
+describe('finding staves', () => {
+  it('finds each staff and its five lines', () => {
+    const { gray } = fixture('val-p013');
+    const bin = binarize(gray), m = staffMetrics(bin), st = findStaves(bin, m);
+    expect(m.space).toBeGreaterThan(10);
+    expect(st.filter(s => !s.tab)).toHaveLength(6); // three systems of a piano's two staves
+    st.forEach(s => {
+      const gap = (lineY(s, 4, (s.x0 + s.x1) / 2) - lineY(s, 0, (s.x0 + s.x1) / 2)) / 4;
+      expect(Math.abs(gap - m.space)).toBeLessThan(2);
+    });
+  });
+});
+
+describe('reading a page', () => {
+  it('reads a printed melody: bars, time, key and the notes in order', () => {
+    const { gray, gt } = fixture('val-p015');
+    const score = recognize([gray]);
+    expect(score.counts.bars).toBe(gt.meta.bars);
+    expect(score.time.num + '/' + score.time.den).toBe(gt.meta.time);
+    expect(score.fifths).toBe(gt.meta.fifths);
+    const want = wantMelody(gt), got = melodyOf(score);
+    expect(lcs(want, got) / want.length).toBeGreaterThan(0.9);
+  });
+
+  it('reads a piano score into one part on two staves', () => {
+    const { gray, gt } = fixture('val-p013');
+    const score = recognize([gray]);
+    expect(score.parts).toHaveLength(1);
+    expect(score.parts[0].staves).toEqual(['G', 'F']);
+    expect(score.counts.bars).toBe(gt.meta.bars);
+    const want = wantMelody(gt), got = melodyOf(score);
+    expect(lcs(want, got) / want.length).toBeGreaterThan(0.85);
+  });
+
+  it('reads a page photographed at a slant, on grey grainy paper', () => {
+    const { gray, gt } = fixture('val-p015');
+    // bigger (a phone photo, so the scaling blurs it), turned 2°, grey paper and noise
+    let g = scaleGray(gray, 1.6);
+    const pad = { w: g.w, h: g.h + 200, d: new Uint8Array(g.w * (g.h + 200)).fill(235) };
+    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) pad.d[(y + 100) * g.w + x] = Math.min(235, g.d[y * g.w + x]);
+    g = rotateGray(pad, -0.035);
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < g.d.length; i++) g.d[i] = Math.max(0, Math.min(255, g.d[i] * 0.85 + (rnd() - 0.5) * 30));
+    const score = recognize([g]);
+    const want = wantMelody(gt), got = melodyOf(score);
+    expect(lcs(want, got) / want.length).toBeGreaterThan(0.8);
+  });
+
+  it('finds nothing on a blank page', () => {
+    const blank = { w: 600, h: 800, d: new Uint8Array(600 * 800).fill(240) };
+    const score = recognize([blank]);
+    expect(score === null || score.counts.notes === 0).toBe(true);
+  });
+});
+
+describe('the symbol classifier', () => {
+  it('has examples of every class it can name', () => {
+    ['clefG', 'clefF', 'sharp', 'flat', 'natural', 'rest4', 'rest8', 'rest16', 'restW', 'restH', 'note', 'other'].forEach(c => expect(CLASSES).toContain(c));
+    // a solid block a space wide and half a space tall is a rest (whole or half), not a clef
+    const grid = new Float32Array(60).fill(1);
+    const r = classify({ w: 1.2, h: 0.5, fill: 1, grid });
+    expect(r && r.cls).toMatch(/^rest[WH]$/);
+  });
+});
+
+describe('writing MusicXML', () => {
+  it('names note values, and splits lengths no single value writes', () => {
+    expect(valueOf(1)).toEqual({ type: 'quarter', dots: 0 });
+    expect(valueOf(1.5)).toEqual({ type: 'quarter', dots: 1 });
+    expect(valueOf(3.5)).toEqual({ type: 'half', dots: 2 });
+    expect(valueOf(1.25)).toBe(null);
+    expect(splitQ(1.25)).toEqual([1, 0.25]);
+    expect(splitQ(2.75)).toEqual([2, 0.5, 0.25]);
+  });
+
+  it('writes parts, staves, voices, chords, triplets and the bars to check', () => {
+    const ev = (q, pitches, extra = {}) => Object.assign({ q, dots: 0, voice: 0, pitches }, extra);
+    const C4 = { step: 'C', octave: 4, alter: 0 }, E4 = { step: 'E', octave: 4, alter: 0 }, Fs4 = { step: 'F', octave: 4, alter: 1, acc: 1 };
+    const score = {
+      title: 'T', time: { num: 2, den: 4 }, fifths: 1, pickup: 0,
+      parts: [{ name: 'Piano', staves: ['G', 'F'], bars: [
+        [[[ev(1, [C4, E4]), ev(1 / 3, [Fs4], { tuplet: 'start' }), ev(1 / 3, [C4], { tuplet: 'mid' }), ev(1 / 3, [C4], { tuplet: 'stop' })]], [[{ q: 2, rest: true, full: true }]]],
+        [[[ev(1.25, [C4]), { q: 0.75, rest: true, dots: 0 }]], [[ev(2, [C4])]]]
+      ] }],
+      warnings: [], counts: {}
+    };
+    const xml = scoreToMusicXML(score, { bpm: 90, check: [2] });
+    expect(xml).toContain('<staves>2</staves>');
+    expect(xml).toContain('<clef number="2"><sign>F</sign><line>4</line></clef>');
+    expect(xml).toContain('<chord/>');
+    expect(xml).toContain('<actual-notes>3</actual-notes>');
+    expect(xml).toContain('<accidental>sharp</accidental>');
+    expect(xml).toContain('<rest measure="yes"/>');
+    expect(xml).toContain('<tie type="start"/>'); // 1¼ beats is a quarter tied to a sixteenth
+    expect(xml).toContain('<per-minute>90</per-minute>');
+    expect(xml).toContain('<miscellaneous-field name="ww-check-bars">2</miscellaneous-field>');
+    // every bar of every voice fills its length (2 beats × 24 divisions)
+    const measures = xml.split('<measure ').slice(1);
+    measures.forEach(m => {
+      const voices = m.split('<backup>');
+      voices.forEach(v => {
+        let t = 0;
+        v.replace(/<note>(<chord\/>)?.*?<duration>(\d+)<\/duration>/g, (_, chord, d) => { if (!chord) t += Number(d); return ''; });
+        v.replace(/<forward><duration>(\d+)/g, (_, d) => { t += Number(d); return ''; });
+        expect(t).toBe(48);
+      });
+    });
+  });
+
+  it('turns a page that was read into MusicXML that keeps every note', () => {
+    const { gray } = fixture('val-p015');
+    const score = recognize([gray]);
+    const xml = scoreToMusicXML(score);
+    const n = (xml.match(/<pitch>/g) || []).length;
+    expect(n).toBeGreaterThanOrEqual(score.counts.notes); // tied pieces may add a few
+  });
+
+  it('builds nothing from no pages', () => {
+    expect(buildScore([])).toBe(null);
+  });
+});
