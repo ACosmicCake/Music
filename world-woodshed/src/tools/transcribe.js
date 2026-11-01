@@ -7,7 +7,7 @@ import { detectPitch } from '../listen.js';
 import './transcribe.css';
 import { TRANSCRIBE_META } from './transcribe-lazy.js';
 import TN from '../mytunes.js';
-import { keepAwake } from '../native.js';
+import { keepAwake, isNative } from '../native.js';
 
 export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
@@ -56,53 +56,80 @@ export default function transcribe(UI) {
     };
   })();
 
-  /* ---------- time-stretch: worker with main-thread fallback ---------- */
-  let worker = null, wid = 0;
-  const pending = new Map();
-  const CACHE_SAMPLES = 12e6; // stretched audio kept for replays, in samples (about 48 MB): a few loops, or one long stretch
+  /* ---------- time-stretch: streamed from a worker, with a main-thread fallback ----------
+     One stretch runs at a time. It hands its result back in blocks as it goes (Stretch.stream), so
+     playback starts with the first block instead of waiting for the whole song; starting another
+     stretch cancels the one running (the worker is ended, which is the only way to stop it mid-job). */
+  let worker = null, current = null, wid = 0;
+  const CACHE_SAMPLES = 12e6; // finished stretches kept for replays, in samples (about 48 MB): a few loops, or one long stretch
+  function cancelStretch() {
+    const run = current;
+    if (!run) return;
+    current = null; run.cancelled = true;
+    if (run.viaWorker && worker) { worker.terminate(); worker = null; }
+  }
   function getWorker() {
     if (worker !== null) return worker;
     try {
       worker = new Worker(new URL('../stretch.worker.js', import.meta.url), { type: 'module' });
       worker.onmessage = e => {
-        const m = e.data, p = pending.get(m.id);
-        if (!p) return;
-        if (m.type === 'progress') { p.onProgress && p.onProgress(m.progress); return; }
-        pending.delete(m.id);
-        if (m.error) p.reject(new Error(m.error)); else p.resolve(m.channels);
+        const m = e.data, run = current;
+        if (!run || run.id !== m.id) return;
+        if (m.type === 'chunk') { run.got = true; run.job.onChunk(m.channels); }
+        else run.finish(m.error ? new Error(m.error) : null);
       };
       worker.onerror = ev => {
         if (ev && ev.preventDefault) ev.preventDefault();
         worker = false;
-        const list = [...pending.values()]; pending.clear();
-        list.forEach(p => p.fallback());
+        // the worker could not start (or died): carry on here, from the start of the job
+        const run = current;
+        if (run && run.viaWorker && !run.got) runLocal(run);
+        else if (run) run.finish(new Error('the audio worker stopped'));
       };
     } catch (e) { worker = false; }
     return worker;
   }
-  /* getChannels() gives a fresh copy of the audio to stretch: the worker is handed it outright (transferred,
-     not copied, so a whole song isn't held twice), and the main-thread fallback asks for another */
-  function stretch(getChannels, sr, speed, semis, onProgress) {
-    return new Promise((resolve, reject) => {
-      const runLocal = () => setTimeout(() => {
-        try { resolve(Stretch.process(getChannels(), sr, speed, semis, null)); } catch (e) { reject(e); }
-      }, 30);
-      const w = getWorker();
-      if (!w) { runLocal(); return; }
-      const id = ++wid;
-      pending.set(id, { resolve, reject, onProgress, fallback: runLocal });
-      try { const channels = getChannels(); w.postMessage({ id, channels, sr, speed, semitones: semis }, channels.map(c => c.buffer)); }
-      catch (e) { pending.delete(id); runLocal(); }
-    });
+  /* main thread, a few milliseconds at a time between frames */
+  function runLocal(run) {
+    run.viaWorker = false;
+    const j = run.job;
+    let gen;
+    try { gen = Stretch.stream(j.getChannels(), j.sr, j.speed, j.semis, j.first, j.block); } catch (e) { run.finish(e); return; }
+    const step = () => {
+      if (run.cancelled) return;
+      const t0 = performance.now();
+      try {
+        while (performance.now() - t0 < 12) {
+          const r = gen.next();
+          if (r.done) { run.finish(null); return; }
+          if (r.value) { run.got = true; j.onChunk(r.value); }
+          if (run.cancelled) return;
+        }
+      } catch (e) { run.finish(e); return; }
+      setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
   }
-
-  // Leaving Transcribe mid-stretch: stop the worker (it holds its own copy of the audio) and drop the
-  // waiting requests, whose closures would otherwise keep the whole song in memory until the job ended.
-  function cancelStretches() {
-    if (!pending.size) return;
-    const list = [...pending.values()]; pending.clear();
-    if (worker) { worker.terminate(); worker = null; }
-    list.forEach(p => p.reject(new Error('cancelled')));
+  /* job: { getChannels() (a fresh copy of the audio to stretch: the worker is handed it outright, so a
+     whole song isn't held twice), sr, speed, semis, first, block, onChunk(channels), onDone(error) } */
+  function runStretch(job) {
+    cancelStretch();
+    const run = { id: ++wid, job, cancelled: false, viaWorker: false, got: false };
+    run.finish = err => {
+      if (run.cancelled) return;
+      run.cancelled = true;
+      if (current === run) current = null;
+      job.onDone(err);
+    };
+    current = run;
+    const w = getWorker();
+    if (!w) { runLocal(run); return run; }
+    run.viaWorker = true;
+    try {
+      const channels = job.getChannels();
+      w.postMessage({ id: run.id, channels, sr: job.sr, speed: job.speed, semitones: job.semis, first: job.first, block: job.block }, channels.map(c => c.buffer));
+    } catch (e) { runLocal(run); }
+    return run;
   }
 
   /* ---------- FFT + note finder ---------- */
@@ -491,13 +518,13 @@ export default function transcribe(UI) {
     render(body, ctx) {
       const P = {
         setup: null, buffer: null, mono: null, peaks: null, dur: 0, sr: 44100, file: null, videoUrl: null,
-        playing: false, src: null, chain: null, startCtx: 0, startOrig: 0, pausePos: 0, token: 0,
+        playing: false, srcs: [], fade: null, unsub: null, jobs: [], orig: null, chain: null, startCtx: 0, startOrig: 0, pausePos: 0, token: 0,
         speed: 1, semis: 0, mode: 'full', eq: { lowcut: 20, highcut: 20000, volume: 1 },
         loopOn: false, a: null, b: null, gap: 0.5, countIn: false, bpm: null, reps: 0,
         trainer: { on: false, start: 60, step: 5, every: 3, target: 100 },
-        cache: [], view: [0, 1], raf: 0, alive: true,
+        view: [0, 1], raf: 0, alive: true,
         bpmSrc: null, grid: { offset: null, bpb: 4, snap: false, show: true },
-        est: null, ds: null, dsr: 0, anToken: 0, wantPlay: false
+        est: null, ds: null, dsr: 0, anToken: 0, wantPlay: false, gain: 0.95, full: false, fsApi: false, followHold: 0
       };
       const GRID0 = { offset: null, bpb: 4, snap: false, show: true };
       const EST_V = 1;
@@ -562,7 +589,7 @@ export default function transcribe(UI) {
           const buf = await new Promise((res, rej) => { const p = ac.decodeAudioData(arr, res, rej); if (p && p.then) p.then(res, rej); });
           if (!P.alive) return;
           P.buffer = buf; P.dur = buf.duration; P.sr = buf.sampleRate; P.file = file;
-          P.cache = [];
+          dropJobs();
           // mono mix + peaks for waveform and note finding
           const L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
           P.mono = new Float32Array(L.length);
@@ -576,6 +603,10 @@ export default function transcribe(UI) {
             mn[bI] = lo; mx[bI] = hi;
           }
           P.peaks = { blk, mn, mx };
+          // the waveform is drawn scaled to the loudest moment, so a quiet recording still fills it
+          let pk = 0;
+          for (let i = 0; i < nb; i++) pk = Math.max(pk, mx[i], -mn[i]);
+          P.gain = 0.95 / Math.max(0.08, pk);
           P.view = [0, P.dur];
           if (existingSetup) { P.setup = existingSetup; applySetup(existingSetup); }
           else {
@@ -602,7 +633,10 @@ export default function transcribe(UI) {
         }
       }
 
-      /* ----- playback ----- */
+      /* ----- playback -----
+         What plays is a "job": the song as recorded, or a stretched stretch of it (speed, transpose) that
+         arrives in blocks. A pass schedules the blocks back to back as they come, from `from` to the end
+         of the region, so a slowed-down song starts within a moment wherever the playhead is. */
       function curPos() {
         if (!P.playing) return P.pausePos;
         const ac = A.ensure();
@@ -613,88 +647,166 @@ export default function transcribe(UI) {
         if (P.loopOn && P.a !== null && P.b - P.a > 0.05) return { a: P.a, b: P.b };
         return { a: 0, b: P.dur };
       }
-      async function playable(rg, onProgress) {
-        if (P.speed === 1 && P.semis === 0) return { buffer: P.buffer, a: 0 };
-        const key = [rg.a.toFixed(3), rg.b.toFixed(3), P.speed, P.semis].join('|');
-        const hit = P.cache.find(c => c.key === key);
-        if (hit) return hit;
-        // Stretch a little audio either side of the loop so its edges sound like the middle.
-        const pad = Math.round(P.sr * 0.25);
-        const s0 = Math.max(0, Math.floor(rg.a * P.sr) - pad), s1 = Math.min(P.buffer.length, Math.ceil(rg.b * P.sr) + pad);
-        const src = P.buffer;
-        const chans = () => Array.from({ length: src.numberOfChannels }, (_, c) => src.getChannelData(c).slice(s0, s1));
-        const res = await stretch(chans, P.sr, P.speed, P.semis, onProgress);
-        const ac = A.ensure();
-        const out = ac.createBuffer(res.length, res[0].length, P.sr);
-        res.forEach((ch, i) => out.copyToChannel(ch, i));
-        const entry = { key, buffer: out, a: s0 / P.sr };
-        // keep the last few versions while they are small (loops); a slowed-down whole song is kept alone,
-        // since three of them could run a phone out of memory
-        P.cache.unshift(entry);
+      const needsStretch = () => !(P.speed === 1 && P.semis === 0);
+      const PAD = 0.25; // seconds stretched either side, so a loop's edges sound like its middle
+      function originalJob() {
+        if (!P.orig || P.orig.chunks[0].buffer !== P.buffer) {
+          P.orig = { key: '1|0', speed: 1, s0: 0, s1: P.buffer.length, outLen: P.buffer.length, chunks: [{ o: 0, buffer: P.buffer }], got: P.buffer.length, done: true, subs: new Set() };
+        }
+        return P.orig;
+      }
+      /* a job that will play from..to (seconds) at the current speed and pitch: one already made or
+         under way if it covers them, otherwise a new one starting at `from` */
+      function jobFor(from, to) {
+        if (!needsStretch()) return originalJob();
+        const sr = P.sr, key = P.speed + '|' + P.semis, f = Math.round(from * sr), e = Math.min(P.buffer.length, Math.round(to * sr));
+        const usable = j => j.key === key && !j.err && j.s0 <= f && j.s1 >= e &&
+          (j.done || (j.running && f <= j.s0 + j.got * j.speed + 4 * sr)); // a running one gets there in a moment
+        let J = P.jobs.find(usable);
+        if (J) { P.jobs = [J, ...P.jobs.filter(j => j !== J)]; return J; }
+        // only one runs at a time: a new one ends the old, which is dropped if unfinished
+        P.jobs = P.jobs.filter(j => j.done);
+        const pad = Math.round(PAD * sr), s0 = Math.max(0, f - pad), s1 = Math.min(P.buffer.length, e + pad), speed = P.speed;
+        J = { key, speed, semis: P.semis, s0, s1, outLen: Math.max(1, Math.round((s1 - s0) / speed)), chunks: [], got: 0, done: false, running: true, err: null, subs: new Set() };
+        const src = P.buffer, nCh = src.numberOfChannels;
+        const notify = () => J.subs.forEach(fn => fn());
+        runStretch({
+          getChannels: () => Array.from({ length: nCh }, (_, c) => src.getChannelData(c).slice(s0, s1)),
+          sr, speed, semis: P.semis,
+          // the first block reaches a little past `from`, so playback can start as soon as it lands
+          first: Math.round((f - s0) / speed + 0.6 * sr), block: Math.round(2 * sr),
+          onChunk: chs => {
+            if (!P.alive || P.buffer !== src) return;
+            const n = Math.min(chs[0].length, J.outLen - J.got);
+            if (n <= 0) return;
+            const buf = A.ensure().createBuffer(chs.length, n, sr);
+            chs.forEach((ch, i) => buf.copyToChannel(n < ch.length ? ch.subarray(0, n) : ch, i));
+            J.chunks.push({ o: J.got, buffer: buf }); J.got += n;
+            notify();
+          },
+          onDone: err => {
+            J.running = false;
+            if (err) { J.err = err.message || String(err); P.jobs = P.jobs.filter(j => j !== J); }
+            else { J.done = true; J.outLen = J.got; }
+            notify();
+            trimJobs();
+          }
+        });
+        P.jobs.unshift(J);
+        trimJobs();
+        return J;
+      }
+      // keep the newest few finished stretches while they are small (loops); a slowed-down whole song
+      // is kept alone, since three of them could run a phone out of memory
+      function trimJobs() {
         let kept = 0;
-        P.cache = P.cache.filter((c, i) => { kept += c.buffer.length * c.buffer.numberOfChannels; return i === 0 || (i < 3 && kept <= CACHE_SAMPLES); });
-        return entry;
+        P.jobs = P.jobs.filter((j, i) => {
+          if (!j.done) return true;
+          kept += j.outLen * P.buffer.numberOfChannels;
+          return i === 0 || (i < 4 && kept <= CACHE_SAMPLES);
+        });
+      }
+      function dropJobs() { cancelStretch(); P.jobs = []; P.orig = null; }
+      /* while paused at a new speed or loop, start stretching so Play is instant */
+      let prefetchT = null;
+      function prefetch() {
+        clearTimeout(prefetchT);
+        prefetchT = setTimeout(() => {
+          if (!P.alive || !P.buffer || P.wantPlay || !needsStretch()) return;
+          const rg = region();
+          let from = P.pausePos;
+          if (from < rg.a || from >= rg.b - 0.05) from = rg.a;
+          jobFor(from, rg.b);
+        }, 300);
       }
       function stopSource() {
         P.token++;
-        if (P.src) { P.src.onended = null; try { P.src.stop(); } catch (e) { /* ignore */ } try { P.src.disconnect(); } catch (e) { /* ignore */ } }
-        P.src = null;
+        if (P.unsub) { P.unsub(); P.unsub = null; }
+        P.srcs.forEach(src => { src.onended = null; try { src.stop(); } catch (e) { /* ignore */ } try { src.disconnect(); } catch (e) { /* ignore */ } });
+        P.srcs = [];
+        if (P.fade) { try { P.fade.disconnect(); } catch (e) { /* ignore */ } P.fade = null; }
         if (P.chain) { P.chain.disconnect(); P.chain = null; }
+        P.playing = false;
       }
       function stop() {
         if (P.playing) P.pausePos = curPos();
         stopSource();
-        P.playing = false; P.wantPlay = false;
+        P.wantPlay = false;
+        setStatus('');
         if (vid) vid.pause();
         ctx.setActive(false);
         refreshTransport();
       }
-      async function play(from) {
+      function play(from) {
         stopSource();
         const token = P.token;
         const rg = region();
         if (from === undefined || from === null) from = P.pausePos;
         if (from < rg.a || from >= rg.b - 0.05) from = rg.a;
         P.pausePos = from; P.wantPlay = true;
-        setStatus('');
-        let entry;
-        const needs = !(P.speed === 1 && P.semis === 0);
-        if (needs) setStatus('Preparing ' + Math.round(P.speed * 100) + '% speed' + (P.semis ? ', ' + (P.semis > 0 ? '+' : '') + P.semis + ' semitones' : '') + '…', 0);
-        try { entry = await playable(rg, p => { if (token === P.token) setStatus(null, p); }); }
-        catch (e) { if (!P.alive) return; setStatus('Could not process the audio: ' + e.message); P.wantPlay = false; refreshTransport(); return; }
-        if (token !== P.token || !P.alive) return;
-        setStatus('');
+        const J = jobFor(from, rg.b);
+        const sr = P.sr, sp = J.speed;
+        const n0 = clamp(Math.round((from * sr - J.s0) / sp), 0, J.outLen - 1);
+        let n1 = clamp(Math.round((rg.b * sr - J.s0) / sp), n0 + 1, J.outLen);
         const ac = A.ensure();
-        P.chain = buildChain(ac, P.mode, P.eq);
-        const src = ac.createBufferSource();
-        src.buffer = entry.buffer;
-        const rate = needs ? P.speed : 1;
-        const offset = (from - entry.a) / rate;
-        const length = Math.max(0.01, (rg.b - from) / rate);
-        let when = ac.currentTime + 0.06;
-        if (P.countIn && P.bpm) {
-          const beat = 60 / (P.bpm * P.speed);
-          for (let i = 0; i < 4; i++) A.hit(i === 0 ? 'clickHi' : 'click', when + i * beat, 0.9);
-          when += 4 * beat;
-        }
-        // short fades so loop starts and ends don't click
-        const fade = ac.createGain(), f = Math.min(0.008, length / 4);
-        fade.gain.setValueAtTime(0, when);
-        fade.gain.linearRampToValueAtTime(1, when + f);
-        fade.gain.setValueAtTime(1, when + length - f);
-        fade.gain.linearRampToValueAtTime(0, when + length);
-        src.connect(fade); fade.connect(P.chain.input);
-        P.chain.nodes.push(fade);
-        src.start(when, Math.max(0, offset), length);
-        P.src = src; P.startCtx = when; P.startOrig = from; P.playing = true;
-        ctx.setActive(true);
-        src.onended = () => { if (P.src !== src) return; passEnded(); };
-        if (vid) {
-          try { vid.playbackRate = clamp(P.speed, 0.25, 4); } catch (e) { /* ignore */ }
-          vid.currentTime = from;
-          const delay = Math.max(0, (when - ac.currentTime) * 1000);
-          setTimeout(() => { if (P.src === src && vid) vid.play().catch(() => {}); }, delay);
-        }
+        let when = null, next = n0, fade = null;
+        const pump = () => {
+          if (token !== P.token || !P.alive) return;
+          if (J.err) { setStatus('Could not process the audio: ' + J.err); stopSource(); P.wantPlay = false; refreshTransport(); return; }
+          if (J.done) n1 = Math.min(n1, J.outLen);
+          let ci = 0;
+          while (next < n1) {
+            while (ci < J.chunks.length && J.chunks[ci].o + J.chunks[ci].buffer.length <= next) ci++;
+            const ch = J.chunks[ci];
+            if (!ch || ch.o > next) break;
+            if (when === null) {
+              // the first block is here: start the pass (a sample-exact start keeps the blocks seamless)
+              setStatus('');
+              when = Math.ceil((ac.currentTime + 0.06) * sr) / sr;
+              if (P.countIn && P.bpm) {
+                const beat = 60 / (P.bpm * P.speed);
+                for (let i = 0; i < 4; i++) A.hit(i === 0 ? 'clickHi' : 'click', when + i * beat, 0.9);
+                when += Math.round(4 * beat * sr) / sr;
+              }
+              P.chain = buildChain(ac, P.mode, P.eq);
+              fade = P.fade = ac.createGain(); fade.connect(P.chain.input);
+              // short fades so loop starts and ends don't click
+              fade.gain.setValueAtTime(0, when); fade.gain.linearRampToValueAtTime(1, when + 0.008);
+              P.startCtx = when; P.startOrig = from; P.playing = true;
+              ctx.setActive(true);
+              if (vid) {
+                try { vid.playbackRate = clamp(P.speed, 0.25, 4); } catch (e) { /* ignore */ }
+                vid.currentTime = from;
+                const delay = Math.max(0, (when - ac.currentTime) * 1000);
+                setTimeout(() => { if (token === P.token && vid) vid.play().catch(() => {}); }, delay);
+              }
+              refreshTransport();
+            }
+            let at = when + (next - n0) / sr;
+            const late = ac.currentTime + 0.02 - at;
+            if (late > 0) { // the stretch fell behind: carry on a moment later and keep the playhead honest
+              const d = Math.ceil(late * sr) / sr;
+              when += d; P.startCtx += d; at += d;
+            }
+            const end = Math.min(n1, ch.o + ch.buffer.length);
+            const src = ac.createBufferSource();
+            src.buffer = ch.buffer; src.connect(fade);
+            src.start(at, (next - ch.o) / sr, (end - next) / sr);
+            P.srcs.push(src);
+            src.onended = () => { const i = P.srcs.indexOf(src); if (i >= 0) P.srcs.splice(i, 1); };
+            next = end;
+            if (end >= n1) {
+              const fin = when + (n1 - n0) / sr, f = Math.min(0.008, (n1 - n0) / sr / 4);
+              fade.gain.setValueAtTime(1, Math.max(when + 0.008, fin - f)); fade.gain.linearRampToValueAtTime(0, fin);
+              src.onended = () => { if (token === P.token) passEnded(); };
+            }
+          }
+          if (when === null && !J.done) setStatus('Preparing ' + Math.round(P.speed * 100) + '% speed' + (P.semis ? ', ' + (P.semis > 0 ? '+' : '') + P.semis + ' semitones' : '') + '…');
+          if (next >= n1 || J.done) { J.subs.delete(pump); if (P.unsub === unsub) P.unsub = null; }
+        };
+        const unsub = () => J.subs.delete(pump);
+        J.subs.add(pump); P.unsub = unsub;
+        pump();
         refreshTransport();
       }
       function passEnded() {
@@ -709,17 +821,18 @@ export default function transcribe(UI) {
             renderSpeed(); persist();
           }
           repsLbl.textContent = 'Loop passes: ' + P.reps;
-          stopSource(); P.playing = false;
+          stopSource();
           const token = P.token;
-          const go = () => { if (token === P.token && P.alive) play(P.a); };
+          const go = () => { if (token === P.token && P.alive && P.wantPlay) play(P.a); };
           if (changed) go(); else setTimeout(go, P.gap * 1000);
           refreshTransport();
-        } else { P.playing = false; P.wantPlay = false; stopSource(); if (vid) vid.pause(); ctx.setActive(false); refreshTransport(); }
+        } else { P.wantPlay = false; stopSource(); if (vid) vid.pause(); ctx.setActive(false); refreshTransport(); }
       }
-      function restartIfPlaying() { if (P.playing) play(curPos()); }
+      // starts again from where it is (after a change of speed, loop or region), if it is meant to be playing
+      function restartIfPlaying() { if (P.wantPlay) play(curPos()); else prefetch(); }
 
       /* ----- UI ----- */
-      let canvas, wctx, waveCache, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
+      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
       let hlFret;
       function setStatus(msg, prog) {
         if (!statusEl) return;
@@ -732,77 +845,87 @@ export default function transcribe(UI) {
         root.querySelectorAll('.tr-ui').forEach(n => n.remove());
         const st = P.setup;
 
-        /* Song card */
-        const titleIn = h('input', { type: 'text', id: 'tr-title', value: st.title || '', 'aria-label': 'Song title' });
-        titleIn.addEventListener('input', () => { st.title = titleIn.value.trim() || 'Untitled'; persist(); msSetup(); });
-        const linkIn = h('input', { type: 'text', id: 'tr-link', value: st.link || '', placeholder: 'YouTube or other reference link', 'aria-label': 'Reference link' });
-        const linkA = h('a', { target: '_blank', rel: 'noopener', class: 'small' }, 'Open link ↗');
-        const syncLink = () => { const v = webLink(linkIn.value.trim()); linkA.hidden = !v; if (v) linkA.href = v; };
-        linkIn.addEventListener('input', () => { st.link = linkIn.value.trim(); syncLink(); persist(); });
-        syncLink();
-        root.append(h('div', { class: 'card tr-ui' },
-          h('label', { class: 'stack', for: 'tr-title' }, h('span', { class: 'eyebrow', text: 'Song' }), titleIn),
-          h('label', { class: 'stack', for: 'tr-link' }, h('span', { class: 'eyebrow', text: 'Reference link' }), linkIn), linkA,
-          h('div', { class: 'spread' }, h('span', { class: 'small muted mono', text: st.fileName + ' · ' + fmt(P.dur) + (P.buffer.numberOfChannels > 1 ? ' · stereo' : ' · mono') }), savedLbl),
-          h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => fileInput.click() }, 'Replace audio file'))));
-
-        /* Player card */
-        const player = h('div', { class: 'card tr-ui' });
+        /* Player card: the waveform, its zoom and the loop markers */
+        const player = playerEl = h('div', { class: 'card tr-ui tr-player' });
+        titleH = h('h2', { class: 'tr-title', text: st.title || 'Untitled' });
         if (P.videoUrl) {
           vid = h('video', { class: 'tr-video', muted: true, playsinline: true, preload: 'auto' });
           vid.muted = true;
           vid.addEventListener('error', () => { if (vid) { vid.remove(); vid = null; } });
           vid.src = P.videoUrl;
-          player.append(vid);
         } else vid = null;
-        canvas = h('canvas', { class: 'wave', 'aria-label': 'Waveform. Tap to move the playhead, drag to select a loop.' });
+        canvas = h('canvas', { class: 'wave', 'aria-label': 'Waveform. Tap to move the playhead, drag to select a loop, pinch to zoom.' });
         wctx = canvas.getContext('2d');
+        ovCanvas = h('canvas', { class: 'wave-ov', 'aria-label': 'The whole song. Tap or drag to move the zoomed view.' });
+        ovCtx = ovCanvas.getContext('2d');
         timeLbl = h('span', { class: 'mono' }); loopLbl = h('span', { class: 'mono small muted' });
-        playBtn = h('button', { class: 'btn primary', onclick: () => (P.playing ? stop() : play()) }, '▶ Play');
-        loopBtn = h('button', { class: 'btn', 'aria-pressed': 'false', onclick: () => { if (P.a === null) { toast('Set A and B first, or drag on the waveform'); return; } P.loopOn = !P.loopOn; persist(); refreshTransport(); restartIfPlaying(); } }, 'Loop');
-        const back = h('button', { class: 'btn small', onclick: () => seek(curPos() - 5) }, '−5 s');
-        const fwd = h('button', { class: 'btn small', onclick: () => seek(curPos() + 5) }, '+5 s');
+        const back = h('button', { class: 'btn small', 'aria-label': 'Back 5 seconds', onclick: () => seek(curPos() - 5) }, '−5 s');
+        const fwd = h('button', { class: 'btn small', 'aria-label': 'Forward 5 seconds', onclick: () => seek(curPos() + 5) }, '+5 s');
         const setA = h('button', { class: 'btn small', onclick: ev => markA(ev.shiftKey) }, 'Set A');
         const setB = h('button', { class: 'btn small', onclick: ev => markB(ev.shiftKey, false) }, 'Set B');
         const clearL = h('button', { class: 'btn small ghost', onclick: () => { P.a = P.b = null; P.loopOn = false; drawStatic(); persist(); refreshTransport(); restartIfPlaying(); } }, 'Clear loop');
-        const nudge = (which, d) => h('button', { class: 'btn small ghost', onclick: () => {
+        const nudge = (which, d) => h('button', { class: 'btn small ghost', 'aria-label': 'Move ' + which.toUpperCase() + (d < 0 ? ' earlier' : ' later'), onclick: () => {
           if (P.a === null) return;
           const dd = snapping() ? Math.sign(d) * 60 / P.bpm : d; // with snapping on, nudge by a beat
           if (which === 'a') P.a = clamp(P.a + dd, 0, P.b - 0.1); else P.b = clamp(P.b + dd, P.a + 0.1, P.dur);
           drawStatic(); persist(); refreshTransport(); restartIfPlaying();
         } }, (which === 'a' ? 'A ' : 'B ') + (d < 0 ? '◂' : '▸'));
-        const zoomRow = h('div', { class: 'row' },
+        fsBtn = h('button', { class: 'btn small tr-fs-btn', onclick: () => setFull(!P.full) }, '⛶ Full screen');
+        const zoomRow = h('div', { class: 'row tr-zoomrow' },
           h('button', { class: 'btn small ghost', onclick: () => { P.view = [0, P.dur]; drawStatic(); } }, 'Whole song'),
-          h('button', { class: 'btn small ghost', onclick: () => { if (P.a === null) return; const pad = Math.max(0.3, (P.b - P.a) * 0.15); P.view = [Math.max(0, P.a - pad), Math.min(P.dur, P.b + pad)]; drawStatic(); } }, 'Zoom to loop'),
+          h('button', { class: 'btn small ghost', onclick: zoomToLoop }, 'Zoom to loop'),
+          h('button', { class: 'btn small ghost', 'aria-label': 'Zoom out', onclick: () => zoom(2) }, '−'),
           h('button', { class: 'btn small ghost', 'aria-label': 'Zoom in', onclick: () => zoom(0.5) }, '+'),
-          h('button', { class: 'btn small ghost', 'aria-label': 'Zoom out', onclick: () => zoom(2) }, '−'));
+          fsBtn);
         statusEl = h('div', { class: 'small', hidden: true });
         statusBar = bar(0, 'brass'); statusBar.hidden = true;
         repsLbl = h('span', { class: 'small muted mono', text: '' });
-        player.append(h('div', { class: 'wave-wrap' }, canvas), h('div', { class: 'spread' }, timeLbl, loopLbl), zoomRow,
-          h('div', { class: 'row' }, playBtn, loopBtn, back, fwd),
-          h('div', { class: 'row' }, setA, setB, nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05), clearL),
+        player.append(titleH, ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, h('div', { class: 'spread' }, timeLbl, loopLbl), zoomRow,
+          h('div', { class: 'row' }, setA, setB, back, fwd, clearL),
+          h('div', { class: 'row tr-nudges' }, nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
           statusEl, statusBar, repsLbl,
-          h('p', { class: 'small muted', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
+          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s, - and + speed, F full screen. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
         root.append(player);
 
-        /* Key, tempo & beat grid card */
-        root.append(buildEstCard());
+        /* The deck: play, loop and speed, always in reach at the bottom of the screen */
+        const deck = deckEl = h('div', { class: 'tr-deck tr-ui', role: 'group', 'aria-label': 'Playback controls' });
+        playBtn = h('button', { class: 'btn primary tr-play', 'aria-label': 'Play', onclick: () => (P.wantPlay ? stop() : play()) }, '▶');
+        loopBtn = h('button', { class: 'btn tr-loop', 'aria-pressed': 'false', onclick: toggleLoop }, 'Loop off');
+        deckSpeed = h('button', { class: 'btn small tr-speedval mono', 'aria-expanded': 'false', 'aria-label': 'Speed and transpose', onclick: () => showMore(moreEl.hidden) });
+        const step = d => h('button', { class: 'btn small tr-step', 'aria-label': d < 0 ? 'Slower' : 'Faster', onclick: () => setSpeed(Math.round(P.speed * 100 + d) / 100, true) }, d < 0 ? '−' : '+');
+        deckFs = h('button', { class: 'btn small ghost tr-deck-fs', 'aria-label': 'Full screen waveform', onclick: () => setFull(!P.full) }, '⛶');
+        const deckSemi = d => h('button', { class: 'btn small', 'aria-label': d > 0 ? 'Transpose up a semitone' : 'Transpose down a semitone', onclick: () => setSemis(P.semis + d) }, d > 0 ? '+1' : '−1');
+        deckSemis = h('b', { class: 'mono' });
+        const deckPresets = h('div', { class: 'chips' });
+        [50, 60, 70, 75, 85, 100].forEach(v => deckPresets.append(h('button', { class: 'chip', 'data-speed': v, onclick: () => setSpeed(v / 100) }, v + '%')));
+        const moreEl = h('div', { class: 'tr-deck-more', hidden: true },
+          h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Speed' }), h('div', { class: 'row tr-compact-steps' }, step(-5), step(5)), deckPresets),
+          h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Transpose' }), h('div', { class: 'row' }, deckSemi(-1), deckSemis, deckSemi(1),
+            h('button', { class: 'btn small ghost', 'aria-label': 'Transpose an octave up', onclick: () => setSemis(P.semis === 12 ? 0 : 12) }, '+12'))));
+        function showMore(on) {
+          moreEl.hidden = !on; deckSpeed.setAttribute('aria-expanded', String(on));
+          placeDeck();
+        }
+        deck.append(moreEl, h('div', { class: 'tr-deck-row' }, playBtn, loopBtn, h('div', { class: 'tr-speedbox' }, step(-5), deckSpeed, step(5)), deckFs));
+        root.append(deck);
+        document.body.classList.add('tr-deck-on');
 
-        /* Note at the playhead card */
-        root.append(buildNoteCard());
-
-        /* Speed card */
+        /* Speed card: the slider, transpose and the loop options */
         const speedCard = h('div', { class: 'card tr-ui' });
         speedIn = h('input', { type: 'range', min: 25, max: 125, step: 5, id: 'tr-speed', 'aria-label': 'Speed' });
         speedLbl = h('b', { class: 'mono' });
         semisLbl = h('b', { class: 'mono' });
         const presets = h('div', { class: 'chips' });
-        [50, 60, 70, 75, 85, 100].forEach(v => presets.append(h('button', { class: 'chip', onclick: () => { setSpeed(v / 100); } }, v + '%')));
-        let speedT = null;
-        speedIn.addEventListener('input', () => { speedLbl.textContent = speedIn.value + '%'; clearTimeout(speedT); speedT = setTimeout(() => setSpeed(+speedIn.value / 100), 350); });
-        renderSpeed = () => { speedIn.value = Math.round(P.speed * 100); speedLbl.textContent = Math.round(P.speed * 100) + '%'; semisLbl.textContent = (P.semis > 0 ? '+' : '') + P.semis + ' st'; };
-        const semi = d => h('button', { class: 'btn small', onclick: () => { P.semis = clamp(P.semis + d, -12, 12); renderSpeed(); persist(); restartIfPlaying(); } }, d > 0 ? '+1' : '−1');
+        [50, 60, 70, 75, 85, 100].forEach(v => presets.append(h('button', { class: 'chip', 'data-speed': v, onclick: () => { setSpeed(v / 100); } }, v + '%')));
+        speedIn.addEventListener('input', () => setSpeed(+speedIn.value / 100, true));
+        renderSpeed = () => {
+          const pc = Math.round(P.speed * 100), st = (P.semis > 0 ? '+' : '') + P.semis + ' st';
+          if (document.activeElement !== speedIn) speedIn.value = pc;
+          speedLbl.textContent = pc + '%'; semisLbl.textContent = st; deckSemis.textContent = st;
+          deckSpeed.textContent = pc + '%' + (P.semis ? ' · ' + (P.semis > 0 ? '+' : '') + P.semis : '');
+          root.querySelectorAll('[data-speed]').forEach(c => c.setAttribute('aria-pressed', String(+c.dataset.speed === pc)));
+        };
+        const semi = d => h('button', { class: 'btn small', 'aria-label': d > 0 ? 'Transpose up a semitone' : 'Transpose down a semitone', onclick: () => setSemis(P.semis + d) }, d > 0 ? '+1' : '−1');
         const trainer = P.trainer;
         const tToggle = h('button', { class: 'chip', 'aria-pressed': String(trainer.on), onclick: () => { trainer.on = !trainer.on; tToggle.setAttribute('aria-pressed', String(trainer.on)); if (trainer.on) { P.reps = 0; setSpeed(trainer.start / 100); } persist(); } }, 'Speed trainer');
         const num = (label, key, min, max, step) => {
@@ -863,6 +986,12 @@ export default function transcribe(UI) {
           h('p', { class: 'small muted', text: 'These are filters and stereo tricks, not true stem separation, so expect some bleed. Combine them: Bass + speed 50% + transpose +12 makes bass lines much easier to hear.' }));
         root.append(focusCard);
         renderModes();
+
+        /* Key, tempo & beat grid card */
+        root.append(buildEstCard());
+
+        /* Note at the playhead card */
+        root.append(buildNoteCard());
 
         /* Sections card */
         const secCard = h('div', { class: 'card tr-ui' });
@@ -926,11 +1055,27 @@ export default function transcribe(UI) {
         notesCard.append(h('h3', { text: 'Notes' }), ta);
         root.append(notesCard);
 
+        /* Song details card (last: set once, rarely changed) */
+        const titleIn = h('input', { type: 'text', id: 'tr-title', value: st.title || '', 'aria-label': 'Song title' });
+        titleIn.addEventListener('input', () => { st.title = titleIn.value.trim() || 'Untitled'; titleH.textContent = st.title; persist(); msSetup(); });
+        const linkIn = h('input', { type: 'text', id: 'tr-link', value: st.link || '', placeholder: 'YouTube or other reference link', 'aria-label': 'Reference link' });
+        const linkA = h('a', { target: '_blank', rel: 'noopener', class: 'small' }, 'Open link ↗');
+        const syncLink = () => { const v = webLink(linkIn.value.trim()); linkA.hidden = !v; if (v) linkA.href = v; };
+        linkIn.addEventListener('input', () => { st.link = linkIn.value.trim(); syncLink(); persist(); });
+        syncLink();
+        root.append(h('div', { class: 'card tr-ui' },
+          h('label', { class: 'stack', for: 'tr-title' }, h('span', { class: 'eyebrow', text: 'Song title' }), titleIn),
+          h('label', { class: 'stack', for: 'tr-link' }, h('span', { class: 'eyebrow', text: 'Reference link' }), linkIn), linkA,
+          h('div', { class: 'spread' }, h('span', { class: 'small muted mono', text: st.fileName + ' · ' + fmt(P.dur) + (P.buffer.numberOfChannels > 1 ? ' · stereo' : ' · mono') }), savedLbl),
+          h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => fileInput.click() }, 'Replace audio file'))));
+
+
         setupCanvas();
         refreshTransport();
         savedLbl.textContent = 'Saved';
         msSetup();
         loopTick();
+        prefetch(); // a song saved at a slower speed is ready when Play is pressed
       }
 
       /* ----- key, tempo & beat grid ----- */
@@ -1158,29 +1303,105 @@ export default function transcribe(UI) {
         updateNote(t);
       }
 
-      function setSpeed(v) {
+      /* speed from the slider, the presets, the deck's − and + or the trainer. `soon`: wait for a pause in
+         the taps or the slide before starting again at the new speed */
+      let speedT = null;
+      function setSpeed(v, soon) {
         P.speed = clamp(Math.round(v * 100) / 100, 0.25, 1.25);
-        renderSpeed(); persist(); restartIfPlaying();
+        renderSpeed(); persist();
+        clearTimeout(speedT);
+        if (soon) speedT = setTimeout(restartIfPlaying, 350); else restartIfPlaying();
+      }
+      function setSemis(v) {
+        P.semis = clamp(Math.round(v), -12, 12);
+        renderSpeed(); persist();
+        clearTimeout(speedT); speedT = setTimeout(restartIfPlaying, 250);
+      }
+      function toggleLoop() {
+        if (P.a === null) { toast('Set A and B first, or drag across the waveform'); return; }
+        P.loopOn = !P.loopOn; P.reps = 0;
+        // turned on while paused somewhere else: the playhead goes to A, where Play will start
+        if (P.loopOn && !P.wantPlay && (P.pausePos < P.a || P.pausePos >= P.b)) { P.pausePos = P.a; if (vid) vid.currentTime = P.a; }
+        persist(); refreshTransport(); drawStatic(); restartIfPlaying();
       }
       function swapChain() {
-        if (!P.src) return;
+        if (!P.fade) return;
         const ac = A.ensure();
         const old = P.chain;
         P.chain = buildChain(ac, P.mode, P.eq);
-        try { P.src.disconnect(); } catch (e) { /* ignore */ }
-        P.src.connect(P.chain.input);
+        try { P.fade.disconnect(); } catch (e) { /* ignore */ }
+        P.fade.connect(P.chain.input);
         if (old) old.disconnect();
       }
       function seek(t) {
         t = clamp(t, 0, P.dur);
         P.pausePos = t;
-        if (P.playing) play(t); else { if (vid) vid.currentTime = t; refreshTransport(); }
+        if (P.wantPlay) play(t); else { if (vid) vid.currentTime = t; refreshTransport(); prefetch(); }
       }
+      const MIN_SPAN = 0.1; // seconds across the waveform at the deepest zoom
+      const minSpan = () => Math.min(P.dur, MIN_SPAN);
       function zoom(f) {
-        const c = curPos(), w = clamp((P.view[1] - P.view[0]) * f, 0.5, P.dur);
+        const c = curPos(), w = clamp((P.view[1] - P.view[0]) * f, minSpan(), P.dur);
         let a = c - w / 2; a = clamp(a, 0, Math.max(0, P.dur - w));
-        P.view = [a, a + w]; drawStatic();
+        P.view = [a, a + w]; P.followHold = 0; drawStatic();
       }
+      /* zoom by f keeping time t where it is on screen */
+      function zoomAt(t, f) {
+        const [v0, v1] = P.view, span = v1 - v0, w = clamp(span * f, minSpan(), P.dur);
+        const frac = span > 0 ? (t - v0) / span : 0.5;
+        const a = clamp(t - frac * w, 0, Math.max(0, P.dur - w));
+        P.view = [a, a + w]; holdFollow(); drawStatic();
+      }
+      function panBy(dt) {
+        const span = P.view[1] - P.view[0], a = clamp(P.view[0] + dt, 0, Math.max(0, P.dur - span));
+        P.view = [a, a + span]; holdFollow(); drawStatic();
+      }
+      // while you look around a zoomed waveform, it does not jump back to the playhead for a few seconds
+      function holdFollow() { P.followHold = performance.now() + 4000; }
+      function zoomToLoop() {
+        if (P.a === null) { toast('Make a loop first'); return; }
+        const pad = Math.max(0.3, (P.b - P.a) * 0.15);
+        P.view = [Math.max(0, P.a - pad), Math.min(P.dur, P.b + pad)]; P.followHold = 0; drawStatic();
+      }
+
+      /* ----- full screen: the waveform fills the screen, the deck stays under it ----- */
+      function setFull(on) {
+        on = !!on;
+        if (on === !!P.full || !playerEl) return;
+        P.full = on;
+        playerEl.classList.toggle('tr-fs', on);
+        document.body.classList.toggle('tr-fs-on', on);
+        fsBtn.textContent = on ? '✕ Exit full screen' : '⛶ Full screen';
+        deckFs.textContent = on ? '✕' : '⛶';
+        deckFs.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen waveform');
+        // the Android back button leaves full screen first
+        if (on) deckFs.setAttribute('data-back-close', ''); else deckFs.removeAttribute('data-back-close');
+        const de = document.documentElement;
+        if (on && !isNative() && de.requestFullscreen && !document.fullscreenElement) {
+          de.requestFullscreen({ navigationUI: 'hide' }).then(() => { if (P.full) P.fsApi = true; }, () => {});
+        } else if (!on && P.fsApi) {
+          P.fsApi = false;
+          if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        }
+        if (on) window.scrollTo(0, 0);
+        placeDeck();
+        requestAnimationFrame(() => { sizeCanvas(); if (on) deckFs.focus({ preventScroll: true }); });
+      }
+      const onFsChange = () => { if (!document.fullscreenElement && P.fsApi) { P.fsApi = false; setFull(false); } };
+      document.addEventListener('fullscreenchange', onFsChange);
+      /* the deck sits on top of the tab bar (or the bottom of the screen); the page leaves room for it */
+      function placeDeck() {
+        if (!deckEl || !deckEl.isConnected) return;
+        const tabs = document.querySelector('.tabs');
+        const under = !P.full && tabs && getComputedStyle(tabs).display !== 'none' ? tabs.getBoundingClientRect().height : 0;
+        deckEl.style.bottom = under + 'px';
+        deckEl.classList.toggle('at-edge', !under);
+        const hgt = deckEl.getBoundingClientRect().height;
+        root.style.paddingBottom = Math.round(hgt + 12) + 'px';
+        document.body.style.setProperty('--tr-deck', Math.round(hgt + under) + 'px');
+        if (playerEl) playerEl.style.setProperty('--tr-deck-h', Math.round(hgt) + 'px');
+      }
+
       function renderSections() {
         const st = P.setup; sectionsList.innerHTML = '';
         const list = st.sections || [];
@@ -1236,30 +1457,62 @@ export default function transcribe(UI) {
       }
 
       /* ----- waveform ----- */
-      let drag = null;
+      let drag = null, pinch = null;
+      const pts = new Map(); // pointers down on the waveform, for pinch zoom
+      function sizeCanvas() {
+        if (!canvas || !canvas.isConnected) return;
+        const dpr = window.devicePixelRatio || 1;
+        const wrap = canvas.parentElement, w = wrap.clientWidth;
+        const hgt = P.full ? Math.max(100, wrap.clientHeight) : document.documentElement.classList.contains('compact') ? 96 : 128;
+        canvas.width = Math.max(200, Math.round(w * dpr)); canvas.height = Math.round(hgt * dpr);
+        canvas.style.height = P.full ? '' : hgt + 'px';
+        ovCanvas.width = canvas.width; ovCanvas.height = Math.round(28 * dpr);
+        ovCache = null;
+        drawStatic();
+        placeDeck();
+      }
       function setupCanvas() {
-        const resize = () => {
-          if (!canvas || !canvas.isConnected) return;
-          const dpr = window.devicePixelRatio || 1;
-          const w = canvas.parentElement.clientWidth;
-          canvas.width = Math.max(200, Math.round(w * dpr)); canvas.height = Math.round(120 * dpr);
-          canvas.style.height = '120px';
-          drawStatic();
-        };
-        resize();
-        window.addEventListener('resize', resize);
-        cleanups.push(() => window.removeEventListener('resize', resize));
-        const tAt = ev => { const r = canvas.getBoundingClientRect(); return P.view[0] + clamp((ev.clientX - r.left) / r.width, 0, 1) * (P.view[1] - P.view[0]); };
+        sizeCanvas();
+        window.addEventListener('resize', sizeCanvas);
+        cleanups.push(() => window.removeEventListener('resize', sizeCanvas));
+        if ('ResizeObserver' in window) {
+          const ro = new ResizeObserver(() => { const r = canvas.getBoundingClientRect(); if (Math.round(r.width * (window.devicePixelRatio || 1)) !== canvas.width || (P.full && Math.abs(r.height * (window.devicePixelRatio || 1) - canvas.height) > 2)) sizeCanvas(); });
+          ro.observe(canvas.parentElement); cleanups.push(() => ro.disconnect());
+        }
+        const tAtX = x => { const r = canvas.getBoundingClientRect(); return P.view[0] + clamp((x - r.left) / r.width, 0, 1) * (P.view[1] - P.view[0]); };
+        const tAt = ev => tAtX(ev.clientX);
         const pxPerSec = () => canvas.getBoundingClientRect().width / (P.view[1] - P.view[0]);
         canvas.addEventListener('pointerdown', ev => {
-          const t = tAt(ev);
           canvas.setPointerCapture(ev.pointerId);
-          const near = x => P.a !== null && Math.abs(x - t) * pxPerSec() < 12;
-          if (near(P.a)) drag = { kind: 'a', x0: ev.clientX };
-          else if (near(P.b)) drag = { kind: 'b', x0: ev.clientX };
-          else drag = { kind: 'new', t0: t, x0: ev.clientX, moved: false };
+          pts.set(ev.pointerId, ev.clientX);
+          if (pts.size === 2) {
+            // a second finger: pinch to zoom (and drag both to pan); whatever the first finger began is undone
+            if (drag && drag.kind !== 'new' || drag && drag.moved) { P.a = drag.a0; P.b = drag.b0; P.loopOn = drag.on0; }
+            drag = null;
+            const [x1, x2] = [...pts.values()];
+            pinch = { d0: Math.max(20, Math.abs(x1 - x2)), t0: tAtX((x1 + x2) / 2), span0: P.view[1] - P.view[0] };
+            drawStatic();
+            return;
+          }
+          if (pts.size > 2 || pinch) return;
+          const t = tAt(ev);
+          const near = x => P.a !== null && Math.abs(x - t) * pxPerSec() < 14;
+          const keep = { a0: P.a, b0: P.b, on0: P.loopOn, x0: ev.clientX };
+          if (near(P.a)) drag = Object.assign({ kind: 'a' }, keep);
+          else if (near(P.b)) drag = Object.assign({ kind: 'b' }, keep);
+          else drag = Object.assign({ kind: 'new', t0: t, moved: false }, keep);
         });
         canvas.addEventListener('pointermove', ev => {
+          if (pts.has(ev.pointerId)) pts.set(ev.pointerId, ev.clientX);
+          if (pinch) {
+            if (pts.size < 2) return;
+            const [x1, x2] = [...pts.values()], r = canvas.getBoundingClientRect();
+            const w = clamp(pinch.span0 * pinch.d0 / Math.max(20, Math.abs(x1 - x2)), minSpan(), P.dur);
+            const frac = clamp(((x1 + x2) / 2 - r.left) / r.width, 0, 1);
+            const a = clamp(pinch.t0 - frac * w, 0, Math.max(0, P.dur - w));
+            P.view = [a, a + w]; holdFollow(); drawStatic();
+            return;
+          }
           if (!drag) return;
           const t = snapT(tAt(ev), ev.shiftKey);
           if (drag.kind === 'a') { P.a = clamp(t, 0, P.b - 0.05); drawStatic(); }
@@ -1267,18 +1520,60 @@ export default function transcribe(UI) {
           else if (drag.moved || Math.abs(ev.clientX - drag.x0) > 6) { drag.moved = true; const t0 = snapT(drag.t0, ev.shiftKey); P.a = Math.min(t0, t); P.b = Math.max(t0, t); drawStatic(); }
         });
         const up = ev => {
+          pts.delete(ev.pointerId);
+          if (pinch) { if (!pts.size) pinch = null; return; }
           if (!drag) return;
           const d = drag; drag = null;
-          if (d.kind === 'new' && !d.moved) { seek(tAt(ev)); return; }
+          if (d.kind === 'new' && !d.moved) {
+            const t = tAt(ev);
+            // a tap outside the loop goes there: the loop turns off (A and B stay, Loop brings it back)
+            if (P.loopOn && P.a !== null && (t < P.a || t >= P.b)) { P.loopOn = false; persist(); toast('Loop off. Tap Loop to go back to it.'); }
+            seek(t); return;
+          }
           if (P.a !== null && P.b - P.a < 0.05) { P.a = P.b = null; P.loopOn = false; }
           else if (d.kind === 'new') { P.loopOn = true; P.reps = 0; }
           persist(); refreshTransport(); drawStatic();
-          if (P.loopOn) { if (P.playing) play(P.a); else P.pausePos = P.a; }
+          if (P.loopOn) { if (P.wantPlay) play(P.a); else { P.pausePos = P.a; prefetch(); } }
         };
         canvas.addEventListener('pointerup', up);
-        canvas.addEventListener('pointercancel', () => { drag = null; });
+        canvas.addEventListener('pointercancel', ev => { pts.delete(ev.pointerId); if (!pts.size) pinch = null; if (drag && drag.moved) { P.a = drag.a0; P.b = drag.b0; P.loopOn = drag.on0; drawStatic(); } drag = null; });
+        // scroll wheel: sideways pans; Ctrl (or a trackpad pinch) zooms, and so does plain scrolling in full screen
+        canvas.addEventListener('wheel', ev => {
+          const dx = ev.deltaX, dy = ev.deltaY, unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+          if (Math.abs(dx) > Math.abs(dy)) { ev.preventDefault(); panBy(dx * unit / canvas.getBoundingClientRect().width * (P.view[1] - P.view[0])); }
+          else if (P.full || ev.ctrlKey || ev.metaKey) { ev.preventDefault(); zoomAt(tAt(ev), Math.exp(clamp(dy * unit, -300, 300) * 0.002)); }
+        }, { passive: false });
+
+        // the overview strip: the whole song, with the part in view marked; tap or drag to move the view
+        let ovDrag = false;
+        const ovTo = ev => {
+          const r = ovCanvas.getBoundingClientRect(), t = clamp((ev.clientX - r.left) / r.width, 0, 1) * P.dur;
+          const span = P.view[1] - P.view[0], a = clamp(t - span / 2, 0, Math.max(0, P.dur - span));
+          P.view = [a, a + span]; holdFollow(); drawStatic();
+        };
+        ovCanvas.addEventListener('pointerdown', ev => { ovCanvas.setPointerCapture(ev.pointerId); ovDrag = true; ovTo(ev); });
+        ovCanvas.addEventListener('pointermove', ev => { if (ovDrag) ovTo(ev); });
+        const ovUp = () => { ovDrag = false; };
+        ovCanvas.addEventListener('pointerup', ovUp); ovCanvas.addEventListener('pointercancel', ovUp);
       }
       function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
+      /* min and max of the song between times t0 and t1: from the 256-sample peaks, or from the samples
+         themselves when zoomed in close */
+      function span(t0, t1, out) {
+        const { blk, mn, mx } = P.peaks;
+        if ((t1 - t0) * P.sr < blk * 2) {
+          const m = P.mono, s0 = clamp(Math.floor(t0 * P.sr), 0, m.length - 1), s1 = clamp(Math.ceil(t1 * P.sr), s0 + 1, m.length - 1);
+          let lo = 1, hi = -1;
+          for (let k = s0; k <= s1; k++) { const v = m[k]; if (v < lo) lo = v; if (v > hi) hi = v; }
+          out[0] = lo; out[1] = hi; return;
+        }
+        const bps = P.sr / blk;
+        let b0 = Math.floor(t0 * bps), b1 = Math.max(b0 + 1, Math.floor(t1 * bps));
+        b0 = clamp(b0, 0, mn.length - 1); b1 = clamp(b1, 1, mn.length);
+        let lo = 1, hi = -1;
+        for (let k = b0; k < b1; k++) { if (mn[k] < lo) lo = mn[k]; if (mx[k] > hi) hi = mx[k]; }
+        out[0] = lo; out[1] = hi;
+      }
       function drawStatic() {
         if (!canvas || !P.peaks) return;
         const W = canvas.width, H = canvas.height;
@@ -1287,22 +1582,20 @@ export default function transcribe(UI) {
         const c = waveCache.getContext('2d');
         c.clearRect(0, 0, W, H);
         c.fillStyle = cssVar('--sunk'); c.fillRect(0, 0, W, H);
-        const [v0, v1] = P.view, span = v1 - v0;
-        const { blk, mn, mx } = P.peaks;
-        const bps = P.sr / blk;
-        const mid = H / 2;
-        // loop selection
+        const [v0, v1] = P.view, span_ = v1 - v0;
+        const mid = H / 2, gain = mid * P.gain;
+        const dpr = window.devicePixelRatio || 1;
+        // loop selection (faint while the loop is off)
         if (P.a !== null) {
-          const xa = (P.a - v0) / span * W, xb = (P.b - v0) / span * W;
-          c.fillStyle = cssVar('--brass-soft'); c.fillRect(xa, 0, xb - xa, H);
+          const xa = (P.a - v0) / span_ * W, xb = (P.b - v0) / span_ * W;
+          c.fillStyle = cssVar('--brass-soft'); c.globalAlpha = P.loopOn ? 1 : 0.45; c.fillRect(xa, 0, xb - xa, H); c.globalAlpha = 1;
         }
         // sections markers
         (P.setup.sections || []).forEach(sc => {
-          const xa = (sc.a - v0) / span * W;
+          const xa = (sc.a - v0) / span_ * W;
           if (xa < 0 || xa > W) return;
-          c.fillStyle = cssVar('--patina'); c.globalAlpha = 0.5; c.fillRect(xa, 0, Math.max(1, (window.devicePixelRatio || 1)), H); c.globalAlpha = 1;
+          c.fillStyle = cssVar('--patina'); c.globalAlpha = 0.5; c.fillRect(xa, 0, Math.max(1, dpr), H); c.globalAlpha = 1;
         });
-        const dpr = window.devicePixelRatio || 1;
         const grid = gridOn() && P.grid.show ? gridMarks(v0, v1, W) : null;
         if (grid) { // bar lines under the waveform
           c.fillStyle = cssVar('--ink'); c.globalAlpha = 0.24;
@@ -1310,14 +1603,11 @@ export default function transcribe(UI) {
           c.globalAlpha = 1;
         }
         c.fillStyle = cssVar('--patina');
+        const mm = [0, 0];
         for (let x = 0; x < W; x++) {
-          const t0 = v0 + x / W * span, t1 = v0 + (x + 1) / W * span;
-          let b0 = Math.floor(t0 * bps), b1 = Math.max(b0 + 1, Math.floor(t1 * bps));
-          b0 = clamp(b0, 0, mn.length - 1); b1 = clamp(b1, 1, mn.length);
-          let lo = 1, hi = -1;
-          for (let k = b0; k < b1; k++) { if (mn[k] < lo) lo = mn[k]; if (mx[k] > hi) hi = mx[k]; }
-          if (hi < lo) continue;
-          const y0 = mid - hi * mid * 0.95, y1 = mid - lo * mid * 0.95;
+          span(v0 + x / W * span_, v0 + (x + 1) / W * span_, mm);
+          if (mm[1] < mm[0]) continue;
+          const y0 = mid - mm[1] * gain, y1 = mid - mm[0] * gain;
           c.fillRect(x, y0, 1, Math.max(1, y1 - y0));
         }
         if (grid) { // beat ticks and bar numbers over it
@@ -1331,14 +1621,48 @@ export default function transcribe(UI) {
           }
         }
         if (P.a !== null) {
-          c.fillStyle = cssVar('--brass');
-          const lw = Math.max(2, (window.devicePixelRatio || 1) * 2);
-          [P.a, P.b].forEach(t => { const x = (t - v0) / span * W; c.fillRect(x - lw / 2, 0, lw, H); });
-          c.font = Math.round(11 * (window.devicePixelRatio || 1)) + 'px ' + 'IBM Plex Mono, monospace';
-          c.fillText('A', (P.a - v0) / span * W + 4, 14 * (window.devicePixelRatio || 1));
-          c.fillText('B', (P.b - v0) / span * W - 12 * (window.devicePixelRatio || 1), 14 * (window.devicePixelRatio || 1));
+          c.fillStyle = cssVar('--brass'); c.globalAlpha = P.loopOn ? 1 : 0.55;
+          const lw = Math.max(2, dpr * 2);
+          [P.a, P.b].forEach(t => { const x = (t - v0) / span_ * W; c.fillRect(x - lw / 2, 0, lw, H); });
+          c.font = Math.round(11 * dpr) + 'px IBM Plex Mono, monospace';
+          c.fillText('A', (P.a - v0) / span_ * W + 4, 14 * dpr);
+          c.fillText('B', (P.b - v0) / span_ * W - 12 * dpr, 14 * dpr);
+          c.globalAlpha = 1;
         }
+        drawOverview();
         drawFrame();
+      }
+      /* the overview strip, shown when zoomed in or in full screen */
+      function drawOverview() {
+        if (!ovCanvas) return;
+        const zoomed = P.view[1] - P.view[0] < P.dur - 0.01;
+        ovCanvas.hidden = !(zoomed || P.full);
+        if (ovCanvas.hidden) return;
+        const W = ovCanvas.width, H = ovCanvas.height;
+        if (!W || !H) return;
+        if (!ovCache || ovCache.width !== W || ovCache.height !== H || ovCache.dataset.v !== String(P.dur)) {
+          // the whole song's outline, drawn once per size
+          const base = document.createElement('canvas'); base.width = W; base.height = H; base.dataset.v = String(P.dur);
+          const c = base.getContext('2d');
+          c.fillStyle = cssVar('--sunk'); c.fillRect(0, 0, W, H);
+          c.fillStyle = cssVar('--muted');
+          const mm = [0, 0], mid = H / 2, gain = mid * P.gain;
+          for (let x = 0; x < W; x++) {
+            span(x / W * P.dur, (x + 1) / W * P.dur, mm);
+            if (mm[1] < mm[0]) continue;
+            c.fillRect(x, mid - mm[1] * gain, 1, Math.max(1, (mm[1] - mm[0]) * gain));
+          }
+          ovCache = base;
+        }
+        if (!ovCache.view) ovCache.view = document.createElement('canvas');
+        const v = ovCache.view; v.width = W; v.height = H;
+        const c = v.getContext('2d');
+        c.drawImage(ovCache, 0, 0);
+        const X = t => t / P.dur * W, dpr = window.devicePixelRatio || 1;
+        if (P.a !== null) { c.fillStyle = cssVar('--brass'); c.globalAlpha = P.loopOn ? 0.45 : 0.2; c.fillRect(X(P.a), 0, Math.max(dpr, X(P.b) - X(P.a)), H); c.globalAlpha = 1; }
+        const x0 = X(P.view[0]), x1 = Math.max(x0 + 3 * dpr, X(P.view[1]));
+        c.fillStyle = cssVar('--patina'); c.globalAlpha = 0.25; c.fillRect(x0, 0, x1 - x0, H); c.globalAlpha = 1;
+        c.strokeStyle = cssVar('--patina'); c.lineWidth = 2 * dpr; c.strokeRect(x0 + dpr, dpr, x1 - x0 - 2 * dpr, H - 2 * dpr);
       }
       /* beat ticks and bar lines in view (x in canvas pixels); thinned out when too dense to read */
       function gridMarks(v0, v1, W) {
@@ -1359,17 +1683,23 @@ export default function transcribe(UI) {
         const W = canvas.width, H = canvas.height;
         wctx.clearRect(0, 0, W, H);
         wctx.drawImage(waveCache, 0, 0);
-        const t = curPos(), [v0, v1] = P.view;
+        const t = curPos(), [v0, v1] = P.view, ink = cssVar('--ink'), lw = Math.max(2, window.devicePixelRatio || 1);
         const x = (t - v0) / (v1 - v0) * W;
-        if (x >= 0 && x <= W) { wctx.fillStyle = cssVar('--ink'); wctx.fillRect(x - 1, 0, Math.max(2, window.devicePixelRatio || 1), H); }
+        if (x >= 0 && x <= W) { wctx.fillStyle = ink; wctx.fillRect(x - 1, 0, lw, H); }
+        if (ovCanvas && !ovCanvas.hidden && ovCache && ovCache.view) {
+          ovCtx.drawImage(ovCache.view, 0, 0);
+          ovCtx.fillStyle = ink; ovCtx.fillRect(t / P.dur * ovCanvas.width - 1, 0, lw, ovCanvas.height);
+        }
       }
       function refreshTransport() {
         syncPlayState();
         if (!playBtn) return;
-        playBtn.textContent = P.playing ? '❚❚ Pause' : '▶ Play';
+        playBtn.textContent = P.wantPlay ? '❚❚' : '▶';
+        playBtn.setAttribute('aria-label', P.wantPlay ? 'Pause' : 'Play');
         loopBtn.setAttribute('aria-pressed', String(P.loopOn));
-        loopBtn.textContent = P.loopOn ? 'Loop on' : 'Loop';
-        loopLbl.textContent = P.a !== null ? 'A ' + fmt(P.a) + ' · B ' + fmt(P.b) + ' · ' + (P.b - P.a).toFixed(1) + ' s' : 'No loop';
+        loopBtn.textContent = P.loopOn ? '⟲ Loop on' : '⟲ Loop off';
+        loopBtn.classList.toggle('tr-noloop', P.a === null);
+        loopLbl.textContent = P.a !== null ? (P.loopOn ? '' : 'Loop off · ') + 'A ' + fmt(P.a) + ' · B ' + fmt(P.b) + ' · ' + (P.b - P.a).toFixed(1) + ' s' : 'No loop';
         timeLbl.textContent = fmt(curPos()) + ' / ' + fmt(P.dur);
       }
       function loopTick() {
@@ -1379,9 +1709,9 @@ export default function transcribe(UI) {
           if (P.playing && timeLbl) {
             const t = curPos();
             timeLbl.textContent = fmt(t) + ' / ' + fmt(P.dur);
-            // keep the playhead in view when zoomed in
+            // keep the playhead in view when zoomed in (unless you are looking around)
             const span = P.view[1] - P.view[0];
-            if (span < P.dur - 0.01 && (t > P.view[1] || t < P.view[0])) { const a = clamp(t - span * 0.1, 0, P.dur - span); P.view = [a, a + span]; drawStatic(); }
+            if (span < P.dur - 0.01 && (t > P.view[1] || t < P.view[0]) && performance.now() > (P.followHold || 0)) { const a = clamp(t - span * 0.1, 0, P.dur - span); P.view = [a, a + span]; drawStatic(); }
             if (vid && !vid.paused && Math.abs(vid.currentTime - t) > 0.25) { try { vid.currentTime = t; } catch (e) { /* ignore */ } }
           }
           drawFrame();
@@ -1396,15 +1726,20 @@ export default function transcribe(UI) {
         if (!P.buffer || !playBtn) return;
         const tg = ev.target && ev.target.tagName;
         if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
-        if (ev.code === 'Space') { ev.preventDefault(); P.playing ? stop() : play(); }
+        if (ev.key === 'Escape' && P.full) { ev.preventDefault(); setFull(false); return; } // before the app's own Escape closes the tool
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        if (ev.code === 'Space') { ev.preventDefault(); if (tg === 'BUTTON') ev.target.blur(); P.wantPlay ? stop() : play(); }
         else if (ev.key === '[' || ev.key === '{') markA(ev.shiftKey);
         else if (ev.key === ']' || ev.key === '}') markB(ev.shiftKey, true);
-        else if (ev.key === 'l' || ev.key === 'L') { if (P.a !== null) { P.loopOn = !P.loopOn; persist(); refreshTransport(); restartIfPlaying(); } }
+        else if (ev.key === 'l' || ev.key === 'L') toggleLoop();
+        else if (ev.key === 'f' || ev.key === 'F') setFull(!P.full);
+        else if (ev.key === '-' || ev.key === '_') setSpeed(Math.round(P.speed * 100 - 5) / 100, true);
+        else if (ev.key === '+' || ev.key === '=') setSpeed(Math.round(P.speed * 100 + 5) / 100, true);
         else if (ev.key === 'ArrowLeft') { ev.preventDefault(); seek(curPos() - 2); }
         else if (ev.key === 'ArrowRight') { ev.preventDefault(); seek(curPos() + 2); }
       }
-      document.addEventListener('keydown', onKey);
-      const cleanups = [() => document.removeEventListener('keydown', onKey)];
+      window.addEventListener('keydown', onKey, true);
+      const cleanups = [() => window.removeEventListener('keydown', onKey, true), () => document.removeEventListener('fullscreenchange', onFsChange), () => { setFull(false); document.body.classList.remove('tr-fs-on', 'tr-deck-on'); document.body.style.removeProperty('--tr-deck'); }];
 
       /* ----- lock-screen / headset controls (Media Session) and keeping the screen on while it plays ----- */
       const MS = navigator.mediaSession || null;
@@ -1475,9 +1810,8 @@ export default function transcribe(UI) {
         cleanups.forEach(fn => fn());
         // Let the decoded song go now, not when the last stray callback does: a 4-minute stereo track is
         // about 85 MB decoded, plus its mono mix, analysis copy and up to three stretched versions.
-        cancelStretches();
+        dropJobs();
         P.buffer = P.mono = P.peaks = P.ds = P.file = null;
-        P.cache = [];
       };
     }
   }));

@@ -20,3 +20,57 @@ input.num.tr-bpm { width: 6.5em; }
 .tr-cents[hidden] { display: none; }
 .tr-mini .fretwrap { max-width: 460px; }
 @media (prefers-reduced-motion: reduce) { .tr-cents > i { transition: none; } }
+
+/* Player: title, waveform, the overview strip under it */
+.tr-player .tr-title { font-size: 1.1rem; overflow-wrap: anywhere; }
+.tr-player .wave-wrap { position: relative; }
+canvas.wave-ov { display: block; width: 100%; height: 28px; border-radius: 6px; touch-action: none; cursor: grab; }
+.tr-zoomrow { gap: 6px; }
+.tr-nudges { gap: 6px; }
+
+/* The deck: play, loop and speed, fixed at the bottom of the screen above the tab bar */
+.tr-deck { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 46; width: min(744px, calc(100% - 16px)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px 16px 0 0; border-bottom: 0; box-shadow: 0 -4px 18px rgb(0 0 0 / 0.12); padding: 8px 10px; display: grid; gap: 8px; }
+.tr-deck.at-edge { padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
+.tr-deck-row { display: flex; align-items: center; gap: 6px; }
+.tr-deck .btn { min-height: 40px; }
+.tr-deck .tr-play { width: 48px; height: 48px; padding: 0; justify-content: center; font-size: 1.1rem; border-radius: 50%; flex: none; }
+.tr-deck .tr-loop { flex: 0 1 auto; min-width: 0; white-space: nowrap; padding: 6px 12px; overflow: hidden; text-overflow: ellipsis; }
+.tr-loop[aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: #fff; }
+.tr-loop.tr-noloop { opacity: 0.6; }
+.tr-speedbox { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.tr-speedbox .tr-step { width: 36px; padding: 0; justify-content: center; font-size: 1.15rem; flex: none; }
+.tr-speedval { min-width: 4.2em; padding: 5px 8px; justify-content: center; white-space: nowrap; }
+.tr-speedval[aria-expanded="true"] { border-color: var(--patina); }
+.tr-deck-fs { flex: none; width: 36px; padding: 0; justify-content: center; }
+.tr-deck-more { display: grid; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.tr-deck-more .chips { gap: 4px; }
+body.tr-deck-on .toast { bottom: calc(var(--tr-deck, 140px) + 14px); }
+.chip[data-speed][aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: #fff; }
+
+/* Full screen: the player card covers the screen and the waveform takes the room left */
+.card.tr-player.tr-fs { position: fixed; inset: 0; z-index: 45; border-radius: 0; border: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  padding: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) calc(var(--tr-deck-h, 70px) + 10px) max(10px, env(safe-area-inset-left, 0px)); }
+.tr-player.tr-fs .wave-wrap { flex: 1 1 auto; min-height: 100px; }
+.tr-player.tr-fs canvas.wave { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tr-player.tr-fs .tr-video, .tr-player.tr-fs .tr-help, .tr-player.tr-fs .tr-title { display: none; }
+.tr-player.tr-fs > * { flex: none; }
+/* in full screen the buttons keep to one line each (swipe them sideways if they don't fit), so the waveform gets the height */
+.tr-player.tr-fs > .row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; }
+.tr-player.tr-fs > .row > * { flex: none; }
+.tr-player.tr-fs .tr-nudges { display: none; }
+.tr-player.tr-fs .tr-fs-btn { order: -1; }
+.tr-player.tr-fs > .wave-wrap { flex: 1 1 auto; }
+body.tr-fs-on { overflow: hidden; }
+body.tr-fs-on .toast { z-index: 60; }
+.tr-fs-btn[aria-pressed="true"] { border-color: var(--patina); }
+
+/* a 3-inch phone: the deck keeps play, loop and the speed (tap it for − and +, the presets and transpose);
+   full screen is in the player's zoom row */
+.tr-compact-steps { display: none; }
+html.compact .tr-compact-steps { display: flex; gap: 6px; }
+html.compact .tr-deck { width: 100%; border-radius: 12px 12px 0 0; padding: 6px 8px; gap: 6px; }
+html.compact .tr-deck .tr-play { width: 44px; height: 44px; font-size: 1rem; }
+html.compact .tr-deck .tr-loop { padding: 4px 10px; }
+html.compact .tr-deck-row .tr-step, html.compact .tr-deck-fs { display: none; }
+html.compact .tr-speedval { min-width: 4.4em; padding: 3px 8px; }
+html.compact .card.tr-player.tr-fs { gap: 5px; padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
