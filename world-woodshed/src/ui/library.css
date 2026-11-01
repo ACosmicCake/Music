@@ -29,7 +29,8 @@
 .lib-vtools { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .lib-vtools select { min-height: 34px; padding: 4px 8px; }
 .lib-vnote { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lib-viewer:has(.lib-vtools) { grid-template-rows: auto auto minmax(0, 1fr); }
+.lib-viewer:has(.lib-vinfo) { grid-template-rows: auto auto auto minmax(0, 1fr); }
+.lib-viewer:has(.lib-vtools):not(:has(.lib-vinfo)) { grid-template-rows: auto auto minmax(0, 1fr); }
 .lib-scorepane { color: #111; }
 .lib-score { min-height: 100%; }
 /* alphaTab's playback cursor (the page stays white in dark mode, like paper) */
@@ -56,7 +57,6 @@ html.compact .lib-details input[type="url"] { min-height: 44px; }
 .lib-barin { width: 3.4em; min-height: 34px; padding: 4px 6px; }
 .lib-vtools .btn[aria-pressed="true"] { background: var(--patina); color: var(--bg); border-color: var(--patina); }
 .lib-check { margin: 0; padding: 6px 10px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.lib-viewer:has(.lib-vtools):has(.lib-check:not([hidden])) { grid-template-rows: auto auto auto minmax(0, 1fr); }
 .lib-reading { padding: 6px 0; }
 .lib-reading progress { width: 100%; }
 html.compact .lib-barin { width: 3em; }
@@ -65,3 +65,11 @@ html.compact .lib-bpm { min-width: 4.5em; font-size: 0.8rem; }
 /* a Library piece in a practice session */
 .lib-pnotes { white-space: pre-wrap; }
 .lib-practice .row { flex-wrap: wrap; }
+
+/* how fast you can play each section (score viewer) */
+.lib-vinfo { background: var(--surface); }
+.lib-vinfo:has(> :not([hidden])) { border-bottom: 1px solid var(--line); }
+.lib-rec { margin: 0; padding: 4px 10px; }
+.lib-recs { padding: 0 8px 6px; gap: 4px; }
+.lib-recchip.done { border-color: var(--patina); }
+html.compact .lib-rec { padding: 2px 6px; font-size: 0.78rem; }

@@ -248,6 +248,15 @@ describe('the Library', () => {
     expect(m.library.e2).toBeUndefined();
     expect(merge(m, phone).library.e2).toBeUndefined();
   });
+  it('keeps the fastest clean tempo for each section from either copy', () => {
+    const phone = base({ library: { e1: entry('e1', 10, { tempos: { 'f1:1-4': { best: 90, of: 120, t: 10 }, 'f1:9-16': { best: 60, of: 120, t: 9 } } }) } });
+    const desk = base({ library: { e1: entry('e1', 20, { notes: 'new', tempos: { 'f1:1-4': { best: 80, of: 120, t: 20 }, 'f1:5-8': { best: 70, of: 120, t: 20 } } }) } });
+    const m = merge(phone, desk);
+    expect(m.library.e1.notes).toBe('new');
+    expect(m.library.e1.tempos).toEqual({ 'f1:1-4': { best: 90, of: 120, t: 10 }, 'f1:5-8': { best: 70, of: 120, t: 20 }, 'f1:9-16': { best: 60, of: 120, t: 9 } });
+    expect(merge(desk, phone).library.e1.tempos).toEqual(m.library.e1.tempos);
+    expect(merge(base({ library: { e1: entry('e1', 1) } }), base({ library: { e1: entry('e1', 2) } })).library.e1.tempos).toBeUndefined();
+  });
   it('copes with copies that have no library, and is part of the digest', () => {
     expect(merge(base(), base()).library).toEqual({});
     expect(Object.keys(merge(base(), base({ library: { e1: entry('e1', 1) } })).library)).toEqual(['e1']);

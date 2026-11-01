@@ -344,7 +344,7 @@ function fileRow(entry, f, local, redraw, fetch) {
   const said = what => r => { if (r === 'downloaded') toast('Saved to your downloads' + (what ? ': open it in ' + what : '')); };
   const share = (got, what) => shareBlob(got.name, typed(got), got.name).then(said(what));
   if (local) {
-    if (READABLE.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readScore(got, f.kind)) }, 'Read and play'));
+    if (READABLE.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readScore(got, f.kind, { entry: entry.id, file: f.id })) }, 'Read and play'));
     if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small' + (READABLE.has(f.kind) ? ' ghost' : ' brass'), onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said('MuseScore'))) }, 'Open in MuseScore'));
     else if (f.kind === 'pdf') {
       acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readPdf(got)) }, 'Read'));
@@ -372,13 +372,15 @@ function fileRow(entry, f, local, redraw, fetch) {
 
 /* ---------- reading and playing MusicXML, Guitar Pro and MIDI in the app (alphaTab, loaded the first time) ---------- */
 const READABLE = new Set(['musicxml', 'guitarpro', 'midi']);
-async function readScore(got, kind) {
+/* the section tempos of one score file in an entry, for the score viewer */
+const temposOf = (entryId, fileId) => (entryId && fileId ? { list: () => L.sectionTempos(entryId, fileId), mark: (a, b, bpm, written) => L.markClean(entryId, fileId, a, b, bpm, written) } : null);
+async function readScore(got, kind, where = {}) {
   const note = h('div', { class: 'toast', role: 'status', text: 'Opening ' + got.name + '…' });
   document.body.append(note);
   try {
     const { openScore } = await import('./scoreview.js');
     if (closeViewer) closeViewer();
-    const close = await openScore(got.blob, { title: got.name, kind }, () => { if (closeViewer === close) closeViewer = null; });
+    const close = await openScore(got.blob, { title: got.name, kind, tempos: temposOf(where.entry, where.file) }, () => { if (closeViewer === close) closeViewer = null; if (where.onClose) where.onClose(); });
     closeViewer = close;
   } catch (e) {
     console.error(e);
@@ -500,9 +502,14 @@ tool('piece', {
       const local = e.files.filter(f => have.has(f.id));
       // the playable reading first: it is what you practise with (tempo, loop, speed up)
       const order = f => (READABLE.has(f.kind) ? (isReading(f) ? 1 : 0) : f.kind === 'pdf' ? 2 : 3);
-      local.filter(f => READABLE.has(f.kind) || f.kind === 'pdf').sort((a, b) => order(a) - order(b)).forEach(f => files.append(h('div', { class: 'spread lib-file' },
-        h('span', { class: 'lib-fname', text: f.name }),
-        h('button', { class: 'btn small brass', onclick: () => get(f)(got => (f.kind === 'pdf' ? readPdf(got) : readScore(got, f.kind))) }, f.kind === 'pdf' ? 'Read' : 'Read and play'))));
+      local.filter(f => READABLE.has(f.kind) || f.kind === 'pdf').sort((a, b) => order(a) - order(b)).forEach(f => {
+        const recs = h('p', { class: 'small muted' });
+        const drawRecs = () => { const rs = L.sectionTempos(id, f.id); recs.textContent = rs.length ? 'Clean so far: ' + rs.map(r => 'bars ' + r.from + '–' + r.to + ' at ♩' + r.best + (r.of ? ' of ' + r.of : '')).join(', ') : ''; recs.hidden = !rs.length; };
+        drawRecs();
+        files.append(h('div', { class: 'stack' }, h('div', { class: 'spread lib-file' },
+          h('span', { class: 'lib-fname', text: f.name }),
+          h('button', { class: 'btn small brass', onclick: () => get(f)(got => (f.kind === 'pdf' ? readPdf(got) : readScore(got, f.kind, { entry: id, file: f.id, onClose: drawRecs }))) }, f.kind === 'pdf' ? 'Read' : 'Read and play')), recs));
+      });
       const pages = local.filter(f => f.kind === 'image');
       if (pages.length) files.append(h('button', { class: 'btn small', onclick: () => viewer(pages, 0) }, pages.length > 1 ? 'Look at the ' + pages.length + ' pages' : 'Open the photo'));
       if (!files.children.length) files.append(h('p', { class: 'small muted', text: e.files.length ? 'Its files are on another device: open it in the Library to download them.' : 'No score yet: add a PDF, a photo or a MusicXML file in the Library, or just play it from memory.' }));
