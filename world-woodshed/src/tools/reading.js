@@ -6,7 +6,10 @@ import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
-import { LEVELS, STAGES, HOW_TO, readingItems, genMelody, rhythmPiece, noteCard, attacks, pieceLength } from '../content/reading.js';
+import { LEVELS, STAGES, HOW_TO, readingItems, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts } from '../content/reading.js';
+import { placeFrets } from '../notate.js';
+import { parseChord } from '../theory.js';
+import { guitarMidis } from '../voicings.js';
 import Lib from '../readlib.js';
 
 const SKILL = 'reading';
@@ -61,15 +64,6 @@ function countLabels(piece) {
   });
   return out;
 }
-/* every event (note or rest) with its onset in quarters, for the cursor */
-function eventStarts(piece) {
-  const ts = parseTime(piece.time), out = []; let q = 0, i = 0;
-  piece.bars.forEach(bar => {
-    const full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
-    bar.forEach(n => { out.push({ i, q }); q += full ? ts.barQ : durQ(n); i++; });
-  });
-  return out;
-}
 
 /* Keep the line being read on screen: when the cursor moves to a line that is low on the screen (or above
    it), scroll it to the upper part of the screen, so the lines after it are in view too. */
@@ -97,11 +91,11 @@ function playRun(o) {
     const piece = item.piece, ts = parseTime(piece.time), spq = 60 / o.bpm / ts.beatQ;
     const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
     const pre = segs.length || o.countIn ? barSteps : 0;
-    const len = Math.round(pieceLength(piece) / G);
+    const len = Math.round(playLength(piece) / G), order = playOrder(piece);
     const ats = attacks(piece);
     const byStep = new Map(); ats.forEach((a, j) => byStep.set(Math.round(a.q / G), Object.assign({ j }, a)));
     const evAt = new Map(); eventStarts(piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
-    const seg = { item, piece, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
+    const seg = { item, piece, order, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
     segs.push(seg);
     return seg;
   };
@@ -130,7 +124,9 @@ function playRun(o) {
         const a = seg.byStep.get(kk), e = Object.assign({}, a, { t, dur: a.len * seg.spq });
         seg.expected.push(e);
         if (o.onExpected) o.onExpected(e, seg);
-        if (o.notes) (a.chord || [a.midi]).forEach((m, x) => A.note(m - 12, t + x * 0.014, a.chord ? 0.6 : 0.8, Math.max(0.12, Math.min(2, a.len * seg.spq - 0.03))));
+        const ring = Math.max(0.12, Math.min(2, a.len * seg.spq - 0.03));
+        if (o.notes && a.slash) { const c = a.sym && parseChord(a.sym); if (c) A.strum(guitarMidis(c.root, c.iv), t, 0.55, 0.014, ring); }
+        else if (o.notes) (a.chord || [a.midi]).forEach((m, x) => A.note(m - 12, t + x * 0.014, a.chord ? 0.6 : 0.8, ring));
       }
       // the last step of a piece: line up the next one, or end here
       if (i === seg.end - 1 && seg.k === segs.length - 1) {
@@ -148,7 +144,7 @@ function playRun(o) {
         follow(seg.staff, 0);
       }
       if (inPre) { if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : 'Count-in: ') + (kk / seg.beatSteps + 1) + ' …'; return; }
-      if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + (Math.floor(kk / seg.barSteps) + 1) + ' of ' + seg.piece.bars.length + ' · beat ' + ((kk % seg.barSteps) / seg.beatSteps + 1);
+      if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + ((seg.order[Math.floor(kk / seg.barSteps)] || 0) + 1) + ' of ' + seg.piece.bars.length + ' · beat ' + ((kk % seg.barSteps) / seg.beatSteps + 1);
       if (seg.evAt.has(kk)) setNow(seg, seg.evAt.get(kk));
     },
     onEnd: () => {
@@ -541,7 +537,7 @@ function rhythmMode(root, lv, ctx) {
     h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), staffBox, padBox, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), barsPerLine: piece.bars.length <= 2 ? 2 : undefined, lyrics: showCounts ? countLabels(piece) : null, label: 'A rhythm of ' + piece.bars.length + ' bars' });
+    staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), repeat: piece.repeat, barsPerLine: piece.bars.length <= 2 ? 2 : undefined, lyrics: showCounts ? countLabels(piece) : null, label: 'A rhythm of ' + piece.bars.length + ' bars' });
     staffBox.append(staff.el);
     sourceLine(src, cur, 'r'); libBtn.paint();
     info.textContent = piece.time + ' · ' + (parseTime(piece.time).compound ? 'beat = dotted quarter' : 'beat = quarter');
@@ -612,6 +608,18 @@ function rhythmMode(root, lv, ctx) {
 /* ======================================================
    MELODY: read a melody at sight with a moving cursor
    ====================================================== */
+/* a chart's chord symbols as the staff shows them (♯ and ♭) */
+const prettyChord = t => t.replace(/^([A-G])#/, '$1♯').replace(/^([A-G])b/, '$1♭');
+const chartChords = piece => (Array.isArray(piece.chords) ? piece.chords.map(cs => (cs || []).map(c => ({ text: prettyChord(c.text), at: c.at }))) : null);
+/* tab under the staff on your tuning and capo: a fret for each note that is struck (not a tied continuation) */
+function tabFor(piece) {
+  const flat = piece.bars.flat(), struck = [];
+  flat.forEach((n, i) => { const p = flat[i - 1]; if (n.midi != null && !(p && p.tie && p.midi === n.midi)) struck.push(i); });
+  const frets = placeFrets(struck.map(i => flat[i].midi - 12), E.STRINGS.map(st => st.midi));
+  const out = flat.map(() => null);
+  struck.forEach((i, k) => { out[i] = frets[k]; });
+  return out;
+}
 /* own: a score of yours instead of the level's melodies ({ make, title }, from scoresMode below): nothing goes
    into the reading library or the level's record, and the sections follow one another */
 function melodyMode(root, lv, ctx, own) {
@@ -641,7 +649,7 @@ function melodyMode(root, lv, ctx, own) {
     h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, tab: lv.tab ? tabFor(piece) : null, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
     info.textContent = keyName(piece.key) + ' · ' + piece.time + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
@@ -661,7 +669,7 @@ function melodyMode(root, lv, ctx, own) {
   hearBtn.onclick = () => {
     fresh(); ctx.setActive(true); hearBtn.disabled = true; runBar.hidden = false;
     run = playRun({ first: { piece }, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
-    if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + pieceLength(piece)) * 60 / bpm / parseTime(piece.time).beatQ + 1.5);
+    if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + playLength(piece)) * 60 / bpm / parseTime(piece.time).beatQ + 1.5);
   };
   newBtn.onclick = () => { cur = make(); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
@@ -683,12 +691,12 @@ function melodyMode(root, lv, ctx, own) {
         seg.judged = seg.judged || new Map();
         if (seg.judged.has(j) || Math.abs(bd) > winOf(seg, j)) return;
         const a = seg.ats[j], got = Math.round(ev.midi), want = (a.chord || [a.midi]).map(m => m - 12);
-        const pitch = want.includes(got) ? 1 : want.some(w => (got - w) % 12 === 0) ? 0.5 : 0;
+        const pitch = a.slash ? 1 : want.includes(got) ? 1 : want.some(w => (got - w) % 12 === 0) ? 0.5 : 0; // a slash: any note of the strum counts
         seg.judged.set(j, { pitch, d: bd, got });
         const good = pitch === 1 && Math.abs(bd) <= winOf(seg, j) * 0.6;
         if (seg.staff === staff) { marks[a.i] = good ? 'good' : 'bad'; markAttack(staff, piece, a, marks[a.i]); }
         heardN++; if (good) goodN++;
-        live.textContent = 'Heard ' + noteLabel(ev.midi).split(' ')[0] + (pitch === 1 ? ' ✓' : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' clean';
+        live.textContent = (a.slash ? 'Heard a strum' : 'Heard ' + noteLabel(ev.midi).split(' ')[0]) + (pitch === 1 ? ' ✓' : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' clean';
       });
     }
     const scoreMic = seg => {

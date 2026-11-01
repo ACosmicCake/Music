@@ -12,25 +12,39 @@ const lib = () => {
   return s.readLib;
 };
 
-/* One event: pitch (r for a rest, or the pitches of a chord joined by +), duration, then . dot, ~ tie,
-   # or b spelling, t triplet. Bars split by |. */
+/* One event: pitch (r for a rest, s for a slash, or the pitches of a chord joined by +), duration, then . dot,
+   ~ tie, # or b spelling, t triplet, > accent, ' staccato. Bars split by |. After the bars, @r<first>-<last> for
+   a repeat and @c<chords> for a chart's chord symbols (sym:at, split by , in a bar and | between bars). */
 function encode(piece) {
-  const pitch = n => (n.midi == null ? 'r' : n.chord && n.chord.length > 1 ? n.chord.join('+') : n.midi);
-  const ev = n => pitch(n) + n.dur + (n.dot ? '.' : '') + (n.tie ? '~' : '') + (n.spell || '') + (n.tup ? 't' : '');
-  return piece.key + '/' + piece.time + '/' + piece.bars.map(b => b.map(ev).join(' ')).join('|');
+  const pitch = n => (n.midi == null ? 'r' : n.slash ? 's' : n.chord && n.chord.length > 1 ? n.chord.join('+') : n.midi);
+  const ev = n => pitch(n) + n.dur + (n.dot ? '.' : '') + (n.tie ? '~' : '') + (n.spell || '') + (n.tup ? 't' : '') + (n.acc ? '>' : '') + (n.stac ? "'" : '');
+  let code = piece.key + '/' + piece.time + '/' + piece.bars.map(b => b.map(ev).join(' ')).join('|');
+  if (Array.isArray(piece.repeat)) code += '@r' + piece.repeat[0] + '-' + piece.repeat[1];
+  if (Array.isArray(piece.chords)) code += '@c' + piece.chords.map(cs => (cs || []).map(c => c.text + ':' + c.at).join(',')).join('|');
+  return code;
 }
+const SLASH = 71;
 function decode(code) {
-  const parts = code.split('/'), key = parts[0], time = parts[1] + '/' + parts[2], body = parts.slice(3).join('/');
+  const [main, ...extra] = code.split('@');
+  const parts = main.split('/'), key = parts[0], time = parts[1] + '/' + parts[2], body = parts.slice(3).join('/');
   const bars = body.split('|').map(b => b.split(' ').map(t => {
-    const m = /^(r|\d+(?:\+\d+)*)(w|h|q|8|16)(\.?)(~?)([#b]?)(t?)$/.exec(t);
+    const m = /^(r|s|\d+(?:\+\d+)*)(w|h|q|8|16)(\.?)(~?)([#b]?)(t?)(>?)('?)$/.exec(t);
     if (!m) return { midi: null, dur: 'q' }; // written by a newer app: keep the bar's place
-    const ps = m[1] === 'r' ? null : m[1].split('+').map(Number);
+    const ps = m[1] === 'r' ? null : m[1] === 's' ? [SLASH] : m[1].split('+').map(Number);
     const n = { midi: ps ? Math.max(...ps) : null, dur: m[2] };
     if (ps && ps.length > 1) n.chord = ps.sort((x, y) => x - y);
+    if (m[1] === 's') n.slash = true;
     if (m[3]) n.dot = true; if (m[4]) n.tie = true; if (m[5]) n.spell = m[5]; if (m[6]) n.tup = 3;
+    if (m[7]) n.acc = true; if (m[8]) n.stac = true;
     return n;
   }));
-  return { key, time, bars };
+  const piece = { key, time, bars };
+  extra.forEach(x => {
+    const r = /^r(\d+)-(\d+)$/.exec(x);
+    if (r) piece.repeat = [+r[1], +r[2]];
+    else if (x[0] === 'c') piece.chords = x.slice(1).split('|').map(b => (b ? b.split(',').map(c => { const k = c.lastIndexOf(':'); return { text: c.slice(0, k), at: +c.slice(k + 1) || 0 }; }) : []));
+  });
+  return piece;
 }
 
 const list = (lv, kind) => Object.values(lib().pieces).filter(p => (lv == null || p.lv === lv) && (!kind || p.kind === kind));

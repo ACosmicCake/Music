@@ -5,7 +5,7 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 9;
+export const SCHEMA = 10;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide'];
@@ -85,6 +85,11 @@ const MIGRATIONS = {
   9(s) {
     const map = { 31: 32, 32: 36, 33: 37, 34: 38, 35: 39, 36: 40 };
     return moveLevels(s, map, 40, n => [31, 33, 34, 35].includes(n));
+  },
+  // 9 → 10: four band-chart steps (accents and staccato, repeat signs, tab, rhythm slashes) went in before the
+  // last level, Everything (40 → 44), and take its record when you had read it.
+  10(s) {
+    return moveLevels(s, { 40: 44 }, 44, n => n >= 40 && n <= 43);
   }
 };
 /* Sight-reading levels renumbered: each level's progress (skill items L<n>:rhythm|melody), tempos
