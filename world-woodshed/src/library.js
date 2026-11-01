@@ -195,6 +195,30 @@ export function markClean(entryId, fileId, a, b, bpm, written, now = Date.now())
   E.saveLibEntry(Object.assign({}, e, { tempos }));
   return rec;
 }
+/* A file's content changed (a score whose notes you fixed): it is stored as a new file in the same place in
+   the list, so other devices download the new version, the old one gets a tombstone, and its section tempos
+   move with it. → the new file id, or null */
+export async function replaceFile(entryId, oldId, blob, name) {
+  const e = E.getLibEntry(entryId);
+  const i = e && Array.isArray(e.files) ? e.files.findIndex(f => f.id === oldId) : -1;
+  if (i < 0 || !(blob instanceof Blob)) return null;
+  const old = e.files[i], id = fileId(), type = blob.type || old.type || '';
+  const nm = str(name || old.name, 200);
+  const ok = await putFile(id, { blob, name: nm, type, size: blob.size, entry: entryId, thumb: null });
+  if (!ok) return null;
+  const cur = E.getLibEntry(entryId);
+  if (!cur) { await delFile(id); return null; }
+  const files = (cur.files || []).map(f => (f.id === oldId ? { id, name: nm, type, size: blob.size, added: Date.now() } : f));
+  let tempos = cur.tempos;
+  if (tempos) {
+    tempos = {};
+    Object.entries(cur.tempos).forEach(([k, v]) => { tempos[k.startsWith(oldId + ':') ? id + k.slice(oldId.length) : k] = v; });
+  }
+  E.saveLibEntry(Object.assign({}, cur, { files }, tempos ? { tempos } : {}));
+  E.tombstone('libfile:' + oldId);
+  await delFile(oldId);
+  return id;
+}
 export async function removeFile(entryId, id) {
   E.removeLibFile(entryId, id);
   await delFile(id);

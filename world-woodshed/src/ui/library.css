@@ -73,3 +73,16 @@ html.compact .lib-bpm { min-width: 4.5em; font-size: 0.8rem; }
 .lib-recs { padding: 0 8px 6px; gap: 4px; }
 .lib-recchip.done { border-color: var(--patina); }
 html.compact .lib-rec { padding: 2px 6px; font-size: 0.78rem; }
+
+/* fixing the notes of a score read from a page */
+.lib-fixtools { display: grid; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.lib-fixtools .row { gap: 4px; flex-wrap: wrap; align-items: center; }
+.lib-fixtools .btn { min-width: 40px; }
+.lib-fixtools select { min-height: 34px; padding: 4px 8px; }
+.lib-fixinfo { font-weight: 700; }
+html.compact .lib-fixtools { padding: 4px; }
+html.compact .lib-fixtools .btn { min-width: 34px; padding-inline: 6px; }
+.lib-fixing .lib-vtools, .lib-fixing .lib-rec, .lib-fixing .lib-recs { display: none; }
+.lib-viewer.lib-fixing:has(.lib-vinfo) { grid-template-rows: auto auto minmax(0, 1fr); }
+.lib-vbar .btn[aria-pressed="true"] { background: var(--patina); color: var(--bg); border-color: var(--patina); }
+html.compact .lib-fixtools select { flex: 1 1 40%; min-width: 0; }
