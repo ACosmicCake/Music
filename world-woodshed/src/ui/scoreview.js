@@ -10,9 +10,15 @@ import { toMusicXML } from '../notate.js';
 
 const BASE = (import.meta.env && import.meta.env.BASE_URL) || '/';
 const VIEWS = [['both', 'Both', alphaTab.StaveProfile.Default], ['score', 'Notes', alphaTab.StaveProfile.Score], ['tab', 'Tab', alphaTab.StaveProfile.Tab]];
-const SPEEDS = [0.5, 0.6, 0.75, 0.9, 1];
 const ZOOMS = [0.7, 0.9, 1.2];
-const pref = { view: 'both', speed: 1, zoom: 0 }; // kept while the app is open
+const pref = { view: 'both', zoom: 0, click: false }; // kept while the app is open
+const BPM_MIN = 20, BPM_MAX = 300;
+/* Bars a recognized score asks to be checked (src/omr/musicxml.js writes them in) */
+export function checkBars(bytes) {
+  const head = new TextDecoder().decode(bytes.subarray(0, 4096));
+  const m = head.match(/<miscellaneous-field name="ww-check-bars">([\d ]+)</);
+  return m ? m[1].trim().split(/\s+/).map(Number) : [];
+}
 
 /* The bytes alphaTab should read for this file, or throws */
 async function scoreBytes(blob, kind) {
@@ -24,6 +30,7 @@ async function scoreBytes(blob, kind) {
 /* Show a score full screen; resolves with a close function once it has loaded (throws if it can't) */
 export async function openScore(blob, { title, kind } = {}, onClose) {
   const data = await scoreBytes(blob, kind);
+  const toCheck = kind === 'musicxml' ? checkBars(data) : [];
   let closed = false;
   const back = document.activeElement;
   const sheet = h('div', { class: 'lib-score' });
@@ -37,12 +44,72 @@ export async function openScore(blob, { title, kind } = {}, onClose) {
     return s;
   };
   const viewSel = select('Show', VIEWS.map(v => [v[0], v[1]]), pref.view, v => { pref.view = v; api.settings.display.staveProfile = VIEWS.find(x => x[0] === v)[2]; api.updateSettings(); api.render(); });
-  const speedSel = select('Speed', SPEEDS.map(x => [x, Math.round(x * 100) + '%']), pref.speed, v => { pref.speed = Number(v); api.playbackSpeed = pref.speed; });
   const zoomSel = select('Size', ZOOMS.map((x, i) => [i, ['Small', 'Medium', 'Large'][i]]), pref.zoom, v => { pref.zoom = Number(v); api.settings.display.scale = ZOOMS[pref.zoom]; api.updateSettings(); api.render(); });
   const trackWrap = h('span', { hidden: true });
+
+  // the tempo, in beats a minute: the score's own, slowed down or sped up
+  let written = 120, bpm = 120, nBars = 0, tempoSet = false;
+  const bpmOut = h('output', { class: 'mono lib-bpm', 'aria-live': 'polite' });
+  const setBpm = v => {
+    bpm = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(v)));
+    api.playbackSpeed = bpm / written;
+    bpmOut.textContent = '♩ ' + bpm + (bpm === written ? '' : ' (' + Math.round(bpm / written * 100) + '%)');
+    slower.disabled = bpm <= BPM_MIN; faster.disabled = bpm >= BPM_MAX;
+  };
+  const slower = h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => setBpm(bpm - 5) }, '−');
+  const faster = h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => setBpm(bpm + 5) }, '+');
+  const clickBtn = h('button', { class: 'btn small', 'aria-pressed': String(pref.click), onclick: () => { pref.click = !pref.click; clickBtn.setAttribute('aria-pressed', String(pref.click)); api.metronomeVolume = pref.click ? 1 : 0; } }, 'Click');
+
+  // a section to practise: bars from–to, looped, sped up each time round, or shown alone for reading
+  const num = (label, v) => h('input', { type: 'number', min: 1, value: v, inputmode: 'numeric', class: 'lib-barin', 'aria-label': label });
+  const fromIn = num('From bar', 1), toIn = num('To bar', 4);
+  const sec = { loop: false, ramp: false, only: false, laps: 0 };
+  const toggle = (label, key, on) => {
+    const b = h('button', { class: 'btn small', 'aria-pressed': 'false', onclick: () => { sec[key] = !sec[key]; b.setAttribute('aria-pressed', String(sec[key])); on(); } }, label);
+    return b;
+  };
+  const loopBtn = toggle('Loop', 'loop', () => applySection());
+  const rampBtn = toggle('Speed up', 'ramp', () => {
+    sec.laps = 0;
+    if (!sec.ramp) return;
+    if (!sec.loop) loopBtn.click();
+    if (bpm >= written) setBpm(written * 0.7); // start slower, and come up to the written tempo
+  });
+  rampBtn.title = 'Each time round the loop, 5 beats a minute faster, up to the written tempo';
+  const onlyBtn = toggle('Show only these', 'only', () => applyView());
+  const range = () => {
+    let a = Math.max(1, Math.min(nBars || 1, Math.round(Number(fromIn.value) || 1)));
+    let b = Math.max(1, Math.min(nBars || 1, Math.round(Number(toIn.value) || a)));
+    if (b < a) [a, b] = [b, a];
+    fromIn.value = a; toIn.value = b;
+    return [a, b];
+  };
+  function applySection() {
+    const sc = api.score;
+    if (!sc) return;
+    if (sec.loop) {
+      const [a, b] = range(), mb = sc.masterBars;
+      api.playbackRange = { startTick: mb[a - 1].start, endTick: mb[b - 1].start + mb[b - 1].calculateDuration() };
+      api.isLooping = true;
+    } else { api.playbackRange = null; api.isLooping = false; }
+    sec.laps = 0;
+  }
+  function applyView() {
+    const [a, b] = range();
+    api.settings.display.startBar = sec.only ? a : 1;
+    api.settings.display.barCount = sec.only ? b - a + 1 : -1;
+    api.updateSettings(); api.render();
+  }
+  [fromIn, toIn].forEach(el => el.addEventListener('change', () => { range(); if (sec.loop) applySection(); if (sec.only) applyView(); }));
+  const checkNote = h('p', { class: 'small lib-check', hidden: true });
+
   const box = h('div', { class: 'lib-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Score' },
     h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, note),
-    h('div', { class: 'lib-vtools' }, viewSel, speedSel, zoomSel, trackWrap), pane);
+    h('div', { class: 'lib-vtools' },
+      h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Tempo' }, slower, bpmOut, faster, clickBtn),
+      h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Section' }, h('span', { class: 'small', text: 'Bars' }), fromIn, h('span', { class: 'small', text: 'to' }), toIn, loopBtn, rampBtn, onlyBtn),
+      h('span', { class: 'lib-vgroup' }, viewSel, zoomSel, trackWrap)),
+    checkNote, pane);
   document.body.append(box);
 
   const api = new alphaTab.AlphaTabApi(sheet, {
@@ -50,11 +117,24 @@ export async function openScore(blob, { title, kind } = {}, onClose) {
     display: { scale: ZOOMS[pref.zoom], layoutMode: alphaTab.LayoutMode.Page, staveProfile: VIEWS.find(x => x[0] === pref.view)[2] },
     player: { playerMode: alphaTab.PlayerMode.EnabledSynthesizer, soundFont: BASE + 'soundfont/sonivox.sf3', scrollElement: pane, enableCursor: true, enableUserInteraction: true }
   });
-  api.playbackSpeed = pref.speed;
+  api.metronomeVolume = pref.click ? 1 : 0;
+  if (toCheck.length) {
+    checkNote.hidden = false;
+    checkNote.textContent = 'Read from a page by the app. ' + (toCheck.length === 1 ? 'Bar ' + toCheck[0] + ' didn\'t' : 'Bars ' + (toCheck.length > 10 ? toCheck.slice(0, 10).join(', ') + '…' : toCheck.join(', ')) + ' didn\'t') + ' add up and may be wrong: compare them with the page.';
+  }
   playBtn.onclick = () => api.playPause();
   stopBtn.onclick = () => api.stop();
   api.playerReady.on(() => { playBtn.disabled = false; stopBtn.disabled = false; if (note.textContent.startsWith('Loading the sounds')) note.textContent = ''; });
   api.soundFontLoad.on(e => { if (e.total) note.textContent = 'Loading the sounds… ' + Math.round(e.loaded / e.total * 100) + '%'; });
+  // each time the loop comes round: a lap, and 5 beats a minute faster when speeding up
+  let lastTick = 0;
+  api.playerPositionChanged.on(e => {
+    if (sec.loop && !e.isSeek && e.currentTick < lastTick - 10) {
+      sec.laps++;
+      if (sec.ramp && bpm < written) setBpm(Math.min(written, bpm + 5));
+    }
+    lastTick = e.currentTick;
+  });
   api.playerStateChanged.on(e => {
     const playing = e.state === alphaTab.synth.PlayerState.Playing;
     playBtn.textContent = playing ? '⏸' : '▶'; playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
@@ -81,6 +161,11 @@ export async function openScore(blob, { title, kind } = {}, onClose) {
     api.error.on(err => { if (!done) { done = true; close(); reject(err instanceof Error ? err : new Error(String(err))); } else note.textContent = 'Playback is not available here.'; });
     api.scoreLoaded.on(score => {
       const tracks = score.tracks || [];
+      written = Math.max(BPM_MIN, Math.round(score.tempo || 120));
+      nBars = score.masterBars.length;
+      fromIn.max = nBars; toIn.max = nBars;
+      if (Number(toIn.value) > nBars) toIn.value = nBars;
+      if (!tempoSet) { tempoSet = true; setBpm(written); }
       note.textContent = 'Loading the sounds…';
       if (tracks.length > 1) {
         trackWrap.hidden = false; trackWrap.innerHTML = '';

@@ -23,6 +23,9 @@ let closeViewer = null; // the photo viewer, closed when the page goes (the Andr
 function leave() { if (closeViewer) closeViewer(); dropUrls(); }
 const AUTO_FETCH_MB = 25; // opening an entry downloads its missing files by itself up to this much
 const syncOffNote = 'To sync the files themselves, turn on automatic sync: Today → Your progress on every device.';
+const READ_SUFFIX = ' (notes read).musicxml';
+const titleBase = t => String(t || 'Score').slice(0, 120);
+const pdfReadName = n => String(n || 'Score').replace(/\.[a-z0-9]{1,8}$/i, '').slice(0, 120) + READ_SUFFIX;
 const titleFromFile = name => String(name || '').replace(/\.wwscore\.json$/i, '').replace(/\.[a-z0-9]{1,8}$/i, '').replace(/[_]+/g, ' ').trim();
 
 /* a hidden file input: camera (a photo of a score), the photo gallery, or any file */
@@ -38,6 +41,31 @@ function picker(kind, onFiles) {
 function reportAdd(r) {
   if (r.failed.length) toast(r.failed.map(([n, why]) => n + ': ' + why).join('; '));
   else if (r.added) toast(r.added === 1 ? 'Added' : r.added + ' files added');
+}
+
+/* ---------- reading the notes of a PDF or of photos (src/ui/recognize.js, loaded the first time) ---------- */
+const isReading = f => f.kind === 'musicxml' && f.name.endsWith(READ_SUFFIX);
+const loadReader = () => import('./recognize.js');
+/* Read one PDF (fileId) or the entry's photos (null) into a playable score, with a toast when done */
+async function readNotes(entryId, fileId) {
+  try {
+    const R = await loadReader();
+    const r = await R.readIntoLibrary(entryId, fileId);
+    toast(R.short(r));
+    return r;
+  } catch (e) {
+    console.error(e);
+    toast('The notes could not be read' + (e && e.message ? ': ' + e.message : ''));
+    return null;
+  }
+}
+/* PDFs just added are read by themselves (one at a time, in the background) */
+async function readNewPdfs(entryId) {
+  const e = L.getEntry(entryId);
+  if (!e || !e.files.some(f => f.kind === 'pdf')) return;
+  const R = await loadReader();
+  const todo = R.unreadPdfs(e, await L.localIds());
+  for (const f of todo) await readNotes(entryId, f.id);
 }
 const writeButton = (cls, params) => (TOOLS.notate
   ? h('button', { class: cls, onclick: () => openTool('notate', { returnTab: 'library', params }) }, params ? 'Edit in Write by playing' : 'Write a score by playing')
@@ -56,6 +84,7 @@ PAGES.library = function () {
     const id = await L.addToLibrary(Object.assign({ title: titleFromFile(files[0] && files[0].name) || 'Untitled score' }, fields));
     reportAdd(await L.addFiles(id, files));
     entryPage(id, { rename: true });
+    readNewPdfs(id);
   };
   const cam = picker('camera', files => newFrom(files, { title: 'Score photo ' + dateLabel(Date.now()) }));
   const any = picker('files', files => newFrom(files, {}));
@@ -164,12 +193,29 @@ export function entryPage(id, opts = {}) {
   // pages and files
   const filesCard = h('section', { class: 'card' });
   view.append(filesCard);
-  const after = r => { reportAdd(r); drawFiles(); };
+  const after = r => { reportAdd(r); drawFiles(); if (r.added) readNewPdfs(id); };
   const cam = picker('camera', files => L.addFiles(id, files).then(after));
   const photos = picker('photos', files => L.addFiles(id, files).then(after));
   const any = picker('files', files => L.addFiles(id, files).then(after));
   view.append(cam, photos, any);
   const fetchNote = h('p', { class: 'small', role: 'status' });
+  const readNote = h('div', { class: 'lib-reading', role: 'status', hidden: true });
+  let offJobs = null;
+  loadReader().then(R => {
+    const draw = () => {
+      if (!view.contains(filesCard)) { if (offJobs) offJobs(); return; }
+      const js = R.jobsFor(id);
+      const last = R.lastResult(id);
+      readNote.hidden = !js.length && !last;
+      readNote.innerHTML = '';
+      if (!js.length && last) readNote.append(h('p', { class: 'small', text: 'Last reading: ' + R.describe(last) }));
+      js.forEach(j => readNote.append(h('div', { class: 'stack' }, h('span', { class: 'small', text: j.text }),
+        h('progress', { max: 1, value: j.frac || 0, 'aria-label': 'Reading the notes' }))));
+      if (!js.length && view.contains(filesCard)) drawFiles();
+    };
+    offJobs = R.onJobs(draw);
+    draw();
+  }).catch(() => {});
   let autoTried = false, fetching = false;
   /* download files added on another device from the sync repository, one by one */
   async function fetchAll(files) {
@@ -214,10 +260,15 @@ export function entryPage(id, opts = {}) {
         strip.append(b);
       });
       filesCard.append(strip);
-      if (here.length) filesCard.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => viewer(here, 0) }, here.length > 1 ? 'Read the ' + here.length + ' pages' : 'Open the photo')));
+      if (here.length) {
+        const done = cur.files.some(f => f.name === titleBase(cur.title) + READ_SUFFIX);
+        filesCard.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => viewer(here, 0) }, here.length > 1 ? 'Look at the ' + here.length + ' pages' : 'Open the photo'),
+          h('button', { class: 'btn small' + (done ? '' : ' brass'), onclick: () => readNotes(id, null) }, done ? 'Read the notes again' : here.length > 1 ? 'Make the pages playable' : 'Make it playable')),
+        h('p', { class: 'small muted', text: 'The app reads the notes from the photos (on this phone, nothing is sent anywhere) and saves a score you can play and open in MuseScore. Printed music reads well; handwriting is much harder and needs checking.' }));
+      }
     }
     const rows = others.concat(imgs);
-    filesCard.append(fetchNote);
+    filesCard.append(fetchNote, readNote);
     if (rows.length) filesCard.append(h('div', { class: 'stack lib-files' }, rows.map(f => fileRow(cur, f, have.has(f.id), drawFiles, have.has(f.id) ? null : fetchOne(f)))));
     filesCard.append(h('div', { class: 'row' },
       h('button', { class: 'btn small brass', onclick: () => cam.click() }, 'Take a photo'),
@@ -290,7 +341,11 @@ function fileRow(entry, f, local, redraw, fetch) {
   if (local) {
     if (READABLE.has(f.kind)) acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readScore(got, f.kind)) }, 'Read and play'));
     if (SCORE_KINDS.has(f.kind)) acts.append(h('button', { class: 'btn small' + (READABLE.has(f.kind) ? ' ghost' : ' brass'), onclick: withFile(got => openBlob(got.name, typed(got), got.name).then(said('MuseScore'))) }, 'Open in MuseScore'));
-    else if (f.kind === 'pdf') acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readPdf(got)) }, 'Read'));
+    else if (f.kind === 'pdf') {
+      acts.append(h('button', { class: 'btn small brass', onclick: withFile(got => readPdf(got)) }, 'Read'));
+      const done = entry.files.some(x => x.name === pdfReadName(f.name));
+      acts.append(h('button', { class: 'btn small', onclick: () => readNotes(entry.id, f.id) }, done ? 'Read the notes again' : 'Make it playable'));
+    }
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
   }
@@ -306,6 +361,7 @@ function fileRow(entry, f, local, redraw, fetch) {
         h('button', { class: 'btn small danger', onclick: async () => { await L.removeFile(entry.id, f.id); toast('Removed'); redraw(); } }, 'Remove'))));
   } }, 'Remove'));
   row.append(info, acts);
+  if (isReading(f)) row.append(h('p', { class: 'small muted', text: 'Read from the page by the app. Play it to check it against the original: wrong notes can be fixed in MuseScore.' }));
   return row;
 }
 
