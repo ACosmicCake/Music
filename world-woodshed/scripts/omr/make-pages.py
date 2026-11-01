@@ -233,7 +233,7 @@ def main():
                        'footer': 'none', 'header': 'none', 'breaks': 'auto', 'spacingSystem': rng.randint(6, 14)})
         tk.loadData(xml)
         svg = tk.renderToSVG(1)
-        width = rng.choice([2400, 2800, 3200]) if '--photo' in sys.argv else rng.choice([1100, 1300, 1500, 1700, 2000])
+        width = rng.choice([2400, 2800, 3200]) if '--photo' in sys.argv or '--hand' in sys.argv else rng.choice([1100, 1300, 1500, 1700, 2000])
         g = Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg.encode(), background_color='white', output_width=width))).convert('L')
         col = Image.open(io.BytesIO(cairosvg.svg2png(bytestring=colour_svg(svg).encode(), background_color='white', output_width=width))).convert('RGB')
         name = '%s/p%03d' % (out, i)

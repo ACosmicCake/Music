@@ -303,16 +303,18 @@ export const spaceAt = (st, x) => (lineY(st, st.nLines - 1, x) - lineY(st, 0, x)
 /* Where the staff's lines start and end: the widest x range where most of its lines have ink */
 function extent(bin, st) {
   const { w, d } = bin;
+  // a hand-drawn or bent line wanders a little from where the knots put it
+  const tol = Math.max(1, Math.round(st.space * 0.12));
   const has = x => {
     let n = 0;
     for (let i = 0; i < st.nLines; i++) {
       const y = Math.round(lineY(st, i, x));
-      if ((y >= 0 && y < bin.h && d[y * w + x]) || (y > 0 && d[(y - 1) * w + x]) || (y + 1 < bin.h && d[(y + 1) * w + x])) n++;
+      for (let dy = -tol; dy <= tol; dy++) { const yy = y + dy; if (yy >= 0 && yy < bin.h && d[yy * w + x]) { n++; break; } }
     }
     return n >= st.nLines - 1;
   };
   const c = Math.round(st.knots[Math.floor(st.knots.length / 2)].x);
-  const gapMax = Math.max(3, st.space * 0.6);
+  const gapMax = Math.max(3, st.space * 1.2);
   let x0 = c, miss = 0;
   for (let x = c; x >= 0; x--) { if (has(x)) { x0 = x; miss = 0; } else if (++miss > gapMax) break; }
   let x1 = c; miss = 0;

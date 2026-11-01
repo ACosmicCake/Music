@@ -189,7 +189,7 @@ export function buildScore(pages, opts = {}) {
   const firstLen = rowBars.map(b => sum((b[0] || []).filter(e => !e.wholeRest)));
   const pickup = nBars > 1 && firstLen.every(l => l > EPS && l < barQ - EPS) ? Math.max(...firstLen) : 0;
   const parts = partRows.map((rows, pi) => ({
-    name: piano ? 'Piano' : partRows.length > 1 ? 'Part ' + (pi + 1) : opts.instrument || 'Music',
+    name: piano ? 'Piano' : partRows.length > 1 ? 'Part ' + (pi + 1) : opts.instrument || 'Guitar', // played on the app's nylon guitar
     staves: rows.map(r => clefs[r]),
     bars: []
   }));

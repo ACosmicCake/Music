@@ -89,7 +89,9 @@ async function readPages(pages, opts, onProgress) {
 }
 
 /* ---------- jobs: one at a time, and an open entry page can follow along ---------- */
-const jobs = new Map(); // entry id → { text, frac, promise }
+const jobs = new Map(); // entry and source → { entryId, text, frac, promise }
+const results = new Map(); // entry id → the last reading's result, while the app is open
+export const lastResult = entryId => results.get(entryId) || null;
 const listeners = new Set();
 const tell = () => listeners.forEach(fn => { try { fn(); } catch (e) { /* a page that went away */ } });
 export const onJobs = fn => { listeners.add(fn); return () => listeners.delete(fn); };
@@ -131,7 +133,7 @@ export function readIntoLibrary(entryId, fileId = null, opts = {}) {
     if (added.failed.length) throw new Error(added.failed[0][1]);
     return { name, summary: r.summary, skipped: r.skipped || 0 };
   };
-  job.promise = (queue = queue.catch(() => {}).then(run)).finally(() => { jobs.delete(key); tell(); });
+  job.promise = (queue = queue.catch(() => {}).then(run)).then(r => { results.set(entryId, r); return r; }).finally(() => { jobs.delete(key); tell(); });
   return job.promise;
 }
 
@@ -139,6 +141,13 @@ export function readIntoLibrary(entryId, fileId = null, opts = {}) {
 export function unreadPdfs(entry, have) {
   const names = new Set(entry.files.map(f => f.name));
   return entry.files.filter(f => f.kind === 'pdf' && have.has(f.id) && !names.has(readName(f.name)));
+}
+
+/* A few words for a toast */
+export function short(r) {
+  if (r.empty) return 'No music staves were found on the page';
+  const n = r.summary.check.length;
+  return 'Score ready: ' + r.summary.bars + ' bars' + (n ? ', ' + n + ' to check' : '');
 }
 
 /* What a reading found, in words */

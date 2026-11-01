@@ -51,7 +51,7 @@ async function readNotes(entryId, fileId) {
   try {
     const R = await loadReader();
     const r = await R.readIntoLibrary(entryId, fileId);
-    toast(r.empty ? R.describe(r) : 'Score ready: ' + R.describe(r), r.empty ? 6000 : 7000);
+    toast(R.short(r));
     return r;
   } catch (e) {
     console.error(e);
@@ -205,8 +205,10 @@ export function entryPage(id, opts = {}) {
     const draw = () => {
       if (!view.contains(filesCard)) { if (offJobs) offJobs(); return; }
       const js = R.jobsFor(id);
-      readNote.hidden = !js.length;
+      const last = R.lastResult(id);
+      readNote.hidden = !js.length && !last;
       readNote.innerHTML = '';
+      if (!js.length && last) readNote.append(h('p', { class: 'small', text: 'Last reading: ' + R.describe(last) }));
       js.forEach(j => readNote.append(h('div', { class: 'stack' }, h('span', { class: 'small', text: j.text }),
         h('progress', { max: 1, value: j.frac || 0, 'aria-label': 'Reading the notes' }))));
       if (!js.length && view.contains(filesCard)) drawFiles();
