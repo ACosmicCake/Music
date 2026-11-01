@@ -30,10 +30,25 @@ export function flatten(score) {
   return out;
 }
 
+/* the ties the reader found: row|bar|time|midi of each pitch a tie starts on */
+function tiesOf(score) {
+  const out = [];
+  let row0 = 0;
+  score.parts.forEach(part => {
+    part.bars.forEach((bar, m) => bar.forEach((voices, si) => voices.forEach(v => {
+      let t = 0;
+      v.forEach(e => { if (!e.rest) e.pitches.forEach(p => { if (p.tieStart) out.push((row0 + si) + '|' + m + '|' + t.toFixed(2) + '|' + midiOf(p)); }); t += e.q; });
+    })));
+    row0 += part.staves.length;
+  });
+  return out;
+}
+
 const dir = process.argv[2];
 const show = process.argv.includes('--show') ? Number(process.argv[process.argv.indexOf('--show') + 1]) : -1;
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.pgm')).sort();
 let TP = 0, FP = 0, FN = 0, durOK = 0, pitchOnly = 0, barsOK = 0, ms = 0;
+let repWant = 0, repGot = 0, repOK = 0, tieWant = 0, tieGot = 0, tieOK = 0, tieSeen = 0, tieFalse = 0;
 const rows = [];
 files.forEach((f, idx) => {
   const base = path.join(dir, f.replace('.pgm', ''));
@@ -55,6 +70,18 @@ files.forEach((f, idx) => {
   const lcs = (a, b) => { const d = new Array(b.length + 1).fill(0); for (let i = 1; i <= a.length; i++) { let prev = 0; for (let j = 1; j <= b.length; j++) { const tmp = d[j]; d[j] = a[i - 1] === b[j - 1] ? prev + 1 : Math.max(d[j], d[j - 1]); prev = tmp; } } return d[b.length]; };
   const po = lcs(seq(want), seq(got)) / Math.max(1, seq(want).length);
   TP += tp; FP += got.length - tp; FN += want.length - tp; durOK += dok; pitchOnly += po;
+  // repeats (pages from make-pages.py --marks): the same [first, last] bars
+  const wr = (gt.meta.repeats || []).map(r => r.join('-')), gr = (score && score.repeats || []).map(r => r.join('-'));
+  repWant += wr.length; repGot += gr.length; repOK += gr.filter(r => wr.includes(r)).length;
+  // ties: a tie starting on the right note
+  const wt = new Set(); gt.notes.forEach(n => { if (n.tieStart) n.midi.forEach(m => wt.add(n.staff + '|' + n.m + '|' + n.t.toFixed(2) + '|' + m)); });
+  const gtie = score ? tiesOf(score) : [];
+  tieWant += wt.size; tieGot += gtie.length; tieOK += gtie.filter(k => wt.has(k)).length;
+  // of the tied notes the reader found at all, how many it tied; and ties on notes that were read right but have none
+  const gotKeys = new Set(got.map(e => e.row + '|' + e.m + '|' + e.t.toFixed(2) + '|' + e.midi));
+  wt.forEach(k => { if (gotKeys.has(k)) tieSeen++; });
+  const wantKeys = new Set(want.map(key));
+  tieFalse += gtie.filter(k => !wt.has(k) && wantKeys.has(k)).length;
   const nb = score ? score.counts.bars : 0;
   if (nb === gt.meta.bars) barsOK++;
   rows.push([f, gt.meta.font, gt.meta.time, gt.meta.staves.join(''), 'bars ' + nb + '/' + gt.meta.bars, 'R ' + (tp / Math.max(1, want.length) * 100).toFixed(0) + '%', 'P ' + (tp / Math.max(1, got.length) * 100).toFixed(0) + '%', 'seq ' + (po * 100).toFixed(0) + '%', score ? 'time ' + score.time.num + '/' + score.time.den + ' key ' + score.fifths + ' fixed ' + score.counts.fixed : ''].join('  '));
@@ -63,4 +90,6 @@ files.forEach((f, idx) => {
 rows.forEach(r => console.log(r));
 const P = TP / Math.max(1, TP + FP), R = TP / Math.max(1, TP + FN);
 console.log(`\nnotes: precision ${(P * 100).toFixed(1)}%  recall ${(R * 100).toFixed(1)}%  F1 ${(2 * P * R / Math.max(1e-9, P + R) * 100).toFixed(1)}%  right length ${(durOK / Math.max(1, TP) * 100).toFixed(1)}%`);
+if (repWant || repGot) console.log(`repeats: ${repOK} of ${repWant} found, ${repGot - repOK} wrong`);
+if (tieWant || tieGot) console.log(`ties: ${tieOK} of ${tieWant} found (${tieSeen} of the tied notes were read), ${tieGot - tieOK} not matched, ${tieFalse} on a right note with no tie`);
 console.log(`pitch order (melody): ${(pitchOnly / files.length * 100).toFixed(1)}%  bars right: ${barsOK}/${files.length}  ${(ms / files.length).toFixed(0)} ms a page`);

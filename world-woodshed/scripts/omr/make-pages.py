@@ -4,10 +4,12 @@ in one of its SMuFL fonts, and saved as grey images, with a second image that co
 it is (for training the symbol classifier) and the notes as JSON (for measuring accuracy).
 
     pip install verovio cairosvg pillow numpy scipy
-    python3 scripts/omr/make-pages.py OUT_DIR COUNT [--seed N] [--photo] [--hand]
+    python3 scripts/omr/make-pages.py OUT_DIR COUNT [--seed N] [--photo] [--hand] [--marks]
 
 --photo makes each page look photographed (turned, bent, blurred, uneven light, JPEG); --hand makes it
-look hand-copied (the Petaluma font, every glyph nudged, wobbly lines). Nothing here ships with the app.
+look hand-copied (the Petaluma font, every glyph nudged, wobbly lines). --marks adds ties between repeated
+notes and repeat signs around a few bars (in the JSON as tieStart per note and meta.repeats). Nothing here
+ships with the app.
 """
 import io, json, os, random, re, sys
 import numpy as np
@@ -115,7 +117,20 @@ def make_score(rng, opts):
                     ev['pitches'] = pitches
                 events.append(ev); ev_t += L
             meas.append(events)
+        if opts.get('marks'):
+            # ties: a note held on into the next one (same pitches), across a beat or a bar line
+            flat = [e for ev in meas for e in ev]
+            for a, b in zip(flat, flat[1:]):
+                if not a['rest'] and not b['rest'] and not b.get('tieStop') and rng.random() < 0.14:
+                    b['pitches'] = list(a['pitches']); a['tieStart'] = True; b['tieStop'] = True
         parts_xml.append(meas)
+    repeats = []
+    if opts.get('marks'):
+        a = rng.randint(0, max(0, n_bars - 4)); b = min(n_bars - 1, a + rng.randint(1, 4))
+        repeats.append([a, b])
+        if b + 2 < n_bars - 1 and rng.random() < 0.5:
+            c = rng.randint(b + 1, n_bars - 2); repeats.append([c, min(n_bars - 1, c + rng.randint(1, 3))])
+    rep_start = {a for a, b in repeats}; rep_end = {b for a, b in repeats}
     # beams: eighths and shorter grouped within a beat
     def beam_groups(events):
         groups = []; cur = []
@@ -133,6 +148,7 @@ def make_score(rng, opts):
     xml = ['<?xml version="1.0" encoding="UTF-8"?>', '<score-partwise version="3.1">', '<part-list><score-part id="P1"><part-name></part-name></score-part></part-list>', '<part id="P1">']
     for m in range(n_bars):
         xml.append('<measure number="%d">' % (m + 1))
+        if m in rep_start and m > 0: xml.append('<barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>')
         if m == 0:
             xml.append('<attributes><divisions>%d</divisions><key><fifths>%d</fifths></key>' % (DIV, fifths))
             if time == '4/4' and rng.random() < 0.3: xml.append('<time symbol="common"><beats>4</beats><beat-type>4</beat-type></time>')
@@ -161,7 +177,7 @@ def make_score(rng, opts):
                 whole_bar = L == bar and bar not in (48,) and e['rest']
                 typ, dots = TYPES.get(L, ('whole', 0)) if not whole_bar else ('whole', 0)
                 gt.append({'staff': si, 'm': m, 't': e['t'] / DIV, 'len': L / DIV, 'rest': e['rest'],
-                           'midi': [] if e['rest'] else sorted(midi_of(*p) for p in e['pitches'])})
+                           'midi': [] if e['rest'] else sorted(midi_of(*p) for p in e['pitches']), 'tieStart': bool(e.get('tieStart'))})
                 if e['rest']:
                     meas_attr = ' measure="yes"' if L == bar else ''
                     xml.append('<note><rest%s/><duration>%d</duration><voice>%d</voice>%s%s<staff>%d</staff></note>' % (
@@ -173,11 +189,15 @@ def make_score(rng, opts):
                         acc = '<accidental>%s</accidental>' % {1: 'sharp', -1: 'flat', 0: 'natural'}[a]
                         state[(s, o)] = a
                     bm = ''.join('<beam number="%d">%s</beam>' % b for b in beams.get(id(e), [])) if k == 0 else ''
-                    xml.append('<note>%s<pitch><step>%s</step>%s<octave>%d</octave></pitch><duration>%d</duration><voice>%d</voice><type>%s</type>%s%s<staff>%d</staff>%s</note>' % (
-                        '<chord/>' if k else '', s, '<alter>%d</alter>' % a if a else '', o, L, si + 1, typ, '<dot/>' * dots, acc, si + 1, bm))
+                    tie = ('<tie type="stop"/>' if e.get('tieStop') else '') + ('<tie type="start"/>' if e.get('tieStart') else '')
+                    tied = ('<tied type="stop"/>' if e.get('tieStop') else '') + ('<tied type="start"/>' if e.get('tieStart') else '')
+                    xml.append('<note>%s<pitch><step>%s</step>%s<octave>%d</octave></pitch><duration>%d</duration>%s<voice>%d</voice><type>%s</type>%s%s<staff>%d</staff>%s%s</note>' % (
+                        '<chord/>' if k else '', s, '<alter>%d</alter>' % a if a else '', o, L, tie, si + 1, typ, '<dot/>' * dots, acc, si + 1, bm,
+                        '<notations>%s</notations>' % tied if tied else ''))
+        if m in rep_end: xml.append('<barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>')
         xml.append('</measure>')
     xml += ['</part>', '</score-partwise>']
-    meta = {'time': time, 'fifths': fifths, 'staves': [s for s, _ in staves], 'bars': n_bars}
+    meta = {'time': time, 'fifths': fifths, 'staves': [s for s, _ in staves], 'bars': n_bars, 'repeats': repeats}
     return '\n'.join(xml), gt, meta
 
 def colour_svg(svg):
@@ -226,7 +246,7 @@ def main():
     rng = random.Random(seed); np.random.seed(seed)
     os.makedirs(out, exist_ok=True)
     for i in range(count):
-        xml, gt, meta = make_score(rng, {})
+        xml, gt, meta = make_score(rng, {'marks': '--marks' in sys.argv})
         font = 'Petaluma' if '--hand' in sys.argv else rng.choice(FONTS)
         tk = verovio.toolkit()
         tk.setOptions({'font': font, 'pageWidth': 2100, 'pageHeight': 8000, 'scale': 40, 'adjustPageHeight': True,

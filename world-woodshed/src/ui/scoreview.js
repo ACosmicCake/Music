@@ -7,7 +7,7 @@ import * as alphaTab from '@coderline/alphatab';
 import { h } from './core.js';
 import { parseMidi, midiToDraft } from '../midiread.js';
 import { toMusicXML } from '../notate.js';
-import { editBeat, beatInfo, pitchName, barsToCheck, LENGTHS } from '../scoreedit.js';
+import { editBeat, toggleTie, beatInfo, pitchName, barsToCheck, LENGTHS } from '../scoreedit.js';
 import { TPQ, expectedFrom, follower } from '../follow.js';
 import Mic from '../listen.js';
 import A from '../audio.js';
@@ -198,8 +198,13 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     });
     if (fo.styled.length) api.render();
   }
-  function startPass() {
+  // a pass from a place in the score (where a repeat goes back to): the notes before it are not part of it
+  function startPass(from = -Infinity) {
     buildExpected();
+    if (from > -Infinity) {
+      const keep = fo.exp.map(x => x.tick >= from - TPQ / 8);
+      fo.exp = fo.exp.filter((x, i) => keep[i]); fo.refs = fo.refs.filter((x, i) => keep[i]);
+    }
     fo.tried = true;
     fo.f = fo.exp.length ? follower(fo.exp, bpm) : null;
     drawFollow();
@@ -230,6 +235,13 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     fo.f.passed(tick);
     drawFollow(true);
     fo.f = null;
+  }
+  // the written place of a tick of the player's clock (they differ once a repeat has been played)
+  function writtenTick(tick) {
+    const sc = api.score;
+    if (!sc || !sc.masterBars.some(m => m.isRepeatStart || m.repeatCount > 0) || !api.tickCache) return tick;
+    const r = api.tickCache.findBeat(new Set([fx.part]), tick);
+    return r && r.beat ? r.beat.absolutePlaybackStart + Math.max(0, tick - r.start) : tick;
   }
   // a note played (or tapped) at a wall-clock time, placed on the score's clock. alphaTab reports the position
   // every few dozen ms while it plays (and holds still through the count-in), so carry it forward only a short way
@@ -281,12 +293,13 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     apply({ length: lenSel.value, dots: on ? 1 : 0 });
   } }, '•');
   const restBtn = h('button', { class: 'btn small', onclick: () => apply('rest') }, 'Rest');
+  const tieBtn = h('button', { class: 'btn small', 'aria-pressed': 'false', 'aria-label': 'Tie to the next note', onclick: () => apply('tie') }, 'Tie ⁀');
   const undoBtn = h('button', { class: 'btn small ghost', disabled: true, onclick: () => { if (!fx.undo.length) return; data = fx.undo.pop(); fx.dirty = true; reload(); } }, 'Undo');
   const fixTools = h('div', { class: 'lib-fixtools', hidden: true, role: 'group', 'aria-label': 'Fix the selected note' },
     h('div', { class: 'row' }, fixInfo),
     h('div', { class: 'row' }, fb('▲', 'up', 'Up a line or space'), fb('▼', 'down', 'Down a line or space'), fb('♯', 'sharp', 'Sharp'), fb('♭', 'flat', 'Flat'), fb('♮', 'natural', 'Natural'),
       fb('8va▲', 'octUp', 'Up an octave'), fb('8va▼', 'octDown', 'Down an octave')),
-    h('div', { class: 'row' }, lenSel, dotBtn, restBtn, fb('Delete', 'delete', 'Delete the note'), undoBtn));
+    h('div', { class: 'row' }, lenSel, dotBtn, restBtn, tieBtn, fb('Delete', 'delete', 'Delete the note'), undoBtn));
   const xmlText = () => new TextDecoder().decode(data);
   function describeSel() {
     const tools = fixTools.querySelectorAll('button:not(.ghost), select');
@@ -299,11 +312,13 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     lenSel.value = LENGTHS.includes(info.type) ? info.type : 'quarter';
     dotBtn.setAttribute('aria-pressed', String(info.dots > 0));
     restBtn.textContent = info.rest ? 'Make it a note' : 'Make it a rest';
+    tieBtn.setAttribute('aria-pressed', String(!!info.tied));
+    tieBtn.disabled = !info.canTie;
     fixTools.querySelectorAll('[aria-label="Up a line or space"], [aria-label="Down a line or space"], [aria-label="Sharp"], [aria-label="Flat"], [aria-label="Natural"], [aria-label^="Up an octave"], [aria-label^="Down an octave"]').forEach(b => { b.disabled = info.rest; });
   }
   function apply(op) {
     if (!fx.sel) return;
-    const before = xmlText(), after = editBeat(before, fx.sel, op);
+    const before = xmlText(), after = op === 'tie' ? toggleTie(before, fx.sel) : editBeat(before, fx.sel, op);
     if (after === before) { describeSel(); return; }
     fx.undo.push(data); if (fx.undo.length > 50) fx.undo.shift();
     data = new TextEncoder().encode(after);
@@ -376,8 +391,12 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     }
     if (e.isSeek && fo.on && fo.f) { endPass(); }
     lastTick = e.currentTick;
-    fo.tick = e.currentTick; fo.wall = performance.now();
-    if (fo.f && fo.playing) fo.f.passed(e.currentTick);
+    // with repeats, the player's clock runs on through the bars played again; the notes are placed by where they
+    // are written. Going back to a repeat's start is a new pass, as a loop is
+    const w = writtenTick(e.currentTick);
+    if (fo.on && fo.f && !e.isSeek && w < fo.tick - TPQ) { endPass(fo.tick); startPass(w); }
+    fo.tick = w; fo.wall = performance.now();
+    if (fo.f && fo.playing) fo.f.passed(w);
   });
   api.playerFinished.on(() => { if (fo.on) endPass(Infinity); });
   api.playerStateChanged.on(e => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scoreToMusicXML } from '../src/omr/musicxml.js';
-import { editBeat, beatInfo, barsToCheck, withCheckBars, pitchName } from '../src/scoreedit.js';
+import { editBeat, toggleTie, beatInfo, barsToCheck, withCheckBars, pitchName } from '../src/scoreedit.js';
 
 /* Fixing the notes of a score read from a page (src/scoreedit.js): each edit changes one beat as alphaTab
    counts them (part, bar, staff, voice, beat) and leaves the rest of the file as the recognizer wrote it. */
@@ -108,6 +108,29 @@ describe('chords and staves', () => {
     expect(beatInfo(xml, at(0, 0)).rest).toBe(true);
     expect(name(xml, at(0, 1))).toBe('D4');
     expect((xml.match(/<chord\/>/g) || []).length).toBe(0);
+  });
+});
+
+describe('ties', () => {
+  // bar 1 ends on A4, bar 2 starts on G4: tie A to A only after making the G an A
+  it('ties a note to the same pitch after it, across the bar line, and takes the tie off again', () => {
+    let xml = melody();
+    expect(beatInfo(xml, at(0, 3))).toMatchObject({ tied: false, canTie: false }); // A4 then G4
+    xml = editBeat(xml, at(1, 0), 'up'); // G4 → A4
+    expect(beatInfo(xml, at(0, 3)).canTie).toBe(true);
+    xml = toggleTie(xml, at(0, 3));
+    expect(beatInfo(xml, at(0, 3)).tied).toBe(true);
+    expect(xml).toContain('<tie type="start"/>');
+    expect(xml).toContain('<tie type="stop"/>');
+    expect((xml.match(/<tied type="(start|stop)"\/>/g) || []).length).toBe(2);
+    const off = toggleTie(xml, at(0, 3));
+    expect(off).not.toContain('<tie ');
+    expect(off).not.toContain('<notations></notations>');
+    expect(beatInfo(off, at(0, 3)).tied).toBe(false);
+  });
+  it('does nothing on a rest, or where the next note differs', () => {
+    expect(toggleTie(melody(), at(1, 1))).toBe(melody());
+    expect(toggleTie(melody(), at(0, 0))).toBe(melody());
   });
 });
 

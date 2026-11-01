@@ -6,6 +6,7 @@
    beamed notes in a beat may be a triplet, a short bar is filled with a rest, a long one cut) and noted, so
    the reader can check those bars. */
 import { staffPos } from './image.js';
+import { findTies } from './detect.js';
 
 const STEPS = 'CDEFGAB';
 // the diatonic number (octave × 7 + step) of the bottom line for each clef
@@ -81,6 +82,8 @@ function readStaff(st, index, det, syms, sp) {
   const xs = det.bars.filter(b => b.staff === index).map(b => b.x).sort((a, b) => a - b);
   s.barXs = [];
   xs.forEach(x => { if (!s.barXs.length || x - s.barXs[s.barXs.length - 1] > sp * 1.2) s.barXs.push(x); else s.barXs[s.barXs.length - 1] = x; });
+  // repeat signs on this staff's bar lines: { x, dir: 'forward' | 'backward' | 'both' }
+  s.repeats = det.bars.filter(b => b.staff === index && b.repeat).map(b => ({ x: b.x, dir: b.repeat }));
   // the events: notes (by their stems or heads) and rests
   s.events = [];
   det.notes.filter(n => n.staff === index && n.x > hx).forEach(n => {
@@ -101,6 +104,7 @@ function readStaff(st, index, det, syms, sp) {
     s.events.push({ x: r.x0, q: REST_Q[cls] * (dot ? 1.5 : 1), base: REST_Q[cls], dots: dot ? 1 : 0, rest: true, wholeRest: cls === 'restW', pos: staffPos(st, r.y, r.x) });
   });
   s.events.sort((a, b) => a.x - b.x);
+  if (det.ink) findTies(det.ink, s.events, sp);
   // accidentals: each to the head right after it at its height
   const accOf = new Map();
   syms.filter(y => ACC_ALTER[y.cls] != null && !s.keySyms.has(y)).forEach(a => {
@@ -132,9 +136,14 @@ function cutBars(s, xs, sp) {
   const bounds = [s.headerEnd].concat(cuts);
   if (s.x1 - bounds[bounds.length - 1] > sp * 3) bounds.push(s.x1 + 1);
   s.bars = [];
+  const rep = (x, dir) => (s.repeats || []).some(r => Math.abs(r.x - x) < sp * 2 && (r.dir === dir || r.dir === 'both'));
   for (let k = 0; k + 1 < bounds.length; k++) {
     const a = bounds[k], b = bounds[k + 1];
-    s.bars.push({ events: s.events.filter(e => e.x >= a && e.x < b) });
+    const bar = { events: s.events.filter(e => e.x >= a && e.x < b) };
+    // a forward repeat at a bar's start (just after the header when the line opens with one), a backward one at its end
+    if (rep(a, 'forward') || (k === 0 && (s.repeats || []).some(r => r.dir !== 'backward' && r.x > s.headerEnd - sp && r.x < a + sp * 2))) bar.repStart = true;
+    if (rep(b, 'backward')) bar.repEnd = true;
+    s.bars.push(bar);
   }
   // a header-only stretch before the first bar line (clef and key with nothing in it) is not a bar
   if (s.bars.length > 1 && !s.bars[0].events.length && cuts.length && cuts[0] - s.headerEnd < sp * 3) s.bars.shift();
@@ -164,11 +173,16 @@ export function buildScore(pages, opts = {}) {
   const piano = nRows === 2 && clefs[0] !== 'F' && clefs[1] === 'F' && systems.some(s => s.staves.length === 2);
   const partRows = piano ? [[0, 1]] : clefs.map((_, r) => [r]);
   // bars of each row, system after system
-  const rowBars = [];
+  const rowBars = [], marks = []; // marks: repeat signs per bar of the piece, read on any row
   for (let r = 0; r < nRows; r++) rowBars.push([]);
   systems.forEach(sys => {
     const rs = rowsOf(sys);
     const n = Math.max(...rs.map(s => s.bars.length));
+    for (let k = 0; k < n; k++) {
+      const m = {};
+      rs.forEach(s => { const b = s && s.bars[k]; if (b && b.repStart) m.start = true; if (b && b.repEnd) m.end = true; });
+      marks.push(m);
+    }
     for (let r = 0; r < nRows; r++) {
       const s = rs[r];
       for (let k = 0; k < n; k++) rowBars[r].push(s && s.bars[k] ? s.bars[k].events : []);
@@ -211,7 +225,15 @@ export function buildScore(pages, opts = {}) {
       parts[pi].bars.push(bar);
     });
   }
-  return { title: opts.title || '', time, fifths, parts, pickup, warnings, counts: { notes: noteCount, bars: nBars, fixed } };
+  // repeats: [first, last] bar (from 0); a closing sign with no opening one goes back to the start, or to the bar
+  // after the last closing sign
+  const repeats = [];
+  let open = null, from = 0;
+  marks.forEach((m, b) => {
+    if (m.start) open = b;
+    if (m.end) { repeats.push([open != null ? open : from, b]); open = null; from = b + 1; }
+  });
+  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed } };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);
@@ -293,7 +315,10 @@ function toEvent(e, clef, fifths, voice) {
   out.pitches = e.heads.map(hd => {
     const dn = base + Math.round(hd.pos);
     const octave = Math.floor(dn / 7), step = STEPS[((dn % 7) + 7) % 7];
-    return { step, octave, acc: hd.acc, dn };
+    const p = { step, octave, acc: hd.acc, dn };
+    if (hd.tieStart) p.tieStart = true;
+    if (hd.tieStop) p.tieStop = true;
+    return p;
   });
   // the same staff position twice in a chord (a misread) once
   out.pitches = out.pitches.filter((p, i, a) => a.findIndex(o => o.dn === p.dn) === i);

@@ -55,6 +55,23 @@ describe('reading a page', () => {
     expect(lcs(want, got) / want.length).toBeGreaterThan(0.9);
   });
 
+  it('reads repeat signs and ties, and writes them into the MusicXML', () => {
+    const { gray, gt } = fixture('val-m003');
+    const score = recognize([gray]);
+    expect(score.counts.bars).toBe(gt.meta.bars);
+    expect(score.repeats).toEqual(gt.meta.repeats);
+    // the ties start on the notes the page ties
+    const want = gt.notes.filter(n => n.tieStart).map(n => n.m + '@' + n.t);
+    const got = [];
+    score.parts[0].bars.forEach((bar, m) => bar[0].forEach(v => { let t = 0; v.forEach(e => { if ((e.pitches || []).some(p => p.tieStart)) got.push(m + '@' + t); t += e.q; }); }));
+    expect(got).toEqual(want);
+    const xml = scoreToMusicXML(score);
+    expect((xml.match(/<repeat direction="forward"\/>/g) || []).length).toBe(2);
+    expect((xml.match(/<repeat direction="backward"\/>/g) || []).length).toBe(2);
+    expect((xml.match(/<tie type="start"\/>/g) || []).length).toBe(want.length);
+    expect((xml.match(/<tie type="stop"\/>/g) || []).length).toBe(want.length);
+  });
+
   it('reads a piano score into one part on two staves', () => {
     const { gray, gt } = fixture('val-p013');
     const score = recognize([gray]);

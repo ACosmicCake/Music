@@ -79,8 +79,48 @@ export function beatInfo(xml, at) {
   return {
     rest: first.includes('<rest'), pitches: f.beat.notes.map(n => pitchOf(n.text)).filter(Boolean),
     type: tag(first, 'type') || (first.includes('measure="yes"') ? 'whole' : 'quarter'), dots: (first.match(/<dot\/>/g) || []).length,
-    tuplet: first.includes('<time-modification>')
+    tuplet: first.includes('<time-modification>'), tied: first.includes('<tie type="start"/>'),
+    canTie: !first.includes('<rest') && (first.includes('<tie type="start"/>') || !!tieTarget(xml, at))
   };
+}
+
+/* ---------- ties ---------- */
+// the beat after this one in its staff and voice (on into the next measure), if it has the same pitches
+function nextBeat(xml, at) {
+  const f = find(xml, at);
+  if (!f) return null;
+  const same = { part: at.part, staff: at.staff || 0, voice: at.voice || 0 };
+  const here = find(xml, Object.assign({}, same, { bar: at.bar, beat: at.beat + 1 }));
+  return here ? Object.assign({}, same, { bar: at.bar, beat: at.beat + 1 }) : find(xml, Object.assign({}, same, { bar: at.bar + 1, beat: 0 })) ? Object.assign({}, same, { bar: at.bar + 1, beat: 0 }) : null;
+}
+const pitchKey = f => f.beat.notes.map(n => { const p = pitchOf(n.text); return p ? p.step + p.alter + p.octave : 'r'; }).sort().join(',');
+function tieTarget(xml, at) {
+  const nb = nextBeat(xml, at), a = find(xml, at), b = nb && find(xml, nb);
+  return b && !b.beat.notes[0].text.includes('<rest') && pitchKey(a) === pitchKey(b) ? nb : null;
+}
+function setTie(text, type, on) {
+  const tie = `<tie type="${type}"/>`, tied = `<tied type="${type}"/>`;
+  let t = text.replace(tie, '').replace(tied, '').replace(/<notations><\/notations>/, '');
+  if (!on) return t;
+  t = t.replace(/(<\/duration>)/, '$1' + tie);
+  return t.includes('<notations>') ? t.replace('<notations>', '<notations>' + tied) : t.replace(/<\/note>$/, `<notations>${tied}</notations></note>`);
+}
+function rewriteBeat(xml, at, fn) {
+  const f = find(xml, at);
+  let measure = f.measure;
+  for (let k = f.beat.notes.length - 1; k >= 0; k--) { const n = f.beat.notes[k]; measure = measure.slice(0, n.start) + fn(n.text) + measure.slice(n.end); }
+  return xml.slice(0, f.ms.start) + measure + xml.slice(f.ms.end);
+}
+/* A tie from this note to the next one: taken off if it has one, else put on when the next note is the same pitch */
+export function toggleTie(xml, at) {
+  const f = find(xml, at);
+  if (!f || f.beat.notes[0].text.includes('<rest')) return xml;
+  const on = !f.beat.notes[0].text.includes('<tie type="start"/>');
+  const nb = on ? tieTarget(xml, at) : nextBeat(xml, at);
+  if (on && !nb) return xml;
+  let out = rewriteBeat(xml, at, t => setTie(t, 'start', on));
+  if (nb) out = rewriteBeat(out, nb, t => setTie(t, 'stop', on));
+  return out;
 }
 
 /* ---------- changing a beat ---------- */
