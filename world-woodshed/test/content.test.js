@@ -70,19 +70,18 @@ describe('sight-reading generators', () => {
       if (!L.chords) for (const n of m.bars.flat()) if (n.midi != null) expect(L.notes, 'level ' + L.id).toContain(n.midi);
     }
   });
-  it('with sharps and flats switched on, every level still makes full melodies, with keys and accidentals beyond C', () => {
-    let sharpOrFlat = 0, outsideKey = 0;
+  it('with sharps and flats switched on, every level keeps its keys and makes full melodies with accidentals', () => {
+    let outsideKey = 0;
     for (const L0 of LEVELS) {
       const L = withAccidentals(L0);
-      expect(L.keys.slice(0, L0.keys.length), 'level ' + L0.id).toEqual(L0.keys);
-      expect(L.keys.length, 'level ' + L0.id).toBeGreaterThan(1);
+      expect(L.keys, 'level ' + L0.id).toEqual(L0.keys);
       for (let i = 0; i < 12; i++) {
         const m = genMelody(L, { bars: 8 });
         expect(m.bars.length, 'level ' + L0.id).toBe(8);
-        expect(L.keys, 'level ' + L0.id).toContain(m.key);
-        if (m.key !== 'C' && m.key !== 'Am') sharpOrFlat++;
+        expect(L0.keys, 'level ' + L0.id).toContain(m.key);
         if (!L.chords) {
           const sc = keyScale(m.key);
+          expect(m.bars.flat().some(n => n.midi != null && !sc.includes(n.midi % 12)), 'level ' + L0.id).toBe(true);
           for (const n of m.bars.flat()) if (n.midi != null) {
             expect(n.midi, 'level ' + L0.id).toBeGreaterThanOrEqual(Math.min(...L0.notes));
             expect(n.midi, 'level ' + L0.id).toBeLessThanOrEqual(Math.max(...L0.notes));
@@ -91,8 +90,7 @@ describe('sight-reading generators', () => {
         }
       }
     }
-    expect(sharpOrFlat).toBeGreaterThan(LEVELS.length * 4);
-    expect(outsideKey).toBeGreaterThan(LEVELS.length);
+    expect(outsideKey).toBeGreaterThan(LEVELS.length * 3);
   });
   it('leaves the levels themselves alone', () => {
     const before = JSON.stringify(LEVELS[0]);
