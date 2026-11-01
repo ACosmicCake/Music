@@ -38,7 +38,7 @@ function written(ev) {
     if (v) { out.push(Object.assign({}, e, v, { base: e.q, tuplet: null })); return; }
     const parts = splitQ(e.q);
     parts.forEach((L, i) => out.push(Object.assign({}, e, valueOf(L), { q: L, base: L, tuplet: null, full: false,
-      tieStart: !e.rest && i < parts.length - 1, tieStop: !e.rest && i > 0 })));
+      tieStart: !e.rest && i < parts.length - 1, tieStop: !e.rest && i > 0, first: i === 0, last: i === parts.length - 1 })));
   });
   return out;
 }
@@ -76,6 +76,8 @@ export function scoreToMusicXML(score, opts = {}) {
       const pickup = bi === 0 && score.pickup;
       const len = pickup ? score.pickup : barQ;
       L.push(`    <measure number="${pickup ? 0 : score.pickup ? bi : bi + 1}"${pickup ? ' implicit="yes"' : ''}>`);
+      const reps = score.repeats || [];
+      if (reps.some(r => r[0] === bi && bi > 0)) L.push('      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>');
       if (bi === 0) {
         L.push('      <attributes>', `        <divisions>${DIV}</divisions>`,
           `        <key><fifths>${score.fifths || 0}</fifths></key>`,
@@ -107,13 +109,15 @@ export function scoreToMusicXML(score, opts = {}) {
             return;
           }
           e.pitches.forEach((pt, k) => {
-            const ties = (e.tieStop ? '<tie type="stop"/>' : '') + (e.tieStart ? '<tie type="start"/>' : '');
-            const tied = (e.tieStop ? '<tied type="stop"/>' : '') + (e.tieStart ? '<tied type="start"/>' : '');
+            // a note split to fit the bar is tied to itself; a tie read from the page starts on its last piece
+            const stop = e.tieStop || (e.first !== false && pt.tieStop), start = e.tieStart || (e.last !== false && pt.tieStart);
+            const ties = (stop ? '<tie type="stop"/>' : '') + (start ? '<tie type="start"/>' : '');
+            const tied = (stop ? '<tied type="stop"/>' : '') + (start ? '<tied type="start"/>' : '');
             const nots = tied + (k === 0 ? tupN : '');
             L.push('      <note>' + (k ? '<chord/>' : '') +
               `<pitch><step>${pt.step}</step>${pt.alter ? `<alter>${pt.alter}</alter>` : ''}<octave>${pt.octave}</octave></pitch>` +
               `<duration>${dur}</duration>${ties}<voice>${voice}</voice><type>${e.type}</type>${'<dot/>'.repeat(e.dots)}` +
-              (pt.acc != null && !e.tieStop ? `<accidental>${ACC[pt.acc]}</accidental>` : '') + tm + staff +
+              (pt.acc != null && !stop ? `<accidental>${ACC[pt.acc]}</accidental>` : '') + tm + staff +
               (nots ? `<notations>${nots}</notations>` : '') + '</note>');
           });
         });
@@ -121,7 +125,8 @@ export function scoreToMusicXML(score, opts = {}) {
         const rest = Math.round(len * DIV) - used;
         if (rest > 0) L.push(`      <forward><duration>${rest}</duration></forward>`);
       }));
-      if (bi === p.bars.length - 1) L.push('      <barline location="right"><bar-style>light-heavy</bar-style></barline>');
+      if (reps.some(r => r[1] === bi)) L.push('      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>');
+      else if (bi === p.bars.length - 1) L.push('      <barline location="right"><bar-style>light-heavy</bar-style></barline>');
       L.push('    </measure>');
     });
     L.push('  </part>');

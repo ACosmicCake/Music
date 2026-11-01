@@ -172,7 +172,13 @@ export function detect(R, staves, metrics, classify, bin = R) {
   stems.filter(st => !st.heads.length).forEach(st => {
     // a bar line is a piece of its own: a stroke in the same ink as a note head is a stem, a flag or a beam
     const c = comps[st.comp];
-    if (!c || headComps.has(st.comp) || (c.x1 - c.x0 + 1) > sp * 1.2) return;
+    if (!c) return;
+    // in the same ink as a head it is that head's stem, unless the head is not beside it (a tie from a note
+    // touches the bar line)
+    if (headComps.has(st.comp) && heads.some(hd => hd.comp === st.comp && Math.abs(hd.x - st.x) < sp * 1.3)) return;
+    // a tie or slur touching a bar line makes the piece wide; away from the stroke it is a thin curve, where a
+    // beam is a thick bar
+    if ((c.x1 - c.x0 + 1) > sp * 1.2 && !thinBeside(R, labels, c, st.x, sp, heads.filter(hd => hd.comp === st.comp).map(hd => hd.x))) return;
     notationStaves.forEach(si => {
       const s = staves[si], x = st.x;
       if (x < s.x0 - sp || x > s.x1 + sp) return;
@@ -210,11 +216,12 @@ export function detect(R, staves, metrics, classify, bin = R) {
   comps.forEach(c => {
     if (!c) return;
     const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
-    if (cw < 0.18 || ch < 0.18 || cw > 0.65 || ch > 0.65) return;
+    if (cw < 0.18 || ch < 0.18 || cw > 0.75 || ch > 0.75) return; // a photo's blur makes dots larger
     if (c.area < (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1) * 0.5) return;
     const at = onStaff(c.cx, c.cy, 5);
     if (at) dots.push({ x: c.cx, y: c.cy, ...at, id: c.id });
   });
+  findRepeats(bars, dots, staves, sp);
   notes.forEach(n => {
     const right = Math.max(...n.heads.map(hd => hd.x)) + (n.up === false ? 0 : 0);
     n.dots = 0;
@@ -229,7 +236,75 @@ export function detect(R, staves, metrics, classify, bin = R) {
     }
   });
 
-  return { notes, syms, bars, heads, stems, dots, labels, comps };
+  return { notes, syms, bars, heads, stems, dots, labels, comps, ink: R };
+}
+
+/* Away from a stroke at x (more than half a space), is every column of the piece thin (a curve, not a beam)?
+   Columns at the heads the curve runs into (headXs, a blurred photo joins them) are left out. */
+function thinBeside(R, labels, c, x, sp, headXs = []) {
+  const { w } = R;
+  const runs = [];
+  for (let xx = c.x0; xx <= c.x1; xx++) {
+    if (Math.abs(xx - x) <= sp * 0.5 || headXs.some(hx => Math.abs(xx - hx) < sp * 0.9)) continue;
+    let run = 0, best = 0;
+    for (let y = c.y0; y <= c.y1; y++) { if (labels[y * w + xx] === c.id) { run++; if (run > best) best = run; } else run = 0; }
+    if (best > sp * 0.55) return false;
+    if (best) runs.push(best);
+  }
+  // a curve thins toward its ends; a beam is as thick all along
+  runs.sort((a, b) => a - b);
+  return runs.length > 0 && runs[Math.floor(runs.length / 2)] < sp * 0.4;
+}
+
+/* Ties: between two notes in a row on one staff at the same staff position, a thin curve just above or below
+   the heads (with the staff lines out). Looked for column by column in the gap between the heads: most columns
+   need a short run of ink in the band, on one side. Marks hd.tieStart and the next head's tieStop. */
+export function findTies(ink, events, sp) {
+  const { w, h, d } = ink;
+  const evs = events.filter(e => !e.rest && e.heads && e.heads.length);
+  for (let k = 0; k + 1 < evs.length; k++) {
+    const A = evs[k], B = evs[k + 1];
+    A.heads.forEach(a => {
+      const b = B.heads.find(hb => Math.abs(hb.pos - a.pos) < 0.3);
+      if (!b || b.x - a.x > sp * 9 || b.x - a.x < sp * 1.6) return;
+      const x0 = Math.round(a.x + sp * 0.85), x1 = Math.round(b.x - sp * 0.85);
+      if (x1 - x0 < sp * 0.5) return;
+      const y = (a.y + b.y) / 2;
+      for (const side of [1, -1]) {
+        const near = y + side * sp * 0.35, far = y + side * sp * 1.7;
+        let hit = 0, n = 0;
+        for (let x = x0; x <= x1; x++) {
+          n++;
+          let run = 0, best = 0, any = false;
+          for (let yy = Math.round(Math.min(near, far)); yy <= Math.round(Math.max(near, far)); yy++) {
+            if (yy < 0 || yy >= h || x < 0 || x >= w) continue;
+            if (d[yy * w + x]) { run++; any = true; if (run > best) best = run; } else run = 0;
+          }
+          if (any && best <= sp * 0.45) hit++;
+        }
+        if (n && hit / n >= 0.72) { a.tieStart = true; b.tieStop = true; return; }
+      }
+    });
+  }
+}
+
+/* Repeat signs: two dots in the middle two spaces (staff positions 3 and 5) beside a bar line. Dots on its right
+   open a repeat (forward), on its left close one (backward). The dots are used up, so no note takes them for its
+   own dot. Sets bar.repeat on the nearest bar line. */
+export function findRepeats(bars, dots, staves, sp) {
+  const free = dots.filter(d => !d.used && !staves[d.staff].tab);
+  free.forEach(a => {
+    if (a.used || Math.abs(a.pos - 5) > 0.6) return;
+    const b = free.find(d => d !== a && !d.used && d.staff === a.staff && Math.abs(d.x - a.x) < sp * 0.45 && Math.abs(d.pos - 3) < 0.6);
+    if (!b) return;
+    const x = (a.x + b.x) / 2;
+    let best = null, bd = Infinity;
+    bars.forEach(bl => { if (bl.staff !== a.staff) return; const d = Math.abs(bl.x - x); if (d < sp * 1.6 && d < bd) { bd = d; best = bl; } });
+    if (!best) return;
+    a.used = b.used = true;
+    const dir = x > best.x ? 'forward' : 'backward';
+    best.repeat = best.repeat && best.repeat !== dir ? 'both' : dir;
+  });
 }
 
 /* The digits of a stacked time signature that came out as one piece: the top half and the bottom half of the
