@@ -202,15 +202,34 @@ describe('loading a save from every past format', () => {
     expect(s.settings).toMatchObject({ readingBpm: { m25: 58, r28: 64 }, readingLen: { m: 16, r: 4 }, readingRunOn: true, readingPaper: true });
     expect(s.melodies).toEqual(saved.melodies);
   });
-  it('schema 9 (current): progress on the positions up the neck and the score you sight-read load as saved', async () => {
+  it('schema 9 (before the band charts): progress on the positions up the neck and the score you sight-read load as saved', async () => {
     const saved = JSON.parse(fixture(9));
     localStorage.setItem(LS_KEY, fixture(9));
     const E = await boot();
     const s = E.state;
     expect(s.schema).toBe(SCHEMA);
-    expect(s.skills.reading).toEqual(saved.skills.reading);
+    const items = s.skills.reading.items, was = saved.skills.reading.items;
+    expect(items['L33:melody']).toEqual(was['L33:melody']);
+    expect(items['L44:rhythm']).toEqual(was['L40:rhythm']); // Everything is 44 since schema 10
+    expect(items['L41:rhythm']).toEqual(was['L40:rhythm']); // and the band-chart steps below it take its record
     expect(s.readLib).toEqual(saved.readLib);
     expect(s.settings).toMatchObject({ readingBpm: { m25: 58, r28: 64, m33: 54 }, readingOwn: { per: 4, entry: 'lb1', file: 'lf1', from: 1 } });
+  });
+  it('schema 10 (current): band-chart progress and a kept chord chart with repeats and accents load as saved', async () => {
+    const saved = JSON.parse(fixture(10));
+    localStorage.setItem(LS_KEY, fixture(10));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.skills.reading).toEqual(saved.skills.reading);
+    expect(s.readLib).toEqual(saved.readLib);
+    expect(s.settings.readingBpm).toMatchObject({ m42: 66 });
+    const RL = (await import('../src/readlib.js')).default;
+    const chart = RL.decode(s.readLib.pieces.zz1.code);
+    expect(chart.repeat).toEqual([0, 1]);
+    expect(chart.chords).toEqual([[{ text: 'Am7', at: 0 }], [{ text: 'G', at: 0 }, { text: 'C', at: 2 }]]);
+    expect(chart.bars[0][0]).toMatchObject({ slash: true, acc: true, dur: '8' });
+    expect(chart.bars[0][3]).toMatchObject({ slash: true, stac: true });
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
+import { LEVELS, STAGES, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
 import { parseChord } from '../src/theory.js';
-import { LEVELS, STAGES, genMelody, rhythmPiece, pieceLength, attacks } from '../src/content/reading.js';
-import { parseTime, keyScale } from '../src/notation.js';
+import { parseTime, keyScale, KEYS } from '../src/notation.js';
 import { loadDrills } from '../src/content/lazy.js';
 
 const SOUNDS = new Set(['clave', 'bell', 'low', 'mid', 'high', 'shaker', 'clap', 'chick', 'hat', 'ride']);
@@ -84,9 +84,40 @@ describe('sight-reading generators', () => {
     expect(first(n => n.tup && n.dur === '16')).toBe(named('Sixteenth-note triplets'));
     expect(first(n => n.chord && n.chord.length === 2)).toBe(named('Two notes at once'));
     expect(first(n => n.chord && n.chord.length === 3)).toBe(named('Three-note chords'));
+    expect(first(n => n.acc || n.stac)).toBe(named('Accents and staccato'));
+    expect(first(n => n.slash)).toBe(named('Rhythm slashes and chord charts'));
+    expect(LEVELS.find(L => genMelody(L, { bars: 8 }).repeat).id).toBe(named('Repeat signs'));
+    expect(LEVELS.find(L => L.tab).id).toBe(named('Reading tab'));
+  });
+  it('write repeats around a phrase, played twice, with nothing tied across the jump', () => {
+    const L = LEVELS.find(l => l.name === 'Repeat signs');
+    for (let i = 0; i < 20; i++) {
+      const bars = lens[i % 3], m = genMelody(L, { bars }), [a, b] = m.repeat;
+      expect(a % 4).toBe(0);
+      expect(b).toBe(Math.min(bars - 1, a + 3));
+      expect(playOrder(m)).toEqual([...Array(b + 1).keys()].concat([...Array(bars - a).keys()].map(k => k + a)));
+      expect(playLength(m)).toBeCloseTo(pieceLength(m) * (bars + b - a + 1) / bars, 6);
+      expect(m.bars[b][m.bars[b].length - 1].tie).toBeUndefined();
+      // the attacks run through the repeat: the repeated notes come twice, in order
+      const ats = attacks(m);
+      for (let k = 1; k < ats.length; k++) expect(ats[k].q).toBeGreaterThan(ats[k - 1].q);
+    }
+  });
+  it('write a chord chart: slashes on the middle line with a chord over every bar, ending V then I', () => {
+    const L = LEVELS.find(l => l.chords === 'slash');
+    for (let i = 0; i < 20; i++) {
+      const m = genMelody(L, { bars: 8 }), K = KEYS[m.key];
+      expect(m.chords).toHaveLength(8);
+      m.chords.forEach(cs => { expect(cs.length).toBeGreaterThan(0); cs.forEach(c => expect(parseChord(c.text), c.text).toBeTruthy()); });
+      m.bars.flat().forEach(n => { if (n.midi != null) { expect(n.slash).toBe(true); expect(n.midi).toBe(71); } });
+      expect(parseChord(m.chords[7][0].text).root).toBe(K.tonic);
+      expect(parseChord(m.chords[6][0].text).root).toBe((K.tonic + 7) % 12);
+      // each strum knows its chord
+      attacks(m).forEach(a => { expect(a.slash).toBe(true); expect(a.sym).toBeTruthy(); });
+    }
   });
   it('write chords as thirds and sixths, close triads in the key, or a melody with chords under its strong beats', () => {
-    for (const L of LEVELS.filter(l => l.chords)) for (let i = 0; i < 20; i++) {
+    for (const L of LEVELS.filter(l => l.chords && l.chords !== 'slash')) for (let i = 0; i < 20; i++) {
       const m = genMelody(L, { bars: 8 }), sc = keyScale(m.key), flat = m.bars.flat();
       const chords = flat.filter(n => n.chord);
       expect(chords.length, 'level ' + L.id).toBeGreaterThan(0);

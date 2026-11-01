@@ -31,6 +31,15 @@ describe('compact encoding', () => {
     expect(code).toBe('Am/4/4/728t r8t 688#t 64+69+76q 62+65+71+74h~|62+65+71+74w');
     expect(RL.decode(code)).toEqual(piece);
   });
+  it('round-trips slashes, accents, staccato, a repeat and a chart\'s chord symbols', () => {
+    const piece = { key: 'G', time: '4/4', bars: [
+      [{ midi: 71, dur: 'q', slash: true, acc: true }, { midi: 71, dur: '8', slash: true }, { midi: 71, dur: '8', slash: true, stac: true }, { midi: null, dur: 'h' }],
+      [{ midi: 79, dur: 'q', stac: true }, { midi: 78, dur: 'q', acc: true, stac: true }, { midi: 79, dur: 'h' }]
+    ], repeat: [0, 1], chords: [[{ text: 'Em7', at: 0 }, { text: 'F#m', at: 2 }], [{ text: 'D7', at: 0 }]] };
+    const code = RL.encode(piece);
+    expect(code).toBe("G/4/4/sq> s8 s8' rh|79q' 78q>' 79h@r0-1@cEm7:0,F#m:2|D7:0");
+    expect(RL.decode(code)).toEqual(piece);
+  });
   it('reads a code from a newer app without failing', () => {
     expect(RL.decode('C/4/4/60q 60?q 60h').bars[0]).toHaveLength(3);
   });
@@ -40,7 +49,10 @@ describe('compact encoding', () => {
         const pieces = [genMelody(L, { bars: 8 }), rhythmPiece(L, { bars: 8 })];
         pieces.forEach(p => {
           const small = { key: p.key, time: p.time, bars: p.bars };
+          if (p.repeat) small.repeat = p.repeat;
+          if (p.chords) small.chords = p.chords;
           const back = RL.decode(RL.encode(small));
+          expect(back, 'level ' + (lv + 1)).toEqual(JSON.parse(JSON.stringify(small)));
           expect(RL.encode(back), 'level ' + lv).toBe(RL.encode(small));
           expect(back.bars.flat().map(n => n.midi ?? null)).toEqual(small.bars.flat().map(n => n.midi ?? null));
           expect(back.bars.flat().map(n => (n.chord || []).join('+') + (n.tup || ''))).toEqual(small.bars.flat().map(n => (n.chord || []).join('+') + (n.tup || '')));

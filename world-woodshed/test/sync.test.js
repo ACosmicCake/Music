@@ -52,6 +52,21 @@ describe('migrate', () => {
     expect(m.readLib.pieces.pa2.lv).toBe(2);
     expect(migrate(JSON.parse(JSON.stringify(m)), 'd1')).toEqual(m); // once only
   });
+  it('makes room for the band charts (schema 10): Everything moves to 44, and the new steps take its record', () => {
+    const it = (ema, last) => ({ n: 4, c: 3, ema, box: 2, due: last + 864e5, last });
+    const old = { v: 1, schema: 9,
+      skills: { reading: { items: { 'L39:melody': it(0.9, 6), 'L40:rhythm': it(0.7, 7) }, conf: {}, last: 7 } },
+      settings: { readingBpm: { m39: 60, r40: 66 } },
+      readLib: { n: 1, pieces: { a: { id: 'a', no: 1, lv: 40, kind: 'r' } } } };
+    const m = migrate(JSON.parse(JSON.stringify(old)), 'd1');
+    const items = m.skills.reading.items, was = old.skills.reading.items;
+    expect(items['L39:melody']).toEqual(was['L39:melody']);
+    expect(items['L44:rhythm']).toEqual(was['L40:rhythm']);
+    [40, 41, 42, 43].forEach(n => expect(items['L' + n + ':rhythm']).toEqual(was['L40:rhythm']));
+    [40, 41, 42, 43, 44].forEach(n => expect(items['L' + n + ':melody']).toBeUndefined());
+    expect(m.settings.readingBpm).toEqual({ m39: 60, r44: 66 });
+    expect(m.readLib.pieces.a.lv).toBe(44);
+  });
   it('makes room for the positions up the neck (schema 9): fifth position and the levels after it move up', () => {
     const it = (ema, last) => ({ n: 4, c: 3, ema, box: 2, due: last + 864e5, last });
     const old = { v: 1, schema: 8,
@@ -68,15 +83,16 @@ describe('migrate', () => {
     // fifth position is 32; 33–36 are 37–40
     expect(items['L32:melody']).toEqual(was['L31:melody']);
     expect(items['L37:rhythm']).toEqual(was['L33:rhythm']);
-    expect(items['L40:melody']).toEqual(was['L36:melody']);
+    expect(items['L40:melody']).toEqual(was['L36:melody']); // a copy since 10, below Everything at 44
+    expect(items['L44:melody']).toEqual(was['L36:melody']);
     // the new steps below a level you had read take its record, so nothing you had unlocked closes
     expect(items['L31:melody']).toEqual(was['L31:melody']);
     expect(items['L33:melody']).toEqual(was['L36:melody']);
     expect(items['L35:melody']).toEqual(was['L36:melody']);
     expect(items['L34:rhythm']).toEqual(was['L33:rhythm']);
     expect(items['L36:melody']).toBeUndefined(); // larger leaps (old 32) was never read
-    expect(m.settings.readingBpm).toEqual({ m30: 60, m32: 62, r37: 70, m40: 80 });
-    expect(Object.values(m.readLib.pieces).map(p => p.lv)).toEqual([30, 32, 40]);
+    expect(m.settings.readingBpm).toEqual({ m30: 60, m32: 62, r37: 70, m44: 80 }); // Everything moved on to 44 in schema 10
+    expect(Object.values(m.readLib.pieces).map(p => p.lv)).toEqual([30, 32, 44]);
     expect(migrate(JSON.parse(JSON.stringify(m)), 'd1')).toEqual(m);
   });
 });

@@ -112,11 +112,23 @@ const PATH = [
     tips: ['Count "1 2 3 4 5" with a small accent on 1 and a lighter one on 4 (3 + 2).', 'Long notes and ties often show the grouping: look where they start.', 'Take Five (Dave Brubeck Quartet, 1959) is the classic 5/4 to listen to.'] },
   { name: '12/8 time', goal: 'Four big beats of three eighths each: the slow blues and gospel feel.', times: ['12/8'], tempo: [40, 60],
     tips: ['12/8 is four dotted-quarter beats, each split in three: "1 trip let 2 trip let 3 trip let 4 trip let".', 'It reads like 4/4 with triplets everywhere, written without the 3s.', 'Quarter + eighth inside a beat is the shuffle again.'] },
-  { name: 'Everything', goal: 'Mixed keys, meters, rhythms, triplets and positions: the kind of page a session or a band chart puts in front of you.',
+  { name: 'Accents and staccato', stage: 'Band charts', goal: 'Play what the marks say: an accent (>) louder, a staccato dot short and detached, everything else full length.',
+    arts: true, times: ['4/4', '3/4', '2/4', '6/8'], feats: ['dq', 'sync', '16mix', 'd8', 'trip8'], notes: chrom(52, 84), keys: MOST_KEYS, maxLeap: 9, leaps: 0.15, tempo: [52, 80], focus: [],
+    tips: ['An accent is a dig with the pick or a firmer rest stroke, not a different note: keep the time steady through it.', 'A staccato note lasts about half its value. Lift the fretting finger just off the string, or touch the string with the picking hand.', 'In a band chart, accents often show the hits the whole band plays together. Look for them first.'] },
+  { name: 'Repeat signs', goal: 'Follow a repeat: at the end sign (:‖) go back to the start sign (‖:), or to the beginning if there is none, and play those bars again.',
+    repeats: true,
+    tips: ['Scan for repeat signs before you start, so the jump back is no surprise.', 'The dots face the bars that repeat: ‖: opens the section, :‖ closes it.', 'On the way back, look ahead to the start of the repeat while you play the last bar.'] },
+  { name: 'Reading tab', goal: 'Read tab under the staff: each line a string, each number a fret. The rhythm comes from the notes above it.',
+    tab: true,
+    tips: ['The top line of the tab is the high e string, the bottom line the low E, the way you look down at the guitar.', 'Tab says where; the staff says when and how long. Read the two together, a beat at a time.', 'The tab here follows your tuning and capo, and keeps the hand in one place where it can.'] },
+  { name: 'Rhythm slashes and chord charts', goal: 'Comp from a chart: strum the chord written above the staff on each slash, in the rhythm the slashes show.',
+    chords: 'slash', tab: false, times: ['4/4', '3/4', '6/8', '12/8'], keys: MOST_KEYS,
+    tips: ['A slash has no pitch: play the chord named above, any voicing you know.', 'Long slashes ring, short ones are chopped; rests are silence. Accents are the band\'s hits.', 'Have the next chord shape ready a beat early: look at the symbol over the next bar while you strum this one.'] },
+  { name: 'Everything', chords: null, tab: false, goal: 'Mixed keys, meters, rhythms, triplets and positions: the kind of page a session or a band chart puts in front of you.',
     notes: chrom(52, 88), times: ['4/4', '3/4', '2/4', '6/8', '5/4', '12/8'], keys: ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Am', 'Em', 'Bm', 'Dm', 'Gm'], tempo: [52, 84], maxLeap: 12, chromatic: 0.1, leaps: 0.15, focus: [],
     tips: ['Before you start: key, meter, the highest and lowest notes, and any tricky rhythm. Ten seconds of scanning saves the read.', 'Choose a position that covers the range, then stay in it.', 'Pick a tempo you can hold without stopping. Steady and slightly wrong beats perfect and halting.'] }
 ];
-const CARRY = ['notes', 'durs', 'dotted', 'rests', 'ties', 'feats', 'times', 'keys', 'tempo', 'maxLeap', 'chromatic', 'leaps', 'lead', 'chords', 'position', 'stage'];
+const CARRY = ['arts', 'repeats', 'tab', 'notes', 'durs', 'dotted', 'rests', 'ties', 'feats', 'times', 'keys', 'tempo', 'maxLeap', 'chromatic', 'leaps', 'lead', 'chords', 'position', 'stage'];
 export const LEVELS = [];
 PATH.forEach((spec, i) => {
   const prev = LEVELS[i - 1] || {};
@@ -329,9 +341,11 @@ export function genMelody(L, o = {}) {
   const rng = o.rng || Math.random;
   for (let attempt = 0; attempt < 300; attempt++) {
     const key = o.key || L.keys[Math.floor(rng() * L.keys.length)];
-    const m = L.chords === 'triad' ? chordPiece(L, key, rng, o) : tryMelody(L, key, rng, o);
+    const m = L.chords === 'triad' ? chordPiece(L, key, rng, o) : L.chords === 'slash' ? slashPiece(L, key, rng, o) : tryMelody(L, key, rng, o);
     if (m && L.chords === 'dyad') addThirdsAndSixths(L, m, rng);
     if (m && L.chords === 'melody') addChordsUnder(L, m, rng);
+    if (m && L.arts) addArts(m, rng);
+    if (m && L.repeats) addRepeat(m, rng);
     if (m) return m;
   }
   // fall back to a plain scale fragment (should never be needed; the tests check this)
@@ -493,6 +507,62 @@ function chordPiece(L, key, rng, o) {
   if (bars.flat().filter(n => n.chord).length < 2) return null;
   return { key, time: rh.time, bars };
 }
+/* A chord chart to comp from: slashes on the middle line in the bar's rhythm, a chord symbol over each bar
+   (sometimes two), V in the last bar but one and I at the end. piece.chords: [[{ text, at }] per bar] */
+const SLASH = 71; // B on the middle line, where a slash sits
+function chordSym(key, deg, rng) {
+  const K = KEYS[key], pcs = triadPcs(key, deg, true);
+  const sp = spell(60 + pcs[0], key);
+  const minor = (pcs[1] - pcs[0] + 12) % 12 === 3;
+  return sp.letter + (sp.alter > 0 ? '#' : sp.alter < 0 ? 'b' : '') + (minor ? 'm' : '') + (deg === 4 && !minor && rng() < 0.5 ? '7' : K.minor && deg === 4 ? '7' : '');
+}
+function slashPiece(L, key, rng, o) {
+  const plain = Object.assign({}, L, { ties: false, feats: (L.feats || []).filter(f => f === 'dq' || f === 'sync'), durs: L.durs.filter(d => d !== '16'), dotted: (L.dotted || []).filter(d => d !== '8') });
+  const rh = genRhythm(plain, { time: o.time, bars: o.bars || 4, rng, final: true, noRestStart: true });
+  const ts = parseTime(rh.time), nb = rh.bars.length, half = ts.barQ / 2;
+  const splits = Number.isInteger(Math.round(half / ts.beatQ * 1000) / 1000) && ts.barQ >= 4; // a change on beat 3 (or the 3rd of four beats in 12/8)
+  let deg = 0;
+  const chords = rh.bars.map((bar, bi) => {
+    const plan = bi === nb - 1 ? [0] : bi === nb - 2 ? [4] : [bi === 0 ? 0 : nextDegree(key, deg, rng)];
+    if (splits && bi > 0 && bi < nb - 2 && rng() < 0.3) plan.push(nextDegree(key, plan[0], rng));
+    deg = plan[plan.length - 1];
+    return plan.map((d, k) => ({ text: chordSym(key, d, rng), at: k ? half : 0 }));
+  });
+  const bars = rh.bars.map(bar => bar.map(e => {
+    const n = { midi: e.rest ? null : SLASH, dur: e.dur };
+    if (!e.rest) n.slash = true;
+    if (e.dot) n.dot = true;
+    if (e.tup) n.tup = e.tup;
+    return n;
+  }));
+  return { key, time: rh.time, bars, chords };
+}
+/* Accents on some beats and syncopations, staccato on some short notes (not on slashes: a chop is written as a rest) */
+function addArts(piece, rng) {
+  const ts = parseTime(piece.time);
+  let any = false, prev = null;
+  piece.bars.forEach(bar => {
+    let q = 0;
+    bar.forEach(n => {
+      const at = q; q += durQ(n);
+      const held = prev && prev.tie && prev.midi === n.midi;
+      prev = n;
+      if (n.midi == null || held) return;
+      const onBeat = Math.abs(at / ts.beatQ - Math.round(at / ts.beatQ)) < 1e-6;
+      if (!n.slash && !n.tie && (n.dur === 'q' || n.dur === '8') && !n.dot && rng() < 0.18) { n.stac = true; any = true; }
+      if (rng() < (onBeat ? 0.1 : 0.2)) { n.acc = true; any = true; }
+    });
+  });
+  if (!any) { const f = piece.bars.flat().find(n => n.midi != null); if (f) f.acc = true; }
+}
+/* A repeat around one four-bar phrase (or the whole piece when it is shorter) */
+function addRepeat(piece, rng) {
+  const nb = piece.bars.length, phrases = Math.max(1, Math.floor(nb / 4));
+  const a = Math.floor(rng() * phrases) * 4, b = Math.min(nb - 1, a + 3);
+  const lastOf = k => (piece.bars[k] ? piece.bars[k][piece.bars[k].length - 1] : null);
+  [lastOf(b), lastOf(a - 1)].forEach(n => { if (n) delete n.tie; }); // nothing ties into or out of the jump
+  piece.repeat = [a, b];
+}
 /* Double stops: a diatonic third or sixth under most notes of a melody */
 function addThirdsAndSixths(L, piece, rng) {
   const sc = keyScale(piece.key), lo = Math.min(...L.notes);
@@ -535,6 +605,7 @@ function addChordsUnder(L, piece, rng) {
 
 /* A one-pitch rhythm to read, written on the middle line (at the chord levels, a third or a G chord to strum) */
 export function rhythmPiece(L, o = {}) {
+  if (L.chords === 'slash') { const rng = o.rng || Math.random; const p = slashPiece(L, 'C', rng, o); p.chords = null; if (L.arts) addArts(p, rng); return p; }
   const rh = genRhythm(L.chords ? Object.assign({}, L, { ties: false }) : L, Object.assign({ bars: 2, final: true }, o));
   const pitch = o.pitch || 71;
   const chord = L.chords === 'dyad' ? [71, 74] : L.chords ? [67, 71, 74] : null; // a third on the top strings, or a G chord
@@ -556,20 +627,48 @@ export function noteCard(L, midi, rng = Math.random) {
 }
 
 /* Onset times of a piece in quarter notes: [{ i (flat index), q (onset), len, midi }] for each attack */
-export function attacks(piece) {
-  const out = []; let t = 0, i = 0, prev = null;
-  const ts = parseTime(piece.time);
-  piece.bars.forEach(bar => {
-    const full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
-    bar.forEach(n => {
-      const len = full ? ts.barQ : durQ(n);
-      if (n.midi != null) {
-        if (prev && prev.midi === n.midi && prev.tie) out[out.length - 1].len += len;
-        else { const a = { i, q: t, len, midi: n.midi }; if (n.chord && n.chord.length > 1) a.chord = n.chord.slice(); out.push(a); }
-      }
-      prev = n; t += len; i++;
-    });
+/* The bars in the order they are played: a repeat (piece.repeat = [first, last] bar, from 0) plays its bars twice */
+export function playOrder(piece) {
+  const n = piece.bars.length, r = piece.repeat;
+  const order = [...Array(n).keys()];
+  if (!Array.isArray(r) || !(r[0] >= 0 && r[1] >= r[0] && r[1] < n)) return order;
+  return order.slice(0, r[1] + 1).concat(order.slice(r[0]));
+}
+/* the chord symbol sounding at a place in a bar (piece.chords: [[{ text, at }] per bar]) */
+const chordAt = (piece, b, q) => { let c = null; ((piece.chords || [])[b] || []).forEach(x => { if (x.at <= q + 1e-6) c = x.text; }); return c; };
+/* Every event (note or rest) as played, repeats included: { i (its place in the written bars), q, bar } */
+export function eventStarts(piece) {
+  const ts = parseTime(piece.time), first = [], out = [];
+  let i = 0;
+  piece.bars.forEach(bar => { first.push(i); i += bar.length; });
+  let q = 0;
+  playOrder(piece).forEach(b => {
+    const bar = piece.bars[b], full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
+    let at = 0;
+    bar.forEach((n, j) => { out.push({ i: first[b] + j, q, bar: b, at, n }); const len = full ? ts.barQ : durQ(n); q += len; at += len; });
   });
   return out;
 }
+/* The notes to play, as played: { i, q, len, midi, chord?, slash?, sym? } (a tied note is one attack) */
+export function attacks(piece) {
+  const out = []; let prev = null;
+  const ts = parseTime(piece.time);
+  eventStarts(piece).forEach(e => {
+    const n = e.n, bar = piece.bars[e.bar], full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
+    const len = full ? ts.barQ : durQ(n);
+    if (n.midi != null) {
+      if (prev && prev.midi === n.midi && prev.tie) out[out.length - 1].len += len;
+      else {
+        const a = { i: e.i, q: e.q, len, midi: n.midi };
+        if (n.chord && n.chord.length > 1) a.chord = n.chord.slice();
+        if (n.slash) { a.slash = true; const c = chordAt(piece, e.bar, e.at); if (c) a.sym = c; }
+        out.push(a);
+      }
+    }
+    prev = n;
+  });
+  return out;
+}
+/* the written length in quarters, and the played one (repeats included) */
 export const pieceLength = piece => sum(piece.bars.map(b => (b.length === 1 && b[0].midi == null && b[0].dur === 'w') ? parseTime(piece.time).barQ : sum(b.map(durQ))));
+export const playLength = piece => { const ts = parseTime(piece.time); return sum(playOrder(piece).map(k => { const b = piece.bars[k]; return (b.length === 1 && b[0].midi == null && b[0].dur === 'w') ? ts.barQ : sum(b.map(durQ)); })); };

@@ -5,7 +5,9 @@
 
    Notes: { midi: writtenMidi | null (rest), dur: 'w'|'h'|'q'|'8'|'16', dot?, tie? (to the next note),
             spell?: '#'|'b' (how to spell a chromatic note), tup?: 3 (a triplet: two thirds of the written length),
-            chord?: [writtenMidi…] (every pitch sounding together on one stem; midi is then the highest) }
+            chord?: [writtenMidi…] (every pitch sounding together on one stem; midi is then the highest),
+            slash?: true (a rhythm slash on the middle line: play the chord named above), acc?: true (accent >),
+            stac?: true (staccato dot) }
    Consecutive triplet notes form a group as long as two of the shortest written value in it (three eighths,
    a quarter and an eighth, three quarters…), and get a 3 over the beam or a bracket.
    A bar holding a single whole rest is a full-bar rest in any meter. */
@@ -115,6 +117,12 @@ function ellipsePath(cx, cy, rx, ry, rot) {
   const t = rot * Math.PI / 180, dx = rx * Math.cos(t), dy = rx * Math.sin(t);
   return `M${f1(cx - dx)} ${f1(cy - dy)}A${rx} ${ry} ${rot} 1 0 ${f1(cx + dx)} ${f1(cy + dy)}A${rx} ${ry} ${rot} 1 0 ${f1(cx - dx)} ${f1(cy - dy)}z`;
 }
+/* a rhythm slash: a slanted bar, hollow for halves and wholes */
+function slashhead(g, dur, x, y) {
+  const d = `M${f1(x - 7)} ${f1(y + 5)}L${f1(x + 1.5)} ${f1(y - 5)}L${f1(x + 7)} ${f1(y - 5)}L${f1(x - 1.5)} ${f1(y + 5)}z`;
+  if (dur === 'w' || dur === 'h') return el('path', { d, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4 }, g);
+  return el('path', { d, fill: 'currentColor' }, g);
+}
 function notehead(g, dur, x, y) {
   if (dur === 'w') return el('path', { d: ellipsePath(x, y, 7.2, 4.6, 0) + ellipsePath(x + 0.2, y, 3.6, 2.4, 55), fill: 'currentColor', 'fill-rule': 'evenodd' }, g);
   if (dur === 'h') return el('path', { d: ellipsePath(x, y, 5.9, 4.1, -22) + ellipsePath(x, y, 4.4, 1.9, -30), fill: 'currentColor', 'fill-rule': 'evenodd' }, g);
@@ -156,7 +164,8 @@ const STEM = 34;
 /* opts: { bars: [[note…]…], key, time, width (CSS px of the container), barsPerLine (max, default 4),
            scale (CSS px per unit; default 1; below 480 px the largest of 1 to 0.76 that fits 2 bars a line), lyrics: [text per note], label,
            showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6),
-           chords: [[{ text, at (quarters into the bar) }] per bar] (chord symbols above the staff), barBands: true }
+           chords: [[{ text, at (quarters into the bar) }] per bar] (chord symbols above the staff), barBands: true,
+           repeat: [first bar, last bar] (from 0: repeat signs around those bars) }
    returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null), bar(i|null) };
    i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
@@ -188,10 +197,10 @@ export function renderStaff(opts) {
           const hd = { midi: m, sp, pos: sp.pos };
           const cur = sp.step in state ? state[sp.step] : keyAlt[LETTERS.indexOf(sp.letter)];
           // a note tied over from the one before keeps its accidental without repeating it
-          if (cur !== sp.alter && !prevP.includes(m)) hd.acc = sp.alter;
+          if (cur !== sp.alter && !prevP.includes(m) && !n.slash) hd.acc = sp.alter;
           return hd;
         });
-        it.heads.forEach(hd => { state[hd.sp.step] = hd.sp.alter; });
+        if (!n.slash) it.heads.forEach(hd => { state[hd.sp.step] = hd.sp.alter; });
         it.sp = it.heads[it.heads.length - 1].sp;
         it.lo = it.heads[0].pos; it.hi = it.sp.pos;
         // accidentals in columns, top down: one that would touch an accidental within a sixth moves further left
@@ -214,7 +223,8 @@ export function renderStaff(opts) {
     });
     const spring = list.reduce((a, x) => a + x.space, 0);
     const lead = list.reduce((a, x) => a + x.lead, 0);
-    return { list, spring, min: LEFT + RIGHT + spring + lead, full };
+    const rp = opts.repeat, repL = rp && bi === rp[0] && rp[0] > 0 ? 13 : 0, repR = rp && bi === rp[1] ? 8 : 0;
+    return { list, spring, min: LEFT + RIGHT + repL + repR + spring + lead, full, repL, repR };
   });
 
   /* 2. systems: the fewest lines that fit, with bars spread evenly */
@@ -255,14 +265,14 @@ export function renderStaff(opts) {
     sy.bars.forEach(b => {
       b.x0 = x;
       const k = 1 + extra / springs;
-      let cx = x + LEFT;
+      let cx = x + LEFT + b.repL;
       b.list.forEach(it => {
         cx += it.lead;
         it.x = cx + 6; it.sys = si;
         cx += it.space * k;
       });
-      if (b.full) b.list[0].x = x + (cx + RIGHT - x) / 2;
-      x = cx + RIGHT; b.x1 = x;
+      if (b.full) b.list[0].x = x + b.repL + (cx + RIGHT - x - b.repL) / 2;
+      x = cx + RIGHT + b.repR; b.x1 = x;
     });
     sy.x1 = x;
   });
@@ -345,8 +355,20 @@ export function renderStaff(opts) {
       [[ts.num, 10], [ts.den, 30]].forEach(([v, y]) => el('text', { class: 'st-time', x: tx, y: y + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, g).textContent = v);
     }
     // bar lines
+    const dots = x => [15, 25].forEach(y => el('circle', { class: 'st-bar', cx: f1(x), cy: y, r: 2 }, g));
     sy.bars.forEach((b, k) => {
       const isLast = sy.first + k === bars.length - 1;
+      if (b.repL) { // ‖: a thick line, a thin one, and the dots facing the bars that repeat
+        el('rect', { class: 'st-bar', x: f1(b.x0), y: 0, width: 4, height: 40 }, g);
+        el('rect', { class: 'st-bar', x: f1(b.x0 + 6.5), y: 0, width: 1.3, height: 40 }, g);
+        dots(b.x0 + 11.5);
+      }
+      if (b.repR) { // :‖
+        el('rect', { class: 'st-bar', x: f1(b.x1 - 4), y: 0, width: 4, height: 40 }, g);
+        el('rect', { class: 'st-bar', x: f1(b.x1 - 8.5), y: 0, width: 1.3, height: 40 }, g);
+        dots(b.x1 - 13);
+        return;
+      }
       const end = isLast ? (opts.endBar || (opts.final === false ? 'single' : 'final')) : 'single';
       if (end === 'none') return;
       if (end === 'final') {
@@ -378,9 +400,17 @@ export function renderStaff(opts) {
       for (let lp = 10; lp <= it.hi; lp += 2) el('rect', { x: f1(xl - 9.5), y: f1(ypos(lp) - 0.6), width: f1(19 + xr - xl), height: 1.2, fill: 'currentColor' }, ng);
       it.heads.forEach(hd => {
         if (hd.acc !== undefined) accidental(ng, hd.acc, xl - 6 - hd.accX - 1.5, hd.y);
-        notehead(ng, n.dur, hd.hx, hd.y);
+        (n.slash ? slashhead : notehead)(ng, n.dur, hd.hx, hd.y);
       });
       track(it.yTop - 6, it.yBot + 6);
+      // staccato and accent on the side away from the stem (above a whole note), the dot nearest the head
+      if (n.stac || n.acc) {
+        const below = up && n.dur !== 'w', s = below ? 1 : -1;
+        let ay = below ? it.yBot + 9 : it.yTop - 9;
+        const clear = y => { const p = 8 - y / 5; return p >= 0 && p <= 8 && Math.abs(p - Math.round(p)) < 0.01 && Math.round(p) % 2 === 0 ? y + s * 2.5 : y; }; // off a staff line
+        if (n.stac) { const y = clear(ay); el('circle', { cx: f1(x), cy: f1(y), r: 1.8, fill: 'currentColor' }, ng); track(y, y); ay = y + s * 7; }
+        if (n.acc) { const y = ay + s * 1; el('path', { d: `M${f1(x - 5.5)} ${f1(y - 3.2)}L${f1(x + 5.5)} ${f1(y)}L${f1(x - 5.5)} ${f1(y + 3.2)}`, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4, 'stroke-linejoin': 'miter' }, ng); track(y - 4, y + 4); }
+      }
       if (n.dot) {
         const dx = xr + (up && !it.beam && (n.dur === '8' || n.dur === '16') ? 16 : 9.5), done = new Set();
         it.heads.forEach(hd => { const dy = hd.pos % 2 === 0 ? hd.y - 5 : hd.y; if (done.has(dy)) return; done.add(dy); el('circle', { cx: f1(dx), cy: f1(dy), r: 1.7, fill: 'currentColor' }, ng); });
