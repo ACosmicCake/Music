@@ -25,7 +25,7 @@ Every push to `main` builds the app and publishes it to GitHub Pages (see `.gith
 - **Android (Chrome):** tap Install when the banner appears, or menu → Install app.
 - **Mac, Windows or Linux (Chrome or Edge):** click the install icon in the address bar, or the Install banner in the app.
 
-Smart practice plans each session for the time you have right now, whether it is your first session of the day or your third. It reviews what is due (spaced repetition), brings in new material slowly from the styles you rank first, and rotates scales, keys, patterns, techniques, rhythms and tunes for you. The research it follows is explained in the app. A Sight-reading module takes you from open strings to syncopation in 6/8 and fifth position across 16 levels.
+Smart practice plans each session for the time you have right now, whether it is your first session of the day or your third. It reviews what is due (spaced repetition), brings in new material slowly from the styles you rank first, and rotates scales, keys, patterns, techniques, rhythms and tunes for you. The research it follows is explained in the app. A Sight-reading module takes you from your first six notes to syncopation, triplets, chords, 5/4 and 12/8 in 36 small levels, one new thing at a time, with pieces of 4 to 16 bars that can follow one another without stopping and a white-paper view of the staff.
 
 With the microphone allowed, the app can hear your guitar: a real tuner, answering quizzes by playing, rhythm tests on the guitar, and live timing and right-note checks in warm-ups and technique ladders. The sound is analysed on the device and never recorded or sent. Wear headphones for timing tests so the mic hears only your guitar.
 

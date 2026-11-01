@@ -22,6 +22,35 @@ describe('migrate', () => {
     const future = { v: 1, schema: SCHEMA + 5, newThing: { x: 1 } };
     expect(migrate(future, 'd1')).toEqual(future);
   });
+  it('moves sight-reading progress from the old 16 levels onto the 36-step path (schema 8)', () => {
+    const it = (ema, last) => ({ n: 4, c: 3, ema, box: 2, due: last + 864e5, last });
+    const old = { v: 1, schema: 7,
+      skills: { reading: { items: { 'n:60': it(0.9, 5), 'L1:melody': it(0.9, 10), 'L1:rhythm': it(0.8, 11), 'L3:melody': it(0.8, 12), 'L5:rhythm': it(0.7, 13), 'L14:melody': it(0.85, 14) }, conf: {}, last: 14 } },
+      settings: { readingBpm: { r5: 66, m1: 60, m14: 72 }, readingMode: 'melody' },
+      readLib: { n: 2, pieces: { pa1: { id: 'pa1', no: 1, lv: 13, kind: 'm' }, pa2: { id: 'pa2', no: 2, lv: 1, kind: 'r' } } } };
+    const m = migrate(JSON.parse(JSON.stringify(old)), 'd1');
+    const items = m.skills.reading.items;
+    expect(m.schema).toBe(SCHEMA);
+    expect(items['n:60']).toEqual(old.skills.reading.items['n:60']);
+    // each old level's record moves to the level that teaches the same thing now
+    expect(items['L2:melody']).toEqual(old.skills.reading.items['L1:melody']);
+    expect(items['L7:melody']).toEqual(old.skills.reading.items['L3:melody']);
+    expect(items['L11:rhythm']).toEqual(old.skills.reading.items['L5:rhythm']);
+    expect(items['L31:melody']).toEqual(old.skills.reading.items['L14:melody']);
+    expect(items['L1:melody']).toEqual(old.skills.reading.items['L1:melody']); // the new first step below it takes a copy
+    // the new steps in between take a copy of the next level read above them, up to the end of the sixteenths
+    expect(items['L5:melody']).toEqual(old.skills.reading.items['L3:melody']);
+    expect(items['L24:melody']).toEqual(old.skills.reading.items['L14:melody']);
+    expect(items['L10:rhythm']).toEqual(old.skills.reading.items['L5:rhythm']);
+    // triplets and chords are new: they start fresh
+    expect(items['L25:melody']).toBeUndefined();
+    expect(items['L28:melody']).toBeUndefined();
+    expect(items['L12:rhythm']).toBeUndefined();
+    expect(m.settings.readingBpm).toEqual({ r11: 66, m2: 60, m31: 72 });
+    expect(m.readLib.pieces.pa1.lv).toBe(24);
+    expect(m.readLib.pieces.pa2.lv).toBe(2);
+    expect(migrate(JSON.parse(JSON.stringify(m)), 'd1')).toEqual(m); // once only
+  });
 });
 
 describe('merge', () => {
