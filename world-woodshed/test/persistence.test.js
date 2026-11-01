@@ -191,7 +191,7 @@ describe('loading a save from every past format', () => {
     expect(s.library).toEqual(saved.library);
     expect(Object.values(s.readLib.pieces).map(p => p.lv)).toEqual([2, 2]); // old level 1 is level 2 now
   });
-  it('schema 8 (current): sight-reading progress, settings and kept pieces with chords and triplets load as saved', async () => {
+  it('schema 8 (before the positions up the neck): sight-reading progress, settings and kept pieces with chords and triplets load as saved', async () => {
     const saved = JSON.parse(fixture(8));
     localStorage.setItem(LS_KEY, fixture(8));
     const E = await boot();
@@ -201,6 +201,16 @@ describe('loading a save from every past format', () => {
     expect(s.readLib).toEqual(saved.readLib);
     expect(s.settings).toMatchObject({ readingBpm: { m25: 58, r28: 64 }, readingLen: { m: 16, r: 4 }, readingRunOn: true, readingPaper: true });
     expect(s.melodies).toEqual(saved.melodies);
+  });
+  it('schema 9 (current): progress on the positions up the neck and the score you sight-read load as saved', async () => {
+    const saved = JSON.parse(fixture(9));
+    localStorage.setItem(LS_KEY, fixture(9));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.skills.reading).toEqual(saved.skills.reading);
+    expect(s.readLib).toEqual(saved.readLib);
+    expect(s.settings).toMatchObject({ readingBpm: { m25: 58, r28: 64, m33: 54 }, readingOwn: { per: 4, entry: 'lb1', file: 'lf1', from: 1 } });
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

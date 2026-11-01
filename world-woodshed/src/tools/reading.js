@@ -16,6 +16,7 @@ const ACC = { '-1': '♭', 0: '♮', 1: '♯' };
 const clampLevel = k => Math.max(1, Math.min(LEVELS.length, Math.round(+k) || 1));
 const universe = () => { const u = E.universe(SKILL); return u && u.length ? u : readingItems(); };
 const itemState = id => { const ss = E.skillState(SKILL); return ss && ss.items ? ss.items[id] : null; };
+const POS_NAME = p => p + (p === 1 ? 'st' : p === 2 ? 'nd' : p === 3 ? 'rd' : 'th');
 const soundName = m => noteLabel(m).split(' ')[0];
 
 /* scoring taps against expected onsets (same model as the rhythm atlas tap test) */
@@ -643,7 +644,7 @@ function melodyMode(root, lv, ctx, own) {
     staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
-    info.textContent = keyName(piece.key) + ' · ' + piece.time;
+    info.textContent = keyName(piece.key) + ' · ' + piece.time + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
     if (own) { src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of); } else sourceLine(src, cur, 'm');
     libBtn.paint();
     return staff;
