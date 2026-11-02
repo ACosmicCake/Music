@@ -178,9 +178,19 @@ export function entryPage(id, opts = {}) {
   const e = L.getEntry(id);
   if (!e) { go('library'); return; }
   const title = h('h1', { text: e.title }), byLine = h('p', { class: 'muted', text: e.by, hidden: !e.by });
+  // Sight-read it, at the top: a score of its own (exact) before the notes the app read from a page
+  const readBox = h('div', { class: 'row', hidden: true });
   view.append(h('div', { class: 'hero lib-hero' },
     h('div', { class: 'spread' }, h('button', { class: 'btn ghost small rh-back', onclick: () => go('library') }, '← Library'), h('span', { class: 'eyebrow', text: 'Library' })),
-    title, byLine));
+    title, byLine, readBox));
+  const drawRead = have => {
+    const cur = L.getEntry(id);
+    const can = TOOLS.sightread && cur ? cur.files.filter(f => have.has(f.id) && L.READABLE_MELODY.test(f.name)) : [];
+    const f = can.find(x => !isReading(x)) || can[0];
+    readBox.innerHTML = '';
+    readBox.hidden = !f;
+    if (f) readBox.append(h('button', { class: 'btn brass', onclick: () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: id, file: f.id } }) }, 'Sight-read it'));
+  };
 
   // status
   const seg = h('div', { class: 'seg big', role: 'group', 'aria-label': 'Status' }, STATUSES.map(([sid, label]) => h('button', { 'aria-pressed': sid === e.status ? 'true' : 'false', onclick: ev => {
@@ -241,6 +251,7 @@ export function entryPage(id, opts = {}) {
     const cur = L.getEntry(id);
     if (!cur) return;
     const have = await L.localIds();
+    drawRead(have);
     const missing = cur.files.filter(f => !have.has(f.id) && !LS.tooBig(f));
     if (LS.isOn() && missing.length && !autoTried) {
       autoTried = true;
