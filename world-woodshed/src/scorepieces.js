@@ -34,16 +34,27 @@ export function sections(melody, per = 4) {
   // the score's own key signature when it has one (a score in C with flats written in stays in C)
   const key = guessKey(draft.notes, Number.isFinite(melody.fifths) ? melody.fifths : null);
   const spell = melody.spell || {};
-  const bars = q.bars;
+  // a MusicXML score is read bar by bar as it is written (its notes, rests, ties, triplets, chords and
+  // accidentals); a MIDI file or a played draft has only times, so it is written out by quantize
+  const wr = melody.written && melody.written.bars && melody.written.bars.length && time === (melody.time || time) ? melody.written : null;
+  const shift = up ? 12 : 0;
+  const bars = wr ? wr.bars.map(bar => bar.map(n => Object.assign({}, n, n.midi == null ? {} : { midi: n.midi + shift }, n.chord ? { chord: n.chord.map(m => m + shift) } : {}))) : q.bars;
   // leave out whole-bar rests at the start (a pickup or an intro played by others)
   let first = 0;
   while (first < bars.length && bars[first].every(n => n.midi == null)) first++;
   // the order the bars are read in: a short repeat stays one section with its repeat signs, read twice; a
   // longer one (or one with a first ending) is read through, then its sections come again for the 2nd time
   const [num, den] = time.split('/').map(Number), barLen = num * 4 / den;
+  // a place in quarters → its bar: the written bars' own starts (a pickup is a short bar), else even bars
+  const barAt = q => {
+    if (!wr || !wr.starts) return Math.round(q / barLen);
+    let best = 0;
+    wr.starts.forEach((st, i) => { if (Math.abs(st - q) < Math.abs(wr.starts[best] - q)) best = i; });
+    return Math.abs(wr.starts[best] - q) < 1e-3 ? best : q >= wr.starts[wr.starts.length - 1] ? wr.starts.length : best;
+  };
   const segs = [];
   let pos = first;
-  (melody.repeats || []).map(r => ({ a: Math.round(r.s / barLen), b: Math.round(r.e / barLen) - 1, e1: r.first == null ? null : Math.round(r.first / barLen) }))
+  (melody.repeats || []).map(r => ({ a: barAt(r.s), b: barAt(r.e) - 1, e1: r.first == null ? null : barAt(r.first) }))
     .sort((x, y) => x.a - y.a).forEach(({ a, b, e1 }) => {
       a = Math.max(a, pos); b = Math.min(b, bars.length - 1);
       if (!(b >= a)) return; // before the music starts, or overlapping the last one
@@ -62,8 +73,11 @@ export function sections(melody, per = 4) {
     const x = cur; cur = null;
     const slice = x.idx.map(b => bars[b].map(n => {
       const w = { midi: n.midi, dur: n.dur };
-      // sharps and flats as the score writes them (an E♭ stays E♭, not D♯)
-      if (n.midi != null && spell[((n.midi % 12) + 12) % 12]) w.spell = spell[((n.midi % 12) + 12) % 12];
+      // sharps and flats as the score writes them (an E♭ stays E♭, not D♯): each note's own when it is read as written
+      if (n.spell) w.spell = n.spell;
+      else if (n.midi != null && !wr && spell[((n.midi % 12) + 12) % 12]) w.spell = spell[((n.midi % 12) + 12) % 12];
+      if (n.chord) w.chord = n.chord.slice();
+      if (n.tup) w.tup = n.tup;
       if (n.dot) w.dot = true;
       if (n.tie) w.tie = true;
       return w;

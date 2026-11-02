@@ -165,3 +165,30 @@ describe('the score\'s own key and spelling', () => {
     expect(p.bars[0][1].spell).toBeUndefined();
   });
 });
+
+describe('a MusicXML score is read as it is written', () => {
+  const N = (pitch, type, extra = '') => {
+    if (pitch === 'r') return `<note><rest/><duration>${{ quarter: 2, eighth: 1, half: 4 }[type]}</duration><voice>1</voice><type>${type}</type>${extra}</note>`;
+    const [, step, acc, oct] = /^([A-G])(#|b)?(\d)$/.exec(pitch);
+    const alter = acc === '#' ? 1 : acc === 'b' ? -1 : 0;
+    return `<note>${extra.includes('<chord/>') ? '<chord/>' : ''}<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${oct}</octave></pitch><duration>${{ quarter: 2, eighth: 1, half: 4 }[type] * (extra.includes('3:2') ? 2 / 3 : 1)}</duration>` +
+      (extra.includes('tie') ? '<tie type="start"/>' : '') + `<voice>1</voice><type>${type}</type>` + (extra.includes('3:2') ? '<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>' : '') + '</note>';
+  };
+  const score = (bars, pickup = false) => `<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>M</part-name></score-part></part-list><part id="P1">` +
+    bars.map((b, i) => `<measure number="${i + 1}"${pickup && i === 0 ? ' implicit="yes"' : ''}>${i === 0 ? '<attributes><divisions>2</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time></attributes>' : ''}${b.join('')}</measure>`).join('') + '</part></score-partwise>';
+  const read = x => readScoreMelody('w.musicxml', new Blob([x])).then(m => sections(m, 0)[0].piece);
+  it('keeps rests, ties, triplets, chords and each note\'s own sharp or flat', async () => {
+    const p = await read(score([
+      [N('C5', 'quarter'), N('r', 'quarter'), N('D#5', 'eighth', '3:2'), N('Eb5', 'eighth', '3:2'), N('E5', 'eighth', '3:2'), N('G5', 'quarter', 'tie')],
+      [N('G5', 'half'), N('C5', 'half'), N('E5', 'half', '<chord/>')]
+    ]));
+    expect(p.bars[0].map(n => [n.midi, n.dur, n.tup || 0, n.spell || '', !!n.tie])).toEqual([
+      [72, 'q', 0, '', false], [null, 'q', 0, '', false], [75, '8', 3, '#', false], [75, '8', 3, 'b', false], [76, '8', 3, '', false], [79, 'q', 0, '', true]]);
+    expect(p.bars[1][1]).toMatchObject({ midi: 76, chord: [72, 76] });
+  });
+  it('a pickup bar is filled with rests before its notes', async () => {
+    const p = await read(score([[N('G4', 'quarter')], [N('C5', 'half'), N('D5', 'half')]], true));
+    expect(p.bars[0].map(n => n.midi)).toEqual([null, null, 67]);
+    expect(p.bars[1].map(n => n.midi)).toEqual([72, 74]);
+  });
+});
