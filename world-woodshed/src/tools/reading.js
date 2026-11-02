@@ -362,7 +362,7 @@ function notesMode(root, lv, ctx) {
    YOUR SCORES: a score from the Library (MusicXML, MIDI, a Write by playing draft) read a section at a time
    ====================================================== */
 const PERS = [2, 4, 8];
-const barsLabel = x => (x.to > x.from ? 'Bars ' + x.from + '–' + x.to : 'Bar ' + x.from);
+const barsLabel = x => (x.to > x.from ? 'Bars ' + x.from + '–' + x.to : 'Bar ' + x.from) + (x.again ? ', 2nd time' : x.piece && x.piece.repeat ? ', with the repeat' : '');
 function scoresMode(root, lv, ctx, p) {
   const card = h('div', { class: 'card stack' }); root.append(card);
   const body = h('div', { class: 'section' }); root.append(body);

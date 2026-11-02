@@ -32,19 +32,56 @@ export function sections(melody, per = 4) {
   // leave out whole-bar rests at the start (a pickup or an intro played by others)
   let first = 0;
   while (first < bars.length && bars[first].every(n => n.midi == null)) first++;
+  // the order the bars are read in: a short repeat stays one section with its repeat signs, read twice; a
+  // longer one (or one with a first ending) is read through, then its sections come again for the 2nd time
+  const [num, den] = time.split('/').map(Number), barLen = num * 4 / den;
+  const segs = [];
+  let pos = first;
+  (melody.repeats || []).map(r => ({ a: Math.round(r.s / barLen), b: Math.round(r.e / barLen) - 1, e1: r.first == null ? null : Math.round(r.first / barLen) }))
+    .sort((x, y) => x.a - y.a).forEach(({ a, b, e1 }) => {
+      a = Math.max(a, pos); b = Math.min(b, bars.length - 1);
+      if (!(b >= a)) return; // before the music starts, or overlapping the last one
+      if (a > pos) segs.push({ from: pos, to: a - 1 });
+      const again = e1 != null && e1 > a && e1 <= b ? e1 - 1 : b;
+      if (again === b && b - a + 1 <= per) segs.push({ from: a, to: b, rep: true });
+      else segs.push({ from: a, to: b, own: true }, { from: a, to: again, own: true, again: true });
+      pos = b + 1;
+    });
+  if (pos < bars.length) segs.push({ from: pos, to: bars.length - 1 });
   const out = [];
-  for (let b = first; b < bars.length; b += per) {
-    const slice = bars.slice(b, b + per).map(bar => bar.map(n => {
+  let cur = null;
+  const close = () => {
+    if (!cur) return;
+    const x = cur; cur = null;
+    const slice = x.idx.map(b => bars[b].map(n => {
       const w = { midi: n.midi, dur: n.dur };
       if (n.dot) w.dot = true;
       if (n.tie) w.tie = true;
       return w;
     }));
-    // a note tied over the end of the section ends there
-    const lastBar = slice[slice.length - 1], last = lastBar[lastBar.length - 1];
-    if (last && last.tie) delete last.tie;
-    if (slice.every(bar => bar.every(n => n.midi == null))) continue; // nothing to read
-    out.push({ from: b + 1, to: b + slice.length, piece: { key, time, bars: slice } });
-  }
+    // a note tied over the end of the section (or of its repeat) ends there
+    const untie = bar => { const last = bar[bar.length - 1]; if (last && last.tie) delete last.tie; };
+    untie(slice[slice.length - 1]);
+    if (x.rep) untie(slice[x.rep[1]]);
+    if (slice.every(bar => bar.every(n => n.midi == null))) return; // nothing to read
+    const piece = { key, time, bars: slice };
+    if (x.rep) piece.repeat = x.rep;
+    const sec = { from: x.idx[0] + 1, to: x.idx[x.idx.length - 1] + 1, piece };
+    if (x.again) sec.again = true;
+    out.push(sec);
+  };
+  segs.forEach(sg => {
+    const n = sg.to - sg.from + 1;
+    // a section of its own for a repeat; a short repeat joins the bars before it if it fits whole
+    if (sg.own || (cur && (cur.again || (sg.rep && (cur.rep || cur.idx.length + n > per))))) close();
+    for (let b = sg.from; b <= sg.to; b++) {
+      if (cur && cur.idx.length >= per && !sg.rep) close();
+      if (!cur) cur = { idx: [], again: sg.again };
+      if (sg.rep && b === sg.from) cur.rep = [cur.idx.length, cur.idx.length + n - 1];
+      cur.idx.push(b);
+    }
+    if (sg.own) close();
+  });
+  close();
   return out;
 }

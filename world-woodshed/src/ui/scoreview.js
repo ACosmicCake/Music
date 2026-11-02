@@ -34,8 +34,9 @@ async function scoreBytes(blob, kind) {
 /* Show a score full screen; resolves with a close function once it has loaded (throws if it can't).
    opts.tempos (from the Library): { list(), mark(from, to, bpm, written) } keeps how fast you can play each
    section cleanly. opts.edit (a score the app read from a page): { save(xmlText) → Promise } lets you fix
-   its notes (src/scoreedit.js); the fixes are saved when you leave Fix notes or close the score. */
-export async function openScore(blob, { title, kind, tempos, edit } = {}, onClose) {
+   its notes (src/scoreedit.js); the fixes are saved when you leave Fix notes or close the score.
+   opts.sightread(): a Sight-read button that closes the score (saving any fixes first) and calls it. */
+export async function openScore(blob, { title, kind, tempos, edit, sightread } = {}, onClose) {
   let data = await scoreBytes(blob, kind);
   const toCheck = kind === 'musicxml' ? checkBars(data) : [];
   let closed = false;
@@ -346,6 +347,14 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
     note.textContent = 'Saving your fixes…';
     try { await (fx.saving = edit.save(xmlText())); note.textContent = 'Fixes saved.'; } catch (e) { fx.dirty = true; note.textContent = 'Could not save the fixes: ' + (e && e.message ? e.message : e); } finally { fx.saving = null; }
   }
+  const readBtn = h('button', { class: 'btn small', hidden: !sightread, onclick: async () => {
+    readBtn.disabled = true;
+    await saveFixes();
+    if (fx.saving) await fx.saving.catch(() => {});
+    if (fx.dirty) { readBtn.disabled = false; return; } // the fixes could not be saved: stay, so they are not lost
+    close();
+    sightread();
+  } }, 'Sight-read');
   function setFix(on) {
     fx.on = on;
     fixBtn.setAttribute('aria-pressed', String(on));
@@ -355,7 +364,7 @@ export async function openScore(blob, { title, kind, tempos, edit } = {}, onClos
   }
 
   const box = h('div', { class: 'lib-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Score' },
-    h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, followBtn, tapBtn, soundBtn, fixBtn, note),
+    h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, followBtn, tapBtn, soundBtn, fixBtn, readBtn, note),
     h('div', { class: 'lib-vtools' },
       h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Tempo' }, slower, bpmOut, faster, clickBtn),
       h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Section' }, h('span', { class: 'small', text: 'Bars' }), fromIn, h('span', { class: 'small', text: 'to' }), toIn, loopBtn, rampBtn, onlyBtn, cleanBtn),
