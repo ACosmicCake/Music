@@ -53,6 +53,8 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const f = features(labels, w, c, sp);
     const r = classify(f);
     if (!r) return;
+    // a clef starts the line: further along, a tall piece that looks like one is a chord on one stem
+    if (r.cls.startsWith('clef') && c.x0 > staves[where.staff].x0 + sp * 8) return;
     kind.set(c.id, r);
     syms.push(Object.assign({ cls: r.cls, conf: r.conf, x: c.cx, y: c.cy, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, id: c.id }, where));
   });
@@ -154,6 +156,38 @@ export function detect(R, staves, metrics, classify, bin = R) {
     });
     if (best) { best.heads.push(hd); hd.stem = best; }
   });
+  // a half note whose ring touches a staff line opens when the line is taken out, so it has no hole above; a
+  // stem with no head looks for one with the lines in, where its head would be (left of an up stem at its
+  // foot, right of a down stem at its top)
+  // (not the curve of a flag beside a stem that has its head)
+  const bare = stems.filter(st => !st.heads.length && st.len >= sp * 2.4 && st.width <= Math.max(3, sp * 0.35) &&
+    !stems.some(o => o !== st && o.heads.length && Math.abs(o.x - st.x) < sp * 1.6 && o.y0 < st.y1 && st.y0 < o.y1));
+  if (bare.length && !globalThis.NOBARE) {
+    const bh = holes(bin, sp * sp * 2).filter(o => {
+      const hw = (o.x1 - o.x0 + 1) / sp, hh = (o.y1 - o.y0 + 1) / sp;
+      // round, not the square corners of paper boxed in by lines and stems
+      const fill = o.area / ((o.x1 - o.x0 + 1) * (o.y1 - o.y0 + 1));
+      // (nor the loop of a time signature's digit or another symbol)
+      if (syms.some(y => y.cls !== 'note' && y.cls !== 'other' && o.cx > y.x0 && o.cx < y.x1 && o.cy > y.y0 && o.cy < y.y1)) return false;
+      return hw >= 0.45 && hw <= 1.3 && hh >= 0.3 && hh <= 0.85 && fill >= 0.45 && fill <= 0.86;
+    });
+    bare.forEach(st => {
+      let best = null, bd = Infinity;
+      bh.forEach(o => {
+        for (const up of [true, false]) {
+          const dx = up ? st.x - o.cx : o.cx - st.x, dy = Math.abs(o.cy - (up ? st.y1 : st.y0));
+          if (dx < sp * 0.2 || dx > sp * 1.0 || dy > sp * 0.7) continue;
+          const v = Math.abs(dx - sp * 0.6) + dy;
+          if (v < bd) { bd = v; best = { o, up }; }
+        }
+      });
+      if (!best || heads.some(hd => Math.abs(hd.x - best.o.cx) < sp * 0.5 && Math.abs(hd.y - best.o.cy) < sp * 0.5)) return;
+      const at = onStaff(best.o.cx, best.o.cy, 6);
+      if (!at || !ledgersFor(bin, staves[at.staff], { x: best.o.cx, pos: at.pos }, sp)) return;
+      const hd = { x: best.o.cx, y: best.o.cy, filled: false, comp: st.comp, hole: best.o, byStem: true, ...at, stem: st };
+      heads.push(hd); st.heads.push(hd);
+    });
+  }
   // a stem's direction: the end with heads is the head end
   stems.forEach(st => {
     if (!st.heads.length) return;
@@ -207,7 +241,7 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const staff = mode(hs.map(hd => hd.staff));
     notes.push({ x: st.x, staff, up: st.up, filled, hooks, stem: st, heads: hs.map(hd => head(hd)).sort((a, b) => a.pos - b.pos), x0: Math.min(...hs.map(hd => hd.x)), y0: st.y0, y1: st.y1 });
   });
-  heads.filter(hd => !hd.stem && !hd.filled).forEach(hd => {
+  heads.filter(hd => !hd.stem && !hd.filled && !hd.byStem && comps[hd.comp]).forEach(hd => {
     const c = comps[hd.comp], cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
     if (cw < 1.0 || cw > 2.6 || ch < 0.6 || ch > 1.6) return; // a whole note's head is wide; anything else with a hole is not one
     notes.push({ x: hd.x, staff: hd.staff, filled: false, whole: true, hooks: 0, heads: [head(hd)], x0: hd.x, y0: c.y0, y1: c.y1 });
@@ -380,15 +414,22 @@ function countHooks(R, labels, st, freeEnd, nearHead, sp) {
     if (best && Math.abs(off) > 0.5) break; // the wider columns only when the near ones found nothing
     const x = Math.round(st.x + off * sp);
     if (x < 0 || x >= w) continue;
-    let n = 0, inRun = false, runLen = 0;
+    // beams and flags hang from the free end one under another: a run further along (a thick ledger line
+    // crossing the stem of a low note) is not one
+    let n = 0, inRun = false, runLen = 0, lastEnd = 0, open = true;
+    const close = k => {
+      if (runLen >= sp * 0.12 && runLen <= sp * 1.4 && open) {
+        if (k - runLen - lastEnd <= sp * (n ? 0.9 : 1.6)) { n++; lastEnd = k; } else open = false;
+      }
+    };
     for (let k = 0; k <= span; k++) {
       const y = Math.round(startY + dir * k);
       if (y < 0 || y >= h) continue;
       const ink = d[y * w + x] && labels[y * w + x] === st.comp;
       if (ink) { if (!inRun) { inRun = true; runLen = 0; } runLen++; }
-      else if (inRun) { inRun = false; if (runLen >= sp * 0.12 && runLen <= sp * 1.4) n++; }
+      else if (inRun) { inRun = false; close(k); }
     }
-    if (inRun && runLen >= sp * 0.12 && runLen <= sp * 1.4) n++;
+    if (inRun) close(span + 1);
     if (n > best && n <= 4) best = n;
   }
   return Math.min(best, 4);

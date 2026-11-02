@@ -61,7 +61,20 @@ function readStaff(st, index, det, syms, sp) {
     const last = key.length ? key[key.length - 1].x1 : hx;
     // the first sign may sit a little after the clef (a bass clef's dots come between)
     if (a.x0 - last > sp * (key.length ? 1.6 : 2.6) || (key.length && a.cls !== key[0].cls)) break;
+    // each sign at its own place on the staff (B♭ then E♭…, F♯ then C♯…): an accidental on the first note of a
+    // line, close after the clef, is not a key
+    const want = KEY_POS[s.clef || 'G'] && KEY_POS[s.clef || 'G'][a.cls][key.length];
+    if (want != null && !globalThis.NOKEYPOS) {
+      const ay = a.cls === 'flat' ? a.y1 - sp * 0.55 : (a.y0 + a.y1) / 2, p = staffPos(st, ay, a.x);
+      if (![0, 7, -7].some(o => Math.abs(p - want - o) <= 0.75)) break;
+    }
     key.push(a);
+  }
+  // a lone sign right before a head on its own line or space is that note's accidental (a sharp on the first
+  // F of a line in the bass is where a G major key's would be)
+  if (key.length === 1) {
+    const a = key[0], ay = a.cls === 'flat' ? a.y1 - sp * 0.55 : (a.y0 + a.y1) / 2, ap = staffPos(st, ay, a.x);
+    if (det.notes.some(n => n.staff === index && n.heads.some(hd => hd.x - a.x1 > -sp * 0.2 && hd.x - a.x1 < sp * 1.6 && Math.abs(hd.pos - ap) < 0.6))) key.length = 0;
   }
   if (key.length) { s.fifths = Math.min(7, key.length) * (key[0].cls === 'sharp' ? 1 : -1); hx = key[key.length - 1].x1; }
   s.keySyms = new Set(key);
@@ -128,6 +141,13 @@ function readStaff(st, index, det, syms, sp) {
   return s;
 }
 
+/* Staff positions (0 the bottom line) of a key's sharps and flats in order, per clef */
+const KEY_POS = (() => {
+  const G = { flat: [4, 7, 3, 6, 2, 5, 1], sharp: [8, 5, 9, 6, 3, 7, 4] };
+  const by = d => ({ flat: G.flat.map(p => p + d), sharp: G.sharp.map(p => p + d) });
+  return { G, F: by(-2), C3: by(-1) };
+})();
+
 function isBeamed(n, det) {
   // another stem in the same piece of ink
   return det.notes.some(m => m !== n && m.stem && n.stem && m.stem.comp === n.stem.comp);
@@ -157,6 +177,13 @@ function cutBars(s, xs, sp) {
    { title, time: { num, den, symbol? }, fifths, parts: [{ name, staves: [clef], bars: [[staff][voice][event]] }],
      pickup: quarters | 0, warnings: [{ bar, part, text }], counts: { notes, bars, fixed } } */
 export function buildScore(pages, opts = {}) {
+  // a full score followed by its parts (one PDF, "Score and parts"): the pages from the first one whose
+  // systems all have fewer staves than the score's are the parts, and are left out
+  const rowsOnPage = pg => mode(pg.map(sys => sys.staves.length));
+  let partsFrom = -1;
+  const scoreRows = pages.length > 1 && pages[0].length ? rowsOnPage(pages[0]) : 0;
+  if (scoreRows >= 2) partsFrom = pages.findIndex((pg, i) => i > 0 && pg.length && pg.every(sys => sys.staves.length < scoreRows));
+  if (partsFrom > 0) pages = pages.slice(0, partsFrom);
   const systems = pages.flat();
   if (!systems.length) return null;
   // staff rows: the usual number of staves in a system
@@ -236,7 +263,7 @@ export function buildScore(pages, opts = {}) {
     if (m.start) open = b;
     if (m.end) { repeats.push([open != null ? open : from, b]); open = null; from = b + 1; }
   });
-  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed } };
+  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed }, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);
@@ -261,7 +288,8 @@ function barLengths(rowBars) {
 function guessTime(rowBars) {
   const q = mode(barLengths(rowBars)) || 4;
   const table = { 4: [4, 4], 3: [3, 4], 2: [2, 4], 1.5: [3, 8], 6: [6, 4], 5: [5, 4], 2.5: [5, 8], 1: [2, 8], 4.5: [9, 8], 7: [7, 4] };
-  const t = table[q] || [4, 4];
+  // any other whole number of beats (10/4 for a ten-beat tala) or of eighths
+  const t = table[q] || (q >= 1 && q <= 16 && Number.isInteger(q) ? [q, 4] : q > 0 && q <= 8 && Number.isInteger(q * 2) ? [q * 2, 8] : [4, 4]);
   // three quarters of eighths grouped in threes is 6/8, not 3/4
   if (q === 3) {
     let threes = 0, twos = 0;

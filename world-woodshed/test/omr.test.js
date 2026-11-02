@@ -122,6 +122,29 @@ describe('reading a page', () => {
   });
 });
 
+describe('putting a score together', () => {
+  const note = (q, pos, up = true) => ({ x: 0, q, base: q, dots: 0, up, heads: [{ pos }] });
+  const staff = (evs, clef = 'G') => ({ clef, bars: [{ events: evs }] });
+  const tenBeats = () => [note(2, 4), note(2, 5), note(1, 4), note(2, 3), note(1, 2), note(1, 0), note(1, 1)];
+  it('guesses a time of ten beats from the bars, and leaves out the parts printed after the score', () => {
+    const sys = () => ({ staves: [staff(tenBeats()), staff([note(4, 4, false)], 'F')] });
+    const part = () => ({ staves: [staff(tenBeats())] });
+    const s = buildScore([[sys(), sys()], [sys()], [part(), part(), part()]]);
+    expect(s.time.num + '/' + s.time.den).toBe('10/4');
+    expect(s.counts.bars).toBe(3); // the parts' pages are not added on as more bars
+    expect(s.partsFrom).toBe(3);
+    expect(s.parts[0].staves).toEqual(['G', 'F']);
+  });
+  it('puts a whole note under a tune with its stems up in a voice of its own', () => {
+    const bar = [note(1, 8), note(1, 8), note(1, 9), { x: 0, q: 4, base: 4, dots: 0, whole: true, heads: [{ pos: -2 }] }, note(1, 10)];
+    bar.forEach((e, i) => { e.x = i; });
+    const s = buildScore([[{ staves: [staff(bar)] }, { staves: [staff(bar.map(e => Object.assign({}, e)))] }]]);
+    expect(s.time.num + '/' + s.time.den).toBe('4/4');
+    expect(s.parts[0].bars[0][0]).toHaveLength(2);
+    expect(s.parts[0].bars[0][0][1].map(e => e.q)).toEqual([4]);
+  });
+});
+
 describe('the symbol classifier', () => {
   it('has examples of every class it can name', () => {
     ['clefG', 'clefF', 'sharp', 'flat', 'natural', 'rest4', 'rest8', 'rest16', 'restW', 'restH', 'note', 'other'].forEach(c => expect(CLASSES).toContain(c));
