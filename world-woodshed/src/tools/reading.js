@@ -395,7 +395,26 @@ function scoresMode(root, lv, ctx, p) {
     paintPer();
     const fromSel = h('select', { 'aria-label': 'Start at' });
     const runKeep = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: runOn() ? true : null, onchange: e => E.setSetting('readingRunOn', e.target.checked) }), 'Keep going: the next section follows after a count-in bar');
-    card.append(h('label', { class: 'stack small' }, 'Score', select));
+    // a score the app read from a page may have a note wrong: fix it in the score viewer, then read on here
+    let LU = null;
+    const fixBtn = h('button', { class: 'btn small', onclick: async () => {
+      LU = LU || await import('../ui/library.js');
+      const from = +fromSel.value || 0;
+      LU.fixNotes(pick.e.id, pick.f.id, id => {
+        const e = L.getEntry(pick.e.id), f = e && e.files.find(x => x.id === id);
+        if (!f || gone) return;
+        const i = files.indexOf(pick);
+        pick = { e, f };
+        if (i >= 0) files[i] = pick;
+        keep({ entry: e.id, file: id, from });
+        load(from);
+      });
+    } }, 'Fix the notes');
+    const fixLine = h('p', { class: 'small muted' }, 'Read by the app from a page, so a note may be wrong. ', fixBtn);
+    const paintFix = () => { fixLine.hidden = !pick.f.name.endsWith(' (notes read).musicxml') || pick.f.kind !== 'musicxml'; };
+    paintFix();
+    select.addEventListener('change', paintFix);
+    card.append(h('label', { class: 'stack small' }, 'Score', select), fixLine);
     const msg = h('p', { class: 'small', role: 'status' });
     card.append(msg);
     async function load(at) {

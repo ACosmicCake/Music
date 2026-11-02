@@ -4,7 +4,7 @@
 .lib-filter { flex-wrap: wrap; }
 .lib-tile { grid-template-columns: 52px minmax(0, 1fr); }
 .lib-item { display: grid; gap: 6px; }
-.lib-item .lib-sr { justify-self: start; }
+.lib-item .lib-sr { justify-self: start; gap: 6px; flex-wrap: wrap; }
 .lib-tile .t-title, .lib-tile .t-desc { grid-column: 2; overflow-wrap: anywhere; }
 .lib-thumb { grid-row: 1 / span 2; grid-column: 1; width: 52px; height: 52px; border-radius: 8px; background: var(--sunk) center / cover no-repeat; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); text-transform: uppercase; overflow: hidden; }
 .lib-hero h1 { overflow-wrap: anywhere; }
@@ -22,7 +22,7 @@
 .lib-fname { font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
 .lib-file .confirm { margin-top: 4px; }
 
-.lib-viewer { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.lib-viewer { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .lib-vbar { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; padding: calc(6px + env(safe-area-inset-top, 0px)) 8px 6px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .lib-vbar .btn:first-child { margin-right: auto; }
 .lib-vbar .btn:last-child { margin-left: auto; }
@@ -47,7 +47,7 @@
 html.compact .lib-tile { grid-template-columns: 38px minmax(0, 1fr); gap: 2px 8px; }
 html.compact .lib-thumb { width: 38px; height: 38px; font-size: 0.6rem; }
 html.compact .lib-pages { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
-html.compact .lib-vbar { gap: 4px; padding-inline: 4px; flex-wrap: nowrap; }
+html.compact .lib-vbar { gap: 4px; padding-inline: 4px; }
 html.compact .lib-vbar .btn { padding: 3px 8px; min-width: 0; }
 html.compact .lib-vtools { gap: 4px; padding: 4px; }
 html.compact .lib-vtools select { min-height: 36px; font-size: 0.8rem; flex: 1 1 30%; min-width: 0; }

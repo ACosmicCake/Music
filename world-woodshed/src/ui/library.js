@@ -45,7 +45,8 @@ function reportAdd(r) {
 }
 
 /* ---------- reading the notes of a PDF or of photos (src/ui/recognize.js, loaded the first time) ---------- */
-const isReading = f => f.kind === 'musicxml' && f.name.endsWith(READ_SUFFIX);
+/* a score the app read from a page or a photo (its notes can be fixed in the score viewer) */
+export const isReading = f => !!f && f.kind === 'musicxml' && f.name.endsWith(READ_SUFFIX);
 /* the file Sight-reading reads for an entry: its own score (exact) before the notes the app read from a page */
 const sightFile = (e, have) => {
   const can = e.files.filter(f => have.has(f.id) && L.READABLE_MELODY.test(f.name));
@@ -155,10 +156,15 @@ PAGES.library = function () {
         h('span', { class: 't-title', text: e.title }), h('span', { class: 't-desc', text: meta })));
       list.append(item);
       // Sight-read it, once a score Sight-reading can read is on this device (a PDF's reading included)
-      if (TOOLS.sightread) localP.then(have => {
-        const f = sightFile(e, have);
-        if (f && item.isConnected) item.append(h('button', { class: 'btn small brass lib-sr', 'aria-label': 'Sight-read ' + e.title,
+      // and Fix notes, when the app read its notes from a page
+      localP.then(have => {
+        if (!item.isConnected) return;
+        const f = TOOLS.sightread && sightFile(e, have), read = e.files.find(x => isReading(x) && have.has(x.id));
+        const btns = [];
+        if (f) btns.push(h('button', { class: 'btn small brass', 'aria-label': 'Sight-read ' + e.title,
           onclick: () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: e.id, file: f.id } }) }, 'Sight-read it'));
+        if (read) btns.push(h('button', { class: 'btn small', 'aria-label': 'Fix the notes read from ' + e.title, onclick: () => fixNotes(e.id, read.id) }, 'Fix notes'));
+        if (btns.length) item.append(h('div', { class: 'row lib-sr' }, ...btns));
       });
       const img = e.files.find(f => f.kind === 'image');
       if (img) localP.then(have => (have.has(img.id) ? L.getThumb(img.id) : null)).then(b => { if (b && thumb.isConnected) thumb.style.backgroundImage = 'url("' + urlFor(b) + '")'; });
@@ -398,13 +404,24 @@ const editOf = (where, f) => (where.entry && f && isReading(f) ? { save: async x
    read when pressed, as saving fixes gives the file a new one) */
 const readOf = (where, got) => (where.entry && where.file && TOOLS.sightread && L.READABLE_MELODY.test(got.name)
   ? () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: where.entry, file: where.file } }) : null);
-async function readScore(got, kind, where = {}, f = null) {
+/* Open the notes the app read from a page with Fix notes on. onSaved(fileId) after each save: saving gives the
+   file a new id. */
+export async function fixNotes(entryId, fileId, onSaved) {
+  const e = L.getEntry(entryId), f = e && e.files.find(x => x.id === fileId);
+  if (!isReading(f)) return;
+  const got = await L.getFile(f.id);
+  if (!got) { toast('This file is not on this device'); return; }
+  const where = { entry: entryId, file: f.id };
+  if (onSaved) where.onSaved = () => onSaved(where.file);
+  await readScore(got, f.kind, where, f, { fix: true });
+}
+async function readScore(got, kind, where = {}, f = null, more = {}) {
   const note = h('div', { class: 'toast', role: 'status', text: 'Opening ' + got.name + '…' });
   document.body.append(note);
   try {
     const { openScore } = await import('./scoreview.js');
     if (closeViewer) closeViewer();
-    const close = await openScore(got.blob, { title: got.name, kind, tempos: temposOf(where), edit: editOf(where, f), sightread: readOf(where, got) }, () => { if (closeViewer === close) closeViewer = null; if (where.onClose) where.onClose(); });
+    const close = await openScore(got.blob, { title: got.name, kind, tempos: temposOf(where), edit: editOf(where, f), sightread: readOf(where, got), fix: !!more.fix }, () => { if (closeViewer === close) closeViewer = null; if (where.onClose) where.onClose(); });
     closeViewer = close;
   } catch (e) {
     console.error(e);
