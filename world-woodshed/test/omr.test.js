@@ -135,6 +135,20 @@ describe('putting a score together', () => {
     expect(s.partsFrom).toBe(3);
     expect(s.parts[0].staves).toEqual(['G', 'F']);
   });
+  it('leaves out a drum staff, and keeps whole rests that fill a long bar beside a note', () => {
+    const rest = { x: 5, q: 4, base: 4, dots: 0, rest: true, wholeRest: true, pos: 6 };
+    const whole = { x: 0, q: 4, base: 4, dots: 0, whole: true, heads: [{ pos: -2 }] };
+    const bar = () => [whole, rest, Object.assign({}, rest, { x: 6 }), Object.assign({}, rest, { x: 7 })].map(e => Object.assign({}, e));
+    const drums = () => staff([note(4, 4), note(4, 2), note(4, 4), note(4, 2)], 'perc');
+    const tune = () => staff([note(4, 4), note(4, 5), note(4, 4), note(4, 3)]);
+    const sys = evs => ({ staves: [evs, drums()] });
+    const s = buildScore([[sys(Object.assign(tune(), { time: { num: 16, den: 4 } })), sys(tune()), sys(staff(bar()))]]);
+    expect(s.time.num + '/' + s.time.den).toBe('16/4');
+    expect(s.parts).toHaveLength(1);
+    expect(s.drums).toBe(1);
+    expect(s.parts[0].bars[2][0][0].map(e => (e.rest ? 'r' : 'n') + e.q)).toEqual(['n4', 'r4', 'r4', 'r4']);
+    expect(s.warnings).toHaveLength(0);
+  });
   it('puts a whole note under a tune with its stems up in a voice of its own', () => {
     const bar = [note(1, 8), note(1, 8), note(1, 9), { x: 0, q: 4, base: 4, dots: 0, whole: true, heads: [{ pos: -2 }] }, note(1, 10)];
     bar.forEach((e, i) => { e.x = i; });
@@ -142,6 +156,44 @@ describe('putting a score together', () => {
     expect(s.time.num + '/' + s.time.den).toBe('4/4');
     expect(s.parts[0].bars[0][0]).toHaveLength(2);
     expect(s.parts[0].bars[0][0][1].map(e => e.q)).toEqual([4]);
+  });
+});
+
+describe('half-note chords and ledger lines, drawn', () => {
+  // a staff (space 20 px) with half-note chords whose rings touch each other and the lines, and a whole note
+  // on a ledger line: their holes close up once the lines are taken out
+  const W = 1300, H = 420, top = 150, sp = 20;
+  const page = () => {
+    const d = new Uint8Array(W * H).fill(255);
+    const ink = (x, y) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < W && y < H) d[y * W + x] = 0; };
+    const rect = (x0, x1, y0, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) ink(x, y); };
+    for (let i = 0; i < 5; i++) rect(40, W - 40, top + i * sp - 1, top + i * sp);
+    const ring = (cx, cy, wide = 1) => {
+      const t = -0.35, c = Math.cos(t), s = Math.sin(t);
+      for (let y = -12; y <= 12; y++) for (let x = -16 * wide; x <= 16 * wide; x++) {
+        const u = x * c + y * s, v = -x * s + y * c;
+        const out = (u / (11.5 * wide)) ** 2 + (v / 10.2) ** 2 <= 1, inn = (u / (7.5 * wide)) ** 2 + (v / 5.2) ** 2 <= 1;
+        if (out && !inn) ink(cx + x, cy + y);
+      }
+    };
+    const yOf = pos => top + 4 * sp - pos * sp / 2;
+    const chord = (x, poss) => {
+      poss.forEach(p => ring(x, yOf(p)));
+      rect(Math.round(x + 10), Math.round(x + 11), Math.round(yOf(Math.max(...poss)) - 3.5 * sp), Math.round(yOf(Math.min(...poss))));
+    };
+    const bar = x => rect(x, x + 1, top, top + 4 * sp);
+    // bar 1: E4+G4, then F4+A4+C5; bar 2: G4+B4, then a C4 whole note on its ledger line (the bar is 4/4)
+    chord(160, [0, 2]); chord(380, [1, 3, 5]); bar(560);
+    chord(660, [2, 4]); bar(860);
+    ring(1000, yOf(-2), 1.35); rect(980, 1020, yOf(-2) - 1, yOf(-2)); bar(1180);
+    return { w: W, h: H, d };
+  };
+  it('reads every head of a chord and the whole note under the staff', () => {
+    const score = recognize([page()]);
+    const bars = score.parts[0].bars.map(b => b[0][0].filter(e => !e.rest).map(e => e.pitches.map(midiOf).sort((a, b) => a - b).join('+') + ':' + e.q));
+    expect(bars[0]).toEqual(['64+67:2', '65+69+72:2']);
+    expect(bars[1][0]).toBe('67+71:2');
+    expect(bars[2]).toEqual(['60:4']);
   });
 });
 

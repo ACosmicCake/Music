@@ -58,6 +58,23 @@ export function detect(R, staves, metrics, classify, bin = R) {
     kind.set(c.id, r);
     syms.push(Object.assign({ cls: r.cls, conf: r.conf, x: c.cx, y: c.cy, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, id: c.id }, where));
   });
+  // a rest away from the staff with letters of its size beside it is a letter in a word (an "L" can pass for a rest)
+  for (let i = syms.length - 1; i >= 0; i--) {
+    const y = syms[i];
+    if (!/^rest(4|8|16|32)$/.test(y.cls)) continue;
+    const st = staves[y.staff], top = lineY(st, 0, y.x), bot = lineY(st, st.nLines - 1, y.x);
+    if (y.y1 > top - sp * 0.5 && y.y0 < bot + sp * 0.5) continue;
+    const h0 = y.y1 - y.y0 + 1;
+    const word = comps.some(c => c && c.id !== y.id && (c.x0 > y.x1 ? c.x0 - y.x1 : y.x0 - c.x1) < sp * 1.2 && (c.x0 > y.x1 || c.x1 < y.x0) &&
+      Math.min(c.y1, y.y1) - Math.max(c.y0, y.y0) > Math.min(h0, c.y1 - c.y0 + 1) * 0.5 && (c.y1 - c.y0 + 1) > h0 * 0.3 && (c.x1 - c.x0 + 1) < sp * 2.5);
+    if (word) { kind.delete(y.id); syms.splice(i, 1); }
+  }
+  // one clef to a line: a second tall piece just after it is a chord on one stem
+  for (let i = syms.length - 1; i >= 0; i--) {
+    const y = syms[i];
+    if (!y.cls.startsWith('clef')) continue;
+    if (syms.some(o => o !== y && o.cls.startsWith('clef') && o.staff === y.staff && o.x1 < y.x0 && y.x0 - o.x1 < sp * 8)) { kind.delete(y.id); syms.splice(i, 1); }
+  }
   const isSymbol = id => {
     const k = kind.get(id);
     return k && k.cls !== 'note' && k.cls !== 'other';
@@ -79,11 +96,21 @@ export function detect(R, staves, metrics, classify, bin = R) {
     if (maxD[c.id] < sp * 0.34) return;
     const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
     if (cw > 1.3 || ch > 1.0) {
+      // two heads side by side (a second, either side of the stem) whose cores touch: split at the narrow column
+      if (cw > 1.6 && cw <= 3.2 && ch <= 2.2) {
+        (sideBySide(coreLab.labels, w, c, sp) || []).forEach(b => {
+          const at = onStaff(b.x, b.y, 6);
+          if (at) heads.push({ x: b.x, y: b.y, filled: true, comp: labels[Math.round(b.y) * w + Math.round(b.x)] || labels[Math.round(c.cy) * w + Math.round(c.cx)], ...at });
+        });
+        return;
+      }
       // two heads a second apart on one side, or a cluster: as many heads as fit
       if (ch <= 1.0 || cw > 1.6 || ch > 3.2) return;
-      const n = Math.round((ch + 0.45) / 0.9);
+      // heads a third apart touch at a narrow waist: split there; heads a second apart overlap, so as many as fit
+      const ys = waists(coreLab.labels, w, c);
+      const n = ys ? ys.length : Math.round((ch + 0.45) / 0.9);
       for (let k = 0; k < n; k++) {
-        const y = c.y0 + (k + 0.5) * (c.y1 - c.y0 + 1) / n;
+        const y = ys ? ys[k] : c.y0 + (k + 0.5) * (c.y1 - c.y0 + 1) / n;
         const at = onStaff(c.cx, y, 6);
         if (at) heads.push({ x: c.cx, y, filled: true, comp: labels[Math.round(y) * w + Math.round(c.cx)] || labels[Math.round(c.cy) * w + Math.round(c.cx)], ...at });
       }
@@ -120,10 +147,30 @@ export function detect(R, staves, metrics, classify, bin = R) {
     if (!at) return;
     heads.push({ x: o.cx, y: o.cy, filled: false, comp: id, hole: o, fromBin: o.fromBin, ...at });
   });
+  // a whole note on a ledger line: the line splits its hole, so it is tried as a ring with the lines in
+  comps.forEach(c => {
+    if (!c || isSymbol(c.id)) return;
+    const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
+    if (cw < 1.0 || cw > 2.8 || ch < 0.6 || ch > 1.6) return;
+    if (heads.some(hd => hd.comp === c.id)) return;
+    const at = onStaff(c.cx, c.cy, 6);
+    if (!at || (at.pos > -1.4 && at.pos < 9.4)) return;
+    const st = staves[at.staff], p = Math.round(at.pos);
+    const bot = lineY(st, st.nLines - 1, c.cx), gap = (bot - lineY(st, 0, c.cx)) / (st.nLines - 1), y = bot - p * gap / 2;
+    if (Math.abs(y - c.cy) > gap * 0.35 || !hollowAt(bin, c.cx, y, sp, p % 2 === 0, lt)) return;
+    heads.push({ x: c.cx, y, filled: false, comp: c.id, staff: at.staff, pos: p });
+  });
 
   // a head above or below the staff sits on or between ledger lines: without them it is a fingering digit,
   // a dynamic (p, f) or a string number, which guitar scores have around the notes
-  for (let i = heads.length - 1; i >= 0; i--) if (!ledgersFor(bin, staves[heads[i].staff], heads[i], sp)) heads.splice(i, 1);
+  // (between two staves a head belongs to the one whose ledger lines it has, not always the nearer)
+  for (let i = heads.length - 1; i >= 0; i--) {
+    const hd = heads[i];
+    if (ledgersFor(bin, staves[hd.staff], hd, sp)) continue;
+    const alt = notationStaves.filter(si => si !== hd.staff && hd.x > staves[si].x0 - sp * 2 && hd.x < staves[si].x1 + sp * 2)
+      .map(si => ({ si, pos: staffPos(staves[si], hd.y, hd.x) })).find(o => Math.abs(o.pos - 4) < 4 + 12 && ledgersFor(bin, staves[o.si], { x: hd.x, pos: o.pos }, sp) && (o.pos < -1.4 || o.pos > 9.4));
+    if (alt) { hd.staff = alt.si; hd.pos = alt.pos; } else heads.splice(i, 1);
+  }
 
   /* ---- 3. stems and bar lines ---- */
   const vs = verticals(R, Math.round(sp * 1.6), Math.max(3, sp * 0.8));
@@ -188,15 +235,72 @@ export function detect(R, staves, metrics, classify, bin = R) {
       heads.push(hd); st.heads.push(hd);
     });
   }
+  // the other heads of a chord of half notes: rings that touch each other, or a line, rarely leave a hole once
+  // the lines are out, so every staff position along the stem's head end is tried with the lines in
+  if (!globalThis.NOCHORDSCAN) stems.forEach(st => {
+    const hs = st.heads;
+    if (!hs.length || hs.some(hd => hd.filled) || st.len < sp * 2.4 || st.width > Math.max(3, sp * 0.35)) return;
+    const stf = staves[hs[0].staff];
+    // an up stem has its heads on the left (a second's other head aside), a down stem on the right
+    const left = hs.filter(hd => hd.x < st.x).length;
+    const nearBot = hs.filter(hd => hd.y > st.y1 - sp * 1.0).length, nearTop = hs.filter(hd => hd.y < st.y0 + sp * 1.0).length;
+    const up = left * 2 === hs.length ? nearBot >= nearTop : left * 2 > hs.length;
+    const bot = lineY(stf, stf.nLines - 1, st.x), gap = (bot - lineY(stf, 0, st.x)) / (stf.nLines - 1);
+    const lo = up ? st.y0 + sp * 2.5 : st.y0 - sp * 0.6, hi = up ? st.y1 + sp * 0.6 : st.y1 - sp * 2.5;
+    const found = [];
+    for (let p = Math.ceil((bot - hi) / (gap / 2)); bot - p * gap / 2 >= lo; p++) {
+      const y = bot - p * gap / 2;
+      if (heads.some(hd => Math.abs(hd.y - y) < gap * 0.4 && Math.abs(hd.x - st.x) < sp * 1.6)) continue;
+      // beside the stem on its usual side, or on the other (a second)
+      let best = null;
+      for (const side of up ? [-1, 1] : [1, -1]) {
+        for (const off of [0.5, 0.6, 0.4, 0.7]) {
+          const cx = st.x + side * (off * sp + st.width / 2), q = hollowAt(bin, cx, y, sp, p % 2 === 0, lt);
+          if (q && (!best || q > best.q)) best = { x: cx, q };
+        }
+      }
+      // (not in a rest or another symbol beside the stem)
+      if (best && !syms.some(o => o.cls !== 'note' && o.cls !== 'other' && best.x > o.x0 && best.x < o.x1 && y > o.y0 && y < o.y1)) found.push({ x: best.x, y, p, q: best.q });
+    }
+    // two heads on one side of the stem are at least a third apart: of a step's two, the clearer ring (the
+    // heads found before are weighed the same way: the paper between two touching rings can pass for a hole)
+    const all = found.map(f => Object.assign(f, { hd: null })).concat(hs.map(hd => ({ hd, x: hd.x, y: hd.y,
+      q: (hollowAt(bin, hd.x, bot - Math.round(hd.pos) * gap / 2, sp, Math.round(hd.pos) % 2 === 0, lt) || 0) + 0.01 })));
+    const kept = [];
+    all.sort((a, b) => b.q - a.q).forEach(f => {
+      if (kept.some(k => Math.abs(k.x - f.x) < sp * 0.8 && Math.abs(k.y - f.y) < gap * 0.8)) { if (f.hd) f.hd.drop = true; return; }
+      if (f.hd) { kept.push(f); return; }
+      const hd = { x: f.x, y: f.y, filled: false, comp: st.comp, byStem: true, staff: hs[0].staff, pos: f.p, stem: st };
+      if (!ledgersFor(bin, stf, hd, sp)) return;
+      kept.push(f); heads.push(hd); st.heads.push(hd);
+    });
+    st.heads = st.heads.filter(hd => !hd.drop);
+  });
   // a stem's direction: the end with heads is the head end
   stems.forEach(st => {
     if (!st.heads.length) return;
+    // hollow heads on one side of a stem are a third or more apart: of two closer, the one nearer a line or
+    // space (the paper between two touching rings is not a head)
+    const off = hd => Math.abs(hd.pos - Math.round(hd.pos));
+    // one stem's heads are all filled or all hollow: a hole by a filled chord, or the loop of a flag, is not one
+    const nf = st.heads.filter(hd => hd.filled).length;
+    if (nf && nf < st.heads.length) st.heads.forEach(hd => { if (hd.filled !== nf * 2 >= st.heads.length) hd.drop = true; });
+    // a hollow "head" on a stroke right beside a stem with filled heads is the loop of that stem's flags
+    if (!nf && stems.some(o => o !== st && Math.abs(o.x - st.x) < sp * 1.0 && o.y0 < st.y1 && st.y0 < o.y1 && o.heads.some(hd => hd.filled))) st.heads.forEach(hd => { hd.drop = true; });
+    const keep = [];
+    st.heads.slice().sort((a, b) => off(a) - off(b)).forEach(hd => {
+      if (hd.drop) return;
+      if (!hd.filled && keep.some(k => !k.filled && Math.abs(k.x - hd.x) < sp * 0.8 && Math.abs(k.y - hd.y) < sp * 0.8)) { hd.drop = true; return; }
+      keep.push(hd);
+    });
+    st.heads = st.heads.filter(hd => !hd.drop);
     const nearTop = st.heads.filter(hd => hd.y < st.y0 + sp * 1.0).length, nearBot = st.heads.filter(hd => hd.y > st.y1 - sp * 1.0).length;
     st.up = nearBot >= nearTop;
     // keep heads that make sense for that direction: on the head end's half of the stem
     st.heads = st.heads.filter(hd => (st.up ? hd.y > st.y0 + sp * 1.2 : hd.y < st.y1 - sp * 1.2) || (st.up ? hd.x < st.x + sp * 0.2 : hd.x > st.x - sp * 0.2));
     st.heads.forEach(hd => { hd.stem = st; });
   });
+  for (let i = heads.length - 1; i >= 0; i--) if (heads[i].drop) heads.splice(i, 1);
   heads.forEach(hd => { if (hd.stem && !hd.stem.heads.includes(hd)) hd.stem = null; });
   // the lengths a stem must reach: from the furthest head, at least about 2.2 spaces
   stems.forEach(st => {
@@ -227,6 +331,20 @@ export function detect(R, staves, metrics, classify, bin = R) {
         bars.push({ staff: si, x, thick: st.width > Math.max(lt * 2.5, sp * 0.3), joinsUp: above, joinsDown: below, y0: st.y0, y1: st.y1 });
       }
     });
+  });
+
+  // a percussion clef: two short thick strokes on the middle lines at the start of the staff
+  notationStaves.forEach(si => {
+    const s = staves[si], top = lineY(s, 0, s.x0), bot = lineY(s, s.nLines - 1, s.x0);
+    const cand = stems.filter(st => !st.heads.length && st.x > s.x0 && st.x < s.x0 + sp * 6 && st.width >= sp * 0.25 &&
+      st.len >= sp * 1.4 && st.len <= sp * 2.8 && st.y0 >= top + sp * 0.3 && st.y1 <= bot - sp * 0.3);
+    for (const a of cand) {
+      const b = cand.find(o => o.x - a.x >= sp * 0.4 && o.x - a.x <= sp * 1.5 && Math.abs(o.y0 - a.y0) < sp * 0.4 && Math.abs(o.y1 - a.y1) < sp * 0.4);
+      if (!b) continue;
+      const y = (a.y0 + a.y1) / 2;
+      syms.push({ cls: 'clefPerc', conf: 1, x: (a.x + b.x) / 2, y, x0: Math.round(a.x - a.width / 2), x1: Math.round(b.x + b.width / 2), y0: a.y0, y1: a.y1, staff: si, pos: staffPos(s, y, a.x) });
+      break;
+    }
   });
 
   /* ---- 4. filled heads need a stem; a hollow head with no stem is a whole note ---- */
@@ -262,6 +380,44 @@ export function detect(R, staves, metrics, classify, bin = R) {
     if (at) dots.push({ x: c.cx, y: c.cy, ...at, id: c.id });
   });
   findRepeats(bars, dots, staves, sp);
+  // in close writing a rest or a dot can touch a note's stem or head and so be part of its ink: with the
+  // stems and heads taken out of that ink, a piece the size of a rest is tried as one, and a small round one
+  // as a dot (a flag left on its stem's free end is neither)
+  const byComp = new Map();
+  notes.forEach(n => { const id = n.stem && n.stem.comp; if (id) { if (!byComp.has(id)) byComp.set(id, []); byComp.get(id).push(n); } });
+  byComp.forEach((ns, id) => {
+    const c = comps[id];
+    if (!c) return;
+    const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1;
+    if (bw > sp * 40 || bh > sp * 12) return;
+    const m = new Uint8Array(bw * bh);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) if (labels[(y + c.y0) * w + x + c.x0] === id) m[y * bw + x] = 1;
+    const clear = (x0, x1, y0, y1) => {
+      for (let y = Math.max(0, Math.round(y0 - c.y0)); y <= Math.min(bh - 1, Math.round(y1 - c.y0)); y++)
+        for (let x = Math.max(0, Math.round(x0 - c.x0)); x <= Math.min(bw - 1, Math.round(x1 - c.x0)); x++) m[y * bw + x] = 0;
+    };
+    const mine = stems.filter(st => st.comp === id);
+    mine.forEach(st => clear(st.x - st.width / 2 - 1, st.x + st.width / 2 + 1, st.y0, st.y1));
+    ns.forEach(n => n.heads.forEach(hd => clear(hd.x - sp * 0.6, hd.x + sp * 0.6, hd.y - sp * 0.55, hd.y + sp * 0.55)));
+    const loc = components({ w: bw, h: bh, d: m });
+    loc.comps.forEach(p => {
+      if (!p) return;
+      const pw = (p.x1 - p.x0 + 1) / sp, ph = (p.y1 - p.y0 + 1) / sp, gx = p.cx + c.x0, gy = p.cy + c.y0;
+      const at = onStaff(gx, gy, 2);
+      if (!at) return;
+      // (round, and in a space as dots are: what is left of a ledger line by a head is flat, on a line)
+      if (pw >= 0.2 && ph >= 0.2 && pw <= 0.6 && ph <= 0.6 && pw / ph > 0.6 && pw / ph < 1.6 && Math.abs(Math.abs(at.pos % 2) - 1) < 0.35 &&
+        p.area >= (p.x1 - p.x0 + 1) * (p.y1 - p.y0 + 1) * 0.5) {
+        if (!dots.some(o => Math.abs(o.x - gx) < sp * 0.3 && Math.abs(o.y - gy) < sp * 0.3)) dots.push({ x: gx, y: gy, ...at, carved: true });
+        return;
+      }
+      if (pw < 0.6 || pw > 1.8 || ph < 1.2 || ph > 3.5) return;
+      if (mine.some(st => st.heads.length && Math.abs(p.x0 + c.x0 - st.x) < sp * 0.6 && (st.up ? Math.abs(p.y0 + c.y0 - st.y0) < sp * 0.8 : Math.abs(p.y1 + c.y0 - st.y1) < sp * 0.8))) return;
+      const r = classify(features(loc.labels, bw, p, sp));
+      if (!r || !/^rest(8|16|32)$/.test(r.cls)) return;
+      syms.push({ cls: r.cls, conf: r.conf, x: gx, y: gy, x0: p.x0 + c.x0, x1: p.x1 + c.x0, y0: p.y0 + c.y0, y1: p.y1 + c.y0, id, carved: true, ...at });
+    });
+  });
   notes.forEach(n => {
     const right = Math.max(...n.heads.map(hd => hd.x)) + (n.up === false ? 0 : 0);
     n.dots = 0;
@@ -276,6 +432,17 @@ export function detect(R, staves, metrics, classify, bin = R) {
     }
   });
 
+  // an accidental between two staves goes with the note it stands before (a low note's sharp is often
+  // nearer the staff below)
+  const ACC = /^(sharp|flat|natural|dsharp|dflat)$/;
+  syms.forEach(y => {
+    if (!ACC.test(y.cls)) return;
+    const yc = y.cls === 'flat' || y.cls === 'dflat' ? y.y1 - sp * 0.55 : (y.y0 + y.y1) / 2;
+    const near = hd => hd.stem && hd.x - y.x1 > -sp * 0.3 && hd.x - y.x1 < sp * 3.2 && Math.abs(hd.y - yc) < sp * 0.7;
+    if (heads.some(hd => hd.staff === y.staff && near(hd))) return;
+    const hd = heads.find(near);
+    if (hd) { y.staff = hd.staff; y.pos = staffPos(staves[hd.staff], yc, y.x); }
+  });
   return { notes, syms, bars, heads, stems, dots, labels, comps, ink: R };
 }
 
@@ -417,8 +584,23 @@ function countHooks(R, labels, st, freeEnd, nearHead, sp) {
     // beams and flags hang from the free end one under another: a run further along (a thick ledger line
     // crossing the stem of a low note) is not one
     let n = 0, inRun = false, runLen = 0, lastEnd = 0, open = true;
+    // a thin run that carries on well past where a flag ends is a tie or slur touching the flag
+    const tieAt = (k, len) => {
+      if (len >= sp * 0.3) return false;
+      const ym = Math.round(startY + dir * (k - len / 2)), reach = st.x + sp * 1.5;
+      for (let y = Math.max(0, Math.round(ym - sp * 0.4)); y <= Math.min(h - 1, Math.round(ym + sp * 0.4)); y++) {
+        // the run of ink along this row that passes the column (or starts just past it)
+        let a = -1;
+        for (let xx = x - 3; xx <= x + 3; xx++) if (xx >= 0 && xx < w && d[y * w + xx]) { a = xx; break; }
+        if (a < 0) continue;
+        let xx = a;
+        while (xx < w && xx < reach && d[y * w + xx]) xx++;
+        if (xx >= reach) return true;
+      }
+      return false;
+    };
     const close = k => {
-      if (runLen >= sp * 0.12 && runLen <= sp * 1.4 && open) {
+      if (runLen >= sp * 0.12 && runLen <= sp * 1.4 && open && !tieAt(k, runLen)) {
         if (k - runLen - lastEnd <= sp * (n ? 0.9 : 1.6)) { n++; lastEnd = k; } else open = false;
       }
     };
@@ -436,6 +618,85 @@ function countHooks(R, labels, st, freeEnd, nearHead, sp) {
 }
 
 /* No ink in a thin ring around a piece's box (a few stray pixels allowed) */
+/* A wide blob as heads side by side: the columns between its narrow waists, each a head about a space tall
+   (the middle of its own rows); null when it doesn't split that way */
+function sideBySide(labels, w, c, sp) {
+  const cols = [];
+  for (let x = c.x0; x <= c.x1; x++) { let n = 0; for (let y = c.y0; y <= c.y1; y++) if (labels[y * w + x] === c.id) n++; cols.push(n); }
+  const max = Math.max(...cols), runs = [];
+  let start = -1;
+  cols.forEach((n, i) => {
+    if (n >= max * 0.5) { if (start < 0) start = i; } else if (start >= 0) { runs.push([start, i - 1]); start = -1; }
+  });
+  if (start >= 0) runs.push([start, cols.length - 1]);
+  if (runs.length !== 2) return null;
+  const out = [];
+  for (const [a, b] of runs) {
+    if ((b - a + 1) / sp < 0.5 || (b - a + 1) / sp > 1.6) return null;
+    let y0 = Infinity, y1 = -Infinity, sy = 0, n = 0;
+    for (let x = c.x0 + a; x <= c.x0 + b; x++) for (let y = c.y0; y <= c.y1; y++) if (labels[y * w + x] === c.id) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); sy += y; n++; }
+    if ((y1 - y0 + 1) / sp > 1.1) return null;
+    out.push({ x: c.x0 + (a + b) / 2, y: sy / n });
+  }
+  return out;
+}
+
+/* The rows of a tall blob between its narrow waists: the middle row of each wide stretch, or null with no waist */
+function waists(labels, w, c) {
+  const rows = [];
+  for (let y = c.y0; y <= c.y1; y++) { let n = 0; for (let x = c.x0; x <= c.x1; x++) if (labels[y * w + x] === c.id) n++; rows.push(n); }
+  const max = Math.max(...rows), runs = [];
+  let start = -1;
+  rows.forEach((n, i) => {
+    if (n >= max * 0.55) { if (start < 0) start = i; } else if (start >= 0) { runs.push([start, i - 1]); start = -1; }
+  });
+  if (start >= 0) runs.push([start, rows.length - 1]);
+  if (runs.length < 2) return null;
+  // a waist is a real dip between two wide stretches
+  for (let k = 1; k < runs.length; k++) if (Math.min(...rows.slice(runs[k - 1][1] + 1, runs[k][0])) > max * 0.45) return null;
+  return runs.map(([a, b]) => c.y0 + (a + b) / 2);
+}
+
+/* A hollow head centred at (x, y), in the ink with the lines in: paper in its middle (the line through it left
+   out when it sits on one), ink all round it within about two thirds of a space, and the ring thick at both
+   sides (paper between a stem and a rest is boxed in by thin strokes) */
+function hollowAt(bin, x, y, sp, onLine, lt) {
+  const { w, h, d } = bin;
+  const ink = (px, py) => { px = Math.round(px); py = Math.round(py); return px >= 0 && py >= 0 && px < w && py < h && d[py * w + px] > 0; };
+  // the hole leans up to the right, as the head does
+  const skip = onLine ? lt / 2 + 1.5 : -1, ax = sp * 0.3, ay = sp * 0.13, c = Math.cos(0.45), s = Math.sin(0.45);
+  let n = 0, paper = 0;
+  for (let v = -ay; v <= ay; v += 1) for (let u = -ax; u <= ax; u += 1) {
+    if ((u / ax) ** 2 + (v / ay) ** 2 > 1) continue;
+    const dx = u * c + v * s, dy = -u * s + v * c;
+    if (Math.abs(dy) <= skip) continue;
+    n++; if (!ink(x + dx, y + dy)) paper++;
+  }
+  if (n < 4 || paper < n * 0.8) return false;
+  const K = 32;
+  let hit = 0;
+  for (let k = 0; k < K; k++) {
+    const a = k / K * 2 * Math.PI, cx = Math.cos(a), cy = Math.sin(a);
+    for (let r = 0.2; r <= 0.75; r += 0.04) if (ink(x + cx * r * sp, y + cy * r * sp * 0.8)) { hit++; break; }
+  }
+  if (hit < K * 0.94) return 0;
+  // the ring's sides, a little above and below the middle (clear of a line through it)
+  const side = dir => {
+    let best = 0;
+    for (const dy of [-0.25, -0.15, 0.15, 0.25]) {
+      const yy = y + dy * sp;
+      let r = 0;
+      while (r < sp * 0.75 && !ink(x + dir * r, yy)) r++;
+      let run = 0;
+      while (run < sp && ink(x + dir * (r + run), yy)) run++;
+      best = Math.max(best, run);
+    }
+    return best;
+  };
+  if (side(1) < sp * 0.22 || side(-1) < sp * 0.22) return 0;
+  return paper / n + hit / K;
+}
+
 function aloneIn(img, c, r) {
   const { w, h, d } = img;
   let ink = 0, n = 0;
