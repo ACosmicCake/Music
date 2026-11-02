@@ -945,3 +945,17 @@ html.compact .sr-lv { padding: 2px 6px; min-width: 44px; min-height: 44px; font-
 .bad-text { color: var(--bad); margin: 0; }
 .ghsync { border-top: 1px solid var(--line); padding-top: 10px; }
 .ghsync p { margin: 0; }
+
+/* Sight-reading full screen: one long line of music that slides along, under a single row of controls */
+.sr-fs { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+.sr-fsbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.sr-fsbar .btn { flex: none; }
+.sr-fsbar .sr-runbar.live { position: static; flex: 1; min-width: 0; padding: 0; border-radius: 0; background: none; }
+.sr-fsbar .phase { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-fs .sr-staff { flex: 1; min-height: 0; overflow-x: auto; overflow-y: hidden; display: flex; align-items: center; padding: 0 8px; border-radius: 0; }
+.sr-fs .sr-staff svg { flex: none; }
+.sr-fs .sr-fsresult { max-height: 45%; overflow: auto; padding: 4px 8px; }
+.sr-fs .sr-fsresult:empty { display: none; }
+html.compact .sr-fsbar { gap: 4px; padding: 2px 4px; }
+html.compact .sr-fsbar .btn { padding: 3px 8px; min-width: 0; }

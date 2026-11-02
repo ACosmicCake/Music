@@ -165,7 +165,8 @@ const STEM = 34;
            scale (CSS px per unit; default 1; below 480 px the largest of 1 to 0.76 that fits 2 bars a line), lyrics: [text per note], label,
            showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6),
            chords: [[{ text, at (quarters into the bar) }] per bar] (chord symbols above the staff), barBands: true,
-           repeat: [first bar, last bar] (from 0: repeat signs around those bars) }
+           repeat: [first bar, last bar] (from 0: repeat signs around those bars), repeats: [[first, last]…] (several),
+           oneLine: true (every bar on one line, for reading scrolled sideways) }
    returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null), bar(i|null) };
    i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
@@ -174,7 +175,7 @@ export function renderStaff(opts) {
   const ts = parseTime(opts.time || '4/4');
   const widthPx = opts.width || 600;
   const narrow = widthPx < 480;
-  const maxPer = opts.barsPerLine || (narrow ? 2 : 4);
+  const maxPer = opts.oneLine ? Math.max(1, bars.length) : opts.barsPerLine || (narrow ? 2 : 4);
   const keyAlt = keyAlters(K.fifths), nKey = Math.abs(K.fifths);
 
   /* 1. flatten, spell, decide accidentals, measure */
@@ -223,7 +224,8 @@ export function renderStaff(opts) {
     });
     const spring = list.reduce((a, x) => a + x.space, 0);
     const lead = list.reduce((a, x) => a + x.lead, 0);
-    const rp = opts.repeat, repL = rp && bi === rp[0] && rp[0] > 0 ? 13 : 0, repR = rp && bi === rp[1] ? 8 : 0;
+    const reps = Array.isArray(opts.repeats) ? opts.repeats : Array.isArray(opts.repeat) ? [opts.repeat] : [];
+    const repL = reps.some(r => bi === r[0] && r[0] > 0) ? 13 : 0, repR = reps.some(r => bi === r[1]) ? 8 : 0;
     return { list, spring, min: LEFT + RIGHT + repL + repR + spring + lead, full, repL, repR };
   });
 
@@ -246,15 +248,16 @@ export function renderStaff(opts) {
     return [];
   }
   // on narrow screens, the largest staff that still fits maxPer bars a line (down to 0.76 px per unit)
-  let scale = opts.scale || 1, W = Math.round(widthPx / scale), systems = pack(W);
-  if (!opts.scale && narrow) {
+  let scale = opts.scale || 1, W = opts.oneLine ? 1e7 : Math.round(widthPx / scale), systems = pack(W);
+  if (!opts.scale && narrow && !opts.oneLine) {
     const want = Math.ceil(bars.length / maxPer) || 1;
     for (const sc of [1, 0.92, 0.84, 0.76]) {
       scale = sc; W = Math.round(widthPx / sc); systems = pack(W);
       if (systems.length <= want) break;
     }
   }
-  const VW = Math.max(W, ...systems.map(s => s.need));
+  // one long line (full-screen reading, scrolled sideways): the bars a little wider than they need
+  const VW = opts.oneLine ? Math.round(Math.max(...systems.map(s => s.need)) * 1.15) : Math.max(W, ...systems.map(s => s.need));
 
   /* 3. horizontal positions */
   systems.forEach((sy, si) => {
@@ -555,7 +558,7 @@ export function renderStaff(opts) {
   const H = Math.ceil(y + 4);
   svg.setAttribute('viewBox', `0 0 ${f1(VW)} ${H}`);
   svg.setAttribute('width', f1(VW * scale));
-  svg.style.maxWidth = '100%';
+  if (!opts.oneLine) svg.style.maxWidth = '100%';
   svg.style.height = 'auto';
 
   // the cursor: a soft band over the current note
@@ -563,7 +566,7 @@ export function renderStaff(opts) {
   svg.insertBefore(cur, svg.firstChild);
   const posOf = i => { const it = items[i]; if (!it) return null; return { x: it.x, y: systems[it.sys].top, sys: it.sys, bar: it.bar, onset: it.onset }; };
   return {
-    el: svg, noteEls, items, systems: systems.length, width: VW, height: H,
+    el: svg, noteEls, items, systems: systems.length, width: VW, height: H, line: !!opts.oneLine,
     /* where line k sits, in viewBox units (for keeping the line being read on screen) */
     systemBox: k => (systems[k] ? { top: systems[k].top + systems[k].minY, bottom: systems[k].top + systems[k].maxY } : null),
     xOf: i => (items[i] ? items[i].x : null),

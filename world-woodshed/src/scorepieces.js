@@ -15,11 +15,15 @@ export async function readScoreMelody(name, blob) {
   return readMelodyFile(name, blob);
 }
 
-/* The melody cut into sections of `per` bars: [{ from, to (bar numbers from 1), piece }].
+/* The melody cut into sections of `per` bars: [{ from, to (bar numbers from 1), piece }]. per = Infinity (or 0)
+   gives the whole score as one piece, read straight through: its repeats with their signs (piece.repeats when
+   there are several), and one with a first ending written out (the bars, then the 2nd time without it).
    A melody that lies low (a guitar recording, a MIDI file at sounding pitch) is written an octave up, as
    guitar music is; one already in the treble staff (a score read from a page) stays where it is. The score's
    own time signature is kept (10/4, 13/8, 16/4 as well as 4/4 or 6/8); triplets are rounded to the grid. */
 export function sections(melody, per = 4) {
+  const whole = !(per > 0 && per < Infinity);
+  if (whole) per = Infinity;
   const time = okTime(melody.time) ? melody.time : '4/4';
   // (a draft for Write by playing keeps to the times it offers; a score keeps its own)
   const draft = Object.assign(cleanDraft({ grid: 0.25, hold: false, notes: melody.notes || [] }), { time });
@@ -46,6 +50,7 @@ export function sections(melody, per = 4) {
       if (a > pos) segs.push({ from: pos, to: a - 1 });
       const again = e1 != null && e1 > a && e1 <= b ? e1 - 1 : b;
       if (again === b && b - a + 1 <= per) segs.push({ from: a, to: b, rep: true });
+      else if (whole) segs.push({ from: a, to: b, cut: true }, { from: a, to: again, cut: true });
       else segs.push({ from: a, to: b, own: true }, { from: a, to: again, own: true, again: true });
       pos = b + 1;
     });
@@ -66,10 +71,12 @@ export function sections(melody, per = 4) {
     // a note tied over the end of the section (or of its repeat) ends there
     const untie = bar => { const last = bar[bar.length - 1]; if (last && last.tie) delete last.tie; };
     untie(slice[slice.length - 1]);
-    if (x.rep) untie(slice[x.rep[1]]);
+    x.reps.forEach(r => untie(slice[r[1]]));
+    x.cuts.forEach(k => untie(slice[k]));
     if (slice.every(bar => bar.every(n => n.midi == null))) return; // nothing to read
     const piece = { key, time, bars: slice };
-    if (x.rep) piece.repeat = x.rep;
+    if (x.reps.length === 1) piece.repeat = x.reps[0];
+    else if (x.reps.length) piece.repeats = x.reps;
     const sec = { from: x.idx[0] + 1, to: x.idx[x.idx.length - 1] + 1, piece };
     if (x.again) sec.again = true;
     out.push(sec);
@@ -77,13 +84,14 @@ export function sections(melody, per = 4) {
   segs.forEach(sg => {
     const n = sg.to - sg.from + 1;
     // a section of its own for a repeat; a short repeat joins the bars before it if it fits whole
-    if (sg.own || (cur && (cur.again || (sg.rep && (cur.rep || cur.idx.length + n > per))))) close();
+    if (sg.own || (cur && (cur.again || (sg.rep && ((cur.reps.length && !whole) || cur.idx.length + n > per))))) close();
     for (let b = sg.from; b <= sg.to; b++) {
       if (cur && cur.idx.length >= per && !sg.rep) close();
-      if (!cur) cur = { idx: [], again: sg.again };
-      if (sg.rep && b === sg.from) cur.rep = [cur.idx.length, cur.idx.length + n - 1];
+      if (!cur) cur = { idx: [], again: sg.again, reps: [], cuts: [] };
+      if (sg.rep && b === sg.from) cur.reps.push([cur.idx.length, cur.idx.length + n - 1]);
       cur.idx.push(b);
     }
+    if (sg.cut && cur) cur.cuts.push(cur.idx.length - 1);
     if (sg.own) close();
   });
   close();

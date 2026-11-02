@@ -3,6 +3,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
 import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
+import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
@@ -75,6 +76,15 @@ function follow(staff, sys) {
   if (top < 70 || bottom > vh * 0.62) window.scrollBy({ top: top - vh * 0.22, behavior: 'smooth' });
 }
 
+/* On one long line (full screen), keep the note being read in the left part of the view: once it passes the
+   middle, slide the line along so it sits a fifth of the way in, with what comes next in view. */
+function followAlong(staff, x) {
+  const box = staff && staff.el.parentElement;
+  if (!box || !staff.el.isConnected) return;
+  const px = x * staff.el.getBoundingClientRect().width / staff.width, w = box.clientWidth;
+  if (px - box.scrollLeft > w * 0.45 || px < box.scrollLeft + 10) box.scrollTo({ left: Math.max(0, px - w * 0.2), behavior: 'smooth' });
+}
+
 /* Plays one piece, or a run of them, on a grid of twelfths of a quarter (so sixteenths and triplets both land
    on it), moving the cursor along. Each piece starts with a count-in bar: the next piece of a run appears at
    the start of its count-in, so there is a bar to look it over while the beat goes on.
@@ -108,7 +118,8 @@ function playRun(o) {
     if (nowEl) nowEl.classList.add('now');
     if (seg.staff) seg.staff.cursor(i);
     const p = i === null || !seg.staff ? null : seg.staff.posOf(i);
-    if (p && p.sys !== nowSys) { nowSys = p.sys; follow(seg.staff, p.sys); }
+    if (p && seg.staff.line) followAlong(seg.staff, p.x);
+    else if (p && p.sys !== nowSys) { nowSys = p.sys; follow(seg.staff, p.sys); }
   };
   const finish = seg => { if (seg.done) return; seg.done = true; if (o.onPieceEnd) o.onPieceEnd(seg); };
   Object.assign(opts, {
@@ -141,7 +152,7 @@ function playRun(o) {
         setNow(prev, null);
         setTimeout(() => finish(prev), 260); // late taps and notes still count
         seg.staff = o.show(seg.item, seg); nowSys = -1;
-        follow(seg.staff, 0);
+        if (!seg.staff.line) follow(seg.staff, 0);
       }
       if (inPre) { if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : 'Count-in: ') + (kk / seg.beatSteps + 1) + ' …'; return; }
       if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + ((seg.order[Math.floor(kk / seg.barSteps)] || 0) + 1) + ' of ' + seg.piece.bars.length + ' · beat ' + ((kk % seg.barSteps) / seg.beatSteps + 1);
@@ -175,7 +186,7 @@ const runOn = () => E.state.settings.readingRunOn !== false;
 function lengthControls(kind, onChange) {
   const seg = h('div', { class: 'seg sr-len', role: 'group', 'aria-label': 'Length' });
   const paint = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === lenFor(kind) ? 'true' : 'false'));
-  LENGTHS.forEach(n => seg.append(h('button', { 'data-n': n, onclick: () => { if (lenFor(kind) === n) return; setLen(kind, n); paint(); onChange(); } }, n + ' bars')));
+  LENGTHS.forEach(n => seg.append(h('button', { 'data-n': n, onclick: () => { if (lenFor(kind) === n) return; setLen(kind, n); paint(); onChange(); } }, n ? n + ' bars' : 'Whole score')));
   paint();
   const keep = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: runOn() ? true : null, onchange: e => E.setSetting('readingRunOn', e.target.checked) }), 'Keep going: the next one follows after a count-in bar');
   return h('div', { class: 'stack sr-opts' }, seg, keep);
@@ -361,13 +372,13 @@ function notesMode(root, lv, ctx) {
 /* ======================================================
    YOUR SCORES: a score from the Library (MusicXML, MIDI, a Write by playing draft) read a section at a time
    ====================================================== */
-const PERS = [2, 4, 8];
-const barsLabel = x => (x.to > x.from ? 'Bars ' + x.from + '–' + x.to : 'Bar ' + x.from) + (x.again ? ', 2nd time' : x.piece && x.piece.repeat ? ', with the repeat' : '');
+const PERS = [0, 2, 4, 8]; // 0: the whole score, scrolling as you read
+const barsLabel = x => (x.to > x.from ? 'Bars ' + x.from + '–' + x.to : 'Bar ' + x.from) + (x.again ? ', 2nd time' : x.piece && x.piece.repeats ? ', with the repeats' : x.piece && x.piece.repeat ? ', with the repeat' : '');
 function scoresMode(root, lv, ctx, p) {
   const card = h('div', { class: 'card stack' }); root.append(card);
   const body = h('div', { class: 'section' }); root.append(body);
   let api = null, gone = false, token = 0;
-  const saved = () => Object.assign({ per: 4 }, E.state.settings.readingOwn || {});
+  const saved = () => Object.assign({ per: 0 }, E.state.settings.readingOwn || {});
   const keep = v => E.setSetting('readingOwn', Object.assign(saved(), v));
   const done = () => { if (api) { try { api.cleanup(); } catch (e) { console.error(e); } } api = null; body.innerHTML = ''; ctx.setActive(false); };
   card.append(h('span', { class: 'eyebrow', text: 'Read your own scores' }),
@@ -391,7 +402,7 @@ function scoresMode(root, lv, ctx, p) {
       files.map((x, i) => h('option', { value: i, selected: x === pick ? true : null, text: x.e.title + (x.e.files.filter(f => L.READABLE_MELODY.test(f.name)).length > 1 ? ' · ' + x.f.name : '') })));
     const perSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Bars at a time' });
     const paintPer = () => perSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === saved().per ? 'true' : 'false'));
-    PERS.forEach(n => perSeg.append(h('button', { 'data-n': n, onclick: () => { if (saved().per === n) return; keep({ per: n, from: 0 }); paintPer(); load(0); } }, n + ' bars')));
+    PERS.forEach(n => perSeg.append(h('button', { 'data-n': n, onclick: () => { if (saved().per === n) return; keep({ per: n, from: 0 }); paintPer(); load(0); } }, n ? n + ' bars' : 'Whole score')));
     paintPer();
     const fromSel = h('select', { 'aria-label': 'Start at' });
     const runKeep = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: runOn() ? true : null, onchange: e => E.setSetting('readingRunOn', e.target.checked) }), 'Keep going: the next section follows after a count-in bar');
@@ -438,7 +449,9 @@ function scoresMode(root, lv, ctx, p) {
       const bpm = mel.bpm > 0 ? Math.round(mel.bpm) : 0;
       const own = {
         title,
-        opts: h('div', { class: 'stack sr-opts' }, h('div', { class: 'row' }, perSeg, h('label', { class: 'row small' }, 'Start at', fromSel)), runKeep),
+        // the whole score is one piece that scrolls as you read: nothing to start at, nothing to follow on
+        single: secs.length === 1,
+        opts: h('div', { class: 'stack sr-opts' }, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
         make() {
           const x = secs[idx], label = barsLabel(x);
           idx = (idx + 1) % secs.length;
@@ -559,7 +572,7 @@ function rhythmMode(root, lv, ctx) {
     h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), staffBox, padBox, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), repeat: piece.repeat, barsPerLine: piece.bars.length <= 2 ? 2 : undefined, lyrics: showCounts ? countLabels(piece) : null, label: 'A rhythm of ' + piece.bars.length + ' bars' });
+    staff = renderStaff({ bars: piece.bars, key: 'C', time: piece.time, width: staffWidth(staffBox), repeat: piece.repeat, repeats: piece.repeats, barsPerLine: piece.bars.length <= 2 ? 2 : undefined, lyrics: showCounts ? countLabels(piece) : null, label: 'A rhythm of ' + piece.bars.length + ' bars' });
     staffBox.append(staff.el);
     sourceLine(src, cur, 'r'); libBtn.paint();
     info.textContent = piece.time + ' · ' + (parseTime(piece.time).compound ? 'beat = dotted quarter' : 'beat = quarter');
@@ -665,14 +678,64 @@ function melodyMode(root, lv, ctx, own) {
   const stopBtn = h('button', { class: 'btn small', onclick: () => stop(true) }, '■ Stop');
   const runBar = h('div', { class: 'sr-runbar live', hidden: true }, h('div', { class: 'stack' }, phase, live), stopBtn);
   let micNoteOff = null;
+  // full screen: the piece on one long line that slides along as you read, with only the controls you need
+  let full = null;
+  const fullBtn = h('button', { class: 'btn ghost', onclick: () => setFull(true) }, '⛶ Full screen');
+  const fsBpm = h('b', { class: 'mono' });
+  const fsStart = h('button', { class: 'btn brass small', onclick: () => startBtn.onclick() }, '▶ Start');
+  const fsNext = h('button', { class: 'btn small', onclick: () => newBtn.onclick() }, own ? 'Next' : 'New');
+  const fsExit = h('button', { class: 'btn small ghost', 'aria-label': 'Leave full screen', 'data-back-close': '', onclick: () => setFull(false) }, '✕');
+  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsNext,
+    h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
+    h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'));
+  function paintFs() {
+    fsBpm.textContent = bpm + ' bpm';
+    fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single);
+  }
+  let resizeT = 0;
+  const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (full && !run) draw(); }, 200); };
+  const onFsChange = () => { if (full && !document.fullscreenElement && full.wasFull) setFull(false); else if (full && document.fullscreenElement) full.wasFull = true; };
+  function setFull(on) {
+    if (on === !!full) return;
+    if (run) stop(true);
+    if (on) {
+      const box = h('div', { class: 'sr-fs' + (paperOn() ? ' sr-paper' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Sight-reading, full screen' }, fsBar);
+      const moved = [staffBox, runBar, result].map(el => { const ph = document.createComment('sr'); el.replaceWith(ph); return [el, ph]; });
+      fsBar.append(runBar); box.append(staffBox, result);
+      result.classList.add('sr-fsresult');
+      document.body.append(box);
+      full = { box, moved, wasFull: false };
+      document.addEventListener('fullscreenchange', onFsChange);
+      window.addEventListener('resize', onResize);
+      fullScreen(true, box).then(() => { if (full) onResize(); });
+    } else {
+      const f = full; full = null;
+      document.removeEventListener('fullscreenchange', onFsChange);
+      window.removeEventListener('resize', onResize);
+      f.moved.forEach(([el, ph]) => ph.replaceWith(el));
+      result.classList.remove('sr-fsresult');
+      f.box.remove();
+      fullScreen(false);
+      fullBtn.focus({ preventScroll: true });
+    }
+    paintFs();
+    draw();
+  }
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
   const opts = own ? own.opts : lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
   card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: own ? own.title : lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
-    h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el), mic.el, staffBox, runBar, runList, result, lib.el);
+    h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, tab: lv.tab ? tabFor(piece) : null, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
+    if (full) {
+      // larger than on the page, as the height allows, but not so large that too little of what comes next shows
+      const room = staffBox.clientHeight - 8, most = staffBox.clientWidth < 600 ? 1.4 : 2;
+      const sc = room > 40 ? Math.max(0.8, Math.min(most, room / staff.height)) : 1.2;
+      staff.el.setAttribute('width', Math.round(staff.width * sc));
+      staffBox.scrollLeft = 0;
+    }
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
     info.textContent = keyName(piece.key) + ' · ' + piece.time + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
     if (own) { src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of); } else sourceLine(src, cur, 'm');
@@ -684,6 +747,7 @@ function melodyMode(root, lv, ctx, own) {
     if (run) run.stop(); run = null;
     if (micNoteOff) micNoteOff(); micNoteOff = null;
     ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; runBar.hidden = true;
+    paintFs();
     const f = onStop; onStop = null;
     if (byHand && f) setTimeout(f, 320); // after the piece that just ended is scored
   }
@@ -697,7 +761,7 @@ function melodyMode(root, lv, ctx, own) {
   startBtn.onclick = () => {
     fresh(); A.ensure(); ctx.setActive(true);
     startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; runBar.hidden = false;
-    const listening = mic.on, chained = runOn();
+    const listening = mic.on, chained = runOn() && !(own && own.single);
     const read = []; // pieces read to the end: { seg, score }
     const exp = [];  // every expected attack so far, across the run
     const winOf = (seg, j) => { const ats = seg.ats; const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.08, Math.min(0.25, gap * seg.spq * 0.5)); };
@@ -792,7 +856,8 @@ function melodyMode(root, lv, ctx, own) {
       onPieceEnd: pieceEnd,
       onEnd: () => setTimeout(() => { run = null; stop(); finishAll(); }, listening ? 300 : 0)
     });
+    paintFs();
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); mic.cleanup(); } };
+  return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); } };
 }

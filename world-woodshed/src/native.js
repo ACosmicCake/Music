@@ -1,7 +1,7 @@
 /* World Woodshed — the few things the Android app does natively, with web fallbacks.
    In the browser (and the installed web app) everything here uses web APIs; inside the Android app
    (Capacitor) it uses the phone's share sheet, text-to-speech and keep-awake. Plugins load only there. */
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export const isNative = () => { try { return Capacitor.isNativePlatform(); } catch (e) { return false; } };
 
@@ -156,4 +156,27 @@ export async function onBack(handler) {
   if (!isNative()) return;
   const { App } = await import('@capacitor/app');
   App.addListener('backButton', () => { if (!handler()) App.minimizeApp(); });
+}
+
+/* Full screen for one view (Sight-reading's), turned to landscape on a phone. In the Android app the WebView
+   can't take the screen itself, so the app's Immersive plugin (ImmersivePlugin.java) hides the status and
+   navigation bars and turns the screen; in a browser the element asks for full screen and, on a phone,
+   locks the screen to landscape (Chrome allows that only in full screen). Resolves false if it couldn't. */
+let Immersive = null;
+export async function fullScreen(on, el) {
+  try {
+    if (isNative()) {
+      Immersive = Immersive || registerPlugin('Immersive');
+      await (on ? Immersive.enter({ landscape: true }) : Immersive.exit());
+      return true;
+    }
+    if (on) {
+      if (el && el.requestFullscreen && document.fullscreenElement !== el) await el.requestFullscreen({ navigationUI: 'hide' });
+      if (screen.orientation && screen.orientation.lock && matchMedia('(pointer: coarse)').matches) await screen.orientation.lock('landscape').catch(() => {});
+    } else {
+      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* not locked */ }
+      if (document.fullscreenElement) await document.exitFullscreen();
+    }
+    return true;
+  } catch (e) { return false; }
 }

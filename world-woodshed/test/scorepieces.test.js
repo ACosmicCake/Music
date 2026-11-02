@@ -126,6 +126,21 @@ describe('repeat signs', () => {
     const { m, out } = await read(8, { 0: 'fwd', 2: 'e1', 3: ['e1', 'back'], 4: 'e2' });
     expect(m.repeats).toEqual([{ s: 0, e: 16, first: 8 }]);
     expect(show(out)).toEqual([[1, 4, null, false], [1, 2, null, true], [5, 8, null, false]]);
+  });  it('the whole score is one piece, with each repeat\'s signs', async () => {
+    const { out } = await read(10, { 2: 'fwd', 3: 'back', 5: 'fwd', 7: 'back' }, Infinity);
+    expect(out).toHaveLength(1);
+    expect([out[0].from, out[0].to]).toEqual([1, 10]);
+    expect(out[0].piece.repeats).toEqual([[2, 3], [5, 7]]);
+    expect(attacks(out[0].piece).map(a => a.midi)).toEqual([72, 74, 76, 77, 76, 77, 79, 81, 83, 84, 81, 83, 84, 86, 88]);
+    // one repeat, however long, stays a repeat; 0 also means the whole score
+    const long = (await read(10, { 0: 'fwd', 5: 'back' }, 0)).out;
+    expect(show(long)).toEqual([[1, 10, [0, 5], false]]);
+  });
+  it('the whole score writes out a repeat with a first ending', async () => {
+    const { out } = await read(8, { 0: 'fwd', 2: 'e1', 3: ['e1', 'back'], 4: 'e2' }, Infinity);
+    expect(out).toHaveLength(1);
+    expect(out[0].piece.bars).toHaveLength(10); // 1–4, then 1–2, then 5–8
+    expect(out[0].piece.repeat).toBeUndefined();
   });
 });
 
