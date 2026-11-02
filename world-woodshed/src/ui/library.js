@@ -382,13 +382,17 @@ const editOf = (where, f) => (where.entry && f && isReading(f) ? { save: async x
   where.file = id;
   if (where.onSaved) where.onSaved();
 } } : null);
+/* a score whose melody Sight-reading can read: a button in the viewer to practise it there (the file id is
+   read when pressed, as saving fixes gives the file a new one) */
+const readOf = (where, got) => (where.entry && where.file && TOOLS.sightread && L.READABLE_MELODY.test(got.name)
+  ? () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: where.entry, file: where.file } }) : null);
 async function readScore(got, kind, where = {}, f = null) {
   const note = h('div', { class: 'toast', role: 'status', text: 'Opening ' + got.name + '…' });
   document.body.append(note);
   try {
     const { openScore } = await import('./scoreview.js');
     if (closeViewer) closeViewer();
-    const close = await openScore(got.blob, { title: got.name, kind, tempos: temposOf(where), edit: editOf(where, f) }, () => { if (closeViewer === close) closeViewer = null; if (where.onClose) where.onClose(); });
+    const close = await openScore(got.blob, { title: got.name, kind, tempos: temposOf(where), edit: editOf(where, f), sightread: readOf(where, got) }, () => { if (closeViewer === close) closeViewer = null; if (where.onClose) where.onClose(); });
     closeViewer = close;
   } catch (e) {
     console.error(e);

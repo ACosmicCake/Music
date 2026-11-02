@@ -163,10 +163,18 @@ export function fromMusicXML(text) {
   const title = txt(kid(score, 'work'), 'work-title') || txt(score, 'movement-title');
   let div = 1, pos = 0, trans = 0, time = null, bpm = 0, voice = null, staff = null;
   const notes = [], open = new Map(); // midi → the note a tie continues
-  kids(part, 'measure').forEach(meas => {
+  const starts = [], fwd = [], back = [], first = []; // each measure's start; repeat signs and first endings by measure
+  kids(part, 'measure').forEach((meas, mi) => {
     let barStart = pos, far = pos;
+    starts.push(pos);
     meas.kids.forEach(x => {
-      if (x.name === 'attributes') {
+      if (x.name === 'barline') {
+        const rep = kid(x, 'repeat'), end = kid(x, 'ending');
+        if (rep && rep.attrs.direction === 'forward') fwd.push(mi);
+        if (rep && rep.attrs.direction === 'backward') back.push(mi);
+        // a first ending (played the first time only): "1", not "1, 2"
+        if (end && end.attrs.type === 'start' && String(end.attrs.number || '').split(/[\s,]+/).filter(Boolean).join() === '1') first.push(mi);
+      } else if (x.name === 'attributes') {
         const d = +txt(x, 'divisions'); if (d > 0) div = d;
         const tr = kid(x, 'transpose'); if (tr) trans = (+txt(tr, 'chromatic') || 0) + 12 * (+txt(tr, 'octave-change') || 0);
         const t = kid(x, 'time'); if (t && !time) time = txt(t, 'beats') + '/' + txt(t, 'beat-type');
@@ -205,7 +213,22 @@ export function fromMusicXML(text) {
     pos = Math.max(pos, far, barStart);
   });
   notes.forEach(n => { n.s = r3(n.s); n.e = r3(n.e); });
-  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length };
+  starts.push(pos);
+  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, repeats: repeatSpans(starts, fwd, back, first) };
+}
+/* Repeat signs as spans in quarters: { s, e, first (where the first ending starts, or null) }. A backward
+   repeat goes back to the forward sign before it, or else to the start (or to just after the last repeat). */
+function repeatSpans(starts, fwd, back, first) {
+  const out = [];
+  let after = 0;
+  back.forEach(b => {
+    const f = fwd.filter(m => m >= after && m <= b).pop();
+    const a = f == null ? after : f;
+    const e1 = first.find(m => m > a && m <= b);
+    out.push({ s: r3(starts[a]), e: r3(starts[b + 1]), first: e1 == null ? null : r3(starts[e1]) });
+    after = b + 1;
+  });
+  return out;
 }
 
 /* A Write by playing draft saved as .wwscore.json → its notes */

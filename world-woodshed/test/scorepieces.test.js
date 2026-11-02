@@ -83,3 +83,48 @@ describe('reading a score file', () => {
     expect(written(sections(x)[0].piece)).toEqual(written(sections(m)[0].piece));
   });
 });
+
+describe('repeat signs', () => {
+  // one whole note a bar, C D E F G A B C …, with barlines: { bar (from 0): 'fwd' | 'back' | 'e1' | 'e2' }
+  const xml = (n, marks = {}) => {
+    const steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    const ms = [...Array(n).keys()].map(i => {
+      const m = [].concat(marks[i] || []);
+      const left = (m.includes('fwd') ? '<repeat direction="forward"/>' : '') + (m.includes('e1') ? '<ending number="1" type="start"/>' : '') + (m.includes('e2') ? '<ending number="2" type="start"/>' : '');
+      const right = m.includes('back') ? '<barline location="right">' + (m.includes('e1') ? '<ending number="1" type="stop"/>' : '') + '<repeat direction="backward"/></barline>' : '';
+      return `<measure number="${i + 1}">${i === 0 ? '<attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time></attributes>' : ''}` +
+        (left ? `<barline location="left">${left}</barline>` : '') +
+        `<note><pitch><step>${steps[i % 7]}</step><octave>${5 + Math.floor(i / 7)}</octave></pitch><duration>4</duration><type>whole</type></note>${right}</measure>`;
+    });
+    return `<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>M</part-name></score-part></part-list><part id="P1">${ms.join('')}</part></score-partwise>`;
+  };
+  const read = (n, marks, per) => readScoreMelody('r.musicxml', new Blob([xml(n, marks)])).then(m => ({ m, out: sections(m, per) }));
+  const show = out => out.map(x => [x.from, x.to, x.piece.repeat || null, !!x.again]);
+
+  it('reads the repeat signs of a MusicXML score', async () => {
+    const { m } = await read(8, { 2: 'fwd', 3: 'back', 7: 'back' });
+    expect(m.repeats).toEqual([{ s: 8, e: 16, first: null }, { s: 16, e: 32, first: null }]);
+  });
+  it('keeps a short repeat in one section with its signs, so it is read twice', async () => {
+    const { out } = await read(8, { 2: 'fwd', 3: 'back' });
+    expect(show(out)).toEqual([[1, 4, [2, 3], false], [5, 8, null, false]]);
+    expect(attacks(out[0].piece)).toHaveLength(6); // C D E F E F
+  });
+  it('a repeat from the start with no forward sign', async () => {
+    const { out } = await read(6, { 1: 'back' });
+    expect(show(out)).toEqual([[1, 4, [0, 1], false], [5, 6, null, false]]);
+  });
+  it('a repeat that does not fit with the bars before it starts a section, and bars after it fill it up', async () => {
+    const { out } = await read(8, { 3: 'fwd', 5: 'back' });
+    expect(show(out)).toEqual([[1, 3, null, false], [4, 7, [0, 2], false], [8, 8, null, false]]);
+  });
+  it('a long repeat is read through, then its sections come again', async () => {
+    const { out } = await read(10, { 0: 'fwd', 5: 'back' });
+    expect(show(out)).toEqual([[1, 4, null, false], [5, 6, null, false], [1, 4, null, true], [5, 6, null, true], [7, 10, null, false]]);
+  });
+  it('the 2nd time leaves out the first ending', async () => {
+    const { m, out } = await read(8, { 0: 'fwd', 2: 'e1', 3: ['e1', 'back'], 4: 'e2' });
+    expect(m.repeats).toEqual([{ s: 0, e: 16, first: 8 }]);
+    expect(show(out)).toEqual([[1, 4, null, false], [1, 2, null, true], [5, 8, null, false]]);
+  });
+});

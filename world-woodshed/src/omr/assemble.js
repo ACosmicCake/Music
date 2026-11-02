@@ -93,6 +93,8 @@ function readStaff(st, index, det, syms, sp) {
     }
     hx = Math.max(hx, ...tsyms.map(y => y.x1));
   }
+  // one the reader could not read: the header ends after it all the same
+  syms.filter(y => y.cls === 'timeUnread' && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5)).forEach(y => { hx = Math.max(hx, y.x1); });
   s.headerEnd = hx;
   // bar lines on this staff, a thin and a thick (or two thin) close together counted once
   const xs = det.bars.filter(b => b.staff === index).map(b => b.x).sort((a, b) => a - b);
