@@ -52,7 +52,21 @@ export function detect(R, staves, metrics, classify, bin = R) {
     }
     const f = features(labels, w, c, sp);
     const r = classify(f);
-    if (!r) return;
+    if (!r) {
+      // digits in a font unlike the examples, touching: still a time signature when it fills the staff from
+      // its top line to its bottom one near the start of the line, with ink above and below the middle.
+      // Unread (the time is worked out from the bars), but not taken for notes (a "1" for a stem, the loop
+      // of an "8" for a half note's head)
+      const st = staves[where.staff], mx = (c.x0 + c.x1) / 2;
+      const top = lineY(st, 0, mx), bot = lineY(st, st.nLines - 1, mx), mid = lineY(st, 2, mx);
+      if (c.x0 < st.x0 + sp * 12 && Math.abs(c.y0 - top) < sp * 0.6 && Math.abs(c.y1 - bot) < sp * 0.6 && inkIn(labels, w, c, top + sp * 0.5, mid - sp * 0.5) && inkIn(labels, w, c, mid + sp * 0.5, bot - sp * 0.5) &&
+        longestRun(labels, w, c) < sp * 2.6) { // (a note's stem runs further: a time signature's "1" is half the staff)
+        kind.set(c.id, { cls: 'time', conf: 1 });
+        syms.push({ cls: 'timeUnread', conf: 1, x: c.cx, y: c.cy, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, id: c.id, staff: where.staff, pos: where.pos });
+        return;
+      }
+      return;
+    }
     // a clef starts the line: further along, a tall piece that looks like one is a chord on one stem
     if (r.cls.startsWith('clef') && c.x0 > staves[where.staff].x0 + sp * 8) return;
     kind.set(c.id, r);
@@ -65,7 +79,8 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const st = staves[y.staff], top = lineY(st, 0, y.x), bot = lineY(st, st.nLines - 1, y.x);
     if (y.y1 > top - sp * 0.5 && y.y0 < bot + sp * 0.5) continue;
     const h0 = y.y1 - y.y0 + 1;
-    const word = comps.some(c => c && c.id !== y.id && (c.x0 > y.x1 ? c.x0 - y.x1 : y.x0 - c.x1) < sp * 1.2 && (c.x0 > y.x1 || c.x1 < y.x0) &&
+    const word = comps.some(c => c && c.id !== y.id && Math.max(c.x0 - y.x1, y.x0 - c.x1) < sp * 1.2 && Math.max(c.x0 - y.x1, y.x0 - c.x1) > -sp * 0.3 && // (letters can touch)
+      
       Math.min(c.y1, y.y1) - Math.max(c.y0, y.y0) > Math.min(h0, c.y1 - c.y0 + 1) * 0.5 && (c.y1 - c.y0 + 1) > h0 * 0.3 && (c.x1 - c.x0 + 1) < sp * 2.5);
     if (word) { kind.delete(y.id); syms.splice(i, 1); }
   }
@@ -254,8 +269,9 @@ export function detect(R, staves, metrics, classify, bin = R) {
       // beside the stem on its usual side, or on the other (a second)
       let best = null;
       for (const side of up ? [-1, 1] : [1, -1]) {
-        for (const off of [0.5, 0.6, 0.4, 0.7]) {
-          const cx = st.x + side * (off * sp + st.width / 2), q = hollowAt(bin, cx, y, sp, p % 2 === 0, lt);
+        // (a pixel up or down too: a ring drawn soft at the edges can just miss at its centre)
+        for (const off of [0.5, 0.6, 0.4, 0.7, 0.55, 0.65, 0.45]) for (const dy of [0, -1, 1]) {
+          const cx = st.x + side * (off * sp + st.width / 2), q = hollowAt(bin, cx, y + dy, sp, p % 2 === 0, lt);
           if (q && (!best || q > best.q)) best = { x: cx, q };
         }
       }
@@ -286,7 +302,8 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const nf = st.heads.filter(hd => hd.filled).length;
     if (nf && nf < st.heads.length) st.heads.forEach(hd => { if (hd.filled !== nf * 2 >= st.heads.length) hd.drop = true; });
     // a hollow "head" on a stroke right beside a stem with filled heads is the loop of that stem's flags
-    if (!nf && stems.some(o => o !== st && Math.abs(o.x - st.x) < sp * 1.0 && o.y0 < st.y1 && st.y0 < o.y1 && o.heads.some(hd => hd.filled))) st.heads.forEach(hd => { hd.drop = true; });
+    // (a stroke shorter than a stem can be a little further off: the flags' outer curve)
+    if (!nf && stems.some(o => o !== st && Math.abs(o.x - st.x) < sp * (st.y1 - st.y0 < sp * 3 ? 1.4 : 1.0) && o.y0 < st.y1 && st.y0 < o.y1 && o.heads.some(hd => hd.filled))) st.heads.forEach(hd => { hd.drop = true; });
     const keep = [];
     st.heads.slice().sort((a, b) => off(a) - off(b)).forEach(hd => {
       if (hd.drop) return;
@@ -514,6 +531,21 @@ export function findRepeats(bars, dots, staves, sp) {
   });
 }
 
+/* The longest upright run of a piece's ink, in pixels */
+function longestRun(labels, w, c) {
+  let best = 0;
+  for (let x = c.x0; x <= c.x1; x++) {
+    let run = 0;
+    for (let y = c.y0; y <= c.y1; y++) { if (labels[y * w + x] === c.id) { if (++run > best) best = run; } else run = 0; }
+  }
+  return best;
+}
+/* Whether a piece has ink in the rows from y0 to y1 */
+function inkIn(labels, w, c, y0, y1) {
+  for (let y = Math.max(c.y0, Math.ceil(y0)); y <= Math.min(c.y1, Math.floor(y1)); y++) for (let x = c.x0; x <= c.x1; x++) if (labels[y * w + x] === c.id) return true;
+  return false;
+}
+
 /* The digits of a stacked time signature that came out as one piece: the top half and the bottom half of the
    staff, each cut where a column has no ink. Null unless every piece reads as a digit. */
 const DIGITS = /^t\d$/;
@@ -523,23 +555,39 @@ function splitDigits(labels, w, c, st, sp, classify) {
   for (const [y0, y1] of [[c.y0, Math.floor(mid)], [Math.ceil(mid), c.y1]]) {
     const cols = [];
     for (let x = c.x0; x <= c.x1; x++) { let n = 0; for (let y = y0; y <= y1; y++) if (labels[y * w + x] === c.id) n++; cols.push(n); }
+    // a digit stacked over another in the staff: only a digit (a font unlike the examples may look more like
+    // something else), so the nearest digit, if it is near enough
+    const read = (from, to) => {
+      let a = y1, b = y0;
+      for (let xx = c.x0 + from; xx < c.x0 + to; xx++) for (let y = y0; y <= y1; y++) if (labels[y * w + xx] === c.id) { if (y < a) a = y; if (y > b) b = y; }
+      const box = { x0: c.x0 + from, x1: c.x0 + to - 1, y0: a, y1: b, id: c.id };
+      const f = features(labels, w, box, sp, c.id);
+      let r = classify(f);
+      if (!r || !/^t\d$/.test(r.cls)) r = classify(f, DIGITS);
+      if (!r || !/^t\d$/.test(r.cls) || r.d > 0.4) return null;
+      return Object.assign({ cls: r.cls, conf: r.conf, x: (box.x0 + box.x1) / 2, y: (a + b) / 2 }, box);
+    };
+    const tall = (from, to) => {
+      let a = y1, b = y0;
+      for (let xx = c.x0 + from; xx < c.x0 + to; xx++) for (let y = y0; y <= y1; y++) if (labels[y * w + xx] === c.id) { if (y < a) a = y; if (y > b) b = y; }
+      return (to - from) / sp > 0.4 && (b - a) / sp > 1.2;
+    };
     let x = 0;
     const half = [];
     while (x < cols.length) {
       if (cols[x] <= 1) { x++; continue; }
       let e = x; while (e < cols.length && cols[e] > 1) e++;
-      // the piece's own rows
-      let a = y1, b = y0;
-      for (let xx = c.x0 + x; xx < c.x0 + e; xx++) for (let y = y0; y <= y1; y++) if (labels[y * w + xx] === c.id) { if (y < a) a = y; if (y > b) b = y; }
-      const box = { x0: c.x0 + x, x1: c.x0 + e - 1, y0: a, y1: b, id: c.id };
-      if ((e - x) / sp > 0.4 && (b - a) / sp > 1.2) {
-        // a digit stacked over another in the staff: only a digit (a font unlike the examples may look
-        // more like something else), so the nearest digit, if it is near enough
-        const f = features(labels, w, box, sp, c.id);
-        let r = classify(f);
-        if (!r || !/^t\d$/.test(r.cls)) r = classify(f, DIGITS);
-        if (!r || !/^t\d$/.test(r.cls) || r.d > 0.4) return null;
-        half.push(Object.assign({ cls: r.cls, conf: r.conf, x: (box.x0 + box.x1) / 2, y: (a + b) / 2 }, box));
+      if (tall(x, e)) {
+        let d = read(x, e);
+        // two digits that touch ("13" whose 1 has a foot): cut at the thinnest column in the middle
+        if (!d && (e - x) / sp > 1.2) {
+          let cut = -1;
+          for (let k = x + Math.round((e - x) * 0.25); k < x + Math.round((e - x) * 0.75); k++) if (cut < 0 || cols[k] < cols[cut]) cut = k;
+          const l = cut > x && tall(x, cut) ? read(x, cut) : null, r = l && tall(cut, e) ? read(cut, e) : null;
+          if (l && r) { half.push(l); d = r; }
+        }
+        if (!d) return null;
+        half.push(d);
       }
       x = e;
     }
@@ -664,7 +712,9 @@ function hollowAt(bin, x, y, sp, onLine, lt) {
   const { w, h, d } = bin;
   const ink = (px, py) => { px = Math.round(px); py = Math.round(py); return px >= 0 && py >= 0 && px < w && py < h && d[py * w + px] > 0; };
   // the hole leans up to the right, as the head does
-  const skip = onLine ? lt / 2 + 1.5 : -1, ax = sp * 0.3, ay = sp * 0.13, c = Math.cos(0.45), s = Math.sin(0.45);
+  const skip = onLine ? lt / 2 + 1.5 : -1, ax = sp * 0.3, c = Math.cos(0.45), s = Math.sin(0.45);
+  // (on a line, rows to look at above and below it however thick the line came out)
+  const ay = Math.max(sp * 0.13, skip + 1);
   let n = 0, paper = 0;
   for (let v = -ay; v <= ay; v += 1) for (let u = -ax; u <= ax; u += 1) {
     if ((u / ax) ** 2 + (v / ay) ** 2 > 1) continue;
