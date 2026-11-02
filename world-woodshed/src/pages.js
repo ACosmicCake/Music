@@ -9,6 +9,8 @@ import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
+import { checkForUpdate as checkWebUpdate } from './pwa.js';
+import { currentVersion, checkRelease } from './update.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
@@ -357,6 +359,32 @@ function backupCard() {
         h('li', { text: 'Later, sync the other way the same way. Each load merges, so nothing is lost; mic and audio latency stay set per device.' }))),
     h('details', { class: 'small' }, h('summary', { text: 'Restore a backup exactly' }),
       h('p', { class: 'small muted', text: 'Replaces this device’s progress with the file as it was saved, instead of merging.' }),
-      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')));
+      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')),
+    updateBox());
   return card;
+}
+
+/* Check for updates: the web app reloads into a new version; the Android app opens the newest release's page */
+function updateBox() {
+  const ver = h('span', { class: 'small muted' });
+  const status = h('span', { class: 'small', role: 'status' });
+  const get = h('div', { class: 'row' });
+  const btn = h('button', { class: 'btn small', onclick: async () => {
+    btn.disabled = true; get.innerHTML = '';
+    status.textContent = 'Checking…';
+    try {
+      if (isNative()) {
+        const r = await checkRelease(await currentVersion());
+        if (r.state === 'available') {
+          status.textContent = 'Version ' + r.version + ' is out. Download WorldWoodshed.apk from its page and install it over this one; your progress stays.';
+          get.append(h('button', { class: 'btn brass small', onclick: () => { location.href = r.url; } }, 'Get version ' + r.version));
+        } else status.textContent = { current: 'You have the latest version.', offline: 'Could not reach GitHub. Check the connection and try again.' }[r.state] || 'Could not check for updates just now. Try again later.';
+      } else {
+        const r = await checkWebUpdate();
+        status.textContent = { updating: 'Updating… the app reloads in a moment.', current: 'You have the latest version.', offline: 'You are offline. Check again when you are connected.' }[r] || 'This copy updates each time the page loads.';
+      }
+    } finally { btn.disabled = null; }
+  } }, 'Check for updates');
+  currentVersion().then(v => { ver.textContent = v ? 'Version ' + v : ''; });
+  return h('div', { class: 'stack update-box' }, h('span', { class: 'eyebrow', text: 'App updates' }), h('div', { class: 'row' }, btn, ver), status, get);
 }

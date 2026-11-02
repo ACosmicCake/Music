@@ -2,11 +2,20 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { alphaTab } from '@coderline/alphatab-vite';
 import contentIndex from './scripts/content-index.mjs';
+import { execSync } from 'node:child_process';
+
+// the web build's version, shown beside Today → Check for updates: the build date and commit
+const commit = process.env.GITHUB_SHA || (() => { try { return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch (e) { return ''; } })();
 
 // BASE_PATH lets the GitHub Pages build live under /<repo>/; locally it is '/'.
 export default defineConfig({
   base: process.env.BASE_PATH || '/',
   build: { target: 'es2020' },
+  define: {
+    'import.meta.env.WW_BUILT': JSON.stringify(new Date().toISOString()),
+    'import.meta.env.WW_COMMIT': JSON.stringify(commit),
+    'import.meta.env.WW_REPO': JSON.stringify(process.env.GITHUB_REPOSITORY || 'acosmiccake/music')
+  },
   worker: { format: 'es' },
   plugins: [
     contentIndex(),
