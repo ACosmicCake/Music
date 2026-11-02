@@ -2,12 +2,14 @@
 import { registerSW } from 'virtual:pwa-register';
 
 let installEvent = null;
+let reg = null, update = null, waiting = false, applyWhenFound = false;
 
 export function registerApp(toast) {
   if (!('serviceWorker' in navigator)) return;
-  const update = registerSW({
-    onNeedRefresh() { showUpdate(() => update(true)); },
-    onOfflineReady() { toast('Ready to use offline'); }
+  update = registerSW({
+    onNeedRefresh() { waiting = true; if (applyWhenFound) update(true); else showUpdate(() => update(true)); },
+    onOfflineReady() { toast('Ready to use offline'); },
+    onRegisteredSW(url, r) { reg = r || null; }
   });
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
@@ -55,3 +57,19 @@ function showInstall() {
   el.lastChild.addEventListener('click', () => { try { localStorage.setItem('ww-install-dismissed', '1'); } catch (e) { /* ignore */ } });
 }
 function hideInstall() { const el = document.getElementById('ww-install'); if (el) el.remove(); }
+
+/* Check for updates (Train → Display): ask the service worker to look for a new version now, and if
+   there is one, install it and reload into it (as the banner's Update button does).
+   → 'updating' (it reloads by itself), 'current', 'offline' or 'unsupported' (no service worker, as in dev) */
+export async function checkForUpdate() {
+  if (!reg || !update) return 'unsupported';
+  if (waiting || reg.waiting) { update(true); return 'updating'; }
+  if (navigator.onLine === false) return 'offline';
+  try { await reg.update(); } catch (e) { return 'offline'; }
+  const found = reg.installing || reg.waiting;
+  if (!found) return 'current';
+  applyWhenFound = true; // onNeedRefresh applies it once it has installed
+  found.addEventListener('statechange', () => { if (found.state === 'redundant') applyWhenFound = false; });
+  if (waiting) update(true);
+  return 'updating';
+}
