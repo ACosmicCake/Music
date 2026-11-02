@@ -61,12 +61,27 @@ function readStaff(st, index, det, syms, sp) {
     const last = key.length ? key[key.length - 1].x1 : hx;
     // the first sign may sit a little after the clef (a bass clef's dots come between)
     if (a.x0 - last > sp * (key.length ? 1.6 : 2.6) || (key.length && a.cls !== key[0].cls)) break;
+    // each sign at its own place on the staff (B♭ then E♭…, F♯ then C♯…): an accidental on the first note of a
+    // line, close after the clef, is not a key
+    const want = KEY_POS[s.clef || 'G'] && KEY_POS[s.clef || 'G'][a.cls][key.length];
+    if (want != null && !globalThis.NOKEYPOS) {
+      const ay = a.cls === 'flat' ? a.y1 - sp * 0.55 : (a.y0 + a.y1) / 2, p = staffPos(st, ay, a.x);
+      if (![0, 7, -7].some(o => Math.abs(p - want - o) <= 0.75)) break;
+    }
     key.push(a);
+  }
+  // a lone sign right before a head on its own line or space is that note's accidental (a sharp on the first
+  // F of a line in the bass is where a G major key's would be)
+  if (key.length === 1) {
+    const a = key[0], ay = a.cls === 'flat' ? a.y1 - sp * 0.55 : (a.y0 + a.y1) / 2, ap = staffPos(st, ay, a.x);
+    if (det.notes.some(n => n.staff === index && n.heads.some(hd => hd.x - a.x1 > -sp * 0.2 && hd.x - a.x1 < sp * 1.6 && Math.abs(hd.pos - ap) < 0.6))) key.length = 0;
   }
   if (key.length) { s.fifths = Math.min(7, key.length) * (key[0].cls === 'sharp' ? 1 : -1); hx = key[key.length - 1].x1; }
   s.keySyms = new Set(key);
   // the time signature: digits (or C, ¢) stacked after the key
-  const tsyms = syms.filter(y => /^t\d$|^common$|^cut$/.test(y.cls) && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5)).sort((a, b) => a.x - b.x);
+  // (inside the staff: a tempo mark's "♩ = 104" above it is not a time signature)
+  const inStaff = y => { const p0 = staffPos(st, y.y0, y.x), p1 = staffPos(st, y.y1, y.x); return Math.max(p0, p1) < 9.5 && Math.min(p0, p1) > -1.5; };
+  const tsyms = syms.filter(y => /^t\d$|^common$|^cut$/.test(y.cls) && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5) && inStaff(y)).sort((a, b) => a.x - b.x);
   if (tsyms.length) {
     const cmn = tsyms.find(y => y.cls === 'common' || y.cls === 'cut');
     if (cmn) s.time = cmn.cls === 'common' ? { num: 4, den: 4, symbol: 'common' } : { num: 2, den: 2, symbol: 'cut' };
@@ -126,6 +141,13 @@ function readStaff(st, index, det, syms, sp) {
   return s;
 }
 
+/* Staff positions (0 the bottom line) of a key's sharps and flats in order, per clef */
+const KEY_POS = (() => {
+  const G = { flat: [4, 7, 3, 6, 2, 5, 1], sharp: [8, 5, 9, 6, 3, 7, 4] };
+  const by = d => ({ flat: G.flat.map(p => p + d), sharp: G.sharp.map(p => p + d) });
+  return { G, F: by(-2), C3: by(-1) };
+})();
+
 function isBeamed(n, det) {
   // another stem in the same piece of ink
   return det.notes.some(m => m !== n && m.stem && n.stem && m.stem.comp === n.stem.comp);
@@ -155,6 +177,13 @@ function cutBars(s, xs, sp) {
    { title, time: { num, den, symbol? }, fifths, parts: [{ name, staves: [clef], bars: [[staff][voice][event]] }],
      pickup: quarters | 0, warnings: [{ bar, part, text }], counts: { notes, bars, fixed } } */
 export function buildScore(pages, opts = {}) {
+  // a full score followed by its parts (one PDF, "Score and parts"): the pages from the first one whose
+  // systems all have fewer staves than the score's are the parts, and are left out
+  const rowsOnPage = pg => mode(pg.map(sys => sys.staves.length));
+  let partsFrom = -1;
+  const scoreRows = pages.length > 1 && pages[0].length ? rowsOnPage(pages[0]) : 0;
+  if (scoreRows >= 2) partsFrom = pages.findIndex((pg, i) => i > 0 && pg.length && pg.every(sys => sys.staves.length < scoreRows));
+  if (partsFrom > 0) pages = pages.slice(0, partsFrom);
   const systems = pages.flat();
   if (!systems.length) return null;
   // staff rows: the usual number of staves in a system
@@ -164,7 +193,8 @@ export function buildScore(pages, opts = {}) {
   const clefs = [], keys = [];
   for (let r = 0; r < nRows; r++) {
     clefs.push(mode(systems.map(s => rowsOf(s)[r] && rowsOf(s)[r].clef).filter(Boolean)) || 'G');
-    keys.push(mode(systems.map(s => rowsOf(s)[r] && rowsOf(s)[r].fifths).filter(v => v != null)));
+    // (a row with no sharps or flats read is in C: one system's stray "sharps" don't make the key)
+    keys.push(mode(systems.map(s => rowsOf(s)[r] && (rowsOf(s)[r].fifths || 0))));
   }
   const fifths = mode(keys.filter(v => v != null)) ?? 0;
   let time = null;
@@ -233,7 +263,7 @@ export function buildScore(pages, opts = {}) {
     if (m.start) open = b;
     if (m.end) { repeats.push([open != null ? open : from, b]); open = null; from = b + 1; }
   });
-  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed } };
+  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed }, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);
@@ -245,13 +275,21 @@ function mode(a) {
 
 function barLengths(rowBars) {
   const lens = [];
-  rowBars.forEach(bars => bars.forEach(ev => { const q = sum(ev.filter(e => !e.wholeRest)); if (q > 0) lens.push(Math.round(q * 4) / 4); }));
+  rowBars.forEach(bars => bars.forEach(ev => {
+    ev = ev.filter(e => !e.wholeRest);
+    // a bar in two voices (a tune over a bass) is as long as its longer voice when both look whole
+    const two = partition(ev);
+    let q = sum(ev);
+    if (two) { const [a, b] = two.map(sum); if (a > 0 && b > 0 && Math.abs(a - b) <= Math.max(a, b) * 0.34) q = Math.max(a, b); }
+    if (q > 0) lens.push(Math.round(q * 4) / 4);
+  }));
   return lens;
 }
 function guessTime(rowBars) {
   const q = mode(barLengths(rowBars)) || 4;
   const table = { 4: [4, 4], 3: [3, 4], 2: [2, 4], 1.5: [3, 8], 6: [6, 4], 5: [5, 4], 2.5: [5, 8], 1: [2, 8], 4.5: [9, 8], 7: [7, 4] };
-  const t = table[q] || [4, 4];
+  // any other whole number of beats (10/4 for a ten-beat tala) or of eighths
+  const t = table[q] || (q >= 1 && q <= 16 && Number.isInteger(q) ? [q, 4] : q > 0 && q <= 8 && Number.isInteger(q * 2) ? [q * 2, 8] : [4, 4]);
   // three quarters of eighths grouped in threes is 6/8, not 3/4
   if (q === 3) {
     let threes = 0, twos = 0;
@@ -266,13 +304,25 @@ function guessTime(rowBars) {
    high on the staff) are one voice and the down stems the other */
 function splitVoices(ev, len) {
   const total = sum(ev.filter(e => !e.wholeRest));
-  const ups = ev.filter(e => e.up === true), downs = ev.filter(e => e.up === false);
-  if (total > len * 1.45 && ups.length && downs.length) {
-    const a = ev.filter(e => e.up === true || (e.rest && e.pos >= 4) || (e.whole && e.heads[0].pos >= 4));
-    const b = ev.filter(e => !a.includes(e));
+  const two = total > len * 1.45 && partition(ev);
+  if (two) {
+    const [a, b] = two;
     if (Math.abs(sum(a) - len) < len * 0.3 || Math.abs(sum(b) - len) < len * 0.3) return [a, b];
   }
   return [ev];
+}
+/* The upper and lower voice of a bar written in two, or null when it isn't */
+function partition(ev) {
+  const ups = ev.filter(e => e.up === true), downs = ev.filter(e => e.up === false);
+  // a whole note under a tune with its stems up (a guitar's bass) is the lower voice, and one over a bass line
+  // with its stems down the upper one
+  const lowest = e => Math.min(...e.heads.map(hd => hd.pos)), highest = e => Math.max(...e.heads.map(hd => hd.pos));
+  const upLow = ups.length ? Math.min(...ups.map(lowest)) : Infinity, downHigh = downs.length ? Math.max(...downs.map(highest)) : -Infinity;
+  const wholes = ev.filter(e => e.whole && e.heads && e.heads.length);
+  const lowWhole = wholes.filter(e => highest(e) < upLow), highWhole = wholes.filter(e => lowest(e) > downHigh);
+  if (!(ups.length || highWhole.length) || !(downs.length || lowWhole.length)) return null;
+  const a = ev.filter(e => e.up === true || (e.rest && e.pos >= 4) || (e.whole && (downs.length || !ups.length ? lowest(e) > downHigh : !lowWhole.includes(e))));
+  return [a, ev.filter(e => !a.includes(e))];
 }
 
 /* Make a voice add up to the bar: triplets first, then a rest to fill or a cut */

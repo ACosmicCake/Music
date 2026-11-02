@@ -112,7 +112,17 @@ export function staffMetrics(bin) {
   const sp = peak(pair, Math.max(4, lt + 2));
   // a finer estimate: the mean around each peak
   const around = (a, p, k) => { let s = 0, n = 0; for (let i = Math.max(0, p - k); i <= Math.min(a.length - 1, p + k); i++) { s += a[i] * i; n += a[i]; } return n ? s / n : p; };
-  return { line: Math.max(1, around(black, lt, 1)), space: around(pair, sp, 1) };
+  // other spacings that are common too (a guitar score's tab has six lines a little further apart than the
+  // staff's, so its spacing can be the most common one): prepare() tries each
+  const cands = [];
+  const sm = i => pair[i - 1] + pair[i] + pair[i + 1];
+  for (let i = Math.max(4, lt + 2); i < 254; i++) {
+    if (sm(i) >= sm(i - 1) && sm(i) > sm(i + 1) && sm(i) >= sm(sp) * 0.2) cands.push({ space: around(pair, i, 1), weight: sm(i) });
+  }
+  cands.sort((a, b) => b.weight - a.weight);
+  const others = [];
+  cands.forEach(c => { if (others.length < 3 && others.every(o => Math.abs(o.space - c.space) > o.space * 0.2)) others.push(c); });
+  return { line: Math.max(1, around(black, lt, 1)), space: around(pair, sp, 1), cands: others.map(c => c.space) };
 }
 
 /* ---------- the staves ---------- */
@@ -250,7 +260,7 @@ export function findStaves(bin, metrics) {
     const gaps = []; ys.forEach(a => { for (let i = 1; i < a.length; i++) gaps.push(a[i] - a[i - 1]); });
     gaps.sort((a, b) => a - b);
     return { knots: smoothKnots(t.knots), space: gaps[gaps.length >> 1], tab: t.n === 6, nLines: t.n };
-  });
+  }).filter(s => s.knots.length >= 2); // too few knots left once the odd ones were dropped
   // a staff found twice (two tracks broken apart) keeps the longer
   staves.sort((a, b) => a.knots.length - b.knots.length);
   staves = staves.filter((s, i) => !staves.slice(i + 1).some(o => Math.abs(lineY(o, 0, mid(s)) - lineY(s, 0, mid(s))) < sp && overlaps(s, o)));
@@ -269,10 +279,22 @@ function smoothKnots(knots) {
   const sorted = knots.map(spacing).sort((a, b) => a - b), med = sorted[sorted.length >> 1];
   knots = knots.filter(k => Math.abs(spacing(k) - med) <= med * 0.08);
   if (knots.length < 3) return knots;
-  return knots.filter((k, i) => {
+  knots = knots.filter((k, i) => {
     const nb = [knots[i - 1], knots[i + 1]].filter(Boolean);
     return nb.some(o => Math.abs(o.ys[0] - k.ys[0]) < (k.ys[k.ys.length - 1] - k.ys[0]) * 0.15 + 2 + Math.abs(o.x - k.x) * 0.06);
   });
+  if (knots.length < 5) return knots;
+  // a few knots in a row a whole line off (five lines taken from a line too high or low, by a beam or ledger
+  // line beside the staff): off from what the knots around them say, followed along the staff's slope
+  return knots.filter((k, i) => {
+    const near = knots.slice(Math.max(0, i - 4), i + 5).filter(o => o !== k);
+    const at = near.map(o => o.ys[0] + (k.x - o.x) * slopeOf(knots)).sort((a, b) => a - b);
+    return Math.abs(k.ys[0] - at[at.length >> 1]) < med * 0.45;
+  });
+}
+function slopeOf(knots) {
+  const a = knots[0], b = knots[knots.length - 1];
+  return b.x === a.x ? 0 : (b.ys[0] - a.ys[0]) / (b.x - a.x);
 }
 
 /* The y of line i (0 = top) of a staff at x, linear between knots and straight beyond the ends */

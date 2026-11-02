@@ -53,6 +53,8 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const f = features(labels, w, c, sp);
     const r = classify(f);
     if (!r) return;
+    // a clef starts the line: further along, a tall piece that looks like one is a chord on one stem
+    if (r.cls.startsWith('clef') && c.x0 > staves[where.staff].x0 + sp * 8) return;
     kind.set(c.id, r);
     syms.push(Object.assign({ cls: r.cls, conf: r.conf, x: c.cx, y: c.cy, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, id: c.id }, where));
   });
@@ -119,6 +121,10 @@ export function detect(R, staves, metrics, classify, bin = R) {
     heads.push({ x: o.cx, y: o.cy, filled: false, comp: id, hole: o, fromBin: o.fromBin, ...at });
   });
 
+  // a head above or below the staff sits on or between ledger lines: without them it is a fingering digit,
+  // a dynamic (p, f) or a string number, which guitar scores have around the notes
+  for (let i = heads.length - 1; i >= 0; i--) if (!ledgersFor(bin, staves[heads[i].staff], heads[i], sp)) heads.splice(i, 1);
+
   /* ---- 3. stems and bar lines ---- */
   const vs = verticals(R, Math.round(sp * 1.6), Math.max(3, sp * 0.8));
   const stems = [];
@@ -150,6 +156,38 @@ export function detect(R, staves, metrics, classify, bin = R) {
     });
     if (best) { best.heads.push(hd); hd.stem = best; }
   });
+  // a half note whose ring touches a staff line opens when the line is taken out, so it has no hole above; a
+  // stem with no head looks for one with the lines in, where its head would be (left of an up stem at its
+  // foot, right of a down stem at its top)
+  // (not the curve of a flag beside a stem that has its head)
+  const bare = stems.filter(st => !st.heads.length && st.len >= sp * 2.4 && st.width <= Math.max(3, sp * 0.35) &&
+    !stems.some(o => o !== st && o.heads.length && Math.abs(o.x - st.x) < sp * 1.6 && o.y0 < st.y1 && st.y0 < o.y1));
+  if (bare.length && !globalThis.NOBARE) {
+    const bh = holes(bin, sp * sp * 2).filter(o => {
+      const hw = (o.x1 - o.x0 + 1) / sp, hh = (o.y1 - o.y0 + 1) / sp;
+      // round, not the square corners of paper boxed in by lines and stems
+      const fill = o.area / ((o.x1 - o.x0 + 1) * (o.y1 - o.y0 + 1));
+      // (nor the loop of a time signature's digit or another symbol)
+      if (syms.some(y => y.cls !== 'note' && y.cls !== 'other' && o.cx > y.x0 && o.cx < y.x1 && o.cy > y.y0 && o.cy < y.y1)) return false;
+      return hw >= 0.45 && hw <= 1.3 && hh >= 0.3 && hh <= 0.85 && fill >= 0.45 && fill <= 0.86;
+    });
+    bare.forEach(st => {
+      let best = null, bd = Infinity;
+      bh.forEach(o => {
+        for (const up of [true, false]) {
+          const dx = up ? st.x - o.cx : o.cx - st.x, dy = Math.abs(o.cy - (up ? st.y1 : st.y0));
+          if (dx < sp * 0.2 || dx > sp * 1.0 || dy > sp * 0.7) continue;
+          const v = Math.abs(dx - sp * 0.6) + dy;
+          if (v < bd) { bd = v; best = { o, up }; }
+        }
+      });
+      if (!best || heads.some(hd => Math.abs(hd.x - best.o.cx) < sp * 0.5 && Math.abs(hd.y - best.o.cy) < sp * 0.5)) return;
+      const at = onStaff(best.o.cx, best.o.cy, 6);
+      if (!at || !ledgersFor(bin, staves[at.staff], { x: best.o.cx, pos: at.pos }, sp)) return;
+      const hd = { x: best.o.cx, y: best.o.cy, filled: false, comp: st.comp, hole: best.o, byStem: true, ...at, stem: st };
+      heads.push(hd); st.heads.push(hd);
+    });
+  }
   // a stem's direction: the end with heads is the head end
   stems.forEach(st => {
     if (!st.heads.length) return;
@@ -203,7 +241,7 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const staff = mode(hs.map(hd => hd.staff));
     notes.push({ x: st.x, staff, up: st.up, filled, hooks, stem: st, heads: hs.map(hd => head(hd)).sort((a, b) => a.pos - b.pos), x0: Math.min(...hs.map(hd => hd.x)), y0: st.y0, y1: st.y1 });
   });
-  heads.filter(hd => !hd.stem && !hd.filled).forEach(hd => {
+  heads.filter(hd => !hd.stem && !hd.filled && !hd.byStem && comps[hd.comp]).forEach(hd => {
     const c = comps[hd.comp], cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
     if (cw < 1.0 || cw > 2.6 || ch < 0.6 || ch > 1.6) return; // a whole note's head is wide; anything else with a hole is not one
     notes.push({ x: hd.x, staff: hd.staff, filled: false, whole: true, hooks: 0, heads: [head(hd)], x0: hd.x, y0: c.y0, y1: c.y1 });
@@ -218,6 +256,8 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
     if (cw < 0.18 || ch < 0.18 || cw > 0.75 || ch > 0.75) return; // a photo's blur makes dots larger
     if (c.area < (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1) * 0.5) return;
+    // a dot stands alone on the page as printed: a piece of a fingering digit cut off by a staff line doesn't
+    if (!aloneIn(bin, c, Math.max(1, Math.round(sp * 0.1)))) return;
     const at = onStaff(c.cx, c.cy, 5);
     if (at) dots.push({ x: c.cx, y: c.cy, ...at, id: c.id });
   });
@@ -309,6 +349,7 @@ export function findRepeats(bars, dots, staves, sp) {
 
 /* The digits of a stacked time signature that came out as one piece: the top half and the bottom half of the
    staff, each cut where a column has no ink. Null unless every piece reads as a digit. */
+const DIGITS = /^t\d$/;
 function splitDigits(labels, w, c, st, sp, classify) {
   const mid = lineY(st, 2, (c.x0 + c.x1) / 2);
   const out = [];
@@ -325,8 +366,12 @@ function splitDigits(labels, w, c, st, sp, classify) {
       for (let xx = c.x0 + x; xx < c.x0 + e; xx++) for (let y = y0; y <= y1; y++) if (labels[y * w + xx] === c.id) { if (y < a) a = y; if (y > b) b = y; }
       const box = { x0: c.x0 + x, x1: c.x0 + e - 1, y0: a, y1: b, id: c.id };
       if ((e - x) / sp > 0.4 && (b - a) / sp > 1.2) {
-        const r = classify(features(labels, w, box, sp, c.id));
-        if (!r || !/^t\d$/.test(r.cls)) return null;
+        // a digit stacked over another in the staff: only a digit (a font unlike the examples may look
+        // more like something else), so the nearest digit, if it is near enough
+        const f = features(labels, w, box, sp, c.id);
+        let r = classify(f);
+        if (!r || !/^t\d$/.test(r.cls)) r = classify(f, DIGITS);
+        if (!r || !/^t\d$/.test(r.cls) || r.d > 0.4) return null;
         half.push(Object.assign({ cls: r.cls, conf: r.conf, x: (box.x0 + box.x1) / 2, y: (a + b) / 2 }, box));
       }
       x = e;
@@ -369,16 +414,56 @@ function countHooks(R, labels, st, freeEnd, nearHead, sp) {
     if (best && Math.abs(off) > 0.5) break; // the wider columns only when the near ones found nothing
     const x = Math.round(st.x + off * sp);
     if (x < 0 || x >= w) continue;
-    let n = 0, inRun = false, runLen = 0;
+    // beams and flags hang from the free end one under another: a run further along (a thick ledger line
+    // crossing the stem of a low note) is not one
+    let n = 0, inRun = false, runLen = 0, lastEnd = 0, open = true;
+    const close = k => {
+      if (runLen >= sp * 0.12 && runLen <= sp * 1.4 && open) {
+        if (k - runLen - lastEnd <= sp * (n ? 0.9 : 1.6)) { n++; lastEnd = k; } else open = false;
+      }
+    };
     for (let k = 0; k <= span; k++) {
       const y = Math.round(startY + dir * k);
       if (y < 0 || y >= h) continue;
       const ink = d[y * w + x] && labels[y * w + x] === st.comp;
       if (ink) { if (!inRun) { inRun = true; runLen = 0; } runLen++; }
-      else if (inRun) { inRun = false; if (runLen >= sp * 0.12 && runLen <= sp * 1.4) n++; }
+      else if (inRun) { inRun = false; close(k); }
     }
-    if (inRun && runLen >= sp * 0.12 && runLen <= sp * 1.4) n++;
+    if (inRun) close(span + 1);
     if (n > best && n <= 4) best = n;
   }
   return Math.min(best, 4);
+}
+
+/* No ink in a thin ring around a piece's box (a few stray pixels allowed) */
+function aloneIn(img, c, r) {
+  const { w, h, d } = img;
+  let ink = 0, n = 0;
+  for (let y = Math.max(0, c.y0 - r); y <= Math.min(h - 1, c.y1 + r); y++) {
+    for (let x = Math.max(0, c.x0 - r); x <= Math.min(w - 1, c.x1 + r); x++) {
+      if (y >= c.y0 && y <= c.y1 && x >= c.x0 && x <= c.x1) continue;
+      n++; if (d[y * w + x]) ink++;
+    }
+  }
+  return ink <= n * 0.08;
+}
+
+/* The ledger lines a head beyond the staff needs, every one there (a run of ink across the head at each) */
+function ledgersFor(bin, st, hd, sp) {
+  const pos = hd.pos, top = (st.nLines - 1) * 2;
+  if (pos > -1.4 && pos < top + 1.4) return true;
+  const want = [];
+  if (pos < 0) for (let k = -2; k >= pos - 0.6; k -= 2) want.push(k);
+  else for (let k = top + 2; k <= pos + 0.6; k += 2) want.push(k);
+  const bot = lineY(st, st.nLines - 1, hd.x), gap = (bot - lineY(st, 0, hd.x)) / (st.nLines - 1);
+  const { w, h, d } = bin, half = Math.round(sp * 0.75), slack = Math.max(1, Math.round(sp * 0.25));
+  return want.every(k => {
+    const yc = Math.round(bot - k * gap / 2);
+    for (let y = Math.max(0, yc - slack); y <= Math.min(h - 1, yc + slack); y++) {
+      let n = 0;
+      for (let x = Math.max(0, Math.round(hd.x) - half); x <= Math.min(w - 1, Math.round(hd.x) + half); x++) n += d[y * w + x] ? 1 : 0;
+      if (n >= (2 * half + 1) * 0.85) return true;
+    }
+    return false;
+  });
 }

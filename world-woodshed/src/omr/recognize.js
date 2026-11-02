@@ -9,9 +9,9 @@ import { readPage, buildScore } from './assemble.js';
 /* One page: the systems found on it, and what was found (for drawing over the page) */
 export function readImage(gray) {
   const p = prepare(gray);
-  const det = detect(p.R, p.staves, p.metrics, f => {
-    const r = classify(f);
-    return r && r.conf >= 0.5 ? r : null;
+  const det = detect(p.R, p.staves, p.metrics, (f, only) => {
+    const r = classify(f, 5, only);
+    return r && (only || r.conf >= 0.5) ? r : null;
   }, p.bin);
   const systems = readPage(p.staves, det, p.metrics.space);
   return { systems, prep: p, det };
