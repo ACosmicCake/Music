@@ -156,6 +156,7 @@ export function describe(r) {
   const s = r.summary;
   const bits = [s.bars + (s.bars === 1 ? ' bar' : ' bars') + ' and ' + s.notes + ' notes read'];
   if (s.check.length) bits.push(s.check.length + (s.check.length === 1 ? ' bar didn\'t add up and was evened out (bar ' : ' bars didn\'t add up and were evened out (bars ') + listBars(s.check) + '): check those against the page');
+  if (s.drums) bits.push(s.drums > 1 ? 'the drum staves were left out (their notes are drums, not pitches)' : 'the drum staff was left out (its notes are drums, not pitches)');
   if (s.partsFrom) bits.push('the separate parts from page ' + s.partsFrom + ' on were left out (the score before them has every part)');
   if (r.skipped) bits.push('only the first ' + MAX_PAGES + ' pages were read');
   return bits.join('; ') + '.';

@@ -27,7 +27,7 @@ self.onmessage = e => {
       const xml = scoreToMusicXML(score, Object.assign({}, m.opts, { check }));
       self.postMessage({ type: 'done', xml, pages: info, summary: {
         bars: score.counts.bars, notes: score.counts.notes, fixed: score.counts.fixed, check,
-        time: score.time, fifths: score.fifths, parts: score.parts.map(p => p.name), staves: found, partsFrom: score.partsFrom || 0
+        time: score.time, fifths: score.fifths, parts: score.parts.map(p => p.name), staves: found, partsFrom: score.partsFrom || 0, drums: score.drums || 0
       } });
       pages = []; info = [];
     }

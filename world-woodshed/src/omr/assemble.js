@@ -44,10 +44,11 @@ export function readPage(staves, det, sp) {
 function readStaff(st, index, det, syms, sp) {
   const s = { index, staff: st, x0: st.x0, x1: st.x1 };
   // the clef: the first tall symbol
-  const clefs = syms.filter(y => y.cls.startsWith('clef') && (y.y1 - y.y0) / sp > 2.2).sort((a, b) => a.x - b.x);
+  const clefs = syms.filter(y => y.cls.startsWith('clef') && (y.cls === 'clefPerc' || (y.y1 - y.y0) / sp > 2.2)).sort((a, b) => a.x - b.x);
   const c = clefs.find(y => y.x < st.x0 + sp * 6);
   if (c) {
-    if (c.cls === 'clefG') s.clef = 'G';
+    if (c.cls === 'clefPerc') s.clef = 'perc'; // a drum staff: no pitches
+    else if (c.cls === 'clefG') s.clef = 'G';
     else if (c.cls === 'clefF') s.clef = 'F';
     else s.clef = staffPos(st, c.y, c.x) > 5 ? 'C4' : 'C3';
     s.clefX = c.x1;
@@ -66,7 +67,7 @@ function readStaff(st, index, det, syms, sp) {
     const want = KEY_POS[s.clef || 'G'] && KEY_POS[s.clef || 'G'][a.cls][key.length];
     if (want != null && !globalThis.NOKEYPOS) {
       const ay = a.cls === 'flat' ? a.y1 - sp * 0.55 : (a.y0 + a.y1) / 2, p = staffPos(st, ay, a.x);
-      if (![0, 7, -7].some(o => Math.abs(p - want - o) <= 0.75)) break;
+      if (Math.abs(p - want) > 0.75) break;
     }
     key.push(a);
   }
@@ -168,7 +169,8 @@ function cutBars(s, xs, sp) {
     s.bars.push(bar);
   }
   // a header-only stretch before the first bar line (clef and key with nothing in it) is not a bar
-  if (s.bars.length > 1 && !s.bars[0].events.length && cuts.length && cuts[0] - s.headerEnd < sp * 3) s.bars.shift();
+  // (or one that ends at a forward repeat: the clef, then the repeat sign)
+  if (s.bars.length > 1 && !s.bars[0].events.length && cuts.length && (cuts[0] - s.headerEnd < sp * 3 || (s.bars[1].repStart && cuts[0] - s.headerEnd < sp * 6))) s.bars.shift();
 }
 
 /* ---------- the whole piece ---------- */
@@ -199,9 +201,12 @@ export function buildScore(pages, opts = {}) {
   const fifths = mode(keys.filter(v => v != null)) ?? 0;
   let time = null;
   for (const sys of systems) { for (const s of rowsOf(sys)) if (s.time) { time = s.time; break; } if (time) break; }
-  // the parts: two joined staves (treble over bass) are a piano; otherwise one part per row
+  // the parts: two joined staves (treble over bass) are a piano; otherwise one part per row. A drum staff's
+  // notes are not pitches, so it is left out
+  const drums = clefs.filter(c => c === 'perc').length;
   const piano = nRows === 2 && clefs[0] !== 'F' && clefs[1] === 'F' && systems.some(s => s.staves.length === 2);
-  const partRows = piano ? [[0, 1]] : clefs.map((_, r) => [r]);
+  const partRows = piano ? [[0, 1]] : clefs.map((c, r) => (c === 'perc' ? null : [r])).filter(Boolean);
+  if (!partRows.length) return null;
   // bars of each row, system after system
   const rowBars = [], marks = []; // marks: repeat signs per bar of the piece, read on any row
   for (let r = 0; r < nRows; r++) rowBars.push([]);
@@ -263,7 +268,7 @@ export function buildScore(pages, opts = {}) {
     if (m.start) open = b;
     if (m.end) { repeats.push([open != null ? open : from, b]); open = null; from = b + 1; }
   });
-  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed }, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
+  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);
@@ -327,7 +332,10 @@ function partition(ev) {
 
 /* Make a voice add up to the bar: triplets first, then a rest to fill or a cut */
 function fitBar(ev, len, time) {
-  let events = ev.filter(e => !(e.wholeRest && ev.length > 1)).map(e => Object.assign({}, e));
+  // a whole rest beside other notes is a full bar's rest misplaced, unless the bar is long enough to hold
+  // its four beats as well (16/4: a whole note and three whole rests)
+  const asFour = ev.length > 1 && ev.some(e => e.wholeRest) && Math.abs(sum(ev) - len) < EPS;
+  let events = ev.filter(e => asFour || !(e.wholeRest && ev.length > 1)).map(e => Object.assign({}, e, asFour && e.wholeRest ? { wholeRest: false } : {}));
   if (events.length === 1 && events[0].wholeRest) { events[0].q = len; events[0].full = true; return { events }; }
   if (!events.length) return { events: [{ rest: true, q: len, full: true }] };
   let total = sum(events), fixed = null;
