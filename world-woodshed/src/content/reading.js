@@ -639,12 +639,21 @@ export function noteCard(L, midi, rng = Math.random) {
 }
 
 /* Onset times of a piece in quarter notes: [{ i (flat index), q (onset), len, midi }] for each attack */
-/* The bars in the order they are played: a repeat (piece.repeat = [first, last] bar, from 0) plays its bars twice */
+/* A piece's repeats as [[first, last] bar…] (from 0): piece.repeat holds one, piece.repeats (a whole score
+   of your own) several, in order and not overlapping */
+export const repeatsOf = piece => (Array.isArray(piece.repeats) ? piece.repeats : Array.isArray(piece.repeat) ? [piece.repeat] : []);
+/* The bars in the order they are played: each repeat plays its bars twice */
 export function playOrder(piece) {
-  const n = piece.bars.length, r = piece.repeat;
-  const order = [...Array(n).keys()];
-  if (!Array.isArray(r) || !(r[0] >= 0 && r[1] >= r[0] && r[1] < n)) return order;
-  return order.slice(0, r[1] + 1).concat(order.slice(r[0]));
+  const n = piece.bars.length, order = [];
+  let pos = 0;
+  repeatsOf(piece).forEach(r => {
+    if (!(Array.isArray(r) && r[0] >= pos && r[1] >= r[0] && r[1] < n)) return;
+    for (let b = pos; b <= r[1]; b++) order.push(b);
+    for (let b = r[0]; b <= r[1]; b++) order.push(b);
+    pos = r[1] + 1;
+  });
+  for (let b = pos; b < n; b++) order.push(b);
+  return order;
 }
 /* the chord symbol sounding at a place in a bar (piece.chords: [[{ text, at }] per bar]) */
 const chordAt = (piece, b, q) => { let c = null; ((piece.chords || [])[b] || []).forEach(x => { if (x.at <= q + 1e-6) c = x.text; }); return c; };

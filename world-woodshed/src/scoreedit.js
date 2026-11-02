@@ -240,3 +240,40 @@ export function withCheckBars(xml) {
   }
   return field ? xml.replace(/(\s*)<\/identification>/, '\n    ' + field + '$1</identification>') : xml;
 }
+
+/* ---------- the key signature ---------- */
+const ACC_ALTER = { 'flat-flat': -2, flat: -1, natural: 0, sharp: 1, 'double-sharp': 2 };
+/* The score in another key signature (fifths, -7 to 7), its notes read again as written on the page: a note with
+   its own accidental keeps it, a note after one in the same bar on the same line or space keeps that, a tied-over
+   note keeps the pitch it is tied from, and every other note takes the new key's sharps or flats. */
+export function setKey(xml, fifths) {
+  fifths = Math.max(-7, Math.min(7, Math.round(Number(fifths) || 0)));
+  if (!/<fifths>/.test(xml) || settings(xml).fifths === fifths) return xml;
+  let out = xml.replace(/<fifths>-?\d+<\/fifths>/g, `<fifths>${fifths}</fifths>`);
+  // parts and measures from the end, so the offsets found stay good while their text changes
+  layout(out).reverse().forEach(part => {
+    const last = {}; // step + octave → the alter of the last note there, for ties over the bar line
+    const edits = [];
+    part.measures.forEach(ms => {
+      const measure = out.slice(ms.start, ms.end), carry = {};
+      const re = /<note>[\s\S]*?<\/note>/g;
+      let m, text = '', at = 0;
+      while ((m = re.exec(measure))) {
+        const t = m[0], p = pitchOf(t);
+        text += measure.slice(at, m.index); at = m.index + t.length;
+        if (!p) { text += t; continue; }
+        const so = p.step + p.octave, acc = tag(t, 'accidental');
+        let alter;
+        if (acc != null && acc in ACC_ALTER) carry[so] = alter = ACC_ALTER[acc];
+        else if (t.includes('<tie type="stop"/>') && so in last) alter = last[so];
+        else if (so in carry) alter = carry[so];
+        else alter = keyAlter(fifths, p.step);
+        last[so] = alter;
+        text += alter === p.alter ? t : t.replace(/<pitch>[\s\S]*?<\/pitch>/, `<pitch><step>${p.step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${p.octave}</octave></pitch>`);
+      }
+      edits.push({ ms, text: text + measure.slice(at) });
+    });
+    edits.reverse().forEach(({ ms, text }) => { out = out.slice(0, ms.start) + text + out.slice(ms.end); });
+  });
+  return out;
+}

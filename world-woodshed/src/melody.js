@@ -161,7 +161,8 @@ export function fromMusicXML(text) {
   const part = parts[0];
   if (!part) throw new Error('The score has no parts');
   const title = txt(kid(score, 'work'), 'work-title') || txt(score, 'movement-title');
-  let div = 1, pos = 0, trans = 0, time = null, bpm = 0, voice = null, staff = null;
+  let div = 1, pos = 0, trans = 0, time = null, bpm = 0, voice = null, staff = null, fifths = null;
+  const acc = new Map(); // pitch class → how the score spells it ('#' or 'b'), by count
   const notes = [], open = new Map(); // midi → the note a tie continues
   const starts = [], fwd = [], back = [], first = []; // each measure's start; repeat signs and first endings by measure
   kids(part, 'measure').forEach((meas, mi) => {
@@ -178,6 +179,7 @@ export function fromMusicXML(text) {
         const d = +txt(x, 'divisions'); if (d > 0) div = d;
         const tr = kid(x, 'transpose'); if (tr) trans = (+txt(tr, 'chromatic') || 0) + 12 * (+txt(tr, 'octave-change') || 0);
         const t = kid(x, 'time'); if (t && !time) time = txt(t, 'beats') + '/' + txt(t, 'beat-type');
+        const k = kid(x, 'key'); if (k && fifths == null && txt(k, 'fifths') !== '' && isFinite(+txt(k, 'fifths'))) fifths = +txt(k, 'fifths');
       } else if (x.name === 'direction' || x.name === 'sound') {
         const snd = x.name === 'sound' ? x : kid(x, 'sound');
         if (snd && +snd.attrs.tempo > 0 && !bpm) bpm = Math.round(+snd.attrs.tempo);
@@ -196,7 +198,9 @@ export function fromMusicXML(text) {
         if (!mine || !p) return;
         const step = txt(p, 'step'), oct = +txt(p, 'octave');
         if (!(step in NOTE) || !isFinite(oct)) return;
-        const midi = NOTE[step] + Math.round(+txt(p, 'alter') || 0) + (oct + 1) * 12 + trans;
+        const alter = Math.round(+txt(p, 'alter') || 0);
+        const midi = NOTE[step] + alter + (oct + 1) * 12 + trans;
+        if (alter) { const pc = ((midi % 12) + 12) % 12, a = acc.get(pc) || { '#': 0, b: 0 }; a[alter > 0 ? '#' : 'b']++; acc.set(pc, a); }
         const ties = kids(x, 'tie').map(t => t.attrs.type);
         const held = ties.includes('stop') && open.get(midi);
         if (isChord) { // keep the top note of a chord
@@ -214,7 +218,12 @@ export function fromMusicXML(text) {
   });
   notes.forEach(n => { n.s = r3(n.s); n.e = r3(n.e); });
   starts.push(pos);
-  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, repeats: repeatSpans(starts, fwd, back, first) };
+  // the key signature and the score's own sharps and flats (as written: not for a transposing part)
+  const written = trans % 12 === 0;
+  const spell = {};
+  if (written) acc.forEach((a, pc) => { spell[pc] = a.b > a['#'] ? 'b' : '#'; });
+  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, repeats: repeatSpans(starts, fwd, back, first),
+    fifths: written ? fifths : null, spell };
 }
 /* Repeat signs as spans in quarters: { s, e, first (where the first ending starts, or null) }. A backward
    repeat goes back to the forward sign before it, or else to the start (or to just after the last repeat). */

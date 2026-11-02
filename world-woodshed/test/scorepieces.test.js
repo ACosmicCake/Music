@@ -126,5 +126,42 @@ describe('repeat signs', () => {
     const { m, out } = await read(8, { 0: 'fwd', 2: 'e1', 3: ['e1', 'back'], 4: 'e2' });
     expect(m.repeats).toEqual([{ s: 0, e: 16, first: 8 }]);
     expect(show(out)).toEqual([[1, 4, null, false], [1, 2, null, true], [5, 8, null, false]]);
+  });  it('the whole score is one piece, with each repeat\'s signs', async () => {
+    const { out } = await read(10, { 2: 'fwd', 3: 'back', 5: 'fwd', 7: 'back' }, Infinity);
+    expect(out).toHaveLength(1);
+    expect([out[0].from, out[0].to]).toEqual([1, 10]);
+    expect(out[0].piece.repeats).toEqual([[2, 3], [5, 7]]);
+    expect(attacks(out[0].piece).map(a => a.midi)).toEqual([72, 74, 76, 77, 76, 77, 79, 81, 83, 84, 81, 83, 84, 86, 88]);
+    // one repeat, however long, stays a repeat; 0 also means the whole score
+    const long = (await read(10, { 0: 'fwd', 5: 'back' }, 0)).out;
+    expect(show(long)).toEqual([[1, 10, [0, 5], false]]);
+  });
+  it('the whole score writes out a repeat with a first ending', async () => {
+    const { out } = await read(8, { 0: 'fwd', 2: 'e1', 3: ['e1', 'back'], 4: 'e2' }, Infinity);
+    expect(out).toHaveLength(1);
+    expect(out[0].piece.bars).toHaveLength(10); // 1–4, then 1–2, then 5–8
+    expect(out[0].piece.repeat).toBeUndefined();
+  });
+});
+
+describe('the score\'s own key and spelling', () => {
+  // C minor's notes (E♭, A♭, B♭) written in C with flats, as a raga in C is
+  const xml = (fifths, transpose = '') => `<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>M</part-name></score-part></part-list><part id="P1">` +
+    `<measure number="1"><attributes><divisions>1</divisions><key><fifths>${fifths}</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time>${transpose}</attributes>` +
+    [['C', 0], ['E', -1], ['G', 0], ['A', -1]].map(([s, a]) => `<note><pitch><step>${s}</step>${a ? `<alter>${a}</alter>` : ''}<octave>5</octave></pitch><duration>1</duration><type>quarter</type></note>`).join('') +
+    `</measure><measure number="2">` + [['B', -1], ['A', -1], ['G', 0], ['C', 0]].map(([s, a]) => `<note><pitch><step>${s}</step>${a ? `<alter>${a}</alter>` : ''}<octave>5</octave></pitch><duration>1</duration><type>quarter</type></note>`).join('') +
+    `</measure></part></score-partwise>`;
+  const read = x => readScoreMelody('k.musicxml', new Blob([x])).then(m => sections(m)[0].piece);
+  it('keeps a score written in C in C, its flats spelled as flats', async () => {
+    const p = await read(xml(0));
+    expect(p.key).toBe('C');
+    expect(p.bars[0].map(n => n.spell || '')).toEqual(['', 'b', '', 'b']);
+  });
+  it('keeps the key signature the score has', async () => {
+    expect((await read(xml(-3))).key).toMatch(/^(Eb|Cm)$/);
+  });
+  it('guesses the key of a transposing part, whose signature is not the sounding one', async () => {
+    const p = await read(xml(0, '<transpose><chromatic>-2</chromatic></transpose>'));
+    expect(p.bars[0][1].spell).toBeUndefined();
   });
 });

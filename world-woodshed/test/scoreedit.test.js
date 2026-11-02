@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { scoreToMusicXML } from '../src/omr/musicxml.js';
-import { editBeat, toggleTie, beatInfo, barsToCheck, withCheckBars, pitchName } from '../src/scoreedit.js';
+import { editBeat, toggleTie, beatInfo, barsToCheck, withCheckBars, pitchName, setKey, settings } from '../src/scoreedit.js';
 
 /* Fixing the notes of a score read from a page (src/scoreedit.js): each edit changes one beat as alphaTab
    counts them (part, bar, staff, voice, beat) and leaves the rest of the file as the recognizer wrote it. */
@@ -140,5 +140,39 @@ describe('the bars to check', () => {
     expect(withCheckBars(xml)).toBe(xml);
     const bad = xml.replace('<duration>24</duration>', '<duration>12</duration>');
     expect(withCheckBars(bad)).toContain('<miscellaneous-field name="ww-check-bars">1</miscellaneous-field>');
+  });
+});
+
+describe('changing the key signature', () => {
+  // read in F (one flat) though the page has none: B4 is B♭; then a printed B♮ and a B after it in the bar
+  const misread = () => scoreToMusicXML({
+    title: 'T', time: { num: 4, den: 4 }, fifths: -1, pickup: 0,
+    parts: [{ name: 'Guitar', staves: ['G'], bars: [
+      [[[ev(1, [P('B', 4, -1)]), ev(1, [Object.assign(P('E', 5, -1), { acc: -1 })]), ev(1, [Object.assign(P('B', 4), { acc: 0 })]), ev(1, [P('B', 4, 0)])]]],
+      [[[ev(2, [P('B', 4, -1)], { tieStart: true }), ev(2, [P('C', 5)])]]],
+      [[[ev(2, [P('B', 4, -1)], { tieStop: true }), ev(2, [P('B', 3, -1)])]]]
+    ] }], warnings: [], counts: {}
+  }, { bpm: 80 });
+  it('reads the notes again in the new key, keeping printed accidentals', () => {
+    const xml = setKey(misread(), 0);
+    expect(settings(xml).fifths).toBe(0);
+    expect(name(xml, at(0, 0))).toBe('B4');
+    expect(name(xml, at(0, 1))).toBe('E♭5'); // not a key flat in F: it was printed, so it stays
+    expect(name(xml, at(0, 2))).toBe('B4');
+    expect(name(xml, at(0, 3))).toBe('B4');
+    expect(name(xml, at(1, 0))).toBe('B4');
+    expect(name(xml, at(2, 0))).toBe('B4'); // tied over from bar 2
+    expect(name(xml, at(2, 1))).toBe('B3');
+  });
+  it('a printed natural still holds for the rest of its bar in a flat key', () => {
+    const xml = setKey(setKey(misread(), 0), -2);
+    expect(name(xml, at(0, 0))).toBe('B♭4');
+    expect(name(xml, at(0, 2))).toBe('B4');
+    expect(name(xml, at(0, 3))).toBe('B4');
+    expect(name(xml, at(1, 1))).toBe('C5');
+  });
+  it('the same key changes nothing', () => {
+    const xml = misread();
+    expect(setKey(xml, -1)).toBe(xml);
   });
 });

@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(ImmersivePlugin.class); // full screen for Sight-reading
         super.onCreate(savedInstanceState);
         if (bridge == null) return;
         // The page runs in its own process, which Android may end when the phone is short of memory (most

@@ -162,19 +162,22 @@ function corr(a, b) {
 }
 /* The key (one of notation.js KEYS) that best fits the notes, weighted by length; a last note on the
    tonic tips a close call. C when there is nothing to go on. */
-export function guessKey(notes) {
-  if (!notes.length) return 'C';
+export function guessKey(notes, fifths = null) {
+  // with a key signature (a score's), only the major and minor keys that have it
+  if (fifths != null && !Object.values(KEYS).some(k => k.fifths === fifths)) fifths = null;
+  if (!notes.length) return fifths == null ? 'C' : Object.keys(KEYS).find(n => KEYS[n].fifths === fifths);
   const pcs = new Array(12).fill(0);
   notes.forEach(n => { pcs[((n.midi % 12) + 12) % 12] += Math.min(4, Math.max(0.25, n.e - n.s)); });
   const last = ((notes[notes.length - 1].midi % 12) + 12) % 12;
-  let best = 'C', bestV = -Infinity;
+  let best = null, bestV = -Infinity;
   Object.entries(KEYS).forEach(([name, k]) => {
+    if (fifths != null && k.fifths !== fifths) return;
     const prof = k.minor ? MIN : MAJ;
     const rot = pcs.map((_, i) => prof[((i - k.tonic) % 12 + 12) % 12]);
     const v = corr(pcs, rot) + (last === k.tonic ? 0.05 : 0);
     if (v > bestV + 1e-9) { bestV = v; best = name; }
   });
-  return best;
+  return best || 'C';
 }
 export const keyOf = draft => (draft.key && draft.key !== 'auto' && KEYS[draft.key] ? draft.key : guessKey(draft.notes));
 

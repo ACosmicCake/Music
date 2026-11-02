@@ -7,7 +7,7 @@ import * as alphaTab from '@coderline/alphatab';
 import { h } from './core.js';
 import { parseMidi, midiToDraft } from '../midiread.js';
 import { toMusicXML } from '../notate.js';
-import { editBeat, toggleTie, beatInfo, pitchName, barsToCheck, LENGTHS } from '../scoreedit.js';
+import { editBeat, toggleTie, beatInfo, pitchName, barsToCheck, LENGTHS, setKey, settings as xmlSettings } from '../scoreedit.js';
 import { TPQ, expectedFrom, follower } from '../follow.js';
 import Mic from '../listen.js';
 import A from '../audio.js';
@@ -35,8 +35,9 @@ async function scoreBytes(blob, kind) {
    opts.tempos (from the Library): { list(), mark(from, to, bpm, written) } keeps how fast you can play each
    section cleanly. opts.edit (a score the app read from a page): { save(xmlText) → Promise } lets you fix
    its notes (src/scoreedit.js); the fixes are saved when you leave Fix notes or close the score.
-   opts.sightread(): a Sight-read button that closes the score (saving any fixes first) and calls it. */
-export async function openScore(blob, { title, kind, tempos, edit, sightread } = {}, onClose) {
+   opts.sightread(): a Sight-read button that closes the score (saving any fixes first) and calls it.
+   opts.fix: open with Fix notes on (with opts.edit). */
+export async function openScore(blob, { title, kind, tempos, edit, sightread, fix } = {}, onClose) {
   let data = await scoreBytes(blob, kind);
   const toCheck = kind === 'musicxml' ? checkBars(data) : [];
   let closed = false;
@@ -296,14 +297,27 @@ export async function openScore(blob, { title, kind, tempos, edit, sightread } =
   const restBtn = h('button', { class: 'btn small', onclick: () => apply('rest') }, 'Rest');
   const tieBtn = h('button', { class: 'btn small', 'aria-pressed': 'false', 'aria-label': 'Tie to the next note', onclick: () => apply('tie') }, 'Tie ⁀');
   const undoBtn = h('button', { class: 'btn small ghost', disabled: true, onclick: () => { if (!fx.undo.length) return; data = fx.undo.pop(); fx.dirty = true; reload(); } }, 'Undo');
+  // the key signature, for the whole score: the notes without their own accidental take the new key's
+  const KEY_NAMES = { '-7': 'C♭ / A♭m', '-6': 'G♭ / E♭m', '-5': 'D♭ / B♭m', '-4': 'A♭ / Fm', '-3': 'E♭ / Cm', '-2': 'B♭ / Gm', '-1': 'F / Dm',
+    0: 'C / Am', 1: 'G / Em', 2: 'D / Bm', 3: 'A / F♯m', 4: 'E / C♯m', 5: 'B / G♯m', 6: 'F♯ / D♯m', 7: 'C♯ / A♯m' };
+  const keySel = h('select', { class: 'lib-fixkey', 'aria-label': 'Key signature', onchange: () => {
+    const before = xmlText(), after = setKey(before, +keySel.value);
+    if (after === before) return;
+    fx.undo.push(data); if (fx.undo.length > 50) fx.undo.shift();
+    data = new TextEncoder().encode(after);
+    fx.dirty = true;
+    reload();
+  } }, Array.from({ length: 15 }, (_, i) => i - 7).map(f => h('option', { value: f, text: (f === 0 ? 'no sharps or flats' : Math.abs(f) + (f > 0 ? ' sharp' : ' flat') + (Math.abs(f) > 1 ? 's' : '')) + ' · ' + KEY_NAMES[f] })));
   const fixTools = h('div', { class: 'lib-fixtools', hidden: true, role: 'group', 'aria-label': 'Fix the selected note' },
     h('div', { class: 'row' }, fixInfo),
     h('div', { class: 'row' }, fb('▲', 'up', 'Up a line or space'), fb('▼', 'down', 'Down a line or space'), fb('♯', 'sharp', 'Sharp'), fb('♭', 'flat', 'Flat'), fb('♮', 'natural', 'Natural'),
       fb('8va▲', 'octUp', 'Up an octave'), fb('8va▼', 'octDown', 'Down an octave')),
-    h('div', { class: 'row' }, lenSel, dotBtn, restBtn, tieBtn, fb('Delete', 'delete', 'Delete the note'), undoBtn));
+    h('div', { class: 'row' }, lenSel, dotBtn, restBtn, tieBtn, fb('Delete', 'delete', 'Delete the note'), undoBtn),
+    h('label', { class: 'row small' }, 'Key', keySel));
   const xmlText = () => new TextDecoder().decode(data);
   function describeSel() {
-    const tools = fixTools.querySelectorAll('button:not(.ghost), select');
+    keySel.value = String(xmlSettings(xmlText()).fifths);
+    const tools = fixTools.querySelectorAll('button:not(.ghost), select:not(.lib-fixkey)');
     if (!fx.sel) { fixInfo.textContent = 'Tap a note or rest on the score to fix it.'; tools.forEach(b => { b.disabled = true; }); return; }
     const info = beatInfo(xmlText(), fx.sel);
     tools.forEach(b => { b.disabled = !info; });
@@ -455,5 +469,6 @@ export async function openScore(blob, { title, kind, tempos, edit, sightread } =
     try { api.load(data, [0]); } catch (err) { done = true; close(); reject(err); }
   });
   closeBtn.focus();
+  if (fix && edit) setFix(true);
   return close;
 }
