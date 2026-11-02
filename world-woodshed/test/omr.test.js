@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import zlib from 'zlib';
 import { binarize, staffMetrics, findStaves, lineY, rotateGray, scaleGray } from '../src/omr/image.js';
+import { prepare } from '../src/omr/prepare.js';
 import { recognize } from '../src/omr/recognize.js';
 import { midiOf, buildScore } from '../src/omr/assemble.js';
 import { scoreToMusicXML, valueOf, splitQ } from '../src/omr/musicxml.js';
@@ -41,6 +42,23 @@ describe('finding staves', () => {
       const gap = (lineY(s, 4, (s.x0 + s.x1) / 2) - lineY(s, 0, (s.x0 + s.x1) / 2)) / 4;
       expect(Math.abs(gap - m.space)).toBeLessThan(2);
     });
+  });
+});
+
+describe('a guitar score with tab under each staff', () => {
+  it('measures the staff, not the tab, whose six lines are further apart and more common', () => {
+    // three systems: a staff (spaces of 16 px) over a tab (spaces of 26 px), as MuseScore prints guitar music
+    const w = 1600, h = 1500, d = new Uint8Array(w * h).fill(250);
+    const line = y => { for (let t = 0; t < 2; t++) d.fill(20, (y + t) * w + 100, (y + t) * w + 1500); };
+    for (let sys = 0; sys < 3; sys++) {
+      const y0 = 100 + sys * 450;
+      for (let i = 0; i < 5; i++) line(y0 + i * 16);
+      for (let i = 0; i < 6; i++) line(y0 + 150 + i * 26);
+    }
+    const p = prepare({ w, h, d });
+    expect(p.staves.filter(s => !s.tab)).toHaveLength(3);
+    expect(p.staves.filter(s => s.tab)).toHaveLength(3);
+    expect(Math.abs(p.metrics.space - 20)).toBeLessThan(2); // scaled so a staff space is about 20 px
   });
 });
 

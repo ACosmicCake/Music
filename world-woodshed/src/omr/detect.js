@@ -119,6 +119,10 @@ export function detect(R, staves, metrics, classify, bin = R) {
     heads.push({ x: o.cx, y: o.cy, filled: false, comp: id, hole: o, fromBin: o.fromBin, ...at });
   });
 
+  // a head above or below the staff sits on or between ledger lines: without them it is a fingering digit,
+  // a dynamic (p, f) or a string number, which guitar scores have around the notes
+  for (let i = heads.length - 1; i >= 0; i--) if (!ledgersFor(bin, staves[heads[i].staff], heads[i], sp)) heads.splice(i, 1);
+
   /* ---- 3. stems and bar lines ---- */
   const vs = verticals(R, Math.round(sp * 1.6), Math.max(3, sp * 0.8));
   const stems = [];
@@ -218,6 +222,8 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
     if (cw < 0.18 || ch < 0.18 || cw > 0.75 || ch > 0.75) return; // a photo's blur makes dots larger
     if (c.area < (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1) * 0.5) return;
+    // a dot stands alone on the page as printed: a piece of a fingering digit cut off by a staff line doesn't
+    if (!aloneIn(bin, c, Math.max(1, Math.round(sp * 0.1)))) return;
     const at = onStaff(c.cx, c.cy, 5);
     if (at) dots.push({ x: c.cx, y: c.cy, ...at, id: c.id });
   });
@@ -309,6 +315,7 @@ export function findRepeats(bars, dots, staves, sp) {
 
 /* The digits of a stacked time signature that came out as one piece: the top half and the bottom half of the
    staff, each cut where a column has no ink. Null unless every piece reads as a digit. */
+const DIGITS = /^t\d$/;
 function splitDigits(labels, w, c, st, sp, classify) {
   const mid = lineY(st, 2, (c.x0 + c.x1) / 2);
   const out = [];
@@ -325,8 +332,12 @@ function splitDigits(labels, w, c, st, sp, classify) {
       for (let xx = c.x0 + x; xx < c.x0 + e; xx++) for (let y = y0; y <= y1; y++) if (labels[y * w + xx] === c.id) { if (y < a) a = y; if (y > b) b = y; }
       const box = { x0: c.x0 + x, x1: c.x0 + e - 1, y0: a, y1: b, id: c.id };
       if ((e - x) / sp > 0.4 && (b - a) / sp > 1.2) {
-        const r = classify(features(labels, w, box, sp, c.id));
-        if (!r || !/^t\d$/.test(r.cls)) return null;
+        // a digit stacked over another in the staff: only a digit (a font unlike the examples may look
+        // more like something else), so the nearest digit, if it is near enough
+        const f = features(labels, w, box, sp, c.id);
+        let r = classify(f);
+        if (!r || !/^t\d$/.test(r.cls)) r = classify(f, DIGITS);
+        if (!r || !/^t\d$/.test(r.cls) || r.d > 0.4) return null;
         half.push(Object.assign({ cls: r.cls, conf: r.conf, x: (box.x0 + box.x1) / 2, y: (a + b) / 2 }, box));
       }
       x = e;
@@ -381,4 +392,37 @@ function countHooks(R, labels, st, freeEnd, nearHead, sp) {
     if (n > best && n <= 4) best = n;
   }
   return Math.min(best, 4);
+}
+
+/* No ink in a thin ring around a piece's box (a few stray pixels allowed) */
+function aloneIn(img, c, r) {
+  const { w, h, d } = img;
+  let ink = 0, n = 0;
+  for (let y = Math.max(0, c.y0 - r); y <= Math.min(h - 1, c.y1 + r); y++) {
+    for (let x = Math.max(0, c.x0 - r); x <= Math.min(w - 1, c.x1 + r); x++) {
+      if (y >= c.y0 && y <= c.y1 && x >= c.x0 && x <= c.x1) continue;
+      n++; if (d[y * w + x]) ink++;
+    }
+  }
+  return ink <= n * 0.08;
+}
+
+/* The ledger lines a head beyond the staff needs, every one there (a run of ink across the head at each) */
+function ledgersFor(bin, st, hd, sp) {
+  const pos = hd.pos, top = (st.nLines - 1) * 2;
+  if (pos > -1.4 && pos < top + 1.4) return true;
+  const want = [];
+  if (pos < 0) for (let k = -2; k >= pos - 0.6; k -= 2) want.push(k);
+  else for (let k = top + 2; k <= pos + 0.6; k += 2) want.push(k);
+  const bot = lineY(st, st.nLines - 1, hd.x), gap = (bot - lineY(st, 0, hd.x)) / (st.nLines - 1);
+  const { w, h, d } = bin, half = Math.round(sp * 0.75), slack = Math.max(1, Math.round(sp * 0.25));
+  return want.every(k => {
+    const yc = Math.round(bot - k * gap / 2);
+    for (let y = Math.max(0, yc - slack); y <= Math.min(h - 1, yc + slack); y++) {
+      let n = 0;
+      for (let x = Math.max(0, Math.round(hd.x) - half); x <= Math.min(w - 1, Math.round(hd.x) + half); x++) n += d[y * w + x] ? 1 : 0;
+      if (n >= (2 * half + 1) * 0.85) return true;
+    }
+    return false;
+  });
 }

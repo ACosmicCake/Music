@@ -66,7 +66,9 @@ function readStaff(st, index, det, syms, sp) {
   if (key.length) { s.fifths = Math.min(7, key.length) * (key[0].cls === 'sharp' ? 1 : -1); hx = key[key.length - 1].x1; }
   s.keySyms = new Set(key);
   // the time signature: digits (or C, ¢) stacked after the key
-  const tsyms = syms.filter(y => /^t\d$|^common$|^cut$/.test(y.cls) && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5)).sort((a, b) => a.x - b.x);
+  // (inside the staff: a tempo mark's "♩ = 104" above it is not a time signature)
+  const inStaff = y => { const p0 = staffPos(st, y.y0, y.x), p1 = staffPos(st, y.y1, y.x); return Math.max(p0, p1) < 9.5 && Math.min(p0, p1) > -1.5; };
+  const tsyms = syms.filter(y => /^t\d$|^common$|^cut$/.test(y.cls) && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5) && inStaff(y)).sort((a, b) => a.x - b.x);
   if (tsyms.length) {
     const cmn = tsyms.find(y => y.cls === 'common' || y.cls === 'cut');
     if (cmn) s.time = cmn.cls === 'common' ? { num: 4, den: 4, symbol: 'common' } : { num: 2, den: 2, symbol: 'cut' };
@@ -164,7 +166,8 @@ export function buildScore(pages, opts = {}) {
   const clefs = [], keys = [];
   for (let r = 0; r < nRows; r++) {
     clefs.push(mode(systems.map(s => rowsOf(s)[r] && rowsOf(s)[r].clef).filter(Boolean)) || 'G');
-    keys.push(mode(systems.map(s => rowsOf(s)[r] && rowsOf(s)[r].fifths).filter(v => v != null)));
+    // (a row with no sharps or flats read is in C: one system's stray "sharps" don't make the key)
+    keys.push(mode(systems.map(s => rowsOf(s)[r] && (rowsOf(s)[r].fifths || 0))));
   }
   const fifths = mode(keys.filter(v => v != null)) ?? 0;
   let time = null;
@@ -245,7 +248,14 @@ function mode(a) {
 
 function barLengths(rowBars) {
   const lens = [];
-  rowBars.forEach(bars => bars.forEach(ev => { const q = sum(ev.filter(e => !e.wholeRest)); if (q > 0) lens.push(Math.round(q * 4) / 4); }));
+  rowBars.forEach(bars => bars.forEach(ev => {
+    ev = ev.filter(e => !e.wholeRest);
+    // a bar in two voices (a tune over a bass) is as long as its longer voice when both look whole
+    const two = partition(ev);
+    let q = sum(ev);
+    if (two) { const [a, b] = two.map(sum); if (a > 0 && b > 0 && Math.abs(a - b) <= Math.max(a, b) * 0.34) q = Math.max(a, b); }
+    if (q > 0) lens.push(Math.round(q * 4) / 4);
+  }));
   return lens;
 }
 function guessTime(rowBars) {
@@ -266,13 +276,25 @@ function guessTime(rowBars) {
    high on the staff) are one voice and the down stems the other */
 function splitVoices(ev, len) {
   const total = sum(ev.filter(e => !e.wholeRest));
-  const ups = ev.filter(e => e.up === true), downs = ev.filter(e => e.up === false);
-  if (total > len * 1.45 && ups.length && downs.length) {
-    const a = ev.filter(e => e.up === true || (e.rest && e.pos >= 4) || (e.whole && e.heads[0].pos >= 4));
-    const b = ev.filter(e => !a.includes(e));
+  const two = total > len * 1.45 && partition(ev);
+  if (two) {
+    const [a, b] = two;
     if (Math.abs(sum(a) - len) < len * 0.3 || Math.abs(sum(b) - len) < len * 0.3) return [a, b];
   }
   return [ev];
+}
+/* The upper and lower voice of a bar written in two, or null when it isn't */
+function partition(ev) {
+  const ups = ev.filter(e => e.up === true), downs = ev.filter(e => e.up === false);
+  // a whole note under a tune with its stems up (a guitar's bass) is the lower voice, and one over a bass line
+  // with its stems down the upper one
+  const lowest = e => Math.min(...e.heads.map(hd => hd.pos)), highest = e => Math.max(...e.heads.map(hd => hd.pos));
+  const upLow = ups.length ? Math.min(...ups.map(lowest)) : Infinity, downHigh = downs.length ? Math.max(...downs.map(highest)) : -Infinity;
+  const wholes = ev.filter(e => e.whole && e.heads && e.heads.length);
+  const lowWhole = wholes.filter(e => highest(e) < upLow), highWhole = wholes.filter(e => lowest(e) > downHigh);
+  if (!(ups.length || highWhole.length) || !(downs.length || lowWhole.length)) return null;
+  const a = ev.filter(e => e.up === true || (e.rest && e.pos >= 4) || (e.whole && (downs.length || !ups.length ? lowest(e) > downHigh : !lowWhole.includes(e))));
+  return [a, ev.filter(e => !a.includes(e))];
 }
 
 /* Make a voice add up to the bar: triplets first, then a rest to fill or a cut */

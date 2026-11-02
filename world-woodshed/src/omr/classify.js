@@ -20,11 +20,13 @@ function load() {
   return table;
 }
 
-/* { cls, conf, d } for a shape (features() from shapes.js), or null when nothing is close */
-export function classify(f, k = 5) {
+/* { cls, conf, d } for a shape (features() from shapes.js), or null when nothing is close; only (a RegExp) keeps
+   to the classes it matches */
+export function classify(f, k = 5, only = null) {
   const T = load();
   const best = [];
   for (const t of T) {
+    if (only && !only.test(t.cls)) continue; // only among these classes (where only they can be)
     const d = dist(f, t);
     if (best.length < k || d < best[best.length - 1].d) {
       best.push({ t, d }); best.sort((x, y) => x.d - y.d); if (best.length > k) best.pop();
