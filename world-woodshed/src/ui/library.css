@@ -3,6 +3,8 @@
 .lib-songform { border-top: 1px solid var(--line); padding-top: 12px; }
 .lib-filter { flex-wrap: wrap; }
 .lib-tile { grid-template-columns: 52px minmax(0, 1fr); }
+.lib-item { display: grid; gap: 6px; }
+.lib-item .lib-sr { justify-self: start; }
 .lib-tile .t-title, .lib-tile .t-desc { grid-column: 2; overflow-wrap: anywhere; }
 .lib-thumb { grid-row: 1 / span 2; grid-column: 1; width: 52px; height: 52px; border-radius: 8px; background: var(--sunk) center / cover no-repeat; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.7rem; color: var(--muted); text-transform: uppercase; overflow: hidden; }
 .lib-hero h1 { overflow-wrap: anywhere; }
