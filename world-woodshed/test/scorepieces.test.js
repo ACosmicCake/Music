@@ -128,3 +128,25 @@ describe('repeat signs', () => {
     expect(show(out)).toEqual([[1, 4, null, false], [1, 2, null, true], [5, 8, null, false]]);
   });
 });
+
+describe('the score\'s own key and spelling', () => {
+  // C minor's notes (E♭, A♭, B♭) written in C with flats, as a raga in C is
+  const xml = (fifths, transpose = '') => `<?xml version="1.0"?><score-partwise><part-list><score-part id="P1"><part-name>M</part-name></score-part></part-list><part id="P1">` +
+    `<measure number="1"><attributes><divisions>1</divisions><key><fifths>${fifths}</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time>${transpose}</attributes>` +
+    [['C', 0], ['E', -1], ['G', 0], ['A', -1]].map(([s, a]) => `<note><pitch><step>${s}</step>${a ? `<alter>${a}</alter>` : ''}<octave>5</octave></pitch><duration>1</duration><type>quarter</type></note>`).join('') +
+    `</measure><measure number="2">` + [['B', -1], ['A', -1], ['G', 0], ['C', 0]].map(([s, a]) => `<note><pitch><step>${s}</step>${a ? `<alter>${a}</alter>` : ''}<octave>5</octave></pitch><duration>1</duration><type>quarter</type></note>`).join('') +
+    `</measure></part></score-partwise>`;
+  const read = x => readScoreMelody('k.musicxml', new Blob([x])).then(m => sections(m)[0].piece);
+  it('keeps a score written in C in C, its flats spelled as flats', async () => {
+    const p = await read(xml(0));
+    expect(p.key).toBe('C');
+    expect(p.bars[0].map(n => n.spell || '')).toEqual(['', 'b', '', 'b']);
+  });
+  it('keeps the key signature the score has', async () => {
+    expect((await read(xml(-3))).key).toMatch(/^(Eb|Cm)$/);
+  });
+  it('guesses the key of a transposing part, whose signature is not the sounding one', async () => {
+    const p = await read(xml(0, '<transpose><chromatic>-2</chromatic></transpose>'));
+    expect(p.bars[0][1].spell).toBeUndefined();
+  });
+});

@@ -27,7 +27,9 @@ export function sections(melody, per = 4) {
   const up = writtenUp(draft.notes);
   // quantize writes an octave up (sounding → written); take that back for a melody already written
   const q = quantize(Object.assign({}, draft, { notes: draft.notes.map(n => ({ s: n.s, e: n.e, midi: up ? n.midi : n.midi - 12 })) }));
-  const key = guessKey(draft.notes);
+  // the score's own key signature when it has one (a score in C with flats written in stays in C)
+  const key = guessKey(draft.notes, Number.isFinite(melody.fifths) ? melody.fifths : null);
+  const spell = melody.spell || {};
   const bars = q.bars;
   // leave out whole-bar rests at the start (a pickup or an intro played by others)
   let first = 0;
@@ -55,6 +57,8 @@ export function sections(melody, per = 4) {
     const x = cur; cur = null;
     const slice = x.idx.map(b => bars[b].map(n => {
       const w = { midi: n.midi, dur: n.dur };
+      // sharps and flats as the score writes them (an E♭ stays E♭, not D♯)
+      if (n.midi != null && spell[((n.midi % 12) + 12) % 12]) w.spell = spell[((n.midi % 12) + 12) % 12];
       if (n.dot) w.dot = true;
       if (n.tie) w.tie = true;
       return w;
