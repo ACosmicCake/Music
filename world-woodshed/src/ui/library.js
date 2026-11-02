@@ -46,6 +46,11 @@ function reportAdd(r) {
 
 /* ---------- reading the notes of a PDF or of photos (src/ui/recognize.js, loaded the first time) ---------- */
 const isReading = f => f.kind === 'musicxml' && f.name.endsWith(READ_SUFFIX);
+/* the file Sight-reading reads for an entry: its own score (exact) before the notes the app read from a page */
+const sightFile = (e, have) => {
+  const can = e.files.filter(f => have.has(f.id) && L.READABLE_MELODY.test(f.name));
+  return can.find(f => !isReading(f)) || can[0] || null;
+};
 const loadReader = () => import('./recognize.js');
 /* Read one PDF (fileId) or the entry's photos (null) into a playable score, with a toast when done */
 async function readNotes(entryId, fileId) {
@@ -146,8 +151,15 @@ PAGES.library = function () {
       const kinds = [...new Set(e.files.map(f => KIND_LABEL[f.kind]))];
       const meta = [e.by, STATUS_NAME[e.status] + (e.status === 'learned' && e.learned ? ' ' + dateLabel(e.learned) : ''),
         e.files.length ? (e.files.length === 1 ? kinds[0] : e.files.length + ' files') : ''].filter(Boolean).join(' · ');
-      list.append(h('button', { class: 'tile lib-tile', onclick: () => entryPage(e.id) }, thumb,
+      const item = h('div', { class: 'lib-item' }, h('button', { class: 'tile lib-tile', onclick: () => entryPage(e.id) }, thumb,
         h('span', { class: 't-title', text: e.title }), h('span', { class: 't-desc', text: meta })));
+      list.append(item);
+      // Sight-read it, once a score Sight-reading can read is on this device (a PDF's reading included)
+      if (TOOLS.sightread) localP.then(have => {
+        const f = sightFile(e, have);
+        if (f && item.isConnected) item.append(h('button', { class: 'btn small brass lib-sr', 'aria-label': 'Sight-read ' + e.title,
+          onclick: () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: e.id, file: f.id } }) }, 'Sight-read it'));
+      });
       const img = e.files.find(f => f.kind === 'image');
       if (img) localP.then(have => (have.has(img.id) ? L.getThumb(img.id) : null)).then(b => { if (b && thumb.isConnected) thumb.style.backgroundImage = 'url("' + urlFor(b) + '")'; });
       else thumb.textContent = e.files.length ? (KIND_LABEL[e.files[0].kind] || 'File').slice(0, 4) : '♪';
