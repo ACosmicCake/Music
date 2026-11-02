@@ -4,7 +4,7 @@
    A draft holds one line of notes, so where notes start together (a chord, or a melody over a bass) the
    highest one is kept: a guitar melody stays as it was, a piano piece comes out as its top line. Drums
    (channel 10) are left out. The first tempo, time signature and track name are used. */
-import { TIMES } from './notate.js';
+import { okTime } from './notate.js';
 import { parseTime } from './notation.js';
 
 function reader(bytes) {
@@ -75,7 +75,7 @@ export function midiToDraft(m, title = '') {
     lastStart = s;
     notes.push({ s, e, midi: Math.max(21, Math.min(108, n.midi)) });
   });
-  const t0 = m.time ? m.time[0] + '/' + m.time[1] : '4/4', time = TIMES.includes(t0) ? t0 : '4/4';
+  const t0 = m.time ? m.time[0] + '/' + m.time[1] : '4/4', time = okTime(t0) ? t0 : '4/4';
   // a draft's tempo counts its beats (a dotted quarter in 6/8), MIDI's counts quarters
   const bpm = Math.round(Math.max(30, Math.min(260, 60e6 / (m.tempo || 500000) / parseTime(time).beatQ)));
   return { title: (title || m.name || '').slice(0, 120), bpm, time, key: 'auto', grid: 0.25, hold: true, notes };

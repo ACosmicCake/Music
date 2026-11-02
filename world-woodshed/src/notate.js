@@ -12,6 +12,12 @@
 import { KEYS, spell, parseTime, keyAlters } from './notation.js';
 
 export const TIMES = ['4/4', '3/4', '2/4', '6/8', '12/8'];
+/* Any time signature a score may have (10/4 for a ten-beat tala, 13/8, 7/8…): the ones the Write by playing
+   tool offers are TIMES, but a score read for sight-reading keeps its own */
+export const okTime = t => {
+  const m = /^(\d{1,2})\/(1|2|4|8|16)$/.exec(String(t || ''));
+  return !!m && +m[1] >= 1 && +m[1] <= 32;
+};
 export const DEFAULT_DRAFT = () => ({ title: '', bpm: 80, time: '4/4', key: 'auto', grid: 0.25, hold: true, notes: [] });
 
 /* A draft from saved or imported data, with every field checked (it may come from another device) */

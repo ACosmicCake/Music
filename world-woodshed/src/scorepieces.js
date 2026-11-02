@@ -2,7 +2,7 @@
    Write by playing draft) cut into sections of a few bars, each a piece the Sight-reading tool reads like
    its own (src/tools/reading.js: { key, time, bars } of notation.js notes, written as guitar music is).
    Plain functions apart from reading the file; the cutting is tested in test/scorepieces.test.js. */
-import { quantize, guessKey, TIMES, cleanDraft } from './notate.js';
+import { quantize, guessKey, okTime, cleanDraft } from './notate.js';
 import { writtenUp, readMelodyFile } from './melody.js';
 import { parseMidi, midiToDraft } from './midiread.js';
 
@@ -17,11 +17,12 @@ export async function readScoreMelody(name, blob) {
 
 /* The melody cut into sections of `per` bars: [{ from, to (bar numbers from 1), piece }].
    A melody that lies low (a guitar recording, a MIDI file at sounding pitch) is written an octave up, as
-   guitar music is; one already in the treble staff (a score read from a page) stays where it is. The time
-   signature has to be one the app writes (4/4, 3/4, 2/4, 6/8, 12/8); triplets are rounded to the grid. */
+   guitar music is; one already in the treble staff (a score read from a page) stays where it is. The score's
+   own time signature is kept (10/4, 13/8, 16/4 as well as 4/4 or 6/8); triplets are rounded to the grid. */
 export function sections(melody, per = 4) {
-  const time = TIMES.includes(melody.time) ? melody.time : '4/4';
-  const draft = cleanDraft({ time, grid: 0.25, hold: false, notes: melody.notes || [] });
+  const time = okTime(melody.time) ? melody.time : '4/4';
+  // (a draft for Write by playing keeps to the times it offers; a score keeps its own)
+  const draft = Object.assign(cleanDraft({ grid: 0.25, hold: false, notes: melody.notes || [] }), { time });
   if (!draft.notes.length) return [];
   const up = writtenUp(draft.notes);
   // quantize writes an octave up (sounding → written); take that back for a melody already written

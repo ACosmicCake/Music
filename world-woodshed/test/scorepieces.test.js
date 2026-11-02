@@ -43,10 +43,24 @@ describe('cutting a melody into sections', () => {
     expect(last.tie).toBeUndefined();
     expect(b.piece.bars[0][0]).toMatchObject({ midi: 62 });
   });
-  it('keeps 3/4 and 6/8, and reads an unknown time signature as 4/4', () => {
+  it('keeps the score\'s own time signature, and reads one that is not a time signature as 4/4', () => {
     expect(sections({ notes: scale(), time: '3/4' })[0].piece.time).toBe('3/4');
     expect(sections({ notes: scale(), time: '6/8' })[0].piece.time).toBe('6/8');
-    expect(sections({ notes: scale(), time: '5/4' })[0].piece.time).toBe('4/4');
+    expect(sections({ notes: scale(), time: '5/4' })[0].piece.time).toBe('5/4');
+    expect(sections({ notes: scale(), time: '7/3' })[0].piece.time).toBe('4/4');
+  });
+  it('bars a ten-beat or thirteen-eighth score as written', () => {
+    // two bars of 10/4: quarters and halves, 10 beats each
+    const lens = [2, 2, 1, 2, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1];
+    let t = 0;
+    const notes = lens.map((L, i) => { const n = { s: t, e: t + L, midi: 72 - (i % 5) }; t += L; return n; });
+    const [sec] = sections({ notes, time: '10/4' });
+    expect(sec.piece.time).toBe('10/4');
+    expect(sec.piece.bars).toHaveLength(2);
+    const q = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
+    sec.piece.bars.forEach(bar => expect(bar.reduce((a, n) => a + q[n.dur] * (n.dot ? 1.5 : 1), 0)).toBe(10));
+    const odd = sections({ notes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(i => ({ s: i / 2, e: i / 2 + 0.5, midi: 72 })), time: '13/8' })[0];
+    expect(odd.piece.bars).toHaveLength(1);
   });
   it('finds the key', () => {
     const g = [67, 69, 71, 72, 74, 76, 78, 79, 74, 71, 67].map((m, i) => ({ s: i, e: i + 1, midi: m - 12 }));
