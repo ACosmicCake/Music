@@ -17,7 +17,7 @@ let lastInput = 0, waitingForPause = false;
 ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { lastInput = Date.now(); }, true));
 const bars = new Set();
 const pill = h('button', { class: 'session-pill', hidden: true, onclick: () => runCurrent() });
-document.querySelector('.topbar-inner').insertBefore(pill, document.getElementById('sync'));
+{ const sync = document.getElementById('sync'); sync.parentNode.insertBefore(pill, sync); }
 
 export const cur = () => { const s = E.session(); return s ? s.blocks[s.idx] || null : null; };
 const inSessionTool = () => !!(ui.runner && ui.runner.opts && ui.runner.opts.session);

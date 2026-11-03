@@ -37,7 +37,7 @@ const SKILLS = {
 };
 const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard, reading & repertoire', tech: 'Technique', know: 'Knowledge' };
 
-/* Your guitar: the tuning and capo set in Today → Your guitar. STRINGS is updated in place, so every tool
+/* Your guitar: the tuning and capo set in Settings → Your guitar. STRINGS is updated in place, so every tool
    that reads E.STRINGS (positions, fretboard answers, mic answers) follows the tuning. Ids stay by position
    (6th string = 'E' … 1st = 'e') so progress items keep their meaning. */
 const TUNINGS = [

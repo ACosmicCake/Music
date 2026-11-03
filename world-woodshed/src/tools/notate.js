@@ -139,7 +139,7 @@ tool('notate', {
         draft.notes.push(...notes); draft.notes.sort((a, b) => a.s - b.s);
         save();
         status.textContent = notes.length + ' notes written. Tap a note to fix it, or record again to add more bars.';
-      } else status.textContent = 'No notes heard. Play a little louder or closer to the phone, or raise the mic sensitivity in Train → Microphone.';
+      } else status.textContent = 'No notes heard. Play a little louder or closer to the phone, or raise the mic sensitivity in Settings → Microphone.';
       draw();
     }
     let liveT = 0;

@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay } from './ui/core.js';
+import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay, teardown, renderTabs, focusView } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -25,13 +25,15 @@ import { statsPage, heatmap, dayChart } from './ui/stats.js';
    ====================================================== */
 function toolTile(id, extra) {
   const t = TOOLS[id];
-  const m = t.skill && E.SKILLS[t.skill] ? Math.round(E.mastery(t.skill)) : null;
+  let m = t.skill && E.SKILLS[t.skill] ? Math.round(E.mastery(t.skill)) : null;
+  if (m === 0 && !(E.state.skills[t.skill] || {}).last) m = null; // not tried yet: no score, rather than a 0% that reads as failing
   return h('button', { class: 'tile', onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: m !== null ? m + '%' : '' }));
 }
 const TRAIN = {
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
-  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
+  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'],
+    groups: [['Hands and the neck', ['scalewarm', 'technique', 'fretboard', 'explorer']], ['Styles and tunes', ['drill', 'repertoire', 'callresp']], ['Reading and writing', ['sightread', 'notate']]], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
   away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['commute', 'away', 'dictation', 'sightread', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
 };
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
@@ -48,14 +50,9 @@ Object.assign(PAGES, {
       h('span', { class: 'eyebrow', text: d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) }),
       h('h1', { text: greeting() + '. Time to play.' }),
       h('div', { class: 'heromet' },
-        h('div', {}, h('b', { class: 'mono', text: E.streak() }), h('span', { text: 'day streak' })),
         h('div', {}, h('b', { class: 'mono', text: fmtMin(wkMin) }), h('span', { text: 'this week' })),
         h('div', {}, h('b', { class: 'mono', text: lessonsDone + '/' + D.LESSONS.length }), h('span', { text: 'lessons' })),
         h('div', {}, h('b', { class: 'mono', text: heardAll }), h('span', { text: 'records heard' })))));
-
-    // the daily goal and the streaks (the goal grows first, if it is time)
-    applyRamp();
-    view.append(goalCard());
 
     // practice now
     const ses = E.session();
@@ -69,7 +66,6 @@ Object.assign(PAGES, {
     } else {
       // the smart plan is the main way in; a custom routine is one tap away
       pc.className = 'stack';
-      if (!st.settings.prefsDismissed) pc.append(learningPrefsCard({ compact: true, dismiss: () => { E.setSetting('prefsDismissed', true); } }));
       pc.append(smartPlanner({ compact: true }));
       const aid = E.activeRoutineId();
       const r = aid !== 'smart' ? E.getRoutine(aid) : null;
@@ -78,6 +74,16 @@ Object.assign(PAGES, {
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => startSession(r) }, '▶ Start'), awayButton(r, 'btn small ghost'))), ribbon(r.blocks, { small: true })));
     }
     view.append(pc);
+    // the styles to work on first: folded under the planner until opened, so the way into practice comes first
+    if (!ses && !st.settings.prefsDismissed) {
+      const chosen = (Cur.prefs().styles || []).map(id => (D.REGIONS.find(r => r.id === id) || {}).name).filter(Boolean);
+      view.append(h('details', { class: 'foldwrap prefs-fold' }, h('summary', {}, h('span', { class: 'stack', style: { gap: '1px' } }, 'Your learning plan',
+        h('span', { class: 'small muted', style: { fontFamily: 'var(--font-body)', fontWeight: 400 }, text: chosen.length ? chosen.join(', ') : 'Pick the styles to work on first' }))),
+        learningPrefsCard({ compact: true, dismiss: () => { E.setSetting('prefsDismissed', true); } })));
+    }
+    // the daily goal and the streaks (the goal grows first, if it is time)
+    applyRamp();
+    view.append(goalCard());
     // commuting: a no-guitar session or hands-free ear training (first thing in the Android app)
     const goCard = h('div', { class: 'card go-card' }, h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'On the go' }), h('b', { text: 'Commuting? Headphones in, no guitar needed.' })),
       h('button', { class: 'btn brass', onclick: () => openTool('commute', { returnTab: 'today' }) }, 'Open →')),
@@ -152,25 +158,48 @@ Object.assign(PAGES, {
           j.note ? h('p', { class: 'small', text: j.note }) : null))))));
     }
 
-    const danger = h('div', { class: 'card' });
-    danger.append(h('div', { class: 'spread' }, h('span', { class: 'small muted', text: E.storageNote() + '. Timing correction: ' + (st.settings.latencyMs || 0) + ' ms.' }),
-      h('button', { class: 'btn small ghost', onclick: () => {
-        const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }), h('span', { class: 'small', text: 'This clears every score, routine and setting. It cannot be undone.' }),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
-        danger.append(c);
-      } }, 'Reset progress')));
-    view.append(fold(backupCard(), 'Your progress on every device'), fold(danger, 'Reset progress'));
+    view.append(settingsLink('Your guitar, display, sounds, microphone, sync and backups'));
   },
   train() {
     const sec = TRAIN[ui.section.train] ? ui.section.train : 'ear';
     const t = TRAIN[sec];
     view.append(h('div', { class: 'pagehead' }, h('span', { class: 'eyebrow', text: 'Train' }), h('h1', { text: t.title })));
     view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
-    view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
+    if (t.groups) t.groups.forEach(([name, ids]) => view.append(h('section', { class: 'stack tool-group' }, h('h2', { class: 'eyebrow', text: name }), h('div', { class: 'tools' }, ids.map(id => toolTile(id, { returnTab: 'train' }))))));
+    else view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
-    view.append(fold(guitarCard(), 'Your guitar'), fold(displayCard(), 'Display'), fold(micSettingsCard(), 'Microphone'));
+    view.append(settingsLink('Your guitar (tuning, capo, left-handed), display, sounds and microphone'));
   }
 });
+
+/* A way to Settings at the foot of a page (the gear in the top bar is the other) */
+function settingsLink(what) {
+  return h('button', { class: 'tile settings-link', onclick: () => settingsPage() }, h('span', { class: 't-title', text: 'Settings' }), h('span', { class: 't-desc', text: what }), h('span', { class: 't-meter', 'aria-hidden': 'true', text: '→' }));
+}
+
+/* ======================================================
+   SETTINGS: everything about this device and your progress, in one place (the gear in the top bar)
+   ====================================================== */
+export function settingsPage() {
+  const from = ui.runner ? null : ui.tab; // opened from inside a tool: Back goes to the tab, as a tool's own Back does
+  teardown(); ui.runner = { id: 'settings', opts: {} }; renderTabs();
+  view.innerHTML = ''; window.scrollTo(0, 0);
+  const st = E.state;
+  view.append(h('div', { class: 'pagehead' },
+    h('div', { class: 'spread' }, h('button', { class: 'btn ghost small rh-back', onclick: () => go(from || ui.tab || 'today') }, '← Back'), h('span', { class: 'eyebrow', text: 'This device and your progress' })),
+    h('h1', { text: 'Settings' })));
+  const danger = h('div', { class: 'card' });
+  danger.append(h('h3', { text: 'Reset progress' }), h('div', { class: 'spread' }, h('span', { class: 'small muted', text: E.storageNote() + '. Timing correction: ' + (st.settings.latencyMs || 0) + ' ms.' }),
+    h('button', { class: 'btn small ghost', onclick: () => {
+      const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }), h('span', { class: 'small', text: 'This clears every score, routine and setting. It cannot be undone.' }),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
+      danger.append(c);
+    } }, 'Reset progress')));
+  view.append(h('div', { class: 'stack settings' },
+    fold(guitarCard(), 'Your guitar'), fold(displayCard(), 'Display and sounds'), fold(micSettingsCard(), 'Microphone'),
+    fold(backupCard(), 'Your progress on every device'), fold(h('div', { class: 'card' }, updateBox()), 'App updates'), fold(danger, 'Reset progress')));
+  focusView();
+}
 
 const CONTRAST_SKILLS = ['intervals', 'chords', 'degrees', 'scales', 'rhythmId'];
 /* Automatic sync through a private GitHub repository the player owns (opt-in; the token stays on this device) */
@@ -355,12 +384,11 @@ function backupCard() {
       h('ol', { class: 'list small' },
         h('li', { text: 'On the phone, open the app’s web address in Chrome and choose ⋮ → Add to Home screen (or Install app). It then works offline like an app.' }),
         h('li', { text: 'Here, tap “Send my progress”. Share it to yourself (Drive, email, a chat with yourself, Nearby Share), or save the file and copy it over.' }),
-        h('li', { text: 'On the phone, open the app, go to Today → “Load a sync file”, and pick that file.' }),
+        h('li', { text: 'On the phone, open the app, go to Settings → Your progress on every device → “Load a sync file”, and pick that file.' }),
         h('li', { text: 'Later, sync the other way the same way. Each load merges, so nothing is lost; mic and audio latency stay set per device.' }))),
     h('details', { class: 'small' }, h('summary', { text: 'Restore a backup exactly' }),
       h('p', { class: 'small muted', text: 'Replaces this device’s progress with the file as it was saved, instead of merging.' }),
-      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')),
-    updateBox());
+      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')));
   return card;
 }
 
@@ -388,3 +416,7 @@ function updateBox() {
   currentVersion().then(v => { ver.textContent = v ? 'Version ' + v : ''; });
   return h('div', { class: 'stack update-box' }, h('span', { class: 'eyebrow', text: 'App updates' }), h('div', { class: 'row' }, btn, ver), status, get);
 }
+
+// the gear in the top bar opens Settings from anywhere
+const gear = document.getElementById('settings-btn');
+if (gear) gear.addEventListener('click', () => settingsPage());

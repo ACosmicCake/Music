@@ -58,7 +58,7 @@ function showInstall() {
 }
 function hideInstall() { const el = document.getElementById('ww-install'); if (el) el.remove(); }
 
-/* Check for updates (Train → Display): ask the service worker to look for a new version now, and if
+/* Check for updates (Settings → App updates): ask the service worker to look for a new version now, and if
    there is one, install it and reload into it (as the banner's Update button does).
    → 'updating' (it reloads by itself), 'current', 'offline' or 'unsupported' (no service worker, as in dev) */
 export async function checkForUpdate() {
