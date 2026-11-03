@@ -49,6 +49,7 @@ const show = process.argv.includes('--show') ? Number(process.argv[process.argv.
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.pgm')).sort();
 let TP = 0, FP = 0, FN = 0, durOK = 0, pitchOnly = 0, barsOK = 0, ms = 0;
 let repWant = 0, repGot = 0, repOK = 0, tieWant = 0, tieGot = 0, tieOK = 0, tieSeen = 0, tieFalse = 0;
+let endWant = 0, endGot = 0, endOK = 0;
 const rows = [];
 files.forEach((f, idx) => {
   const base = path.join(dir, f.replace('.pgm', ''));
@@ -73,6 +74,9 @@ files.forEach((f, idx) => {
   // repeats (pages from make-pages.py --marks): the same [first, last] bars
   const wr = (gt.meta.repeats || []).map(r => r.join('-')), gr = (score && score.repeats || []).map(r => r.join('-'));
   repWant += wr.length; repGot += gr.length; repOK += gr.filter(r => wr.includes(r)).length;
+  // first and second endings: bar and number (the generated ones are one bar each)
+  const we = (gt.meta.endings || []).map(e => e.join('-')), ge = (score && score.endings || []).flatMap(e => { const o = []; for (let b = e[0]; b <= e[1]; b++) o.push(b + '-' + e[2]); return o; });
+  endWant += we.length; endGot += ge.length; endOK += ge.filter(e => we.includes(e)).length;
   // ties: a tie starting on the right note
   const wt = new Set(); gt.notes.forEach(n => { if (n.tieStart) n.midi.forEach(m => wt.add(n.staff + '|' + n.m + '|' + n.t.toFixed(2) + '|' + m)); });
   const gtie = score ? tiesOf(score) : [];
@@ -90,6 +94,7 @@ files.forEach((f, idx) => {
 rows.forEach(r => console.log(r));
 const P = TP / Math.max(1, TP + FP), R = TP / Math.max(1, TP + FN);
 console.log(`\nnotes: precision ${(P * 100).toFixed(1)}%  recall ${(R * 100).toFixed(1)}%  F1 ${(2 * P * R / Math.max(1e-9, P + R) * 100).toFixed(1)}%  right length ${(durOK / Math.max(1, TP) * 100).toFixed(1)}%`);
+if (endWant || endGot) console.log(`endings: ${endOK} of ${endWant} found, ${endGot - endOK} wrong`);
 if (repWant || repGot) console.log(`repeats: ${repOK} of ${repWant} found, ${repGot - repOK} wrong`);
 if (tieWant || tieGot) console.log(`ties: ${tieOK} of ${tieWant} found (${tieSeen} of the tied notes were read), ${tieGot - tieOK} not matched, ${tieFalse} on a right note with no tie`);
 console.log(`pitch order (melody): ${(pitchOnly / files.length * 100).toFixed(1)}%  bars right: ${barsOK}/${files.length}  ${(ms / files.length).toFixed(0)} ms a page`);

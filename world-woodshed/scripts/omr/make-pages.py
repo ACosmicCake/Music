@@ -130,6 +130,14 @@ def make_score(rng, opts):
         repeats.append([a, b])
         if b + 2 < n_bars - 1 and rng.random() < 0.5:
             c = rng.randint(b + 1, n_bars - 2); repeats.append([c, min(n_bars - 1, c + rng.randint(1, 3))])
+    # first and second endings (--marks): sometimes the last bar of a repeat is a 1st ending and the bar
+    # after it the 2nd, each under its bracket; in the JSON as meta.endings [[bar, number]]
+    endings = []
+    if opts.get('marks'):
+        for a, b in repeats:
+            if b > a and b + 1 < n_bars and rng.random() < 0.6 and not any(b + 1 == a2 for a2, _ in repeats):
+                endings += [[b, 1], [b + 1, 2]]
+    end_at = {m: k for m, k in endings}
     rep_start = {a for a, b in repeats}; rep_end = {b for a, b in repeats}
     # beams: eighths and shorter grouped within a beat
     def beam_groups(events):
@@ -149,6 +157,7 @@ def make_score(rng, opts):
     for m in range(n_bars):
         xml.append('<measure number="%d">' % (m + 1))
         if m in rep_start and m > 0: xml.append('<barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>')
+        if m in end_at: xml.append('<barline location="left"><ending number="%d" type="start">%d.</ending></barline>' % (end_at[m], end_at[m]))
         if m == 0:
             xml.append('<attributes><divisions>%d</divisions><key><fifths>%d</fifths></key>' % (DIV, fifths))
             if time == '4/4' and rng.random() < 0.3: xml.append('<time symbol="common"><beats>4</beats><beat-type>4</beat-type></time>')
@@ -194,10 +203,11 @@ def make_score(rng, opts):
                     xml.append('<note>%s<pitch><step>%s</step>%s<octave>%d</octave></pitch><duration>%d</duration>%s<voice>%d</voice><type>%s</type>%s%s<staff>%d</staff>%s%s</note>' % (
                         '<chord/>' if k else '', s, '<alter>%d</alter>' % a if a else '', o, L, tie, si + 1, typ, '<dot/>' * dots, acc, si + 1, bm,
                         '<notations>%s</notations>' % tied if tied else ''))
-        if m in rep_end: xml.append('<barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>')
+        if m in rep_end: xml.append('<barline location="right"><bar-style>light-heavy</bar-style>%s<repeat direction="backward"/></barline>' % ('<ending number="1" type="stop"/>' if end_at.get(m) == 1 else ''))
+        elif end_at.get(m) == 2: xml.append('<barline location="right"><ending number="2" type="discontinue"/></barline>')
         xml.append('</measure>')
     xml += ['</part>', '</score-partwise>']
-    meta = {'time': time, 'fifths': fifths, 'staves': [s for s, _ in staves], 'bars': n_bars, 'repeats': repeats}
+    meta = {'time': time, 'fifths': fifths, 'staves': [s for s, _ in staves], 'bars': n_bars, 'repeats': repeats, 'endings': endings}
     return '\n'.join(xml), gt, meta
 
 def colour_svg(svg):

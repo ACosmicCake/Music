@@ -77,7 +77,12 @@ export function scoreToMusicXML(score, opts = {}) {
       const len = pickup ? score.pickup : barQ;
       L.push(`    <measure number="${pickup ? 0 : score.pickup ? bi : bi + 1}"${pickup ? ' implicit="yes"' : ''}>`);
       const reps = score.repeats || [];
-      if (reps.some(r => r[0] === bi && bi > 0)) L.push('      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>');
+      // first and second endings: [first bar, last bar, number]; one left and one right barline per bar
+      const end = (score.endings || []).find(e => bi >= e[0] && bi <= e[1]);
+      const endStart = end && end[0] === bi ? `<ending number="${end[2]}" type="start">${end[2]}.</ending>` : '';
+      const endStop = end && end[1] === bi ? `<ending number="${end[2]}" type="${reps.some(r => r[1] === bi) || end[2] === 1 ? 'stop' : 'discontinue'}"/>` : '';
+      const fwd = reps.some(r => r[0] === bi && bi > 0);
+      if (fwd || endStart) L.push(`      <barline location="left">${fwd ? '<bar-style>heavy-light</bar-style>' : ''}${endStart}${fwd ? '<repeat direction="forward"/>' : ''}</barline>`);
       if (bi === 0) {
         L.push('      <attributes>', `        <divisions>${DIV}</divisions>`,
           `        <key><fifths>${score.fifths || 0}</fifths></key>`,
@@ -125,8 +130,9 @@ export function scoreToMusicXML(score, opts = {}) {
         const rest = Math.round(len * DIV) - used;
         if (rest > 0) L.push(`      <forward><duration>${rest}</duration></forward>`);
       }));
-      if (reps.some(r => r[1] === bi)) L.push('      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>');
-      else if (bi === p.bars.length - 1) L.push('      <barline location="right"><bar-style>light-heavy</bar-style></barline>');
+      if (reps.some(r => r[1] === bi)) L.push(`      <barline location="right"><bar-style>light-heavy</bar-style>${endStop}<repeat direction="backward"/></barline>`);
+      else if (bi === p.bars.length - 1) L.push(`      <barline location="right"><bar-style>light-heavy</bar-style>${endStop}</barline>`);
+      else if (endStop) L.push(`      <barline location="right">${endStop}</barline>`);
       L.push('    </measure>');
     });
     L.push('  </part>');
