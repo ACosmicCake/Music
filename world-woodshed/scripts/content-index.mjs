@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const ID = 'virtual:content-index', RID = '\0' + ID;
 const FILES = {
   techniques: ['techniques-a.js', 'techniques-b.js'],
-  drills: ['drills-a.js', 'drills-b.js'],
+  drills: ['drills-a.js', 'drills-b.js', 'drills-montunos.js'],
   lessons: ['lessons.js']
 };
 // the fields kept in the index; everything else stays in the on-demand chunk
