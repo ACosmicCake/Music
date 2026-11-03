@@ -10,6 +10,14 @@ export const hooks = { sessionBar: null, onSessionTick: null, afterNav: null, si
 export const view = document.getElementById('view');
 const tabsEl = document.getElementById('tabs');
 export const syncEl = document.getElementById('sync');
+/* the save state in the top bar: one short word, which fits beside the name on a phone ("Saved on this de…"
+   was cut off at 390 px), with the whole note on hover and for screen readers */
+export function paintSync() {
+  const note = E.storageNote();
+  syncEl.textContent = /synced/i.test(note) ? 'Synced' : /saved/i.test(note) ? 'Saved' : note;
+  syncEl.title = note;
+  syncEl.setAttribute('aria-label', note);
+}
 
 /* ---------- tiny DOM helpers ---------- */
 export function h(tag, attrs, ...kids) {
@@ -188,7 +196,7 @@ function redrawToday() {
   window.scrollTo(0, y);
 }
 E.onChange(() => {
-  syncEl.textContent = E.storageNote();
+  paintSync();
   if (!ui.runner && ui.tab === 'today' && !todayQueued) { todayQueued = true; nextFrame(redrawToday); }
 });
 

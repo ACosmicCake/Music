@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, Fretboard, isCompact, applyDisplay, teardown, renderTabs, focusView } from './ui/core.js';
+import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, noteName, isCompact, applyDisplay, teardown, renderTabs, focusView } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -326,8 +326,15 @@ function guitarCard() {
       E.TUNINGS.map(t => h('option', { value: t.id, selected: t.id === g.tuning ? true : null, text: t.name })));
     const capo = h('select', { id: 'g-capo', onchange: () => { E.setGuitar({ capo: +capo.value }); draw(); } },
       [0, 1, 2, 3, 4, 5, 6, 7].map(n => h('option', { value: String(n), selected: n === g.capo ? true : null, text: n ? 'Fret ' + n : 'No capo' })));
-    const fb = Fretboard({ label: 'Your open strings' });
-    fb.mark(E.STRINGS.map((st, i) => ({ s: i, f: 0, kind: i === 0 ? 'root' : 'tone', label: names[i].replace(/^(low|high) /, '') })));
+    // the open strings, big enough to read on a phone (a whole fretboard here drew them as tiny dots); with a
+    // capo, the notes the strings sound at the capo; mirrored for a left-handed player like the neck
+    const order = E.STRINGS.map((st, i) => i);
+    if (g.lefty) order.reverse();
+    const strings = h('div', { class: 'open-strings', role: 'list', 'aria-label': 'Your open strings, lowest first' }, order.map(i => {
+      const m = E.STRINGS[i].midi;
+      return h('div', { class: 'open-string' + (i === 0 ? ' low' : ''), role: 'listitem', 'aria-label': 'String ' + (6 - i) + ': ' + noteName(m) + (Math.floor(m / 12) - 1) },
+        h('span', { class: 'eyebrow', text: String(6 - i) }), h('b', { text: noteName(m) }), h('span', { class: 'small muted mono', text: String(Math.floor(m / 12) - 1) }));
+    }));
     card.append(h('div', { class: 'spread' }, h('h3', { text: 'Your guitar' }), h('span', { class: 'small muted', text: names.map(n => n.replace(/^(low|high) /, '')).join(' ') + (g.capo ? ' · capo ' + g.capo : '') })),
       h('p', { class: 'small muted', text: 'Every fretboard, scale position and fretboard answer follows these. With a capo, fret numbers count from the capo.' }),
       h('div', { class: 'formgrid' },
@@ -337,7 +344,7 @@ function guitarCard() {
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Note names' }),
         h('div', { class: 'seg' }, [['letters', 'C D E'], ['solfege', 'Do Re Mi … Si'], ['solfegeTi', 'Do Re Mi … Ti']].map(([k, t]) => h('button', { 'aria-pressed': (E.state.settings.noteNames || 'letters') === k ? 'true' : 'false', onclick: () => { E.setGuitar({ noteNames: k }); draw(); } }, t))),
         h('span', { class: 'small muted', text: 'Used for notes on the neck, the tuner and answers. Chord symbols stay in letters, as charts write them.' })),
-      fb.el);
+      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Open strings' + (g.capo ? ' with the capo' : '') }), strings));
   }
   draw();
   return card;

@@ -4,15 +4,27 @@
    Plain functions apart from reading the file; the cutting is tested in test/scorepieces.test.js. */
 import { quantize, guessKey, okTime, cleanDraft } from './notate.js';
 import { writtenUp, readMelodyFile } from './melody.js';
-import { parseMidi, midiToDraft } from './midiread.js';
+import { parseMidi, midiToDraft, midiLines, clefFor } from './midiread.js';
 
-/* A score file → { notes: [{ s, e, midi }] (quarters, sounding or written pitch), title, bpm, time } */
-export async function readScoreMelody(name, blob) {
+/* A score file → { notes: [{ s, e, midi }] (quarters, sounding or written pitch), title, bpm, time, clef,
+   lines: [{ id, name, clef }] (every staff of a MusicXML score, every track of a MIDI file), line (the one
+   read) }. `line` picks one ('part:staff' for MusicXML, 'track:channel' for MIDI); the top line otherwise. */
+export async function readScoreMelody(name, blob, line = null) {
   if (/\.midi?$/i.test(name)) {
-    const d = midiToDraft(parseMidi(new Uint8Array(await blob.arrayBuffer())), name);
-    return { notes: d.notes, title: d.title, bpm: d.bpm, time: d.time };
+    const m = parseMidi(new Uint8Array(await blob.arrayBuffer()));
+    const lines = midiLines(m);
+    const pick = lines.find(l => l.id === line) ? line : null;
+    const d = midiToDraft(m, name, pick);
+    return { notes: d.notes, title: d.title, bpm: d.bpm, time: d.time, clef: clefFor(d.notes.map(n => n.midi)),
+      lines: lines.map(l => ({ id: l.id, name: l.name, clef: l.low < 50 ? 'bass' : 'treble' })), line: pick };
   }
-  return readMelodyFile(name, blob);
+  const [part, staff] = String(line || '').split(':');
+  const mel = await readMelodyFile(name, blob, line ? { part: +part, staff } : null);
+  if (mel.staves) {
+    mel.lines = mel.staves.map(x => ({ id: x.part + ':' + x.staff, name: x.name, clef: x.clef }));
+    mel.line = mel.part + ':' + mel.staff;
+  }
+  return mel;
 }
 
 /* The melody cut into sections of `per` bars: [{ from, to (bar numbers from 1), piece }]. per = Infinity (or 0)
@@ -28,7 +40,10 @@ export function sections(melody, per = 4) {
   // (a draft for Write by playing keeps to the times it offers; a score keeps its own)
   const draft = Object.assign(cleanDraft({ grid: 0.25, hold: false, notes: melody.notes || [] }), { time });
   if (!draft.notes.length) return [];
-  const up = writtenUp(draft.notes);
+  // a bass line (a bass clef staff, or a low MIDI line) is written in the bass clef as it sounds, or as the
+  // page writes it when its part sounds an octave down (a bass guitar); everything else in the treble clef
+  const bass = melody.clef === 'bass';
+  const up = bass ? false : writtenUp(draft.notes);
   // quantize writes an octave up (sounding → written); take that back for a melody already written
   const q = quantize(Object.assign({}, draft, { notes: draft.notes.map(n => ({ s: n.s, e: n.e, midi: up ? n.midi : n.midi - 12 })) }));
   // the score's own key signature when it has one (a score in C with flats written in stays in C)
@@ -37,7 +52,7 @@ export function sections(melody, per = 4) {
   // a MusicXML score is read bar by bar as it is written (its notes, rests, ties, triplets, chords and
   // accidentals); a MIDI file or a played draft has only times, so it is written out by quantize
   const wr = melody.written && melody.written.bars && melody.written.bars.length && time === (melody.time || time) ? melody.written : null;
-  const shift = up ? 12 : 0;
+  const shift = bass ? (melody.trans && melody.trans % 12 === 0 && melody.written ? -melody.trans : 0) : up ? 12 : 0;
   const bars = wr ? wr.bars.map(bar => bar.map(n => Object.assign({}, n, n.midi == null ? {} : { midi: n.midi + shift }, n.chord ? { chord: n.chord.map(m => m + shift) } : {}))) : q.bars;
   // leave out whole-bar rests at the start (a pickup or an intro played by others)
   let first = 0;
@@ -89,6 +104,7 @@ export function sections(melody, per = 4) {
     x.cuts.forEach(k => untie(slice[k]));
     if (slice.every(bar => bar.every(n => n.midi == null))) return; // nothing to read
     const piece = { key, time, bars: slice };
+    if (bass) piece.clef = 'bass';
     if (x.reps.length === 1) piece.repeat = x.reps[0];
     else if (x.reps.length) piece.repeats = x.reps;
     const sec = { from: x.idx[0] + 1, to: x.idx[x.idx.length - 1] + 1, piece };

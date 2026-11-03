@@ -22,6 +22,9 @@ const universe = () => { const u = E.universe(SKILL); return u && u.length ? u :
 const itemState = id => { const ss = E.skillState(SKILL); return ss && ss.items ? ss.items[id] : null; };
 const POS_NAME = p => p + (p === 1 ? 'st' : p === 2 ? 'nd' : p === 3 ? 'rd' : 'th');
 const soundName = m => noteLabel(m).split(' ')[0];
+/* written → sounding: guitar music sounds an octave lower than written; a bass clef line (a bass part or a
+   piano's left hand from Your scores) is written where it sounds */
+const SOUND = piece => (piece && piece.clef === 'bass' ? 0 : -12);
 
 /* scoring taps against expected onsets (same model as the rhythm atlas tap test) */
 function scoreTaps(expected, taps, win) {
@@ -140,7 +143,7 @@ function playRun(o) {
         if (o.onExpected) o.onExpected(e, seg);
         const ring = Math.max(0.12, Math.min(2, a.len * seg.spq - 0.03));
         if (o.notes && a.slash) { const c = a.sym && parseChord(a.sym); if (c) A.strum(guitarMidis(c.root, c.iv), t, 0.55, 0.014, ring); }
-        else if (o.notes) (a.chord || [a.midi]).forEach((m, x) => A.note(m - 12, t + x * 0.014, a.chord ? 0.6 : 0.8, ring));
+        else if (o.notes) (a.chord || [a.midi]).forEach((m, x) => A.note(m + SOUND(seg.piece), t + x * 0.014, a.chord ? 0.6 : 0.8, ring));
       }
       // the last step of a piece: line up the next one, or end here
       if (i === seg.end - 1 && seg.k === segs.length - 1) {
@@ -387,7 +390,7 @@ function scoresMode(root, lv, ctx, p) {
   const keep = v => E.setSetting('readingOwn', Object.assign(saved(), v));
   const done = () => { if (api) { try { api.cleanup(); } catch (e) { console.error(e); } } api = null; body.innerHTML = ''; ctx.setActive(false); };
   card.append(h('span', { class: 'eyebrow', text: 'Read your own scores' }),
-    h('p', { class: 'small muted', text: 'A score from your Library, a few bars at a time, with the count-in, the cursor and the mic check of the melodies here. The top line of a MusicXML or MIDI file is read, or a score you wrote by playing.' }));
+    h('p', { class: 'small muted', text: 'A score from your Library, with the count-in, the cursor and the mic check of the melodies here. One line of a MusicXML or MIDI file is read (the top one unless you pick another part), or a score you wrote by playing. A bass part is read in the bass clef.' }));
   const status = h('p', { class: 'small', text: 'Looking through your Library…' });
   card.append(status);
   (async () => {
@@ -432,7 +435,11 @@ function scoresMode(root, lv, ctx, p) {
     const paintFix = () => { fixLine.hidden = !pick.f.name.endsWith(' (notes read).musicxml') || pick.f.kind !== 'musicxml'; };
     paintFix();
     select.addEventListener('change', paintFix);
-    card.append(h('label', { class: 'stack small' }, 'Score', select), fixLine);
+    // which line of the score: a part, or a staff of a piano part (MusicXML), a track (MIDI); kept per file
+    const lineOf = () => ((saved().lines || {})[pick.f.id]) || null;
+    const lineSel = h('select', { 'aria-label': 'Part', onchange: () => { keep({ lines: Object.assign({}, saved().lines || {}, { [pick.f.id]: lineSel.value }), from: 0 }); load(0); } });
+    const lineBox = h('label', { class: 'stack small', hidden: true }, 'Part', lineSel);
+    card.append(h('label', { class: 'stack small' }, 'Score', select), lineBox, fixLine);
     const msg = h('p', { class: 'small', role: 'status' });
     card.append(msg);
     async function load(at) {
@@ -442,9 +449,13 @@ function scoresMode(root, lv, ctx, p) {
       try {
         const got = await L.getFile(pick.f.id);
         if (!got) throw new Error('the file is not on this device');
-        mel = await S.readScoreMelody(got.name, got.blob);
+        mel = await S.readScoreMelody(got.name, got.blob, lineOf());
       } catch (e) { if (my === token) msg.textContent = 'Could not read this score: ' + (e && e.message ? e.message : 'unknown error'); return; }
       if (my !== token || gone) return;
+      const lines = mel.lines || [];
+      lineBox.hidden = lines.length < 2;
+      lineSel.innerHTML = '';
+      lines.forEach(l => lineSel.append(h('option', { value: l.id, selected: l.id === mel.line ? true : null, text: l.name + (l.clef === 'bass' ? ' · bass clef' : '') })));
       const per = perOf(), secs = S.sections(mel, per);
       if (!secs.length) { msg.textContent = 'There are no notes to read in this score.'; return; }
       msg.textContent = '';
@@ -667,7 +678,7 @@ const chartChords = piece => (Array.isArray(piece.chords) ? piece.chords.map(cs 
 function tabFor(piece) {
   const flat = piece.bars.flat(), struck = [];
   flat.forEach((n, i) => { const p = flat[i - 1]; if (n.midi != null && !(p && p.tie && p.midi === n.midi)) struck.push(i); });
-  const frets = placeFrets(struck.map(i => flat[i].midi - 12), E.STRINGS.map(st => st.midi));
+  const frets = placeFrets(struck.map(i => flat[i].midi + SOUND(piece)), E.STRINGS.map(st => st.midi));
   const out = flat.map(() => null);
   struck.forEach((i, k) => { out[i] = frets[k]; });
   return out;
@@ -744,7 +755,7 @@ function melodyMode(root, lv, ctx, own) {
     h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, clef: piece.clef, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     if (full) {
       // larger than on the page, as the height allows, but not so large that too little of what comes next shows
@@ -793,8 +804,10 @@ function melodyMode(root, lv, ctx, own) {
         const seg = best.seg, j = best.j;
         seg.judged = seg.judged || new Map();
         if (seg.judged.has(j) || Math.abs(bd) > winOf(seg, j)) return;
-        const a = seg.ats[j], got = Math.round(ev.midi), want = (a.chord || [a.midi]).map(m => m - 12);
-        const pitch = a.slash ? 1 : want.includes(got) ? 1 : want.some(w => (got - w) % 12 === 0) ? 0.5 : 0; // a slash: any note of the strum counts
+        const a = seg.ats[j], got = Math.round(ev.midi), want = (a.chord || [a.midi]).map(m => m + SOUND(seg.piece));
+        // a slash: any note of the strum counts; a bass clef line in any octave (much of it lies below the guitar)
+        const octOk = w => (got - w) % 12 === 0;
+        const pitch = a.slash ? 1 : want.includes(got) || (seg.piece.clef === 'bass' && want.some(octOk)) ? 1 : want.some(octOk) ? 0.5 : 0;
         seg.judged.set(j, { pitch, d: bd, got });
         const good = pitch === 1 && Math.abs(bd) <= winOf(seg, j) * 0.6;
         if (seg.staff === staff) { marks[a.i] = good ? 'good' : 'bad'; markAttack(staff, piece, a, marks[a.i]); }

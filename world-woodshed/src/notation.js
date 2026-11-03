@@ -80,6 +80,12 @@ export function parseTime(time = '4/4') {
 /* ---------- glyphs (staff space = 10 units, staff top line at y = 0) ---------- */
 const CLEF = 'M14.6 31.9 14.2 31.7 13.6 31.4 13 31.2 12.3 30.9 11.7 30.5 11.3 30 11.1 29.5 10.9 29 10.8 28.4 10.7 27.9 10.7 27.3 10.9 26.8 11 26.4 11.2 26.1 11.4 25.7 11.8 25 12.2 24.3 12.7 23.6 13.2 23 13.7 22.5 14.2 22.1 15 21.8 16 21.7 17.1 21.8 18.3 21.9 19.4 22.2 20.4 22.8 21 23.6 21.5 24.4 21.9 25.4 22.3 26.4 22.6 27.5 22.9 28.6 23 29.7 23 30.7 22.9 31.7 22.8 32.9 22.6 34.1 22.3 35.2 21.9 36.4 21.5 37.4 21.1 38.3 20.5 39.1 19.9 40 19.1 40.9 18.2 41.7 17.3 42.4 16.4 43 15.5 43.5 14.6 43.9 13.6 44.2 12.5 44.4 11.4 44.5 10.3 44.5 9.2 44.4 8.2 44.1 7.6 43.3 6.9 42.4 6.3 41.5 5.8 40.5 5.3 39.4 4.9 38.4 4.6 37.4 4.5 36.5 4.4 35.5 4.4 34.6 4.4 33.6 4.5 32.5 4.6 31.5 4.8 30.4 5.1 29.3 5.4 28.1 5.8 26.9 6.3 25.7 6.8 24.5 7.4 23.3 8 22.1 8.6 21.1 9.4 20 10.2 18.9 11.1 17.8 12 16.7 12.9 15.5 13.8 14.3 14.7 13.2 15.5 12.1 16.4 10.9 17.2 9.7 18 8.5 18.8 7.3 19.5 6.1 20.1 4.9 20.7 3.6 21.2 2.4 21.6 1.2 22 -0.1 22.3 -1.4 22.5 -2.6 22.6 -3.9 22.7 -5.2 22.6 -6.5 22.6 -7.7 22.4 -9 22.1 -10.2 21.8 -11.3 21.3 -12.4 20.8 -13.5 20.1 -14.6 19.5 -15.6 18.7 -16.4 17.9 -17 17.1 -17.3 16.4 -17.7 15.5 -17.8 14.6 -17.6 13.7 -17.1 12.9 -16.4 12.1 -15.6 11.6 -14.6 11.1 -13.5 10.7 -12.3 10.4 -11 10.2 -9.6 10 -8.2 9.9 -6.6 9.8 -5 9.9 -3.3 10 -1.6 10.3 0.2 10.5 2.1 10.8 4 11 6 11.2 8.1 11.4 10.3 11.7 12.7 11.9 15.1 12.1 17.6 12.3 20.1 12.5 22.6 12.7 25.1 12.9 27.6 13.1 30.2 13.3 32.8 13.5 35.4 13.7 37.8 13.8 40.1 13.9 42.1 14 43.8 14.1 45.3 14.1 46.7 14.2 47.8 14.1 48.9 14.1 49.9 13.9 50.8 13.8 51.7 13.5 52.6 13.3 53.4 13 54 12.7 54.6 12.4 55.1 12.1 55.5 11.8 55.9 11.4 56.2 10.9 56.5 10.3 56.7 9.7 56.9 9.2 57 8.6 57.1 8.2 56.9 7.8 56.4 7.4 55.9 7 55.4 6.6 54.9 6.2 54.5 5.9 54.2 5.1 54.8 5.3 55.1 5.6 55.6 6 56.2 6.5 56.8 7.1 57.3 7.8 57.6 8.4 57.9 9 58.2 9.8 58.4 10.6 58.4 11.4 58.4 12.2 58.2 13.1 57.9 13.9 57.5 14.5 56.8 15.1 56.1 15.5 55.2 15.9 54.3 16.2 53.3 16.5 52.3 16.7 51.2 16.8 50.1 16.8 49 16.8 47.8 16.7 46.5 16.7 45.2 16.6 43.7 16.5 41.9 16.4 39.9 16.2 37.6 16.1 35.2 15.9 32.6 15.7 30 15.5 27.4 15.3 24.9 15.1 22.4 14.9 19.9 14.6 17.4 14.4 14.9 14.2 12.5 14 10.1 13.8 7.9 13.6 5.8 13.3 3.7 13.1 1.8 13 -0.1 12.8 -1.8 12.8 -3.4 12.8 -5 12.8 -6.5 12.9 -7.9 13.1 -9.3 13.2 -10.5 13.5 -11.6 13.7 -12.6 14 -13.4 14.4 -14.1 14.8 -14.7 15.2 -15.3 15.7 -15.7 16.1 -16.1 16.4 -16.4 16.9 -16.7 17.2 -16.3 17.6 -15.6 18 -14.7 18.4 -13.7 18.8 -12.7 19.1 -11.7 19.2 -10.7 19.3 -9.7 19.3 -8.7 19.2 -7.7 19.1 -6.6 19 -5.5 18.8 -4.4 18.5 -3.4 18.2 -2.4 17.9 -1.3 17.5 -0.3 17.1 0.7 16.6 1.8 16.1 2.9 15.5 3.9 14.9 5 14.2 6 13.5 7.1 12.7 8.2 11.9 9.4 11 10.5 10.2 11.7 9.4 12.8 8.5 13.8 7.6 15 6.6 16.1 5.7 17.3 4.8 18.6 4 19.9 3.3 21.2 2.6 22.6 2 24 1.5 25.4 1 26.8 0.7 28.2 0.4 29.6 0.2 30.9 0.1 32.3 0.1 33.6 0.3 34.9 0.5 36.2 0.9 37.4 1.4 38.6 2 39.7 2.7 40.9 3.6 42 4.5 43 5.5 43.8 6.6 44.5 7.8 44.9 8.8 45.5 9.9 46 11.2 46.4 12.5 46.6 13.8 46.7 15.2 46.7 16.5 46.5 17.8 46.1 19.1 45.5 20.5 44.8 21.7 44 22.9 43 24 41.9 24.9 40.7 25.7 39.4 26.3 37.9 26.7 36.4 27 34.8 27.2 33.3 27.2 31.8 27 30.3 26.7 28.9 26.2 27.6 25.5 26.3 24.8 25.1 24 24 23 23.1 22 22.4 20.9 21.9 19.7 21.5 18.6 20.9 17.3 20.5 16.1 20.2 14.9 20 13.8 19.9 12.6 20.1 11.4 20.6 10.4 21.3 9.6 22.2 8.8 23 8.2 23.9 7.8 24.9 7.6 25.9 7.7 26.9 8 27.8 8.4 28.6 8.9 29.4 9.4 30 9.9 30.5 10.6 30.8 11.4 31.1 12.1 31.3 12.8 31.6 13.5 31.9 14 32 14.4 32.1Z';
 const CLEF_BALL = [7, 53.6, 3.5];
+/* the bass (F) clef: a hook from a ball on the F line (the 4th line, y = 10) and two dots either side of it */
+const FCLEF = 'M5.2 10.2C4.6 4.4 9 0.4 14.4 0.4C21 0.4 24.6 5 24.4 11.4C24.1 21.6 15.6 30.4 4 36.6L3.4 35.6C12.6 29.6 19.4 21.8 19.6 12C19.8 5.6 17.2 2 13.6 2C10.6 2 8.4 4 8.2 6.6Z';
+const FCLEF_BALL = [7.6, 9.6, 3.6];
+const FCLEF_DOTS = [[29, 5, 1.8], [29, 15, 1.8]];
+/* staff position 0 (the bottom line) as a step (octave * 7 + letter): E4 in the treble clef, G2 in the bass */
+const CLEF_BASE = { treble: 30, bass: 18 };
 function el(tag, attrs, parent) {
   const e = document.createElementNS(NS, tag);
   for (const k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) e.setAttribute(k, attrs[k]);
@@ -166,7 +172,7 @@ const STEM = 34;
            showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6),
            chords: [[{ text, at (quarters into the bar) }] per bar] (chord symbols above the staff), barBands: true,
            repeat: [first bar, last bar] (from 0: repeat signs around those bars), repeats: [[first, last]…] (several),
-           oneLine: true (every bar on one line, for reading scrolled sideways) }
+           oneLine: true (every bar on one line, for reading scrolled sideways), clef: 'treble' (default) | 'bass' }
    returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null), bar(i|null) };
    i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
@@ -177,6 +183,7 @@ export function renderStaff(opts) {
   const narrow = widthPx < 480;
   const maxPer = opts.oneLine ? Math.max(1, bars.length) : opts.barsPerLine || (narrow ? 2 : 4);
   const keyAlt = keyAlters(K.fifths), nKey = Math.abs(K.fifths);
+  const bass = opts.clef === 'bass';
 
   /* 1. flatten, spell, decide accidentals, measure */
   const items = [];
@@ -195,6 +202,7 @@ export function renderStaff(opts) {
         // the heads of a chord, lowest first; a single note is a chord of one
         it.heads = pitchesOf(n).map(m => {
           const sp = spell(m, key, n.spell);
+          if (bass) sp.pos = sp.step - CLEF_BASE.bass;
           const hd = { midi: m, sp, pos: sp.pos };
           const cur = sp.step in state ? state[sp.step] : keyAlt[LETTERS.indexOf(sp.letter)];
           // a note tied over from the one before keeps its accidental without repeating it
@@ -346,11 +354,17 @@ export function renderStaff(opts) {
     let minY = -24, maxY = 64;
     const track = (y0, y1) => { minY = Math.min(minY, y0, y1); maxY = Math.max(maxY, y0, y1); };
     for (let l = 0; l < 5; l++) el('line', { class: 'st-line', x1: 0, x2: f1(sy.x1), y1: l * 10, y2: l * 10 }, g);
-    const clef = el('g', { class: 'st-clef', transform: 'translate(4 0)' }, g);
-    el('path', { d: CLEF, fill: 'currentColor' }, clef);
-    el('circle', { cx: CLEF_BALL[0], cy: CLEF_BALL[1], r: CLEF_BALL[2], fill: 'currentColor' }, clef);
+    const clef = el('g', { class: 'st-clef' + (bass ? ' bass' : ''), transform: 'translate(4 0)' }, g);
+    if (bass) {
+      el('path', { d: FCLEF, fill: 'currentColor' }, clef);
+      [FCLEF_BALL, ...FCLEF_DOTS].forEach(([cx, cy, r]) => el('circle', { cx, cy, r, fill: 'currentColor' }, clef));
+    } else {
+      el('path', { d: CLEF, fill: 'currentColor' }, clef);
+      el('circle', { cx: CLEF_BALL[0], cy: CLEF_BALL[1], r: CLEF_BALL[2], fill: 'currentColor' }, clef);
+    }
     for (let k = 0; k < nKey; k++) {
-      const pos = (K.fifths > 0 ? SHARP_POS : FLAT_POS)[k];
+      // the bass clef's key signature sits a line (two positions) lower than the treble's
+      const pos = (K.fifths > 0 ? SHARP_POS : FLAT_POS)[k] - (bass ? 2 : 0);
       accidental(g, K.fifths > 0 ? 1 : -1, 40 + k * 8 + 4, ypos(pos)).setAttribute('class', 'st-key');
     }
     if (si === 0 && opts.showTime !== false) {
