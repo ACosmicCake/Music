@@ -133,3 +133,43 @@ describe('a loop after the page slept', () => {
     expect(loop.running).toBe(false);
   });
 });
+
+describe('a cursor that moves with the sound', () => {
+  it('schedules sounds as far ahead as asked, and moves each step when it is heard, in order', () => {
+    vi.useFakeTimers();
+    const steps = [], seen = [];
+    const loop = A.Loop({ steps: 1e9, ahead: 0.3, stepDur: () => 0.1, onStep: (i, t) => steps.push(t), onVisual: i => seen.push([i, ctx.currentTime]) });
+    const t0 = loop.start(ctx.currentTime + 0.1);
+    expect(steps[steps.length - 1]).toBeGreaterThan(ctx.currentTime + 0.18); // the beat is out further ahead than the default 0.12 s
+    vi.advanceTimersByTime(25);
+    expect(seen).toEqual([]); // nothing heard yet
+    for (let k = 0; k < 8; k++) { ctx.currentTime += 0.05; vi.advanceTimersByTime(25); }
+    expect(seen.map(x => x[0])).toEqual(seen.map((x, j) => j)); // every step, in order
+    seen.forEach(([i, at]) => { expect(at).toBeGreaterThanOrEqual(t0 + i * 0.1 - 0.01); expect(at).toBeLessThan(t0 + i * 0.1 + 0.06); });
+    loop.stop();
+  });
+  it('waits for the output delay the device reports with its output timestamp', () => {
+    vi.useFakeTimers();
+    ctx.getOutputTimestamp = () => ({ contextTime: ctx.currentTime - 0.2, performanceTime: performance.now() || 1e-3 });
+    try {
+      const seen = [];
+      const loop = A.Loop({ steps: 1e9, stepDur: () => 0.1, onVisual: i => seen.push(i) });
+      const t0 = loop.start(ctx.currentTime + 0.1);
+      while (ctx.currentTime < t0 + 0.15) { ctx.currentTime += 0.025; vi.advanceTimersByTime(25); }
+      expect(seen).toEqual([]); // played, but not out of the speakers yet
+      while (ctx.currentTime < t0 + 0.21) { ctx.currentTime += 0.025; vi.advanceTimersByTime(25); }
+      expect(seen).toEqual([0]);
+      expect(Math.abs(A.heard() - (ctx.currentTime - 0.2))).toBeLessThan(0.01);
+      loop.stop();
+    } finally { delete ctx.getOutputTimestamp; }
+  });
+  it('stops moving when stopped', () => {
+    vi.useFakeTimers();
+    const seen = [];
+    const loop = A.Loop({ steps: 1e9, ahead: 0.3, stepDur: () => 0.1, onVisual: i => seen.push(i) });
+    loop.start(ctx.currentTime + 0.05);
+    loop.stop();
+    ctx.currentTime += 1; vi.advanceTimersByTime(100);
+    expect(seen).toEqual([]);
+  });
+});

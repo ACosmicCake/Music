@@ -96,7 +96,7 @@ const G = 1 / 12;
 function playRun(o) {
   A.ensure();
   const segs = [];
-  const opts = { steps: 1e9, maxSteps: 0 };
+  const opts = { steps: 1e9, maxSteps: 0, ahead: 0.3 }; // the beat scheduled well ahead, so a slow phone or a long score can't make it stumble
   const make = (item, start) => {
     const piece = item.piece, ts = parseTime(piece.time), spq = 60 / o.bpm / ts.beatQ;
     const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);

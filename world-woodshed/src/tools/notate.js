@@ -249,7 +249,7 @@ tool('notate', {
       const end = t0 + (q.notes.length ? q.notes[q.notes.length - 1].e : 0) / qps + 0.3;
       playBtn.textContent = '■ Stop';
       play = setInterval(() => {
-        const now = A.now() - A.latency();
+        const now = A.heard();
         if (now > end || !staff) { stopPlay(); return; }
         const at = (now - t0) * qps;
         let i = -1;

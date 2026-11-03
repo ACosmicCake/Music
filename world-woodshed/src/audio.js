@@ -85,6 +85,24 @@ function ensure() {
 }
 const now = () => (ctx ? ctx.currentTime : 0);
 const latency = () => (ctx ? (ctx.outputLatency || 0) + (ctx.baseLatency || 0) : 0);
+/* The audio-clock time of the sound coming out of the speakers right now. getOutputTimestamp pairs a frame
+   with the moment the device played it, so this counts the output path's real delay (Android, Bluetooth,
+   where outputLatency is often missing or wrong) and runs smoothly between the audio callbacks, where
+   currentTime jumps by a whole buffer (tens of ms on a phone). currentTime − latency() where it is missing. */
+function heard() {
+  if (!ctx) return 0;
+  const c = ctx.currentTime;
+  if (ctx.getOutputTimestamp && typeof performance !== 'undefined') {
+    try {
+      const ts = ctx.getOutputTimestamp();
+      if (ts && ts.contextTime > 0 && ts.performanceTime > 0) {
+        const t = ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+        if (t <= c + 0.05 && t > c - 1) return t;
+      }
+    } catch (e) { /* not there */ }
+  }
+  return c - latency();
+}
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
 /* Karplus–Strong plucked string, cached per integer MIDI note */
@@ -271,18 +289,34 @@ function hit(type, when, vel = 0.8, out, o = {}) {
 
 /* Look-ahead step scheduler.
    opts: { steps, stepDur(i) -> seconds, onStep(i, time, cycle), onVisual(i, cycle), maxSteps, onEnd(),
+   ahead: how far ahead to schedule sounds (s, default 0.12; more keeps the beat even through a slow page),
    shot: true for a loop a play button starts to be heard once (two cycles of a rhythm): A.fresh() stops
    it, and calls onEnd so its button is reset }.
+   onVisual runs when a step is heard (heard()), checked every frame, so a cursor moves with the sound however
+   far ahead the step was scheduled.
    Stopping a loop cancels the sounds it had already scheduled ahead that haven't started. */
 function Loop(opts) {
-  let timer = null, nextTime = 0, step = 0, running = false;
-  const visTimers = new Set(), mine = new Set(), scope = { mine, shot: !!opts.shot };
+  let timer = null, nextTime = 0, step = 0, running = false, raf = null;
+  const ahead = opts.ahead || 0.12;
+  const vis = [], mine = new Set(), scope = { mine, shot: !!opts.shot };
+  const frames = typeof requestAnimationFrame === 'function';
+  // the steps whose sound has reached the speakers, in order
+  function drain(all) {
+    const until = all ? Infinity : heard() + 0.008; // half a frame: drawn as near the sound as frames allow
+    while (vis.length && vis[0].t <= until) {
+      const v = vis.shift();
+      if (!running) continue;
+      try { opts.onVisual(v.i, v.cycle); } catch (e) { console.error(e); }
+    }
+  }
+  function frame() { raf = null; drain(); if (running && frames) raf = requestAnimationFrame(frame); }
   function end() {
-    const endDelay = Math.max(0, (nextTime - ctx.currentTime + latency()) * 1000);
+    const endDelay = Math.max(0, (nextTime - heard()) * 1000);
     clearInterval(timer); timer = null;
-    setTimeout(() => { if (running) { running = false; shotLoops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
+    setTimeout(() => { if (running) { drain(true); running = false; shotLoops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
   }
   function tick() {
+    if (opts.onVisual) drain(); // where frames don't run (a hidden page)
     // The page slept (screen off, the app in the background) while the audio clock ran on: skip the steps
     // that are already past instead of scheduling them all at once, which played minutes of clicks or band
     // in one burst of thousands of sounds. The beat stays where it was.
@@ -292,7 +326,7 @@ function Loop(opts) {
         if (opts.maxSteps && step >= opts.maxSteps) { end(); return; }
       }
     }
-    while (nextTime < ctx.currentTime + 0.12) {
+    while (nextTime < ctx.currentTime + ahead) {
       const i = step % opts.steps, cycle = Math.floor(step / opts.steps);
       const t = nextTime;
       if (opts.onStep) {
@@ -300,11 +334,7 @@ function Loop(opts) {
         inLoop = scope;
         try { opts.onStep(i, t, cycle); } finally { inLoop = outer; }
       }
-      if (opts.onVisual) {
-        const delay = Math.max(0, (t - ctx.currentTime + latency()) * 1000);
-        const id = setTimeout(() => { visTimers.delete(id); if (running) opts.onVisual(i, cycle); }, delay);
-        visTimers.add(id);
-      }
+      if (opts.onVisual) vis.push({ t, i, cycle });
       nextTime += opts.stepDur(i);
       step++;
       if (opts.maxSteps && step >= opts.maxSteps) { end(); return; }
@@ -314,17 +344,19 @@ function Loop(opts) {
     start(at) {
       ensure();
       if (opts.shot) shotLoops.add(api);
-      running = true; step = 0; nextTime = Math.max(at || 0, ctx.currentTime + 0.08);
+      running = true; step = 0; vis.length = 0; nextTime = Math.max(at || 0, ctx.currentTime + 0.08);
       api.startTime = nextTime;
       tick();
       if (!timer && running) timer = setInterval(tick, 25);
-      return nextTime;
+      if (opts.onVisual && frames && !raf) raf = requestAnimationFrame(frame);
+      return api.startTime; // when the first step sounds (nextTime has moved on through the look-ahead)
     },
     stop() {
       running = false;
       shotLoops.delete(api);
       if (timer) clearInterval(timer); timer = null;
-      visTimers.forEach(clearTimeout); visTimers.clear();
+      if (raf) cancelAnimationFrame(raf); raf = null;
+      vis.length = 0;
       const t = ctx ? ctx.currentTime : 0;
       mine.forEach(n => { const v = voices.get(n); if (v && v.at > t + 0.005) silence(n, t); });
       mine.clear();
@@ -384,10 +416,10 @@ function eventToAudioTime(ev) {
   // Convert a DOM event timestamp to the audio clock, minus output latency so it lines up with what was heard.
   if (!ctx) return 0;
   const ageMs = Math.max(0, performance.now() - (ev && ev.timeStamp ? ev.timeStamp : performance.now()));
-  return ctx.currentTime - ageMs / 1000 - latency();
+  return heard() - ageMs / 1000;
 }
 
 /* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
 const channel = name => { ensure(); return chan[name]; };
 
-export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, fresh, later, eventToAudioTime };
+export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, heard, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, fresh, later, eventToAudioTime };

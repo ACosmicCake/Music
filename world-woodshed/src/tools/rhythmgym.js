@@ -110,7 +110,7 @@ tool('gym', {
             if (i === 0) {
               const bar = barPlan(cycle);
               curBar = bar; barIdx = cycle;
-              barStart = A.now() - A.latency();
+              barStart = A.heard();
               tl.draw(bar); label.textContent = bar.label;
               status.textContent = bar.k < 0 ? 'Count-in' : (bar.guided ? 'With the guide' : 'On your own') + (mode === 'test' ? ' · bar ' + (bar.k + 1) + ' of ' + testPlan.length : ' · bar ' + (bar.k + 1));
               status.className = 'phase' + (bar.guided || bar.k < 0 ? '' : ' ghost');
@@ -124,7 +124,7 @@ tool('gym', {
           },
           onEnd: () => finish()
         });
-        const tick = () => { if (curBar) tl.head((A.now() - A.latency() - barStart) / beatDur()); rafId = requestAnimationFrame(tick); };
+        const tick = () => { if (curBar) tl.head((A.heard() - barStart) / beatDur()); rafId = requestAnimationFrame(tick); };
         loop.start(); rafId = requestAnimationFrame(tick); ctx.setActive(true);
         running = mode;
         practiceBtn.textContent = mode === 'practice' ? '■ Stop' : '▶ Practise';
