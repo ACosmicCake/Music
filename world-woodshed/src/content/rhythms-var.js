@@ -88,6 +88,41 @@ const WORDS = {
     ['Timeline', 'the bell pattern that everyone fits around, like the clave'],
     ['Kpanlogo', 'a dance rhythm from Ghana, and the drum it is played on'],
     ['Djembe, dundun', 'the hand drum and the stick-played bass drums of Mande music']
+  ],
+  southernafrica: [
+    ['Jive', 'the township name for mbaqanga and the dance music around it'],
+    ['Cycle', 'a short chord loop, often I–IV–I–V, repeated without a final cadence'],
+    ['Ukupika', 'maskanda picking: thumb on the bass strings, index finger on the melody'],
+    ['Ukuvamba', 'maskanda vamping: a strummed accompaniment'],
+    ['Salegy', 'fast 12/8 dance music from northern Madagascar'],
+    ['Tsapiky', 'very fast guitar music from Toliara in southwestern Madagascar'],
+    ['Hemiola', 'three notes in the time of two, or two in the time of three']
+  ],
+  mexico: [
+    ['Sesquiáltera', 'a bar of 6/8 and a bar of 3/4, alternating or at once'],
+    ['Mánico', 'a strumming pattern on the mariachi vihuela'],
+    ['Vals', 'the ranchera waltz: bass on 1, chords on 2 and 3'],
+    ['Polka', 'the fast 2/4 of norteño and many rancheras: bass on the beat, chop on the &'],
+    ['Bolero', 'the slow, romantic song rhythm of the trío romántico'],
+    ['Zapateado', 'dance footwork that plays its own rhythm on the floor'],
+    ['Bajeo', 'a bass run that leads from one chord to the next']
+  ],
+  colombia: [
+    ['Guacharaca', 'the ribbed scraper of vallenato and cumbia: long–short–short'],
+    ['Caja', 'the small hand drum of vallenato'],
+    ['Llamador', 'the drum that plays the offbeats in cumbia'],
+    ['Paseo', 'vallenato’s most common aire (rhythm)'],
+    ['Bambuco', 'the Andean rhythm with a melody in 3 over an accompaniment in 6/8'],
+    ['Cuatro', 'the four-string Venezuelan guitar whose strum drives joropo'],
+    ['Muted stroke', 'the strumming hand lands flat on the strings, so they click']
+  ],
+  seasia: [
+    ['Ching', 'the open stroke of the small Thai and Khmer cymbals'],
+    ['Chap', 'the closed stroke: the strong beat, at the end of the cycle'],
+    ['Khaen', 'the bamboo mouth organ of Laos and Isan'],
+    ['Phin', 'the small plucked lute of Isan and Laos'],
+    ['Mor lam sing', 'fast electric mor lam for dancing'],
+    ['Song lang', 'the wooden clapper that marks the beat in southern Vietnamese music']
   ]
 };
 

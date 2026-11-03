@@ -56,7 +56,7 @@ export default [
       { artist: 'Django Reinhardt', work: 'Nuages (1940)', note: 'A wide, fast vibrato on long melody notes, a defining part of the manouche sound.' },
       { artist: 'Fleetwood Mac (Peter Green)', work: 'Need Your Love So Bad (1968)', note: 'Restraint: Green leaves many notes straight and saves a slow, controlled vibrato for the ones that matter.' }
     ],
-    styles: ['blues', 'rock', 'manouche', 'jazz', 'classical']
+    styles: ['blues', 'rock', 'manouche', 'jazz', 'classical', 'seasia']
   },
   {
     id: 'slide',
@@ -114,7 +114,7 @@ export default [
       { artist: 'The Allman Brothers Band (Duane Allman)', work: 'Statesboro Blues, At Fillmore East (1971)', note: 'Electric slide in open E with precise intonation and vocal phrasing.' },
       { artist: 'Ry Cooder and Vishwa Mohan Bhatt', work: 'A Meeting by the River (1993)', note: 'Bottleneck guitar and Mohan veena improvising together; listen for the raga-style glides.' }
     ],
-    styles: ['blues', 'rock', 'hawaii', 'hindustani', 'country']
+    styles: ['blues', 'rock', 'hawaii', 'hindustani', 'country', 'seasia']
   },
   {
     id: 'harmonics',
@@ -226,7 +226,7 @@ export default [
       { artist: 'Chic (Nile Rodgers)', work: 'Good Times (1979)', note: 'A sixteenth-note strum where fret-hand muting decides which strokes speak.' },
       { artist: 'Metallica', work: 'Master of Puppets (1986)', note: 'Palm-muted downpicked riffs alternating with open chords: precise control of note length at speed.' }
     ],
-    styles: ['rock', 'country', 'funksoul', 'caribbean', 'flamenco']
+    styles: ['rock', 'country', 'funksoul', 'caribbean', 'flamenco', 'southernafrica', 'colombia']
   },
   {
     id: 'tapping',
@@ -339,7 +339,7 @@ export default [
       { artist: 'Andrés Segovia', work: 'Asturias (Albéniz)', note: 'Segovia’s tone production: full, coloured, and a strong melodic voice above accompaniment.' },
       { artist: 'Julian Bream', work: 'Recuerdos de la Alhambra (Tárrega)', note: 'The melody is carried by a free-stroke tremolo (p–a–m–i) above thumb arpeggios; listen for how even and singing free strokes can be.' }
     ],
-    styles: ['classical', 'flamenco']
+    styles: ['classical', 'flamenco', 'colombia']
   },
   {
     id: 'alzapua',
@@ -567,7 +567,7 @@ export default [
       { artist: 'The Who (Pete Townshend)', work: 'Pinball Wizard (1969)', note: 'Driving acoustic strumming with accents and muted strokes.' },
       { artist: 'Richie Havens', work: 'Freedom (Woodstock, 1969)', note: 'Relentless, percussive strumming carrying an entire performance.' }
     ],
-    styles: ['rock', 'funksoul', 'caribbean', 'cuba', 'latam', 'country']
+    styles: ['rock', 'funksoul', 'caribbean', 'cuba', 'latam', 'country', 'mexico', 'colombia']
   },
   {
     id: 'comping',
@@ -680,7 +680,7 @@ export default [
       { artist: 'The Jimi Hendrix Experience', work: 'Little Wing (1967)', note: 'Double stops and chord embellishments in a soul-influenced ballad.' },
       { artist: 'Trío Los Panchos', work: 'Sin ti', note: 'Requinto guitar introductions and fills in parallel thirds and sixths.' }
     ],
-    styles: ['rock', 'funksoul', 'blues', 'latam', 'celtic', 'country']
+    styles: ['rock', 'funksoul', 'blues', 'latam', 'celtic', 'country', 'mexico', 'southernafrica', 'colombia']
   },
   {
     id: 'opentunings',
@@ -793,7 +793,7 @@ export default [
       { artist: 'Rabih Abou-Khalil', work: 'Blue Camel (1992)', note: 'Oud in a jazz setting, with Arabic intonation intact.' },
       { artist: 'King Gizzard & the Lizard Wizard', work: 'Rattlesnake, Flying Microtonal Banana (2017)', note: 'Rock guitars refretted for quarter tones.' }
     ],
-    styles: ['arabic', 'turkbalkan', 'persian', 'hindustani', 'carnatic', 'blues']
+    styles: ['arabic', 'turkbalkan', 'persian', 'hindustani', 'carnatic', 'blues', 'seasia']
   },
   {
     id: 'slowpractice',

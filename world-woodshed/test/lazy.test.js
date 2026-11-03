@@ -17,7 +17,7 @@ describe('on-demand content', () => {
     expect(withEssay.length).toBeGreaterThan(20);
     withEssay.forEach(r => expect(typeof r.essay.thesis, r.id).toBe('string'));
     const ids = new Set(D.REGIONS.map(r => r.id));
-    const all = await Promise.all([1, 2, 3, 4, 5, 6].map(i => import(`../src/content/essays-${i}.js`)));
+    const all = await Promise.all([1, 2, 3, 4, 5, 6, 7, 8].map(i => import(`../src/content/essays-${i}.js`)));
     all.forEach(m => Object.keys(m.default).forEach(id => expect(ids.has(id), id).toBe(true)));
   });
   it('loads the science page with its sources', async () => {

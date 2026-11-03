@@ -4,6 +4,7 @@ import { LEVELS, STAGES, withAccidentals, genMelody, rhythmPiece, pieceLength, p
 import { parseChord } from '../src/theory.js';
 import { parseTime, keyScale, KEYS } from '../src/notation.js';
 import { loadDrills } from '../src/content/lazy.js';
+import { patternGrid, backingRows } from '../src/countgrid.js';
 
 const SOUNDS = new Set(['clave', 'bell', 'low', 'mid', 'high', 'shaker', 'clap', 'chick', 'hat', 'ride']);
 const Q = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
@@ -42,6 +43,21 @@ describe('tunes, drills and exercises', () => {
         const [n, u] = (v.time || '4/4').split('/').map(Number);
         v.bars.forEach(bar => expect(bar.reduce((a, x) => a + Q[x.d] * (x.dot ? 1.5 : 1), 0), d.id + ' ' + v.name).toBeCloseTo(n * 4 / u, 6));
       }
+    }
+  });
+  it('every hand-written drill pattern fits its count grid', async () => {
+    await loadDrills();
+    for (const d of D.DRILLS) for (const v of d.variations) {
+      const dg = d.grid || {}, backing = backingRows(d.backing, D);
+      if (v.grid) expect(patternGrid(Object.assign({}, dg, v.grid), { backing }), d.id + ' ' + v.name).toBeTruthy();
+    }
+  });
+  it('every style links to rhythms, scales and drills that exist', async () => {
+    await loadDrills();
+    for (const r of D.REGIONS) {
+      r.rhythms.forEach(id => expect(D.RHYTHMS.some(x => x.id === id), r.id + ' ' + id).toBe(true));
+      r.scales.forEach(id => expect(D.SCALES.some(x => x.id === id), r.id + ' ' + id).toBe(true));
+      expect(D.DRILLS.filter(x => x.style === r.id).length, r.id).toBeGreaterThanOrEqual(4);
     }
   });
   it('every technique exercise has variations', () => {

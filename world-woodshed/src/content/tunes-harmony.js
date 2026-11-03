@@ -291,6 +291,40 @@ export default {
     sections: [
       { bars: [1, 8], key: 'G', title: 'I, IV, I, V7, I', text: 'G for two bars, C, G for two, D7, then G.', aim: 'B on G, E on C, F♯ on D7.' }
     ]
+  },
+
+  mbaqangajive: {
+    intro: 'G major, two chords a bar: I–IV, then I–V, the marabi cycle that runs through South African township music. It never lands: the D leads straight back into G as the next round begins.',
+    rn: ['I IV', 'I V', 'I IV', 'I V'],
+    sections: [
+      { bars: [1, 4], key: 'G', title: 'The cycle', text: 'G and C, then G and D, twice. The chords change on 1 and 3; the bass bounces between roots, fifths and thirds under them.', aim: 'B on G, E on C, F♯ on D: the 3rds, high on the neck.' }
+    ]
+  },
+
+  ranchera: {
+    intro: 'G major in a ranchera waltz. The first half sits on a long D7 so a singer can hold a note over it; the second half visits C through G7, the I7 that points to IV, and comes home through D7.',
+    rn: ['I', 'I', 'V7', 'V7', 'V7', 'V7', 'I', 'I', 'I', 'V7/IV', 'IV', 'IV', 'I', 'V7', 'I', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'G', title: 'I, a long V7, I', text: 'Two bars of G, four of D7, two of G. The long dominant is typical of rancheras: it builds the tension a singer releases on the return to G.', aim: 'C, the 7th of D7, falling to B on G.' },
+      { bars: [9, 16], key: 'G', title: 'I7 to IV and home', text: 'G turns into G7 (F natural added), which pulls to C. Then G, D7 and G close the verse.', aim: 'F on G7 falling to E on C; F♯ on D7 rising to G.' }
+    ]
+  },
+
+  cumbiaam: {
+    intro: 'A minor with i, iv and V7, the harmonic minor’s dominant: Am, Dm, E7, Am. Cumbia keeps the harmony simple; the sway comes from the offbeats.',
+    rn: ['i', 'iv', 'V7', 'i', 'i', 'iv', 'V7', 'i'],
+    sections: [
+      { bars: [1, 4], key: 'Am', title: 'i–iv–V7–i', text: 'One chord per bar. E7 has G♯, the raised 7th of A minor, which pulls up to A.', aim: 'C on Am, F on Dm, G♯ on E7 rising to A.' },
+      { bars: [5, 8], key: 'Am', title: 'Again', text: 'The same four bars.' }
+    ]
+  },
+
+  morlamvamp: {
+    intro: 'One chord, A minor, as a drone. Mor lam is modal: the melody moves in A thang san, the khaen’s “short” mode, here A C D E G, over a fixed root.',
+    rn: ['i', 'i', 'i', 'i'],
+    sections: [
+      { bars: [1, 4], key: 'Am', title: 'The drone', text: 'Am all the way. The interest is in the repeating phin-style figures and the singer’s ornaments, not in chord changes.', aim: 'A and E, the root and fifth that the drone strings give.' }
+    ]
   }
 };
 
@@ -404,5 +438,21 @@ export const SOLO = {
   slackkey: {
     harmony: ['Play melody notes on the top strings over the alternating thumb: G B D on G, C E G on C, D F♯ A C on D7.', 'In Taro Patch (D G D G B D) the open strings are all notes of G: use them as drones.', 'Hammer-ons from open strings into chord tones.'],
     theory: ['G major pentatonic (G A B D E) and G major.', 'Add C and E over the C chord, C and F♯ over D7.', 'Slack key melodies are simple and singable: play the song first, then decorate it.']
+  },
+  mbaqangajive: {
+    harmony: ['Aim for the 3rds on each change: B on G, E on C, F♯ on D.', 'Repeat one short figure through the cycle and change one note to fit each chord.', 'Place your notes on the & between the bass notes.'],
+    theory: ['G major pentatonic (G A B D E) over the whole cycle.', 'Add C over C and F♯ over D for the chord tones.', 'Thirds on strings 3 and 2, slid from a fret below, are the classic mbaqanga double stops.']
+  },
+  ranchera: {
+    harmony: ['On the long D7, lean on C and resolve it to B when G comes.', 'On G7, the F falls to E on C.', 'Play in thirds and sixths, as mariachi violins and trumpets do.'],
+    theory: ['G major throughout; add F natural over G7.', 'G major pentatonic for simple fills between the singer’s lines.', 'End phrases on held notes: B or D over G.']
+  },
+  cumbiaam: {
+    harmony: ['Aim for C on Am, F on Dm and G♯ on E7.', 'Resolve G♯ up to A and D down to C when E7 goes to Am.', 'Short phrases, repeated, as gaitas and accordions play.'],
+    theory: ['A harmonic minor (A B C D E F G♯) over E7.', 'A natural minor or A minor pentatonic over Am and Dm.', 'Chicha guitarists play the melody in fast picked eighths or tremolo.']
+  },
+  morlamvamp: {
+    harmony: ['Use an open string as a drone (open A or E) and play the melody against it.', 'Repeat a two-bar pattern many times, then change one note.', 'End phrases on A or E.'],
+    theory: ['A thang san: A C D E G, the same notes as A minor pentatonic.', 'For thang yao, the “long” mode, move home to C: C D E G A.', 'Slides and quick hammer-ons copy the singer’s ornaments.']
   }
 };

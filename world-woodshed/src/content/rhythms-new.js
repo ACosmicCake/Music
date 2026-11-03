@@ -58,6 +58,18 @@ const B = {
   jig: { chick: 'X.xX.xX.xX.x', mid: 'XxxXxxXxxXxx', low: 'x.....x.....' },
   reel: { chick: '..x...x.', mid: 'xxXxxxXx', low: 'x...x...' },
   slipjig: { chick: 'X.xX.xX.x', mid: 'XxxXxxXxx', low: 'x........' },
+  mbaqanga: { low: 'x...x...x...x...', high: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', chick: '..x...x...x...x.' },
+  salegy: { low: 'x.....x.....', high: '...x.....x..', shaker: 'xxxxxxxxxxxx', chick: 'x.x.x.x.x.x.' },
+  tsapiky: { low: 'x..x..x..x..', high: '...x.....x..', hat: 'x.xx.xx.xx.x', chick: '.xx.xx.xx.xx' },
+  sonjalisco: { chick: 'X.xX.xX.X.X.', low: 'x..x..x.x.x.', shaker: 'xxxxxxxxxxxx' },
+  polka: { low: 'x.x.x.x.', high: '.x.x.x.x', chick: '.x.x.x.x' },
+  valsranchero: { low: 'x.....', chick: '..x.x.', shaker: 'x.x.x.' },
+  bolero: { low: 'x.......x.......', chick: '....x.x.....x...', high: '..x...xx..x...x.', shaker: 'x.x.x.x.x.x.x.x.' },
+  paseo: { shaker: 'X.xxX.xxX.xxX.xx', mid: 'x..x..x.x..x..x.', low: 'x.....x.x.......', chick: '....x.......x...' },
+  bambuco: { clap: 'xxXxxX', mid: 'x.x.x.', low: 'x.....' },
+  joropo: { chick: 'xxXxxx', shaker: 'xxxxxx', low: 'x.x.x.' },
+  ching: { ride: 'x...x...', hat: '..X...X.', low: '......x.' },
+  morlam: { low: 'x...x...x...x...', high: '....x.......x...', hat: '..x...x...x...x.', chick: '..xx..xx..xx..xx' },
 };
 const v = (id, extra) => Object.assign({}, B[id], extra);
 const pick = (id, ...keys) => { const o = {}; keys.forEach(k => { o[k] = B[id][k]; }); return o; };
@@ -256,6 +268,46 @@ const extra = [
   { id: 'slipjig', name: 'Slip jig (9/8)', region: 'celtic', meter: '9/8 (3+3+3)', steps: 9, spb: 3, bpm: 100, tier: 3, target: 'chick',
     tracks: B.slipjig,
     note: 'The slip jig (“The Butterfly”, “The Kid on the Mountain”): three beats of three eighths, long–short in each. The third beat makes the tune float.' },
+  // ---------- Southern Africa & Madagascar
+  { id: 'mbaqanga', name: 'Mbaqanga jive', region: 'southernafrica', meter: '4/4', steps: 16, spb: 4, bpm: 120, tier: 2, target: 'chick',
+    tracks: B.mbaqanga,
+    note: 'South African township jive of the 1960s–80s: kick on every beat, snare on 2 and 4, and the rhythm guitar chopping every offbeat while the bass and lead guitar sing on top.' },
+  { id: 'salegy', name: 'Salegy (12/8)', region: 'southernafrica', meter: '12/8', steps: 12, spb: 3, bpm: 104, tier: 3, target: 'chick',
+    tracks: B.salegy,
+    note: 'Fast dance music from northern Madagascar. The kick is in two per half bar, your chops in three: the same six eighths heard both ways at once.' },
+  { id: 'tsapiky', name: 'Tsapiky', region: 'southernafrica', meter: '12/8', steps: 12, spb: 3, bpm: 140, tier: 3, target: 'chick',
+    tracks: B.tsapiky,
+    note: 'Very fast, bright guitar music from Toliara in southwestern Madagascar, played at weddings and funerals. Pick the two notes after each beat, without a break.' },
+  // ---------- Mexico
+  { id: 'sonjalisco', name: 'Son jalisciense (6/8 + 3/4)', region: 'mexico', meter: '6/8 + 3/4', steps: 12, spb: 3, bpm: 76, tier: 2, target: 'chick',
+    tracks: B.sonjalisco, count: ['1', '2', '3', '4', '5', '6', '1', '2', '3', '4', '5', '6'],
+    note: 'The mariachi son: a bar of 6/8 (accents on 1 and 4) then a bar of 3/4 (1, 3 and 5), strummed by the vihuela, with the guitarrón on the accents.' },
+  { id: 'polka', name: 'Norteño polka', region: 'mexico', meter: '2/4 (2 bars)', steps: 8, spb: 2, bpm: 180, tier: 1, target: 'chick',
+    tracks: B.polka,
+    note: 'The polka of norteño, conjunto and many rancheras and corridos: bass on every beat, a short chop on every &. The bajo sexto plays both.' },
+  { id: 'valsranchero', name: 'Vals ranchero', region: 'mexico', meter: '3/4', steps: 6, spb: 2, bpm: 150, tier: 1, target: 'chick',
+    tracks: B.valsranchero,
+    note: 'The ranchera waltz: bass on 1, short chords on 2 and 3. Alternate the bass, root in one bar and fifth in the next.' },
+  { id: 'bolero', name: 'Bolero', region: 'mexico', meter: '4/4', steps: 16, spb: 4, bpm: 72, tier: 2, target: 'chick',
+    tracks: B.bolero,
+    note: 'The slow romantic bolero of the trío romántico, heard from Cuba and Mexico to Vietnam: bass on 1 and 3, chords on 2, the & of 2 and 4, bongó and maracas around them.' },
+  // ---------- Colombia & Venezuela
+  { id: 'paseo', name: 'Vallenato paseo', region: 'colombia', meter: '4/4', steps: 16, spb: 4, bpm: 100, tier: 2, target: 'chick',
+    tracks: B.paseo,
+    note: 'Vallenato’s most common aire: the guacharaca scrapes long–short–short on every beat, the caja and bass push, and the guitar chops 2 and 4.' },
+  { id: 'bambuco', name: 'Bambuco (6/8 against 3/4)', region: 'colombia', meter: '6/8 against 3/4', steps: 6, spb: 3, bpm: 60, tier: 3, target: 'clap',
+    tracks: B.bambuco, count: ['1', '2', '3', '4', '5', '6'],
+    note: 'Andean Colombia: the tiple and guitar strum in 6/8 with firm strokes on 3 and 6, while the melody (here the mid drum) moves in 3/4.' },
+  { id: 'joropo', name: 'Joropo (cuatro and harp)', region: 'colombia', meter: '6/8 + 3/4', steps: 6, spb: 3, bpm: 84, tier: 3, target: 'chick',
+    tracks: B.joropo, count: ['1', '2', '3', '4', '5', '6'],
+    note: 'The plains of Colombia and Venezuela: the cuatro strums six strokes, the loud one a muted stroke on 3, while the harp’s bass walks in three and the maracas run.' },
+  // ---------- Mainland Southeast Asia
+  { id: 'ching', name: 'Ching and chap', region: 'seasia', meter: '4/4 (2 cycles)', steps: 8, spb: 2, bpm: 80, tier: 2, target: 'hat',
+    tracks: B.ching,
+    note: 'The small Thai and Khmer cymbals: an open “ching” (the ride here) and a closed “chap” (the hi-hat). The chap is the strong beat, the end of the cycle, and the drum joins it there.' },
+  { id: 'morlam', name: 'Mor lam sing', region: 'seasia', meter: '4/4', steps: 16, spb: 4, bpm: 130, tier: 2, target: 'chick',
+    tracks: B.morlam,
+    note: 'Electric mor lam from Isan and Laos: four on the floor, offbeat hi-hat, and the phin or guitar chopping the & and a of every beat.' },
 ];
 
 const rhythms = {
@@ -964,6 +1016,154 @@ const rhythms = {
       { name: 'Phrase end on beat 3', cycles: 1, tracks: { chick: 'X.xX.xX..', mid: 'XxxXxxX..', low: 'x.....x..' }, note: 'The phrase stops on beat 3; the tune restarts on 1.' },
     ],
     tips: ['Count “1-2-3, 2-2-3, 3-2-3”.', 'Long–short in each beat, like a jig with an extra beat.', 'Let beat 3 float into the next bar.'],
+  },
+  // ================= Southern Africa & Madagascar
+  mbaqanga: {
+    cycles: 8, tempo: [96, 136],
+    variations: [
+      { name: 'Kick on 1 and 3 only', tracks: v('mbaqanga', { low: 'x.......x.......' }), note: 'A lighter, older jive feel. Your chops have to carry more.' },
+      { name: 'Shaker sixteenths', tracks: v('mbaqanga', { shaker: 'xxxxxxxxxxxxxxxx' }), note: 'Every sixteenth on the shaker: check that your chops sit exactly on the & .' },
+      { name: 'Snare pushes', tracks: v('mbaqanga', { high: '....x..x....x..x' }), note: 'The snare adds the a of 2 and 4; keep your chops where they were.' },
+    ],
+    fills: [
+      { name: 'Snare run into 1', cycles: 1, tracks: { low: 'x...x...x...x...', high: '....x.......xxxx', hat: 'x.x.x.x.x.x.x...', chick: '..x...x...x.....' }, note: 'The band stops chopping on beat 4 and the snare leads back to the top.' },
+    ],
+    tips: ['Release the chord right after each chop.', 'Keep the picking hand moving down-up in eighths.', 'Leave the beats to the kick drum.'],
+  },
+  salegy: {
+    cycles: 8, tempo: [84, 126],
+    variations: [
+      { name: 'Bass in three as well', tracks: v('salegy', { low: 'x.x.x.x.x.x.' }), note: 'Now everything is in three. Then go back and feel the pull of two against three again.' },
+      { name: 'Claps on the second and third eighths', tracks: v('salegy', { clap: '.xx.xx.xx.xx' }), note: 'The claps fill the beats in two; your chops stay in three.' },
+      { name: 'Drums and you only', tracks: pick('salegy', 'low', 'high', 'chick'), note: 'No shaker: hear the two meters with nothing between them.' },
+    ],
+    fills: [
+      { name: 'Break in two', cycles: 1, tracks: { low: 'x..x..x..x..', high: 'x..x..x..x..', chick: 'x.x.x.x.x.x.' }, note: 'The band hits in two, hard, for one bar; you keep your three.' },
+    ],
+    tips: ['Count 1 2 3 4 5 6 and accent 1, 3 and 5.', 'Tap your foot in two while your hand plays three.', 'Stay relaxed at speed: the groove is light.'],
+  },
+  tsapiky: {
+    cycles: 8, tempo: [110, 160],
+    variations: [
+      { name: 'Snare on every beat', tracks: v('tsapiky', { high: '...x..x..x..' }), note: 'Busier drums, the same picking.' },
+      { name: 'Hi-hat in three', tracks: v('tsapiky', { hat: 'x.x.x.x.x.x.' }), note: 'The hat moves to three against your pairs.' },
+      { name: 'Kick in two', tracks: v('tsapiky', { low: 'x.....x.....' }), note: 'Half as many kicks: it feels slower, but you keep the same speed.' },
+    ],
+    fills: [
+      { name: 'Stop on the last beat', cycles: 1, tracks: { low: 'x..x..x..x..', high: '...x..x..x..', hat: 'x.xx.xx.x...', chick: '.xx.xx.xx...' }, note: 'Everyone stops for the last beat, then the cycle comes back.' },
+    ],
+    tips: ['Pick the two notes after each beat as a pair.', 'Use small motions: tsapiky is fast.', 'Let the open strings ring.'],
+  },
+  // ================= Mexico
+  sonjalisco: {
+    cycles: 8, tempo: [64, 104],
+    variations: [
+      { name: 'Guitarrón in octaves', tracks: v('sonjalisco', { mid: 'x..x..x.x.x.' }), note: 'A second bass voice doubles the accents: the guitarrón’s octaves.' },
+      { name: 'Zapateado', tracks: v('sonjalisco', { clap: 'x.xx.xx.xx.x' }), note: 'The dancers’ footwork adds a third rhythm. Keep your accents.' },
+      { name: 'No maracas', tracks: pick('sonjalisco', 'chick', 'low'), note: 'Only the strum and the bass: the switch between two and three is bare.' },
+    ],
+    fills: [
+      { name: 'Mariachi ending', cycles: 1, tracks: { chick: 'X..X..X.....', low: 'x..x..x.....', shaker: 'xxxxxxx.....' }, note: 'Three hits and silence: the classic close of a son.' },
+    ],
+    tips: ['Count 1 2 3 4 5 6 out loud for both bars.', 'Accent 1 and 4, then 1, 3 and 5.', 'Small chords high on the neck sound most like a vihuela.'],
+  },
+  polka: {
+    cycles: 8, tempo: [140, 210],
+    variations: [
+      { name: 'Accordion runs', tracks: v('polka', { shaker: 'xxxxxxxx' }), note: 'Running eighths, as the accordion often plays. Your chops stay on the &.' },
+      { name: 'Snare on the & of 2 only', tracks: v('polka', { high: '...x...x' }), note: 'A lighter drum part: you carry more of the offbeat.' },
+      { name: 'Bass alone', tracks: pick('polka', 'low', 'chick'), note: 'Bass drum and your chop: the bajo sexto’s two halves.' },
+    ],
+    fills: [
+      { name: 'Run into the change', cycles: 1, tracks: { low: 'x.x.xxxx', high: '.x.x....', chick: '.x.x....' }, note: 'The bass runs in eighths for the last two beats: play a bajeo with it.' },
+    ],
+    tips: ['Palm-mute the chops a little.', 'Keep the tempo; polkas tend to rush.', 'Alternate root and fifth in the bass.'],
+  },
+  valsranchero: {
+    cycles: 8, tempo: [120, 180],
+    variations: [
+      { name: 'Guitarrón on 1', tracks: v('valsranchero', { mid: 'x.....' }), note: 'A bass doubling on 1: play your chords lighter.' },
+      { name: 'Violins on 2 and 3', tracks: v('valsranchero', { high: '..x.x.' }), note: 'More of the band on your beats: stay exactly with it.' },
+      { name: 'No shaker', tracks: pick('valsranchero', 'low', 'chick'), note: 'Only the bass and you.' },
+    ],
+    fills: [
+      { name: 'Held ending', cycles: 2, tracks: { low: 'x.....x.....', chick: '..x.x.X.....', shaker: 'x.x.x.......' }, note: 'A held chord on 1 of the second bar: the mariachi’s close.' },
+    ],
+    tips: ['Bass a little louder than the chords.', 'Short chords: the singer needs room.', 'Root in one bar, fifth in the next.'],
+  },
+  bolero: {
+    cycles: 8, tempo: [60, 90],
+    variations: [
+      { name: 'Clave underneath', tracks: v('bolero', { clave: '..x.x...x..x..x.' }), note: 'The Cuban bolero’s 2-3 clave under the same guitar rhythm.' },
+      { name: 'Bongó on the beats', tracks: v('bolero', { high: 'x.x.x.x.x.x.x.x.' }), note: 'A plainer bongó part; your chords keep their place.' },
+      { name: 'Bass and guitar only', tracks: pick('bolero', 'low', 'chick'), note: 'The trío’s own sound: bass notes and soft chords.' },
+    ],
+    fills: [
+      { name: 'Ritardando feel', cycles: 1, tracks: { low: 'x.......x.......', chick: '....x.x.....X...', high: '..x...x...x.x.xx' }, note: 'The bongó fills the last beat before the next section.' },
+    ],
+    tips: ['Soft, short chords; singing bass.', 'Hum the melody while you play.', 'Never rush: boleros sit back.'],
+  },
+  // ================= Colombia & Venezuela
+  paseo: {
+    cycles: 8, tempo: [86, 120],
+    variations: [
+      { name: 'Accordion bass buttons', tracks: v('paseo', { bell: 'x...x...x...x...' }), note: 'The accordion’s bass on every beat: your chops stay on 2 and 4.' },
+      { name: 'Caja on the offbeats', tracks: v('paseo', { mid: '..x...x...x...x.' }), note: 'A lighter caja pattern.' },
+      { name: 'Guacharaca and you', tracks: pick('paseo', 'shaker', 'chick'), note: 'Only the scraper and your chops.' },
+    ],
+    fills: [
+      { name: 'Caja roll', cycles: 1, tracks: { shaker: 'X.xxX.xxX.xxX...', mid: 'x..x..x.x.xxxxxx', low: 'x.....x.x.......', chick: '....x.......x...' }, note: 'The caja rolls through beat 4 into the next phrase.' },
+    ],
+    tips: ['Say the scraper’s long–short–short.', 'Short chords on 2 and 4.', 'Relaxed: the paseo walks, it does not run.'],
+  },
+  bambuco: {
+    cycles: 8, tempo: [48, 72],
+    variations: [
+      { name: 'Bass in three', tracks: v('bambuco', { low: 'x.x.x.' }), note: 'Now the bass follows the melody in three. Keep your strum in two.' },
+      { name: 'Melody silent', tracks: pick('bambuco', 'clap', 'low'), note: 'Hum the melody in three yourself.' },
+      { name: 'Tiple shimmer', tracks: v('bambuco', { shaker: 'xxxxxx' }), note: 'Every eighth on the shaker, like a tiple’s strum.' },
+    ],
+    fills: [
+      { name: 'Phrase across the bar', cycles: 2, tracks: { clap: 'xxXxxXxxXxx.', mid: '.....xx.x.x.', low: 'x.....x.....' }, note: 'The melody starts on the last eighth and runs over the bar line.' },
+    ],
+    tips: ['Soft, soft, FIRM; soft, soft, FIRM.', 'Feel the melody in three on top.', 'Let it sway; never march.'],
+  },
+  joropo: {
+    cycles: 8, tempo: [64, 100],
+    variations: [
+      { name: 'Harp bass in two', tracks: v('joropo', { low: 'x..x..' }), note: 'Now the harp is in two with you. Then back to three.' },
+      { name: 'Maracas accents', tracks: v('joropo', { shaker: 'XxxXxx' }), note: 'The maracas mark the 6/8; your muted stroke sits between.' },
+      { name: 'Cuatro and harp only', tracks: pick('joropo', 'chick', 'low'), note: 'The two rhythms of joropo with nothing else.' },
+    ],
+    fills: [
+      { name: 'Bar change', cycles: 2, tracks: { chick: 'xxXxxxXxXxxx', shaker: 'xxxxxxxxxxxx', low: 'x.x.x.x.x.x.' }, note: 'A loud downstroke marks the second bar, as cuatro players mark the cycle.' },
+    ],
+    tips: ['The muted stroke is a click, not a chord.', 'Loose wrist at speed.', 'Hear the harp in three against you.'],
+  },
+  // ================= Mainland Southeast Asia
+  ching: {
+    cycles: 8, tempo: [56, 110],
+    variations: [
+      { name: 'Twice as fast', tracks: v('ching', { ride: 'x.x.x.x.', hat: '.X.X.X.X', low: '.......x' }), note: 'The faster level: ching and chap on every beat. Your part follows the closed strokes.' },
+      { name: 'Drum on every chap', tracks: v('ching', { low: '..x...x.' }), note: 'The drum marks both arrivals.' },
+      { name: 'Ching alone', tracks: pick('ching', 'ride', 'hat'), note: 'Only the cymbals, as in a classical ensemble.' },
+    ],
+    fills: [
+      { name: 'Slow ending', cycles: 2, tracks: { ride: 'x...x...x.......', hat: '..X...X.....X...', low: '......x.....x...' }, note: 'The last cycle stretches out and the music ends on a chap.' },
+    ],
+    tips: ['Say “ching, chap”.', 'Feel the chap as the end, not the start.', 'Phrases breathe out on the chap.'],
+  },
+  morlam: {
+    cycles: 8, tempo: [110, 150],
+    variations: [
+      { name: 'Khaen drone', tracks: v('morlam', { shaker: 'xxxxxxxxxxxxxxxx' }), note: 'A constant shimmer, like the khaen breathing in and out.' },
+      { name: 'Snare on every beat', tracks: v('morlam', { high: 'x...x...x...x...' }), note: 'A harder dance beat: keep your chops on the & and a.' },
+      { name: 'Kick and you', tracks: pick('morlam', 'low', 'chick'), note: 'Four on the floor and your phin chops only.' },
+    ],
+    fills: [
+      { name: 'Drum break', cycles: 1, tracks: { low: 'x...x...x.x.x.x.', high: '....x...xxxxxxxx', hat: '..x...x.........', chick: '..xx..xx........' }, note: 'The drums take the last two beats; come back on 1.' },
+    ],
+    tips: ['Two quick chops after each beat.', 'Lock to the kick drum.', 'Repeat, repeat, then change one thing.'],
   },
 };
 
