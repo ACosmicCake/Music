@@ -30,12 +30,12 @@ export function parseMidi(input) {
   r.u16(); const ntracks = r.u16(), division = r.u16();
   r.pos = start + hlen;
   if (division & 0x8000) throw new Error('MIDI files timed in SMPTE frames are not supported');
-  const out = { ppq: division || 480, tempo: 500000, time: null, name: '', notes: [] };
+  const out = { ppq: division || 480, tempo: 500000, time: null, name: '', notes: [], tracks: [] };
   let tempoSet = false;
   for (let t = 0; t < ntracks && r.left() >= 8; t++) {
     const id = r.str(4), len = r.u32(), end = Math.min(bytes.length, r.pos + len);
     if (id !== 'MTrk') { r.pos = end; continue; }
-    let tick = 0, status = 0;
+    let tick = 0, status = 0, tname = '';
     const open = new Map(); // ch*128+key → [start ticks]
     while (r.pos < end) {
       tick += r.vlq();
@@ -44,7 +44,7 @@ export function parseMidi(input) {
         const type = r.u8(), n = r.vlq(), data = r.bytes(n);
         if (type === 0x51 && n === 3 && !tempoSet) { out.tempo = (data[0] << 16) | (data[1] << 8) | data[2]; tempoSet = true; }
         else if (type === 0x58 && n >= 2 && !out.time) out.time = [data[0], 2 ** data[1]];
-        else if (type === 0x03 && !out.name) out.name = new TextDecoder().decode(data).trim();
+        else if (type === 0x03) { const nm = new TextDecoder().decode(data).trim(); if (!out.name) out.name = nm; if (!tname) tname = nm; }
         else if (type === 0x2f) break;
         continue;
       }
@@ -56,20 +56,46 @@ export function parseMidi(input) {
       if (kind === 0x90 && d2 > 0) { if (!open.has(k)) open.set(k, []); open.get(k).push(tick); }
       else if (kind === 0x80 || (kind === 0x90 && d2 === 0)) {
         const starts = open.get(k);
-        if (starts && starts.length) { const s = starts.shift(); if (ch !== 9 && tick > s) out.notes.push({ tick: s, end: tick, midi: d1, ch }); }
+        if (starts && starts.length) { const s = starts.shift(); if (ch !== 9 && tick > s) out.notes.push({ tick: s, end: tick, midi: d1, ch, trk: t }); }
       }
     }
+    out.tracks[t] = tname;
     r.pos = end;
   }
   out.notes.sort((a, b) => a.tick - b.tick || b.midi - a.midi);
   return out;
 }
 
-/* A parsed MIDI file → a draft for src/notate.js (toMusicXML, toMidi) */
-export function midiToDraft(m, title = '') {
+/* The lines a MIDI file holds, for a picker: [{ id: 'track:channel', name, n (notes), low (median pitch) }],
+   each track and channel with notes (drums left out), in file order */
+export function midiLines(m) {
+  const by = new Map();
+  m.notes.forEach(n => {
+    const id = (n.trk || 0) + ':' + n.ch;
+    if (!by.has(id)) by.set(id, { id, trk: n.trk || 0, ch: n.ch, pitches: [] });
+    by.get(id).pitches.push(n.midi);
+  });
+  const lines = [...by.values()].sort((a, b) => a.trk - b.trk || a.ch - b.ch);
+  const sameTrack = t => lines.filter(l => l.trk === t).length > 1;
+  return lines.map((l, k) => {
+    const ps = l.pitches.sort((a, b) => a - b);
+    const nm = (m.tracks && m.tracks[l.trk]) || 'Line ' + (k + 1);
+    return { id: l.id, name: sameTrack(l.trk) ? nm + ' (channel ' + (l.ch + 1) + ')' : nm, n: ps.length, low: ps[ps.length >> 1] };
+  });
+}
+/* the clef a line of sounding pitches reads best in: bass when most of it lies below the G under middle C
+   (a bass line, a piano's left hand); a guitar melody, written an octave up, stays in the treble clef */
+export const clefFor = pitches => {
+  const ps = [...pitches].sort((a, b) => a - b);
+  return ps.length && ps[ps.length >> 1] < 50 ? 'bass' : 'treble';
+};
+
+/* A parsed MIDI file → a draft for src/notate.js (toMusicXML, toMidi); `line` ('track:channel', from
+   midiLines) keeps only that line */
+export function midiToDraft(m, title = '', line = null) {
   const q = m.ppq, notes = [];
   let lastStart = -1;
-  m.notes.forEach(n => {
+  (line ? m.notes.filter(n => (n.trk || 0) + ':' + n.ch === line) : m.notes).forEach(n => {
     const s = n.tick / q, e = n.end / q;
     if (Math.abs(s - lastStart) < 1 / 16) return; // started with a higher note (sorted highest first): keep the top line
     lastStart = s;

@@ -397,6 +397,7 @@ export function detect(R, staves, metrics, classify, bin = R) {
     if (at) dots.push({ x: c.cx, y: c.cy, ...at, id: c.id });
   });
   findRepeats(bars, dots, staves, sp);
+  const endings = findEndings(labels, w, comps, staves, sp, lt);
   // in close writing a rest or a dot can touch a note's stem or head and so be part of its ink: with the
   // stems and heads taken out of that ink, a piece the size of a rest is tried as one, and a small round one
   // as a dot (a flag left on its stem's free end is neither)
@@ -460,7 +461,7 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const hd = heads.find(near);
     if (hd) { y.staff = hd.staff; y.pos = staffPos(staves[hd.staff], yc, y.x); }
   });
-  return { notes, syms, bars, heads, stems, dots, labels, comps, ink: R };
+  return { notes, syms, bars, heads, stems, dots, endings, labels, comps, ink: R };
 }
 
 /* Away from a stroke at x (more than half a space), is every column of the piece thin (a curve, not a beam)?
@@ -529,6 +530,48 @@ export function findRepeats(bars, dots, staves, sp) {
     const dir = x > best.x ? 'forward' : 'backward';
     best.repeat = best.repeat && best.repeat !== dir ? 'both' : dir;
   });
+}
+
+/* First and second endings: the bracket over the bars played one time only, a thin straight line above the
+   staff with a hook down at its left end (and often at its right). → [{ staff, x0, x1 }]; which ending it is
+   is worked out from the repeat signs (src/omr/assemble.js), since its number is printed in a text font.
+   A slur is curved, a beam thick and sloping, a tuplet's bracket broken by its number, an 8va line dashed,
+   so none of them has an unbroken straight top across its whole width. */
+export function findEndings(labels, w, comps, staves, sp, lt) {
+  const out = [];
+  const t = Math.max(2, Math.round(lt * 2.5));
+  comps.forEach(c => {
+    if (!c) return;
+    const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1;
+    if (bw < sp * 2.5 || bh < sp * 0.6 || bh > sp * 3.5) return;
+    if (c.area > (bw + 2 * bh) * Math.max(3, lt * 3)) return; // a thin line drawing, not a filled shape
+    // the staff below it: the bracket sits above the top line, within a few spaces of it
+    let best = null;
+    staves.forEach((st, si) => {
+      if (st.tab || c.x0 > st.x1 || c.x1 < st.x0) return;
+      const top = lineY(st, 0, (c.x0 + c.x1) / 2);
+      const gap = top - c.y1;
+      if (gap > sp * 0.2 && c.y0 > top - sp * 8 && (!best || gap < best.gap)) best = { si, gap };
+    });
+    if (!best) return;
+    // an unbroken top: ink in (nearly) every column within the top rows
+    let cols = 0;
+    for (let x = c.x0; x <= c.x1; x++) {
+      for (let y = c.y0; y <= Math.min(c.y1, c.y0 + t); y++) if (labels[y * w + x] === c.id) { cols++; break; }
+    }
+    if (cols < bw * 0.9) return;
+    // the top is level (a beam slopes): its first and last columns start within a line's width of each other
+    const firstRow = x => { for (let y = c.y0; y <= c.y1; y++) if (labels[y * w + x] === c.id) return y; return c.y1; };
+    if (Math.abs(firstRow(c.x0 + t) - firstRow(c.x1 - t)) > t) return;
+    // a hook down at the left end
+    let rows = 0;
+    for (let y = c.y0; y <= c.y1; y++) {
+      for (let x = c.x0; x <= Math.min(c.x1, c.x0 + t); x++) if (labels[y * w + x] === c.id) { rows++; break; }
+    }
+    if (rows < bh * 0.7 || bh < sp * 0.9) return;
+    out.push({ staff: best.si, x0: c.x0, x1: c.x1, y: c.y0 });
+  });
+  return out;
 }
 
 /* The longest upright run of a piece's ink, in pixels */

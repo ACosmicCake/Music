@@ -87,7 +87,7 @@ body.in-settings .gear { color: var(--brass); }
 .tool-group + .tool-group { margin-top: 10px; }
 .tool-group > h2.eyebrow { margin: 0; font-size: 0.72rem; }
 .settings-link .t-meter { font-size: 1.1rem; }
-.prefs-fold > summary { text-align: left; }
+.prefs-fold > summary, .tpl-fold > summary { text-align: left; }
 
 main { max-width: 760px; margin: 0 auto; padding-block: 18px 110px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
 main > * { min-width: 0; }
@@ -487,6 +487,9 @@ section.card { scroll-margin-top: 110px; }
 .tablewrap table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 .tablewrap th, .tablewrap td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
 .tablewrap th { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 500; }
+/* small phones: tighter cells, so a four-column table (the lesson's strings and frets) fits without scrolling */
+html.compact .tablewrap th, html.compact .tablewrap td { padding: 6px 5px; }
+html.compact .tablewrap th { letter-spacing: 0; }
 .example { background: var(--sunk); border-radius: 12px; padding: 12px; display: grid; gap: 10px; justify-items: start; }
 .example .fretwrap, .example .rgrid-wrap, .example .circle-wrap { width: 100%; }
 
@@ -985,3 +988,12 @@ html.compact .sr-lv { padding: 2px 6px; min-width: 44px; min-height: 44px; font-
 .sr-fs .sr-fsresult:empty { display: none; }
 html.compact .sr-fsbar { gap: 4px; padding: 2px 4px; }
 html.compact .sr-fsbar .btn { padding: 3px 8px; min-width: 0; }
+
+/* Settings → Your guitar: the open strings, one box each */
+.open-strings { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.open-string { display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.open-string b { font-size: 1.35rem; line-height: 1.1; }
+.open-string.low { border-color: var(--brass); }
+html.compact .open-strings { gap: 4px; }
+html.compact .open-string { padding: 6px 1px; }
+html.compact .open-string b { font-size: 1.1rem; }

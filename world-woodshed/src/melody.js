@@ -150,18 +150,45 @@ const kid = (n, name) => n && n.kids.find(k => k.name === name);
 const kids = (n, name) => (n ? n.kids.filter(k => k.name === name) : []);
 const txt = (n, name) => { const k = kid(n, name); return k ? k.text.trim() : ''; };
 
-/* The melody of a MusicXML score: the first part, its top staff and first voice, chords reduced to their
-   top note, ties joined, grace notes left out. Pitches are sounding (a <transpose> is applied), as
-   MuseScore writes guitar parts. → { notes, title, bpm, time, parts } or throws when it is not MusicXML */
-export function fromMusicXML(text) {
+/* The melody of a MusicXML score: one staff of one part (the first part's top staff unless `pick` names
+   another: { part: index from 0, staff: '1', '2'… }), its first voice, chords reduced to their top note,
+   ties joined, grace notes left out. Pitches are sounding (a <transpose> is applied), as MuseScore writes
+   guitar parts. → { notes, title, bpm, time, parts, staves, part, staff, clef, trans } or throws when it is
+   not MusicXML. `staves` lists every staff of every part ({ part, staff, name, clef }) for a picker; `clef`
+   ('treble' or 'bass') is the chosen staff's, and `trans` the semitones its <transpose> moved it. */
+export function scoreStaves(score) {
+  const names = new Map(kids(kid(score, 'part-list'), 'score-part').map(sp => [sp.attrs.id, txt(sp, 'part-name') || txt(sp, 'part-abbreviation')]));
+  const out = [];
+  kids(score, 'part').forEach((part, pi) => {
+    const clefs = {};
+    let n = 1;
+    for (const meas of kids(part, 'measure')) {
+      for (const a of kids(meas, 'attributes')) {
+        if (+txt(a, 'staves') > 1) n = Math.max(n, +txt(a, 'staves'));
+        kids(a, 'clef').forEach(c => { const k = c.attrs.number || '1'; if (!(k in clefs)) clefs[k] = txt(c, 'sign'); });
+      }
+      if (Object.keys(clefs).length >= n) break;
+    }
+    const name = (names.get(part.attrs.id) || '').trim() || 'Part ' + (pi + 1);
+    for (let st = 1; st <= n; st++) {
+      const sign = clefs[String(st)] || 'G';
+      if (sign === 'percussion' || sign === 'TAB') continue; // drums and tab staves have no line to read
+      out.push({ part: pi, staff: String(st), name: n > 1 ? name + (st === 1 ? ' (upper staff)' : st === 2 && n === 2 ? ' (lower staff)' : ' (staff ' + st + ')') : name, clef: sign === 'F' ? 'bass' : 'treble' });
+    }
+  });
+  return out;
+}
+export function fromMusicXML(text, pick = null) {
   const doc = parseXML(text);
   const score = kid(doc, 'score-partwise');
   if (!score) throw new Error(kid(doc, 'score-timewise') ? 'This MusicXML is time-wise; export it from MuseScore again' : 'Not a MusicXML score');
   const parts = kids(score, 'part');
-  const part = parts[0];
+  const staves = scoreStaves(score);
+  const want = pick && staves.find(x => x.part === +pick.part && x.staff === String(pick.staff || '1'));
+  const part = parts[want ? want.part : 0];
   if (!part) throw new Error('The score has no parts');
   const title = txt(kid(score, 'work'), 'work-title') || txt(score, 'movement-title');
-  let div = 1, pos = 0, trans = 0, time = null, bpm = 0, voice = null, staff = null, fifths = null;
+  let div = 1, pos = 0, trans = 0, time = null, bpm = 0, voice = null, staff = want ? want.staff : null, fifths = null;
   const acc = new Map(); // pitch class → how the score spells it ('#' or 'b'), by count
   const notes = [], open = new Map(); // midi → the note a tie continues
   const starts = [], fwd = [], back = [], first = []; // each measure's start; repeat signs and first endings by measure
@@ -193,7 +220,7 @@ export function fromMusicXML(text) {
         if (kid(x, 'grace') || kid(x, 'cue')) return;
         const dur = (+txt(x, 'duration') || 0) / div, isChord = !!kid(x, 'chord');
         const v = txt(x, 'voice') || '1', st = txt(x, 'staff') || '1';
-        if (voice === null && !kid(x, 'rest')) { voice = v; staff = st; }
+        if (voice === null && !kid(x, 'rest') && (staff === null || st === staff)) { voice = v; staff = st; }
         const mine = (voice === null || v === voice) && (staff === null || st === staff);
         const at = isChord ? pos - dur : pos;
         if (!isChord) pos += dur;
@@ -232,8 +259,19 @@ export function fromMusicXML(text) {
   const written = trans % 12 === 0;
   const spell = {};
   if (written) acc.forEach((a, pc) => { spell[pc] = a.b > a['#'] ? 'b' : '#'; });
-  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, repeats: repeatSpans(starts, fwd, back, first),
+  const chosen = staves.find(x => x.part === parts.indexOf(part) && x.staff === (staff || '1'));
+  // tempo marks often sit only in the first part: look there when this part has none
+  if (!bpm && part !== parts[0]) bpm = firstTempo(parts[0]);
+  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, staves,
+    part: parts.indexOf(part), staff: staff || '1', clef: chosen ? chosen.clef : 'treble', trans, repeats: repeatSpans(starts, fwd, back, first),
     fifths: written ? fifths : null, spell, written: times.size <= 1 ? writtenBars(events, time || '4/4', voice, staff, implicit, starts, written) : null };
+}
+function firstTempo(part) {
+  for (const meas of kids(part, 'measure')) for (const x of meas.kids) {
+    const snd = x.name === 'sound' ? x : x.name === 'direction' ? kid(x, 'sound') : null;
+    if (snd && +snd.attrs.tempo > 0) return Math.round(+snd.attrs.tempo);
+  }
+  return 0;
 }
 /* The line that was read (the first voice of the top staff) bar by bar as the score writes it, as notation.js
    notes at sounding pitch: { bars, starts (each bar's start in quarters, as the notes count them) }, or null
@@ -342,10 +380,10 @@ export async function unzipMxl(buf) {
 }
 
 /* Any melody file → { notes, title, bpm, time }: .wwscore.json, .mxl, .musicxml / .xml */
-export async function readMelodyFile(name, blob) {
+export async function readMelodyFile(name, blob, pick = null) {
   const n = String(name || '').toLowerCase();
   if (n.endsWith('.json')) return fromDraftJSON(await blob.text());
-  if (n.endsWith('.mxl')) return fromMusicXML(await unzipMxl(await blob.arrayBuffer()));
-  return fromMusicXML(await blob.text());
+  if (n.endsWith('.mxl')) return fromMusicXML(await unzipMxl(await blob.arrayBuffer()), pick);
+  return fromMusicXML(await blob.text(), pick);
 }
 export const MELODY_FILE = /\.(musicxml|xml|mxl|wwscore\.json)$/i;

@@ -102,6 +102,8 @@ function readStaff(st, index, det, syms, sp) {
   xs.forEach(x => { if (!s.barXs.length || x - s.barXs[s.barXs.length - 1] > sp * 1.2) s.barXs.push(x); else s.barXs[s.barXs.length - 1] = x; });
   // repeat signs on this staff's bar lines: { x, dir: 'forward' | 'backward' | 'both' }
   s.repeats = det.bars.filter(b => b.staff === index && b.repeat).map(b => ({ x: b.x, dir: b.repeat }));
+  // first and second ending brackets over this staff: { x0, x1 }
+  s.endings = (det.endings || []).filter(e => e.staff === index).map(e => ({ x0: e.x0, x1: e.x1 }));
   // the events: notes (by their stems or heads) and rests
   s.events = [];
   det.notes.filter(n => n.staff === index && n.x > hx).forEach(n => {
@@ -168,6 +170,9 @@ function cutBars(s, xs, sp) {
     // a forward repeat at a bar's start (just after the header when the line opens with one), a backward one at its end
     if (rep(a, 'forward') || (k === 0 && (s.repeats || []).some(r => r.dir !== 'backward' && r.x > s.headerEnd - sp && r.x < a + sp * 2))) bar.repStart = true;
     if (rep(b, 'backward')) bar.repEnd = true;
+    // under an ending's bracket: it starts just after the bar line and covers most of the bar
+    const br = (s.endings || []).find(e => e.x0 < a + sp * 1.5 && e.x1 > a + (b - a) * 0.5);
+    if (br) bar.ending = br;
     s.bars.push(bar);
   }
   // a header-only stretch before the first bar line (clef and key with nothing in it) is not a bar
@@ -176,6 +181,7 @@ function cutBars(s, xs, sp) {
 }
 
 /* ---------- the whole piece ---------- */
+
 
 /* Pages of systems → a score:
    { title, time: { num, den, symbol? }, fifths, parts: [{ name, staves: [clef], bars: [[staff][voice][event]] }],
@@ -217,7 +223,7 @@ export function buildScore(pages, opts = {}) {
     const n = Math.max(...rs.map(s => s.bars.length));
     for (let k = 0; k < n; k++) {
       const m = {};
-      rs.forEach(s => { const b = s && s.bars[k]; if (b && b.repStart) m.start = true; if (b && b.repEnd) m.end = true; });
+      rs.forEach(s => { const b = s && s.bars[k]; if (b && b.repStart) m.start = true; if (b && b.repEnd) m.end = true; if (b && b.ending) m.ending = m.ending || b.ending; });
       marks.push(m);
     }
     for (let r = 0; r < nRows; r++) {
@@ -270,7 +276,20 @@ export function buildScore(pages, opts = {}) {
     if (m.start) open = b;
     if (m.end) { repeats.push([open != null ? open : from, b]); open = null; from = b + 1; }
   });
-  return { title: opts.title || '', time, fifths, parts, pickup, repeats, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
+  // endings: [first bar, last bar, number] for each bracket (a bracket may run over several bars). Its number is printed in a text font, so it is worked out: an ending that closes with a
+  // backward repeat is the 1st, the one after it the 2nd (a 3rd after a 2nd that repeats too)
+  const endings = [];
+  for (let b = 0; b < marks.length; b++) {
+    if (!marks[b].ending) continue;
+    let e = b;
+    // the same bracket over the next bar too (a line break ends it: its part on the next line has no hook)
+    while (e + 1 < marks.length && !marks[e].end && marks[e + 1].ending === marks[e].ending) e++;
+    const prev = endings[endings.length - 1];
+    const n = prev && prev[1] === b - 1 && marks[b - 1].end ? prev[2] + 1 : marks[e].end ? 1 : 2;
+    endings.push([b, e, n]);
+    b = e;
+  }
+  return { title: opts.title || '', time, fifths, parts, pickup, repeats, endings, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);

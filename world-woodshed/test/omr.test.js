@@ -90,6 +90,21 @@ describe('reading a page', () => {
     expect((xml.match(/<tie type="stop"\/>/g) || []).length).toBe(want.length);
   });
 
+  it('reads first and second endings, and writes them so the 2nd time skips the 1st ending', async () => {
+    const { gray, gt } = fixture('val-e001');
+    const score = recognize([gray]);
+    expect(score.repeats).toEqual(gt.meta.repeats);
+    expect(score.endings.map((e) => [e[0], e[2]])).toEqual(gt.meta.endings);
+    const xml = scoreToMusicXML(score);
+    expect(xml).toContain('<ending number="1" type="start">1.</ending>');
+    expect(xml).toContain('<ending number="1" type="stop"/><repeat direction="backward"/>');
+    expect(xml).toContain('<ending number="2" type="start">2.</ending>');
+    // the sight-reading reader sees the first ending (src/melody.js): the repeat is read through, then again without it
+    const { fromMusicXML } = await import('../src/melody.js');
+    const rep = fromMusicXML(xml).repeats.find(r => r.first != null);
+    expect(rep).toBeTruthy();
+  });
+
   it('reads a piano score into one part on two staves', () => {
     const { gray, gt } = fixture('val-p013');
     const score = recognize([gray]);

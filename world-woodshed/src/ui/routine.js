@@ -1,6 +1,7 @@
 /* World Woodshed — Routine tab: build, edit and start custom practice routines */
 import D from '../data.js';
 import E from '../engine.js';
+import Cur from '../curriculum.js';
 import { view, h, toast, go, PAGES, hooks, ui } from './core.js';
 import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks } from '../routines.js';
 import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause, autoAdvanceToggle } from './session.js';
@@ -41,10 +42,20 @@ PAGES.routine = function () {
     h('p', { class: 'muted', text: 'Smart practice chooses what to work on for the time you have. Or build your own routine: line up blocks and the smart plan fills them with the right scale, technique, rhythm and tune each time. The timer keeps going while you play and chimes when a block is over.' })));
   if (E.session()) view.append(sessionCard());
   view.append(picker(active));
-  if (active === 'smart') view.append(smartPlanner(), learningPrefsCard());
-  else view.append(editor(E.getRoutine(active)));
-  view.append(templatesCard());
+  // the learning plan and the templates are folded, so the page is the planner (or your routine) first:
+  // unfolded, a small phone scrolled through about twenty screens to reach the end
+  if (active === 'smart') {
+    const chosen = (Cur.prefs().styles || []).map(id => (D.REGIONS.find(r => r.id === id) || {}).name).filter(Boolean);
+    view.append(smartPlanner(), fold('Your learning plan', chosen.length ? chosen.join(', ') : 'Styles first, pace, the daily goal and what you have learned', learningPrefsCard()));
+  } else view.append(editor(E.getRoutine(active)));
+  view.append(fold('Start from a template', TEMPLATES.length + ' ready-made routines, from a quick daily to a deep session', templatesCard(), 'tpl-fold'));
 };
+
+/* a folded section with a one-line summary under its title (as Today folds the learning plan) */
+function fold(title, sub, body, cls = 'prefs-fold') {
+  return h('details', { class: 'foldwrap ' + cls }, h('summary', {}, h('span', { class: 'stack', style: { gap: '1px' } }, title,
+    h('span', { class: 'small muted', style: { fontFamily: 'var(--font-body)', fontWeight: 400 }, text: sub }))), body);
+}
 
 /* ---------- live session overview ---------- */
 function sessionCard() {
@@ -308,7 +319,6 @@ function field(f, b, set, redraw) {
 /* ---------- templates ---------- */
 function templatesCard() {
   return h('div', { class: 'stack' },
-    h('span', { class: 'eyebrow', text: 'Start from a template' }),
     h('div', { class: 'tplgrid' }, TEMPLATES.map(t => {
       const preview = fromTemplate(t, t.minutes);
       return h('button', { class: 'tplcard', onclick: () => { const r = fromTemplate(t, t.minutes); E.saveRoutine(r); E.setActiveRoutine(r.id); go('routine'); window.scrollTo(0, 0); toast(t.name + ' added. Change the length and blocks to fit your day.'); } },
