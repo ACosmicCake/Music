@@ -209,7 +209,7 @@ tool('repertoire', {
       listCard.innerHTML = ''; tuneCard.innerHTML = '';
       const saved = src && src.mine ? E.getTune(src.id) : null;
       const songOf = fromSong ? fromSong.song : saved ? saved.song : null;
-      const toSong = () => openTool('transcribe', { params: { song: fromSong.song }, returnTab: 'transcribe' });
+      const toSong = () => openTool('transcribe', { params: { song: fromSong.song }, returnTab: 'library' });
       const leave = () => (src ? openTune(src) : fromSong && E.getSong(fromSong.song) ? toSong() : showList());
       const d0 = fromSong || (src ? { name: saved ? src.name : src.name + ' (my version)', chart: TN.chartText(src.bars), groove: src.groove, bpm: src.bpm, form: TN.formText(src.form), note: src.note } : { groove: 'swing', bpm: 120 });
       const name = h('input', { type: 'text', id: 'tune-name', maxlength: 60, value: d0.name || '', placeholder: 'Blues in F' });
@@ -391,7 +391,7 @@ tool('repertoire', {
         h('h2', { text: t.name }), t.note ? h('p', { class: 'small muted', text: t.note }) : null,
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
         h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => editTune(t) }, t.mine ? 'Edit this tune' : 'Make your own version'),
-          t.song && E.getSong(t.song) ? h('button', { class: 'btn small ghost', onclick: () => openTool('transcribe', { params: { song: t.song }, returnTab: 'transcribe' }) }, 'Open the song in Transcribe') : null),
+          t.song && E.getSong(t.song) ? h('button', { class: 'btn small ghost', onclick: () => openTool('transcribe', { params: { song: t.song }, returnTab: 'library' }) }, 'Open the song in Transcribe') : null),
         h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
         band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl, melBox);

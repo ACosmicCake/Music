@@ -1816,39 +1816,5 @@ export default function transcribe(UI) {
     }
   }));
 
-  /* ======================================================
-     Transcribe tab: song library
-     ====================================================== */
-  // the tab and its icon are registered at boot by transcribe-lazy.js
-  UI.PAGES.transcribe = function () {
-    const view = document.getElementById('view');
-    view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Transcribe' }), h('h1', { text: 'Learn songs from recordings' }),
-      h('p', { class: 'muted', text: 'Slow down without changing pitch, loop the hard bars, focus on the bass or the melody, and keep every song\'s loops, sections and notes ready for next time.' })));
-    const fi = h('input', { type: 'file', accept: 'audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.mp4,.mov,.webm', id: 'lib-file', hidden: true });
-    fi.addEventListener('change', () => { const f = fi.files && fi.files[0]; if (f) UI.openTool('transcribe', { params: { file: f }, returnTab: 'transcribe' }); });
-    view.append(fi, h('div', { class: 'card' }, h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: () => fi.click() }, 'Open an audio or video file')),
-      h('p', { class: 'small muted', text: 'The app can\'t download from YouTube or other sites. Load a file you have; you can save the YouTube link with the song.' })));
-    const songs = E.listSongs();
-    const lib = h('div', { class: 'section' }, h('h2', { text: 'Your songs' }));
-    if (!songs.length) lib.append(h('p', { class: 'muted small', text: 'Songs you open are saved here with their loops, sections, speed, focus and notes. The setups sync to your account; the audio itself stays on the device where you loaded it.' }));
-    const list = h('div', { class: 'tools' });
-    songs.forEach(sg => {
-      const est = sg.est || {};
-      const meta = [(sg.sections && sg.sections.length ? sg.sections.length + (sg.sections.length === 1 ? ' section' : ' sections') : 'no sections'), Math.round((sg.speed || 1) * 100) + '% speed',
-        est.key ? keyName(est.key) : '', sg.bpm ? Math.round(sg.bpm) + ' bpm' : '', sg.lastOpened ? 'opened ' + new Date(sg.lastOpened).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''].filter(Boolean).join(' · ');
-      const row = h('div', { class: 'songrow' });
-      row.append(h('button', { class: 'tile', onclick: () => UI.openTool('transcribe', { params: { song: sg.id }, returnTab: 'transcribe' }) },
-        h('span', { class: 't-title', text: sg.title || 'Untitled' }), h('span', { class: 't-desc', text: meta }), h('span', { class: 't-meter', text: fmt(sg.duration || 0) })),
-        h('button', { class: 'btn small ghost', 'aria-label': 'Delete ' + (sg.title || 'song'), onclick: () => {
-          if (row.querySelector('.confirm')) return;
-          const c = h('div', { class: 'confirm' }, h('span', { class: 'small', text: 'Delete "' + (sg.title || 'Untitled') + '" and its loops, sections and notes?' }),
-            h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep it'),
-              h('button', { class: 'btn small', style: { borderColor: 'var(--bad)', color: 'var(--bad)' }, onclick: () => { E.deleteSong(sg.id); IDB.del(sg.id); row.remove(); toast('Song deleted'); } }, 'Delete')));
-          row.append(c);
-        } }, 'Delete'));
-      list.append(row);
-    });
-    lib.append(list);
-    view.append(lib);
-  };
+  // its saved songs are listed in the Library tab (src/ui/library.js)
 }
