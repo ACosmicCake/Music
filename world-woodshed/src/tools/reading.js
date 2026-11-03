@@ -126,11 +126,13 @@ function playRun(o) {
     stepDur: i => segAt(i).spq * G,
     onStep: (i, t) => {
       const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      // only the beats: in 12/8 four dotted quarters, never the eighths between, which at a slow beat
+      // sound like a fast 3/4 (loud, soft, soft)
       if (kk % seg.beatSteps === 0) {
         const down = kk % seg.barSteps === 0;
         if (inPre) A.hit(down ? 'clickHi' : 'click', t, 0.95);
         else if (o.click) A.hit(down ? 'clickHi' : 'click', t, 0.45);
-      } else if (inPre && seg.ts.compound && kk % 6 === 0) A.hit('click', t, 0.4);
+      }
       if (!inPre && seg.byStep.has(kk)) {
         const a = seg.byStep.get(kk), e = Object.assign({}, a, { t, dur: a.len * seg.spq });
         seg.expected.push(e);
@@ -450,7 +452,10 @@ function scoresMode(root, lv, ctx, p) {
       secs.forEach((x, i) => fromSel.append(h('option', { value: i, selected: i === idx ? true : null, text: barsLabel(x) })));
       fromSel.onchange = () => { keep({ from: +fromSel.value }); load(+fromSel.value); };
       const title = pick.e.title;
-      const bpm = mel.bpm > 0 ? Math.round(mel.bpm) : 0;
+      // the file's tempo is in quarters a minute; the click counts the score's own beat (a dotted quarter in 12/8)
+      const ts = parseTime(secs[0].piece.time || mel.time || '4/4');
+      const bpm = mel.bpm > 0 ? Math.round(mel.bpm / ts.beatQ) : 0;
+      const unit = ts.compound ? ' · beat = dotted quarter' : ts.beatQ === 0.5 ? ' · beat = eighth' : ts.beatQ === 2 ? ' · beat = half' : '';
       const own = {
         title,
         // the whole score is one piece that scrolls as you read: nothing to start at, nothing to follow on
@@ -466,7 +471,7 @@ function scoresMode(root, lv, ctx, p) {
           if (hooks.signal) hooks.signal('piece:' + pick.e.id, { score });
         }
       };
-      const olv = { id: 'own', tempo: [60, 200], range: bpm ? 'written at ' + bpm + ' bpm' : 'your tempo' };
+      const olv = { id: 'own', tempo: [60, 200], range: (bpm ? 'written at ' + bpm + ' bpm' : 'your tempo') + unit };
       api = melodyMode(body, olv, ctx, own);
     }
     load(pick.f.id === want.file ? want.from || 0 : 0);
