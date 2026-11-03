@@ -372,13 +372,15 @@ function notesMode(root, lv, ctx) {
 /* ======================================================
    YOUR SCORES: a score from the Library (MusicXML, MIDI, a Write by playing draft) read a section at a time
    ====================================================== */
-const PERS = [0, 2, 4, 8]; // 0: the whole score, scrolling as you read
+const PERS = [2, 4, 8]; // bars a section, when the score is read in sections
 const barsLabel = x => (x.to > x.from ? 'Bars ' + x.from + '–' + x.to : 'Bar ' + x.from) + (x.again ? ', 2nd time' : x.piece && x.piece.repeats ? ', with the repeats' : x.piece && x.piece.repeat ? ', with the repeat' : '');
 function scoresMode(root, lv, ctx, p) {
   const card = h('div', { class: 'card stack' }); root.append(card);
   const body = h('div', { class: 'section' }); root.append(body);
   let api = null, gone = false, token = 0;
-  const saved = () => Object.assign({ per: 0 }, E.state.settings.readingOwn || {});
+  // the whole score as one continuous piece unless sections are chosen (whole: false); per, the bars a section
+  const saved = () => Object.assign({ per: 4, whole: true }, E.state.settings.readingOwn || {});
+  const perOf = () => (saved().whole !== false ? 0 : PERS.includes(saved().per) ? saved().per : 4);
   const keep = v => E.setSetting('readingOwn', Object.assign(saved(), v));
   const done = () => { if (api) { try { api.cleanup(); } catch (e) { console.error(e); } } api = null; body.innerHTML = ''; ctx.setActive(false); };
   card.append(h('span', { class: 'eyebrow', text: 'Read your own scores' }),
@@ -401,8 +403,10 @@ function scoresMode(root, lv, ctx, p) {
     const select = h('select', { 'aria-label': 'Score', onchange: () => { pick = files[+select.value]; keep({ entry: pick.e.id, file: pick.f.id, from: 0 }); load(0); } },
       files.map((x, i) => h('option', { value: i, selected: x === pick ? true : null, text: x.e.title + (x.e.files.filter(f => L.READABLE_MELODY.test(f.name)).length > 1 ? ' · ' + x.f.name : '') })));
     const perSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Bars at a time' });
-    const paintPer = () => perSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === saved().per ? 'true' : 'false'));
-    PERS.forEach(n => perSeg.append(h('button', { 'data-n': n, onclick: () => { if (saved().per === n) return; keep({ per: n, from: 0 }); paintPer(); load(0); } }, n ? n + ' bars' : 'Whole score')));
+    const paintPer = () => { perSeg.hidden = perOf() === 0; perSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.n === perOf() ? 'true' : 'false')); };
+    PERS.forEach(n => perSeg.append(h('button', { 'data-n': n, onclick: () => { if (perOf() === n) return; keep({ per: n, from: 0 }); paintPer(); load(0); } }, n + ' bars')));
+    const wholeBox = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: perOf() === 0 ? true : null,
+      onchange: e => { keep({ whole: e.target.checked, from: 0 }); paintPer(); load(0); } }), 'One continuous piece: the whole score, scrolling as you read (off: a few bars at a time)');
     paintPer();
     const fromSel = h('select', { 'aria-label': 'Start at' });
     const runKeep = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: runOn() ? true : null, onchange: e => E.setSetting('readingRunOn', e.target.checked) }), 'Keep going: the next section follows after a count-in bar');
@@ -438,7 +442,7 @@ function scoresMode(root, lv, ctx, p) {
         mel = await S.readScoreMelody(got.name, got.blob);
       } catch (e) { if (my === token) msg.textContent = 'Could not read this score: ' + (e && e.message ? e.message : 'unknown error'); return; }
       if (my !== token || gone) return;
-      const per = saved().per, secs = S.sections(mel, per);
+      const per = perOf(), secs = S.sections(mel, per);
       if (!secs.length) { msg.textContent = 'There are no notes to read in this score.'; return; }
       msg.textContent = '';
       let idx = Math.max(0, Math.min(secs.length - 1, at || 0));
@@ -451,7 +455,7 @@ function scoresMode(root, lv, ctx, p) {
         title,
         // the whole score is one piece that scrolls as you read: nothing to start at, nothing to follow on
         single: secs.length === 1,
-        opts: h('div', { class: 'stack sr-opts' }, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
+        opts: h('div', { class: 'stack sr-opts' }, wholeBox, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
         make() {
           const x = secs[idx], label = barsLabel(x);
           idx = (idx + 1) % secs.length;
