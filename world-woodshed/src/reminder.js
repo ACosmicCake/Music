@@ -45,13 +45,16 @@ export const practisedToday = () => {
   return !!(h && h.sec >= 60);
 };
 
+/* The plugin, wrapped: a Capacitor plugin is a proxy that answers every property as a native method, so
+   returning it from an async function makes the promise call its "then", which Android doesn't have
+   ("LocalNotifications.then() is not implemented"), an error on every start. Hand it over inside an object. */
 let LN = null;
-const plugin = async () => (LN = LN || (await import('@capacitor/local-notifications')).LocalNotifications);
+const plugin = async () => { if (!LN) LN = { L: (await import('@capacitor/local-notifications')).LocalNotifications }; return LN; };
 
 /* Ask Android for permission to show notifications (Android 13 and later ask the player). → true if allowed */
 export async function allow() {
   if (!isNative()) return false;
-  const L = await plugin();
+  const { L } = await plugin();
   let p = await L.checkPermissions();
   if (p.display === 'prompt' || p.display === 'prompt-with-rationale') p = await L.requestPermissions();
   return p.display === 'granted';
@@ -62,9 +65,10 @@ let busy = null;
 export function reschedule() {
   if (!isNative()) return Promise.resolve();
   const run = async () => {
-    const L = await plugin();
+    const r = (E.state.settings && E.state.settings.reminder) || null;
+    if (!r) return; // never turned on on this device: nothing to set or clear
+    const { L } = await plugin();
     await L.cancel({ notifications: IDS.map(id => ({ id })) }).catch(() => {});
-    const r = (E.state.settings && E.state.settings.reminder) || {};
     if (!r.on) return;
     const p = await L.checkPermissions();
     if (p.display !== 'granted') return;

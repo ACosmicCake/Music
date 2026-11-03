@@ -27,3 +27,34 @@ describe('the daily reminder times', () => {
     expect(reminderTimes(now, 'soon', false)).toEqual([]);
   });
 });
+
+/* The plugin is a proxy that answers every property, "then" included, as a native call (as Capacitor's are):
+   handing it through a promise must not call it, or every start shows an error */
+vi.mock('../src/native.js', () => ({ isNative: () => true }));
+const calls = [];
+vi.mock('@capacitor/local-notifications', () => ({
+  LocalNotifications: new Proxy({}, { get: (t, prop) => () => {
+    calls.push(prop);
+    if (prop === 'then') return Promise.reject(new Error('"LocalNotifications.then()" is not implemented on android'));
+    if (prop === 'checkPermissions') return Promise.resolve({ display: 'granted' });
+    return Promise.resolve({});
+  } })
+}));
+describe('setting the reminders in the app', () => {
+  it('never calls the plugin’s "then", and sets a week once turned on', async () => {
+    const E = (await import('../src/engine.js')).default;
+    const R = await import('../src/reminder.js');
+    const errors = [];
+    const off = e => errors.push(e);
+    process.on('unhandledRejection', off);
+    await R.reschedule(); // never turned on: the plugin isn't touched
+    expect(calls).toEqual([]);
+    E.setSetting('reminder', { on: true, time: '19:30' });
+    await R.reschedule();
+    await new Promise(r => setTimeout(r, 0));
+    process.off('unhandledRejection', off);
+    expect(calls).not.toContain('then');
+    expect(calls).toEqual(['cancel', 'checkPermissions', 'schedule']);
+    expect(errors).toEqual([]);
+  });
+});
