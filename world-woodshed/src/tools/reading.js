@@ -98,7 +98,8 @@ function playRun(o) {
   const segs = [];
   const opts = { steps: 1e9, maxSteps: 0, ahead: 0.3 }; // the beat scheduled well ahead, so a slow phone or a long score can't make it stumble
   const make = (item, start) => {
-    const piece = item.piece, ts = parseTime(piece.time), spq = 60 / o.bpm / ts.beatQ;
+    // piece.beatQ: the beat the click counts when the player chose another (6 quarters to a bar of 12/8)
+    const piece = item.piece, ts0 = parseTime(piece.time), ts = piece.beatQ ? Object.assign({}, ts0, { beatQ: piece.beatQ }) : ts0, spq = 60 / o.bpm / ts.beatQ;
     const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
     const pre = segs.length || o.countIn ? barSteps : 0;
     const len = Math.round(playLength(piece) / G), order = playOrder(piece);
@@ -452,19 +453,24 @@ function scoresMode(root, lv, ctx, p) {
       secs.forEach((x, i) => fromSel.append(h('option', { value: i, selected: i === idx ? true : null, text: barsLabel(x) })));
       fromSel.onchange = () => { keep({ from: +fromSel.value }); load(+fromSel.value); };
       const title = pick.e.title;
-      // the file's tempo is in quarters a minute; the click counts the score's own beat (a dotted quarter in 12/8)
+      // the file's tempo is in quarters a minute; the click counts the beat: in 6/8, 9/8 or 12/8 the quarter
+      // unless the player picks the dotted quarter or the eighth, otherwise the score's own beat
       const ts = parseTime(secs[0].piece.time || mel.time || '4/4');
-      const bpm = mel.bpm > 0 ? Math.round(mel.bpm / ts.beatQ) : 0;
-      const unit = ts.compound ? ' · beat = dotted quarter' : ts.beatQ === 0.5 ? ' · beat = eighth' : ts.beatQ === 2 ? ' · beat = half' : '';
+      const beatQ = ts.compound ? (CLICKS.find(c => c.id === saved().click) || CLICKS[0]).q : ts.beatQ;
+      const bpm = mel.bpm > 0 ? Math.round(mel.bpm / beatQ) : 0;
+      const unit = beatQ === 1.5 ? ' · beat = dotted quarter' : beatQ === 0.5 ? ' · beat = eighth' : beatQ === 2 ? ' · beat = half' : ts.compound ? ' · beat = quarter' : '';
+      const clickSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Click on' });
+      CLICKS.forEach(c => clickSeg.append(h('button', { 'aria-pressed': c.q === beatQ ? 'true' : 'false', onclick: () => { if (c.q === beatQ) return; keep({ click: c.id }); load(idx); } },
+        c.label + ' · ' + Math.round(ts.barQ / c.q) + ' a bar')));
       const own = {
         title,
         // the whole score is one piece that scrolls as you read: nothing to start at, nothing to follow on
         single: secs.length === 1,
-        opts: h('div', { class: 'stack sr-opts' }, wholeBox, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
+        opts: h('div', { class: 'stack sr-opts' }, ts.compound ? h('div', { class: 'row small' }, 'Click on', clickSeg) : '', wholeBox, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
         make() {
           const x = secs[idx], label = barsLabel(x);
           idx = (idx + 1) % secs.length;
-          return { piece: x.piece, label, of: title };
+          return { piece: beatQ === ts.beatQ ? x.piece : Object.assign({}, x.piece, { beatQ }), label, of: title };
         },
         record(score) {
           // practising a Library piece counts for it in the daily plan, as its own page does
@@ -482,6 +488,8 @@ function scoresMode(root, lv, ctx, p) {
 /* ======================================================
    THE LIBRARY: every piece you read is kept. New ones never run out; missed ones come back for a re-read.
    ====================================================== */
+/* the click in 6/8, 9/8 and 12/8 for Your scores: quarters (the default), dotted quarters or eighths */
+const CLICKS = [{ id: 'q', q: 1, label: '♩' }, { id: 'dq', q: 1.5, label: '♩.' }, { id: 'e', q: 0.5, label: '♪' }];
 const KIND_NAME = { r: 'Rhythm', m: 'Melody' }, KIND_PLURAL = { r: 'rhythms', m: 'melodies' };
 function sourceLine(el, cur, kind) {
   el.innerHTML = '';
@@ -764,7 +772,7 @@ function melodyMode(root, lv, ctx, own) {
   hearBtn.onclick = () => {
     fresh(); ctx.setActive(true); hearBtn.disabled = true; runBar.hidden = false;
     run = playRun({ first: { piece }, staff, bpm, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
-    if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + playLength(piece)) * 60 / bpm / parseTime(piece.time).beatQ + 1.5);
+    if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + playLength(piece)) * 60 / bpm / (piece.beatQ || parseTime(piece.time).beatQ) + 1.5);
   };
   newBtn.onclick = () => { cur = make(); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
