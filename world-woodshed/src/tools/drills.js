@@ -135,12 +135,13 @@ tool('drill', {
           h('b', { text: v.name }), h('p', { class: 'small', text: v.how }));
         if (v.bars && v.bars.length) {
           try {
-            const staff = renderStaff({ bars: v.bars.map(bar => bar.map(n => ({ midi: n.m === null || n.m === undefined ? null : n.m + 12, dur: n.d, dot: !!n.dot, spell: n.sp || v.spell }))), key: v.key || 'C', time: v.time || '4/4', width: Math.min(720, card.clientWidth || 680) });
+            // n.ch: every pitch of a double stop or chord on one stem (src/content/drills-montunos.js), n.m its top note
+            const staff = renderStaff({ bars: v.bars.map(bar => bar.map(n => ({ midi: n.m === null || n.m === undefined ? null : n.m + 12, chord: n.ch ? n.ch.map(m => m + 12) : undefined, dur: n.d, dot: !!n.dot, spell: n.sp || v.spell }))), key: v.key || 'C', time: v.time || '4/4', width: Math.min(720, card.clientWidth || 680) });
             varBox.append(h('div', { class: 'drill-staff' }, staff.el));
           } catch (e) { console.error(e); }
           const play = h('button', { class: 'btn small ghost', onclick: () => {
             A.ensure(); A.fresh(); let t = A.now() + 0.05; const q = 60 / bpm * (back && back.rhythm && back.rhythm.unit === '♪' ? 2 : 1); // ♪ rhythms count eighths
-            v.bars.flat().forEach(n => { const len = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 }[n.d] * (n.dot ? 1.5 : 1) * q; if (n.m !== null && n.m !== undefined) A.note(n.m, t, 0.75, len * 0.95); t += len; });
+            v.bars.flat().forEach(n => { const len = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 }[n.d] * (n.dot ? 1.5 : 1) * q; if (n.m !== null && n.m !== undefined) (n.ch || [n.m]).forEach((m, k) => A.note(m, t + k * 0.012, n.ch ? 0.6 : 0.75, len * 0.95)); t += len; });
           } }, '▶ Hear the phrase');
           varBox.append(play);
         }

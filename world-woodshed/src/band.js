@@ -322,7 +322,7 @@ const SWING_2 = [
 
 /* ---------- the band ---------- */
 /* Hand drums for the grooves that have them (src/drumkit.js); the others play the drum kit */
-const GROOVE_KIT = { son: { kit: 'congas', region: 'cuba' }, highlife: { kit: 'congas', region: 'westafrica' }, flamenco: { kit: 'cajon', region: 'flamenco' } };
+const GROOVE_KIT = { son: { kit: 'congas', region: 'cuba' }, son23: { kit: 'congas', region: 'cuba' }, chacha: { kit: 'congas', region: 'cuba' }, highlife: { kit: 'congas', region: 'westafrica' }, flamenco: { kit: 'cajon', region: 'flamenco' } };
 
 export function Band(o) {
   // o: { bars: [[chord]], barsFor(chorus)?, range: [firstBar, lastBar]?, groove, grooveId, bpm(), parts: {drums, comp, bass},
@@ -339,7 +339,7 @@ export function Band(o) {
   let bars = barsOf(0);
   const nextBar = (bi, ch) => (bi < hi ? bars[bi + 1] : barsOf(ch + 1)[lo]);
   const BPB = Math.round(g.steps / g.spb) || 4;
-  const bright = ['rock', 'funk', 'reggae', 'soukous', 'highlife', 'son'].includes(gid);
+  const bright = ['rock', 'funk', 'reggae', 'soukous', 'highlife', 'son', 'son23', 'chacha'].includes(gid);
   let loop = null, stopTimer = null, countTimers = [];
   let bassPrev = null, bassStart = null, voicing = null, pushed = false, barPlan = null;
   const history = [];

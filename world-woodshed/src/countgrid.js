@@ -40,9 +40,9 @@ function choices(time, count) {
     .map(c => ({ labels: c.labels, all: [c.labels], slotQ: ts.barQ / c.labels.length }));
 }
 
-/* Times (quarters from the start of each bar) of every note (and rest, if asked) in written bars of { m, d, dot }. */
+/* Times (quarters from the start of each bar) of every note (and rest, if asked) in written bars of { m, d, dot, ch? }. */
 export function onsets(bars, rests = false) {
-  return bars.map(bar => { let t = 0; const out = []; bar.forEach(n => { const len = durQ({ dur: n.d, dot: n.dot }); if (rests || n.m != null) out.push({ t, len, m: n.m, sp: n.sp }); t += len; }); return out; });
+  return bars.map(bar => { let t = 0; const out = []; bar.forEach(n => { const len = durQ({ dur: n.d, dot: n.dot }); if (rests || n.m != null) out.push({ t, len, m: n.m, sp: n.sp, ch: n.ch }); t += len; }); return out; });
 }
 
 /* The backing's part to show beside the phrase: the rhythm's target track(s), or a groove's clave.
@@ -101,7 +101,8 @@ export function phraseGrid(bars, opts = {}) {
       const labels = all[bi % all.length];
       const cells = Array.from({ length: n }, () => ({ kind: '', text: '' }));
       bar.forEach(o => {
-        const j = Math.round(o.t / slotQ), name = spell(o.m, key, o.sp || opts.spell).name;
+        // a chord of three or more notes is not named by its top note: its count is enough
+        const j = Math.round(o.t / slotQ), name = o.ch && o.ch.length > 2 ? '' : spell(o.m, key, o.sp || opts.spell).name;
         cells[j] = { kind: 'on', text: name, m: o.m };
         for (let k = j + 1; k < n && (k * slotQ) < o.t + o.len - 1e-6; k++) cells[k] = { kind: 'hold', text: '' };
       });

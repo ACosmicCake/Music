@@ -469,7 +469,9 @@ REGIONS.forEach(r => { r.area = AREA[r.id] || 'World'; });
 const GROOVES = {
   swing: { name: 'Swing', steps: 12, spb: 3, perc: { ride: 'X..x.xx..x.x', hat: '...x.....x..' }, comp: 'x..x..x..x..', bass: 'walk' },
   bossa: { name: 'Bossa nova', steps: 16, spb: 4, perc: { clave: 'x..x..x...x..x..', shaker: 'x.x.x.x.x.x.x.x.' }, comp: 'x..x..x...x..x..', bass: 'r.....5.r.....5.' },
-  son: { name: 'Son montuno', steps: 16, spb: 4, perc: { clave: 'X..x..x...x.x...', bell: 'x...x...x...x...', mid: '............x.x.' }, comp: '..x...x...x...x.', bass: '......r.....5...' },
+  son: { name: 'Son montuno (3-2)', steps: 16, spb: 4, perc: { clave: 'X..x..x...x.x...', bell: 'x...x...x...x...', mid: '............x.x.' }, comp: '..x...x...x...x.', bass: '......r.....5...' },
+  son23: { name: 'Son montuno (2-3)', steps: 16, spb: 4, perc: { clave: '..X.x...x..x..x.', bell: 'x...x...x...x...', mid: '............x.x.' }, comp: '..x...x...x...x.', bass: '......r.....5...' },
+  chacha: { name: 'Cha-cha-chá', steps: 16, spb: 4, perc: { bell: 'X...x...x...x...', shaker: 'x...x.x.x...x.x.', high: '....x...........', mid: '............x.x.' }, comp: 'x...x...x...x.x.', bass: 'r.......r.......' },
   reggae: { name: 'Reggae one drop', steps: 16, spb: 4, perc: { low: '........X.......', high: '........x.......', hat: 'x.x.x.x.x.x.x.x.' }, comp: '....x.......x...', bass: 'r.....r.5...r...' },
   pompe: { name: 'La pompe', steps: 8, spb: 2, perc: {}, comp: '..X...X.', bass: 'r...5...' },
   tango: { name: 'Tango / habanera', steps: 8, spb: 2, perc: { shaker: 'x.x.x.x.' }, comp: 'x.x.x.x.', bass: 'r..55.r.' },
