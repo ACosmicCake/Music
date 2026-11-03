@@ -453,8 +453,8 @@ function scoresMode(root, lv, ctx, p) {
       secs.forEach((x, i) => fromSel.append(h('option', { value: i, selected: i === idx ? true : null, text: barsLabel(x) })));
       fromSel.onchange = () => { keep({ from: +fromSel.value }); load(+fromSel.value); };
       const title = pick.e.title;
-      // the file's tempo is in quarters a minute; the click counts the beat: in 6/8, 9/8 or 12/8 the quarter
-      // unless the player picks the dotted quarter or the eighth, otherwise the score's own beat
+      // the file's tempo is in quarters a minute; the click counts the beat: in 6/8, 9/8 or 12/8 the dotted
+      // quarter unless the player picks the quarter or the eighth, otherwise the score's own beat
       const ts = parseTime(secs[0].piece.time || mel.time || '4/4');
       const beatQ = ts.compound ? (CLICKS.find(c => c.id === saved().click) || CLICKS[0]).q : ts.beatQ;
       const bpm = mel.bpm > 0 ? Math.round(mel.bpm / beatQ) : 0;
@@ -488,8 +488,8 @@ function scoresMode(root, lv, ctx, p) {
 /* ======================================================
    THE LIBRARY: every piece you read is kept. New ones never run out; missed ones come back for a re-read.
    ====================================================== */
-/* the click in 6/8, 9/8 and 12/8 for Your scores: quarters (the default), dotted quarters or eighths */
-const CLICKS = [{ id: 'q', q: 1, label: '♩' }, { id: 'dq', q: 1.5, label: '♩.' }, { id: 'e', q: 0.5, label: '♪' }];
+/* the click in 6/8, 9/8 and 12/8 for Your scores: dotted quarters (the usual count, the default), quarters or eighths */
+const CLICKS = [{ id: 'dq', q: 1.5, label: '♩.' }, { id: 'q', q: 1, label: '♩' }, { id: 'e', q: 0.5, label: '♪' }];
 const KIND_NAME = { r: 'Rhythm', m: 'Melody' }, KIND_PLURAL = { r: 'rhythms', m: 'melodies' };
 function sourceLine(el, cur, kind) {
   el.innerHTML = '';
