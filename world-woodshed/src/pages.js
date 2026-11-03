@@ -18,6 +18,7 @@ import Samples from './samples.js';
 import A from './audio.js';
 import { VOICES } from './guitars.js';
 import { SAMPLE_SOURCES } from './content/samples.js';
+import * as Rem from './reminder.js';
 import { statsPage, heatmap, dayChart } from './ui/stats.js';
 
 /* ======================================================
@@ -297,6 +298,33 @@ function soundsSection() {
   return el;
 }
 
+/* Daily reminder (the Android app; per device): a notification at a set time on days not practised yet */
+function reminderBox() {
+  const box = h('div', { class: 'stack' });
+  const draw = () => {
+    box.innerHTML = '';
+    const r = Object.assign({ on: false, time: '19:00' }, E.state.settings.reminder || {});
+    box.append(h('span', { class: 'eyebrow', text: 'Daily reminder' }));
+    if (!isNative()) {
+      box.append(h('span', { class: 'small muted', text: 'In the Android app, a notification at the time you choose on the days you haven’t practised yet. A web page can’t show one when it is closed.' }));
+      return;
+    }
+    const save = async patch => {
+      const next = Object.assign({}, r, patch);
+      if (next.on && !(await Rem.allow())) { toast('Notifications are off for this app: turn them on in Android’s settings.'); next.on = false; }
+      E.setSetting('reminder', next);
+      await Rem.reschedule();
+      draw();
+    };
+    const time = h('input', { type: 'time', value: r.time, 'aria-label': 'Reminder time', disabled: r.on ? null : true, onchange: e => { if (Rem.parseTime(e.target.value)) save({ time: e.target.value }); } });
+    box.append(h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: r.on ? true : null, onchange: e => save({ on: e.target.checked }) }), 'Remind me to practise'),
+      h('label', { class: 'row small' }, 'At', time),
+      h('span', { class: 'small muted', text: 'Only on days you haven’t practised yet: once a minute is logged, today’s reminder is skipped. Stays on this device.' }));
+  };
+  draw();
+  return box;
+}
+
 function displayCard() {
   const card = h('div', { class: 'card' });
   const sounds = soundsSection();
@@ -310,6 +338,7 @@ function displayCard() {
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Sound output' }), seg([['auto', 'Auto'], ['smooth', 'Smooth'], ['fast', 'Low latency']], st.audioOutput || 'auto', 'audioOutput'),
         h('span', { class: 'small muted', text: 'Low latency answers a tap a little sooner, but on some Android phones it crackles. Smooth avoids that, and the rhythm tools allow for the extra delay. Auto picks Smooth on Android.' + (A.outputUsed() && A.outputUsed() !== A.outputFor(st.audioOutput) ? ' The change applies the next time the app opens.' : '') }),
         h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })),
+      reminderBox(),
       sounds);
   }
   draw();

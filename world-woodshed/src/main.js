@@ -36,6 +36,7 @@ import { initGitHubSync } from './ghsync.js';
 import { initLibSync } from './libsync.js';
 import './tools/commute.js';
 import { initSaveBanner } from './ui/savebanner.js';
+import { initReminder } from './reminder.js';
 
 /* ---------- plugins (e.g. Transcribe) ---------- */
 const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, ICONS, renderTabs, get ui() { return ui; } };
@@ -48,6 +49,7 @@ applyDisplay();
 initSaveBanner();
 initGitHubSync();
 initLibSync();
+initReminder();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);

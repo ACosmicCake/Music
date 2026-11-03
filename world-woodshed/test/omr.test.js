@@ -94,7 +94,7 @@ describe('reading a page', () => {
     const { gray, gt } = fixture('val-e001');
     const score = recognize([gray]);
     expect(score.repeats).toEqual(gt.meta.repeats);
-    expect(score.endings.map(([a, b, n]) => [a, n])).toEqual(gt.meta.endings);
+    expect(score.endings.map((e) => [e[0], e[2]])).toEqual(gt.meta.endings);
     const xml = scoreToMusicXML(score);
     expect(xml).toContain('<ending number="1" type="start">1.</ending>');
     expect(xml).toContain('<ending number="1" type="stop"/><repeat direction="backward"/>');
