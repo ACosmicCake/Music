@@ -1,10 +1,10 @@
 /* World Woodshed — Transcribe, loaded the first time it is opened.
    Transcribe (src/tools/transcribe.js, with the time-stretcher) is a large module that most sessions never
-   touch, so it is a separate chunk. This plugin registers its tab, its icon and a stand-in tool at boot;
-   opening either loads the real plugin, which replaces the stand-ins, and then draws it. The chunk is in
+   touch, so it is a separate chunk. Its songs are listed in the Library tab; this plugin registers its icon and a stand-in tool at boot,
+   and opening the tool loads the real plugin, which replaces the stand-in, and then draws it. The chunk is in
    the service worker's precache, so Transcribe still opens offline. */
 export const TRANSCRIBE_META = {
-  tab: 'transcribe', skill: 'transcribe', title: 'Transcribe', eyebrow: 'Learn songs by ear',
+  tab: 'library', skill: 'transcribe', title: 'Transcribe', eyebrow: 'Learn songs by ear',
   desc: 'Load an audio or video file. Slow it down without changing pitch, loop sections, focus on the bass or melody, and find the notes.'
 };
 
@@ -17,19 +17,6 @@ export default function transcribeLazy(UI) {
   };
 
   UI.ICONS.transcribe = '<svg viewBox="0 0 24 24"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>';
-  UI.TABS.splice(4, 0, ['transcribe', 'Transcribe']);
-
-  UI.PAGES.transcribe = function () {
-    const view = document.getElementById('view');
-    const note = UI.h('p', { class: 'muted', text: 'Loading Transcribe…' });
-    view.append(note);
-    load().then(() => {
-      if (UI.ui.tab !== 'transcribe' || UI.ui.runner) return; // the player moved on while it loaded
-      note.remove();
-      UI.PAGES.transcribe();
-    }, e => failed(e, note));
-  };
-
   UI.tool('transcribe', Object.assign({}, TRANSCRIBE_META, {
     render(body, ctx) {
       const runner = UI.ui.runner;

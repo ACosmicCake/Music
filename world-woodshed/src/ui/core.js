@@ -88,7 +88,7 @@ export const ICONS = {
 };
 export const TABS = [['today', 'Today'], ['routine', 'Routine'], ['train', 'Train'], ['learn', 'Learn']];
 // old tab names still work in links: #ear opens Train on its Ear section, #atlas opens Learn
-export const TAB_ALIASES = { ear: ['train', 'ear'], rhythm: ['train', 'rhythm'], play: ['train', 'play'], atlas: ['learn', 'styles'] };
+export const TAB_ALIASES = { ear: ['train', 'ear'], rhythm: ['train', 'rhythm'], play: ['train', 'play'], atlas: ['learn', 'styles'], transcribe: ['library', 'recordings'] };
 export const ui = { tab: 'today', cleanup: null, runner: null, plan: null, section: {} };
 
 /* Compact layout for small phones (e.g. 3-inch screens): automatic below 380 x 640 CSS px, or chosen in

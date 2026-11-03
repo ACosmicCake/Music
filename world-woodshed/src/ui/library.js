@@ -1,5 +1,6 @@
 /* World Woodshed — the Library tab: your scores (PDF, MusicXML, MuseScore, Guitar Pro, MIDI), photos of
-   scores taken with the phone, and the songs you want to learn, are learning and have learned.
+   scores taken with the phone, the songs you want to learn, are learning and have learned, and the
+   recordings you work on in Transcribe (their setups are E.listSongs(); the tool is src/tools/transcribe.js).
    The data and the files are handled by src/library.js; this draws the list, an entry's page and the photo
    viewer. Each entry's details sync with your progress; its files sync through your GitHub sync repository
    when that is on (src/libsync.js), and download to another device when you open the entry. */
@@ -8,6 +9,7 @@ import * as L from '../library.js';
 import { STATUSES, KIND_LABEL, SCORE_KINDS, sizeLabel } from '../library.js';
 import { view, h, ui, go, toast, renderTabs, teardown, focusView, PAGES, TOOLS, ICONS, TABS, openTool, tool } from './core.js';
 import Cur from '../curriculum.js';
+import E from '../engine.js';
 import { shareBlob, openBlob, isNative } from '../native.js';
 import * as LS from '../libsync.js';
 
@@ -16,7 +18,8 @@ TABS.push(['library', 'Library']);
 
 const STATUS_NAME = Object.fromEntries(STATUSES);
 const dateLabel = t => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-const filter = { status: 'all', sort: 'recent', q: '' }; // kept while the app is open
+const filter = { kind: 'all', status: 'all', sort: 'recent', q: '' }; // kept while the app is open
+const KINDS = [['all', 'All'], ['scores', 'Scores'], ['recordings', 'Recordings']];
 const urls = new Set(); // object URLs for thumbnails and the viewer, let go when the page closes
 function urlFor(blob) { const u = URL.createObjectURL(blob); urls.add(u); return u; }
 function dropUrls() { urls.forEach(u => URL.revokeObjectURL(u)); urls.clear(); }
@@ -83,8 +86,9 @@ PAGES.library = function () {
   leave();
   ui.cleanup = leave;
   L.prune().catch(() => {});
+  if (ui.section.library) { filter.kind = KINDS.some(k => k[0] === ui.section.library) ? ui.section.library : 'all'; ui.section.library = null; } // old #transcribe links
   view.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Library' }), h('h1', { text: 'Your scores and songs' }),
-    h('p', { class: 'muted', text: 'Score files, photos of scores, and the songs you are learning or have learned, with your notes.' })));
+    h('p', { class: 'muted', text: 'Score files, photos of scores, recordings to transcribe, and the songs you are learning or have learned, with your notes.' })));
 
   // adding: a photo of a score, score files, or just a song
   const newFrom = async (files, fields) => {
@@ -95,6 +99,8 @@ PAGES.library = function () {
   };
   const cam = picker('camera', files => newFrom(files, { title: 'Score photo ' + dateLabel(Date.now()) }));
   const any = picker('files', files => newFrom(files, {}));
+  const rec = h('input', { type: 'file', hidden: true, accept: 'audio/*,video/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,.mp4,.mov,.webm' });
+  rec.addEventListener('change', () => { const f = rec.files && rec.files[0]; rec.value = ''; if (f) openTool('transcribe', { params: { file: f }, returnTab: 'library' }); });
   const songForm = h('form', { class: 'stack lib-songform', hidden: true });
   const tIn = h('input', { type: 'text', id: 'lib-new-title', maxlength: 200, placeholder: 'Blackbird', autocomplete: 'off', required: true });
   const bIn = h('input', { type: 'text', id: 'lib-new-by', maxlength: 200, placeholder: 'The Beatles', autocomplete: 'off' });
@@ -114,24 +120,33 @@ PAGES.library = function () {
     toast('Added to your library');
     go('library');
   });
-  view.append(cam, any, h('div', { class: 'card' },
+  view.append(cam, any, rec, h('div', { class: 'card' },
     h('div', { class: 'row lib-add' },
       h('button', { class: 'btn brass', onclick: () => cam.click() }, 'Photograph a score'),
       h('button', { class: 'btn', onclick: () => any.click() }, 'Add score files'),
+      TOOLS.transcribe ? h('button', { class: 'btn', onclick: () => rec.click() }, 'Transcribe a recording') : null,
       h('button', { class: 'btn', onclick: () => { songForm.hidden = false; tIn.focus(); } }, 'Add a song'),
       writeButton('btn')),
     songForm,
-    h('p', { class: 'small muted', text: 'PDF, MusicXML, MuseScore, Guitar Pro, MIDI, photos and audio.' }), syncLine()));
+    h('p', { class: 'small muted', text: 'PDF, MusicXML, MuseScore, Guitar Pro, MIDI, photos and audio. To transcribe, load a recording you have: the app can\'t download from YouTube or other sites.' }), syncLine()));
   if (LS.isOn()) LS.syncFiles();
 
-  const all = L.listEntries();
+  const all = L.listEntries(), songs = E.listSongs();
+  if (all.length && songs.length) {
+    view.append(h('div', { class: 'seg lib-kind', role: 'group', 'aria-label': 'Show' }, KINDS.map(([id, label]) =>
+      h('button', { 'aria-pressed': filter.kind === id ? 'true' : 'false', onclick: () => { filter.kind = id; go('library'); } }, label))));
+  }
+  const kind = all.length && songs.length ? filter.kind : 'all';
   const list = h('div', { class: 'tools lib-list' });
   const section = h('div', { class: 'section' });
-  view.append(section);
+  if (kind !== 'recordings') view.append(section);
+  if (kind !== 'scores' && songs.length) view.append(recordings(songs));
   if (!all.length) {
-    section.append(h('p', { class: 'muted small', text: 'Nothing here yet. Photograph a page of a score, add a PDF or MusicXML file, or note a song you have learned.' }));
+    if (!songs.length) section.append(h('p', { class: 'muted small', text: 'Nothing here yet. Photograph a page of a score, add a PDF or MusicXML file, open a recording to transcribe, or note a song you have learned.' }));
+    else section.remove();
     return;
   }
+  if (kind === 'recordings') return;
   const n = L.countBy(all);
   const search = h('input', { type: 'search', class: 'search', placeholder: 'Search titles, composers, notes', 'aria-label': 'Search the library', value: filter.q });
   const statusSeg = h('div', { class: 'seg lib-filter', role: 'group', 'aria-label': 'Show' }, [['all', 'All']].concat(STATUSES).map(([id, label]) =>
@@ -173,6 +188,44 @@ PAGES.library = function () {
   }
   drawList();
 };
+
+/* ---------- the recordings you transcribe: their loops, sections, speed and notes, opened in Transcribe ---------- */
+const KEY_MAJ = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+const KEY_MIN = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
+const keyName = k => (k.minor ? KEY_MIN : KEY_MAJ)[k.tonic] + (k.minor ? ' minor' : ' major');
+const clock = t => { t = Math.max(0, +t || 0); const m = Math.floor(t / 60), sec = Math.floor(t - m * 60); return m + ':' + (sec < 10 ? '0' : '') + sec; };
+/* Transcribe keeps each recording's audio on this device in its own database, by song id */
+function deleteAudio(id) {
+  try {
+    const r = indexedDB.open('world-woodshed-audio', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => { try { r.result.transaction('files', 'readwrite').objectStore('files').delete(id); } catch (e) { /* nothing stored */ } };
+  } catch (e) { /* no IndexedDB */ }
+}
+function recordings(songs) {
+  const sec = h('div', { class: 'section' }, h('h2', { text: 'Recordings you transcribe' }),
+    h('p', { class: 'muted small', text: 'Each keeps its loops, sections, speed, focus and notes. The setups sync to your other devices; the audio stays on the device where you loaded it.' }));
+  const list = h('div', { class: 'tools' });
+  songs.forEach(sg => {
+    const est = sg.est || {}, nSec = sg.sections ? sg.sections.length : 0;
+    const meta = [nSec ? nSec + (nSec === 1 ? ' section' : ' sections') : '', Math.round((sg.speed || 1) * 100) + '% speed',
+      est.key ? keyName(est.key) : '', sg.bpm ? Math.round(sg.bpm) + ' bpm' : '', sg.lastOpened ? 'opened ' + new Date(sg.lastOpened).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''].filter(Boolean).join(' · ');
+    const row = h('div', { class: 'songrow' });
+    row.append(h('button', { class: 'tile lib-tile', onclick: () => openTool('transcribe', { params: { song: sg.id }, returnTab: 'library' }) },
+      h('span', { class: 'lib-thumb', 'aria-hidden': 'true', text: clock(sg.duration) }),
+      h('span', { class: 't-title', text: sg.title || 'Untitled' }), h('span', { class: 't-desc', text: meta })),
+    h('button', { class: 'btn small ghost', 'aria-label': 'Delete ' + (sg.title || 'recording'), onclick: () => {
+      if (row.querySelector('.confirm')) return;
+      const c = h('div', { class: 'confirm' }, h('span', { class: 'small', text: 'Delete "' + (sg.title || 'Untitled') + '" and its loops, sections and notes?' }),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep it'),
+          h('button', { class: 'btn small', style: { borderColor: 'var(--bad)', color: 'var(--bad)' }, onclick: () => { E.deleteSong(sg.id); deleteAudio(sg.id); row.remove(); toast('Recording deleted'); } }, 'Delete')));
+      row.append(c);
+    } }, 'Delete'));
+    list.append(row);
+  });
+  sec.append(list);
+  return sec;
+}
 
 /* where the files are: syncing through the GitHub repository, or on the device each was added on */
 function syncLine() {

@@ -2,6 +2,8 @@
 .lib-add .btn { flex: 1 1 auto; justify-content: center; }
 .lib-songform { border-top: 1px solid var(--line); padding-top: 12px; }
 .lib-filter { flex-wrap: wrap; }
+.lib-kind { display: flex; width: 100%; margin-top: 16px; }
+.lib-kind button { flex: 1; padding: 9px 6px; }
 .lib-tile { grid-template-columns: 52px minmax(0, 1fr); }
 .lib-item { display: grid; gap: 6px; }
 .lib-item .lib-sr { justify-self: start; gap: 6px; flex-wrap: wrap; }
