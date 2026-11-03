@@ -395,7 +395,7 @@ export default [
       { artist: 'Elizabeth Cotten', work: 'Freight Train (Folksongs and Instrumentals with Guitar, 1958)', note: 'Played left-handed on an upside-down guitar, so her fingers play the bass and the thumb plays the melody. Same musical idea, a different hand.' },
       { artist: 'Mississippi John Hurt', work: 'Candy Man Blues (1928)', note: 'An earlier blues version of alternating-thumb picking: a gentle, steady bass under a singing voice and guitar melody.' }
     ],
-    styles: ['country', 'blues', 'hawaii']
+    styles: ['country', 'blues', 'hawaii', 'southernafrica']
   },
   {
     id: 'bossarh',
@@ -963,7 +963,7 @@ export default [
       { artist: 'Julian Bream', work: 'Villa-Lobos, Étude No. 1', note: 'A continuous arpeggio study with a clear, even right hand.' },
       { artist: 'Francisco Tárrega (composer)', work: 'Lágrima', note: 'A short piece where arpeggios carry harmony and melody. Many recordings.' }
     ],
-    styles: ['classical', 'latam', 'flamenco']
+    styles: ['classical', 'latam', 'flamenco', 'colombia']
   },
   {
     id: 'bends',
@@ -1021,6 +1021,6 @@ export default [
       { artist: 'Pink Floyd', work: 'Comfortably Numb (The Wall, 1979)', note: 'David Gilmour’s long, in-tune bends.' },
       { artist: 'Stevie Ray Vaughan & Double Trouble', work: 'Texas Flood (Texas Flood, 1983)', note: 'Heavy-string bends with intense vibrato.' }
     ],
-    styles: ['blues', 'rock', 'country', 'hindustani']
+    styles: ['blues', 'rock', 'country', 'hindustani', 'seasia']
   }
 ];

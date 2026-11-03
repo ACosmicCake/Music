@@ -3,6 +3,7 @@ import INDEX from 'virtual:content-index';
 import STYLES_A from './content/styles-a.js';
 import STYLES_B from './content/styles-b.js';
 import STYLES_NEW from './content/styles-new.js';
+import STYLES_MORE from './content/styles-more.js';
 import EX_VARS from './content/exercise-vars.js';
 import RHY_VAR from './content/rhythms-var.js';
 import RHY_NEW from './content/rhythms-new.js';
@@ -105,6 +106,7 @@ const SCALES = [
   { id: 'yo', name: 'Yo scale', aka: 'Japanese folk pentatonic', steps: [0, 2, 5, 7, 9], tier: 5, region: 'Japan', note: 'Pentatonic without half steps, used in folk songs.' },
   { id: 'slendro', name: 'Slendro (approx.)', aka: 'Javanese and Balinese gamelan', steps: [0, 2.4, 4.8, 7.2, 9.6], tier: 5, region: 'Indonesia', note: 'Five roughly equal steps. Each gamelan has its own tuning.' },
   { id: 'pelog', name: 'Pelog (approx.)', aka: 'Gamelan 5-note selection', steps: [0, 1.2, 2.7, 6.6, 7.5], tier: 5, region: 'Indonesia', note: 'Uneven steps, small and large. Tunings vary by gamelan.' },
+  { id: 'thai7', name: 'Thai seven-tone (approx.)', aka: 'Seven roughly equal steps', steps: [0, 1.71, 3.43, 5.14, 6.86, 8.57, 10.29], tier: 5, region: 'Thailand · Laos · Cambodia', note: 'The ideal tuning of Thai classical instruments: seven equal steps of about 171 cents. Melodies use five of them at a time. Real instruments vary.' },
   { id: 'bati', name: 'Bati (major)', aka: 'Ethiopian qenet', steps: [0, 4, 5, 7, 11], tier: 5, region: 'Ethiopia', note: 'Pentatonic with the major 7th; heard in Ethio-jazz.' },
   { id: 'anchihoye', name: 'Anchihoye', aka: 'Ethiopian qenet', steps: [0, 1, 5, 6, 9], tier: 5, region: 'Ethiopia', note: 'A striking pentatonic with two half steps.' },
   { id: 'wholetone', name: 'Whole tone', aka: 'Debussy’s six-note scale', steps: [0, 2, 4, 6, 8, 10], tier: 4, region: 'Jazz · Impressionism', note: 'Six notes, all whole steps. Dreamy and unresolved; fits 7♯5 chords.' },
@@ -455,13 +457,14 @@ const REGIONS = [
 /* Deep-dive fields (history, sub-styles, recordings, players, study) live in src/content/.
    Existing regions get them merged in; new styles are appended whole. */
 Object.values(STYLES_NEW).forEach(st => REGIONS.push(st));
+Object.values(STYLES_MORE).forEach(st => REGIONS.push(st));
 REGIONS.forEach(r => Object.assign(r, STYLES_A[r.id] || {}, STYLES_B[r.id] || {}));
 // Long-form essays (r.essay) and the science page (SCIENCE) load on demand: see src/content/lazy.js
 const AREA = {
-  cuba: 'Americas', brazil: 'Americas', latam: 'Americas', caribbean: 'Americas', jazz: 'Americas', blues: 'Americas', rock: 'Americas', funksoul: 'Americas', country: 'Americas', hawaii: 'Americas',
+  cuba: 'Americas', brazil: 'Americas', mexico: 'Americas', colombia: 'Americas', latam: 'Americas', caribbean: 'Americas', jazz: 'Americas', blues: 'Americas', rock: 'Americas', funksoul: 'Americas', country: 'Americas', hawaii: 'Americas',
   flamenco: 'Europe', manouche: 'Europe', klezmer: 'Europe', celtic: 'Europe', classical: 'Europe', fado: 'Europe', turkbalkan: 'Europe',
   arabic: 'Middle East & India', persian: 'Middle East & India', hindustani: 'Middle East & India', carnatic: 'Middle East & India',
-  westafrica: 'Africa', centraleast: 'Africa', eastasia: 'East Asia'
+  westafrica: 'Africa', centraleast: 'Africa', southernafrica: 'Africa', eastasia: 'East Asia', seasia: 'East Asia'
 };
 REGIONS.forEach(r => { r.area = AREA[r.id] || 'World'; });
 
@@ -483,7 +486,15 @@ const GROOVES = {
   rock: { name: 'Rock eighths', steps: 8, spb: 2, perc: { hat: 'xxxxxxxx', high: '..x...x.', low: 'x...xx..' }, comp: 'X.x.X.x.', bass: 'rrrrrrrr' },
   funk: { name: 'Funk sixteenths', steps: 16, spb: 4, perc: { hat: 'x.x.x.x.x.x.x.x.', high: '....X..x....X..x', low: 'x......x..x.....' }, comp: '..x.x..x..x.x..x', bass: 'r......r..r.8...' },
   boomchick: { name: 'Boom-chick', steps: 8, spb: 2, perc: {}, comp: '..x...x.', bass: 'r...5...' },
-  fado: { name: 'Fado', steps: 8, spb: 2, perc: {}, comp: '..x.x.x.', bass: 'r...5...' }
+  fado: { name: 'Fado', steps: 8, spb: 2, perc: {}, comp: '..x.x.x.', bass: 'r...5...' },
+  mbaqanga: { name: 'Mbaqanga jive', steps: 16, spb: 4, perc: { low: 'x...x...x...x...', high: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.' }, comp: '..x...x...x...x.', bass: 'r..5..r.3..5..8.' },
+  salegy: { name: 'Salegy (12/8)', steps: 12, spb: 3, perc: { low: 'x.....x.....', high: '...x.....x..', shaker: 'xxxxxxxxxxxx' }, comp: 'x.x.x.x.x.x.', bass: 'r.....5.....' },
+  vals: { name: 'Vals ranchero (3/4)', steps: 6, spb: 2, perc: { low: 'x.....', shaker: 'x.x.x.' }, comp: '..x.x.', bass: 'r.....' },
+  norteno: { name: 'Norteño polka', steps: 8, spb: 2, perc: { low: 'x.x.x.x.', high: '.x.x.x.x' }, comp: '.x.x.x.x', bass: 'r.5.r.5.' },
+  sonjalisco: { name: 'Son jalisciense (6/8 + 3/4)', steps: 12, spb: 3, perc: { low: 'x..x..x.x.x.', shaker: 'xxxxxxxxxxxx' }, comp: 'X.xX.xX.X.X.', bass: 'r..5..r...5.' },
+  bolero: { name: 'Bolero', steps: 16, spb: 4, perc: { low: 'x.......x.......', high: '..x...xx..x...x.', shaker: 'x.x.x.x.x.x.x.x.' }, comp: '....x.x.....x...', bass: 'r.......5.......' },
+  cumbia: { name: 'Cumbia', steps: 16, spb: 4, perc: { low: 'x.......x.......', mid: '......x.......x.', shaker: 'X.xxX.xxX.xxX.xx' }, comp: '..x...x...x...x.', bass: 'r.......5.....5.' },
+  morlam: { name: 'Mor lam sing', steps: 16, spb: 4, perc: { low: 'x...x...x...x...', high: '....x.......x...', hat: '..x...x...x...x.' }, comp: '', bass: 'r..r..r.r..r..r.' }
 };
 
 // bars: each string is one bar; chords in a bar separated by space
@@ -541,7 +552,15 @@ const TUNES = [
   { id: 'fadominor', name: 'Fado menor progression', group: 'World grooves', region: 'fado', groove: 'fado', bpm: 70, note: 'i–V7–i with a turn to iv. A harmonic minor over the E7.',
     bars: ['Am', 'Am', 'E7', 'E7', 'E7', 'E7', 'Am', 'Am', 'Am', 'A7', 'Dm', 'Dm', 'Am', 'E7', 'Am', 'Am'] },
   { id: 'slackkey', name: 'Slack key vamp in G', group: 'World grooves', region: 'hawaii', groove: 'boomchick', bpm: 90, note: 'Alternate the thumb on the bass strings and play the melody on top, as in Taro Patch (open G) tuning.',
-    bars: ['G', 'G', 'C', 'G', 'G', 'D7', 'G', 'G'] }
+    bars: ['G', 'G', 'C', 'G', 'G', 'D7', 'G', 'G'] },
+  { id: 'mbaqangajive', name: 'Mbaqanga jive cycle', group: 'World grooves', region: 'southernafrica', groove: 'mbaqanga', bpm: 118, note: 'I–IV–I–V in G, round and round. Chop the offbeats, or loop one bright two-bar line high on the neck.',
+    bars: ['G C', 'G D', 'G C', 'G D'] },
+  { id: 'ranchera', name: 'Canción ranchera in G', group: 'World grooves', region: 'mexico', groove: 'vals', bpm: 150, note: 'A ranchera waltz: a long V7, then I7 to IV and home. Bass on 1, chord on 2 and 3.',
+    form: [['A', 8], ['B', 8]], bars: ['G', 'G', 'D7', 'D7', 'D7', 'D7', 'G', 'G', 'G', 'G7', 'C', 'C', 'G', 'D7', 'G', 'G'] },
+  { id: 'cumbiaam', name: 'Cumbia in A minor', group: 'World grooves', region: 'colombia', groove: 'cumbia', bpm: 92, note: 'i–iv–V7–i: Am, Dm, E7. Offbeat chops first, then a melody in A harmonic minor.',
+    bars: ['Am', 'Dm', 'E7', 'Am', 'Am', 'Dm', 'E7', 'Am'] },
+  { id: 'morlamvamp', name: 'Mor lam vamp', group: 'World grooves', region: 'seasia', groove: 'morlam', bpm: 128, note: 'One chord: play A thang san (A C D E G) in phin-style repeats, with an open string as a drone.',
+    bars: ['Am', 'Am', 'Am', 'Am'] }
 ];
 
 /* ---------- Technique exercises ---------- */

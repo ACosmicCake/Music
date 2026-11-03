@@ -322,7 +322,7 @@ const SWING_2 = [
 
 /* ---------- the band ---------- */
 /* Hand drums for the grooves that have them (src/drumkit.js); the others play the drum kit */
-const GROOVE_KIT = { son: { kit: 'congas', region: 'cuba' }, son23: { kit: 'congas', region: 'cuba' }, chacha: { kit: 'congas', region: 'cuba' }, highlife: { kit: 'congas', region: 'westafrica' }, flamenco: { kit: 'cajon', region: 'flamenco' } };
+const GROOVE_KIT = { son: { kit: 'congas', region: 'cuba' }, son23: { kit: 'congas', region: 'cuba' }, chacha: { kit: 'congas', region: 'cuba' }, highlife: { kit: 'congas', region: 'westafrica' }, flamenco: { kit: 'cajon', region: 'flamenco' }, cumbia: { kit: 'congas', region: 'colombia' } };
 
 export function Band(o) {
   // o: { bars: [[chord]], barsFor(chorus)?, range: [firstBar, lastBar]?, groove, grooveId, bpm(), parts: {drums, comp, bass},
@@ -434,7 +434,7 @@ export function Band(o) {
       });
     } else {
       for (let s = 0; s < g.steps; s++) if (g.comp[s] && g.comp[s] !== '.') {
-        const len = gid === 'funk' ? 0.2 : ['pompe', 'reggae', 'boomchick', 'shuffle'].includes(gid) ? 0.35 : ['rock', 'fado'].includes(gid) ? 0.6 : 1;
+        const len = gid === 'funk' ? 0.2 : ['pompe', 'reggae', 'boomchick', 'shuffle', 'mbaqanga', 'cumbia', 'norteno', 'vals'].includes(gid) ? 0.35 : ['rock', 'fado'].includes(gid) ? 0.6 : 1;
         ev.push({ beat: Math.floor(s / g.spb), at: (s % g.spb) / g.spb, kind: 'gtr', c: chordAt(bi, s / g.spb), len, vel: g.comp[s] === 'X' ? 0.6 : 0.42, tone: 3600 });
       }
     }

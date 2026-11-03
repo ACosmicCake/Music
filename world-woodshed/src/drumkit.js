@@ -23,7 +23,7 @@ export const KITS = {
 
 /* Each style region's hand drums */
 const REGION_KIT = {
-  cuba: 'congas', westafrica: 'congas',
+  cuba: 'congas', westafrica: 'congas', colombia: 'congas', // the llamador, alegre and caja are hand drums too
   arabic: 'darbuka', turkbalkan: 'darbuka', persian: 'darbuka', // the tombak and tapan's nearest relative here
   flamenco: 'cajon',
   hindustani: 'tabla', carnatic: 'tabla'
