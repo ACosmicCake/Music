@@ -1,4 +1,4 @@
-/* World Woodshed — Check for updates (Today → Your progress on every device).
+/* World Woodshed — Check for updates (Settings → App updates).
    The web app asks its service worker to look for a new version (src/pwa.js) and reloads into it.
    The Android app carries its own copy of the app, so it asks GitHub for the latest Android release
    (only when the button is tapped: the one request to another site besides opt-in sync) and opens

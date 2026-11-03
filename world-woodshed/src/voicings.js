@@ -119,7 +119,7 @@ function shape(frets, tuning, missing) {
   };
 }
 
-/* The best shape on your guitar (tuning and capo from Today → Your guitar), or null if none fits.
+/* The best shape on your guitar (tuning and capo from Settings → Your guitar), or null if none fits.
    Remembered per tuning, so tapping through chords costs nothing after the first time. */
 const cache = new Map();
 export function voicing(root, iv, opts = {}) {

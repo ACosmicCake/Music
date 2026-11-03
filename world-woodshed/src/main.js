@@ -51,10 +51,10 @@ initLibSync();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);
-// which output path the audio asks for (Train → Display → Sound output), read when the audio first starts
+// which output path the audio asks for (Settings → Display → Sound output), read when the audio first starts
 A.setOutput(E.state.settings.audioOutput);
 E.onChange(st => A.setOutput(st.settings.audioOutput));
-// the recorded guitar the player chose (Train → Display → Sounds), loaded on the first tap
+// the recorded guitar the player chose (Settings → Display → Sounds), loaded on the first tap
 Guitars.setVoice(E.state.settings.guitarSound);
 E.onChange(st => Guitars.setVoice(st.settings.guitarSound));
 Cur.migrate();

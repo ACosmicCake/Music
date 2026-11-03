@@ -92,7 +92,7 @@ export const TAB_ALIASES = { ear: ['train', 'ear'], rhythm: ['train', 'rhythm'],
 export const ui = { tab: 'today', cleanup: null, runner: null, plan: null, section: {} };
 
 /* Compact layout for small phones (e.g. 3-inch screens): automatic below 380 x 640 CSS px, or chosen in
-   Train → Display. Text size is separate. Both are per device. */
+   Settings → Display. Text size is separate. Both are per device. */
 export function isCompact() { return document.documentElement.classList.contains('compact'); }
 export function applyDisplay() {
   const st = E.state.settings || {}, mode = st.display || 'auto';
@@ -102,9 +102,15 @@ export function applyDisplay() {
 }
 export function renderTabs() {
   document.body.classList.toggle('in-tool', !!ui.runner);
+  document.body.classList.toggle('in-settings', !!ui.runner && ui.runner.id === 'settings');
+  const gear = document.getElementById('settings-btn');
+  if (gear) gear.setAttribute('aria-pressed', String(!!ui.runner && ui.runner.id === 'settings'));
   tabsEl.innerHTML = '';
   TABS.forEach(([id, label]) => {
-    const b = h('button', { class: 'tab', 'aria-current': ui.tab === id && !ui.runner ? 'page' : null, onclick: () => go(id) });
+    // inside a tool, the tab it was opened from stays marked (not as the current page), so you know where Back goes
+    const back = ui.runner && ((ui.runner.opts && ui.runner.opts.returnTab) || (TOOLS[ui.runner.id] ? TOOLS[ui.runner.id].tab || 'today' : ui.tab));
+    const from = !!back && (TAB_ALIASES[back] ? TAB_ALIASES[back][0] : back) === id;
+    const b = h('button', { class: 'tab' + (from ? ' from' : ''), 'aria-current': ui.tab === id && !ui.runner ? 'page' : null, onclick: () => go(id) });
     b.innerHTML = ICONS[id];
     b.append(h('span', { text: label }));
     tabsEl.append(b);

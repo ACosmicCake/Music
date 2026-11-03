@@ -17,7 +17,7 @@ export function initSaveBanner() {
     const name = 'world-woodshed-backup-' + E.dayKey() + '.json';
     try {
       const how = await shareFile(name, JSON.stringify(E.exportBackup()), 'World Woodshed progress');
-      if (how === 'downloaded') toast('Saved ' + name + '. Keep it somewhere safe; load it from Today → Your progress on every device.');
+      if (how === 'downloaded') toast('Saved ' + name + '. Keep it somewhere safe; load it from Settings → Your progress on every device.');
     } catch (e) { toast('Could not make the backup file'); }
   }
   function draw(st) {

@@ -23,7 +23,7 @@ function dropUrls() { urls.forEach(u => URL.revokeObjectURL(u)); urls.clear(); }
 let closeViewer = null; // the photo viewer, closed when the page goes (the Android back button, a tab)
 function leave() { if (closeViewer) closeViewer(); dropUrls(); }
 const AUTO_FETCH_MB = 25; // opening an entry downloads its missing files by itself up to this much
-const syncOffNote = 'To sync the files themselves, turn on automatic sync: Today → Your progress on every device.';
+const syncOffNote = 'To sync the files themselves, turn on automatic sync: Settings (the gear at the top) → Your progress on every device.';
 const READ_SUFFIX = ' (notes read).musicxml';
 const titleBase = t => String(t || 'Score').slice(0, 120);
 const pdfReadName = n => String(n || 'Score').replace(/\.[a-z0-9]{1,8}$/i, '').slice(0, 120) + READ_SUFFIX;

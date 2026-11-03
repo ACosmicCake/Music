@@ -66,6 +66,28 @@ a { color: var(--patina); }
 .brand-mark { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--brass); position: relative; flex: none; }
 .brand-mark::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--patina); }
 .sync { font-size: 0.75rem; color: var(--muted); font-family: var(--font-mono); }
+.topbar-end { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* the top bar keeps the name and the gear whole; the save note gives way first, then a running session's pill */
+.brand { white-space: nowrap; min-width: 0; flex: none; }
+.brand-name { overflow: hidden; text-overflow: ellipsis; }
+.topbar-end { flex: 0 1 auto; }
+.topbar-end .sync { flex: 0 10 auto; }
+.topbar-end .session-pill { flex: 0 1 auto; min-width: 0; }
+html.compact .brand { flex: 0 1 auto; }
+/* on a small phone a running session's pill takes the name's place, so it can say which block is on */
+html.compact .topbar-inner:has(.session-pill:not([hidden])) .brand-name { display: none; }
+.topbar-end .sync { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-hero .heromet { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gear { flex: none; display: grid; place-items: center; width: 40px; height: 40px; margin: -6px -8px -6px 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; }
+.gear:hover, .gear:focus-visible { color: var(--ink); background: var(--sunk); }
+.gear svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+body.in-settings .gear { color: var(--brass); }
+/* Train → Guitar: the tools under small headings */
+.tool-group { gap: 8px; }
+.tool-group + .tool-group { margin-top: 10px; }
+.tool-group > h2.eyebrow { margin: 0; font-size: 0.72rem; }
+.settings-link .t-meter { font-size: 1.1rem; }
+.prefs-fold > summary { text-align: left; }
 
 main { max-width: 760px; margin: 0 auto; padding-block: 18px 110px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
 main > * { min-width: 0; }
@@ -75,6 +97,7 @@ main > * { min-width: 0; }
 .tab { background: none; border: 0; padding: 9px 4px 10px; display: grid; justify-items: center; gap: 3px; font-size: 0.74rem; color: var(--muted); cursor: pointer; border-top: 3px solid transparent; }
 .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tab[aria-current="page"] { color: var(--ink); border-top-color: var(--brass); font-weight: 700; }
+.tab.from { color: var(--ink); border-top-color: var(--line); }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; min-width: 0; }
 .section { display: grid; gap: 10px; }
@@ -847,6 +870,7 @@ html.compact .brand { font-size: 0.92rem; gap: 6px; }
 html.compact .brand-mark { width: 15px; height: 15px; border-width: 2px; }
 html.compact .brand-mark::after { inset: 3px; }
 html.compact .sync { display: none; }
+html.compact .gear { width: 44px; height: 44px; margin: -10px -10px -10px 0; }
 
 html.compact main { padding-block: 10px 64px; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); gap: 10px; }
 html.compact body.in-tool .tabs { display: none; }
@@ -869,7 +893,7 @@ html.compact .section { gap: 10px; }
 html.compact .tile { padding: 9px 10px; border-radius: 10px; }
 html.compact .hero { padding: 10px 11px; gap: 8px; border-radius: 12px; }
 html.compact .hero h1 { font-size: 1.15rem; }
-html.compact .heromet { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+html.compact .heromet { grid-template-columns: repeat(3, 1fr); gap: 4px; }
 html.compact .heromet > div { padding: 4px 5px; border-radius: 8px; }
 html.compact .heromet b { font-size: 0.95rem; }
 html.compact .heromet span { font-size: 0.58rem; line-height: 1.15; }
@@ -939,6 +963,8 @@ html.compact .runner-head > .sessionbar, html.compact .runner-head > .rh-desc, h
 html.compact .heromet b { white-space: nowrap; font-size: 0.88rem; }
 /* wrapped segmented controls: each option fills its row so the selected one reads clearly */
 html.compact .seg button { flex: 1 1 auto; }
+/* a full-width switch of four (Train, Learn, Sight-reading) goes two by two instead of leaving one alone on a row */
+html.compact .seg.big:has(> button:nth-child(4):last-child) { display: grid; grid-template-columns: 1fr 1fr; }
 /* sight-reading level picker: smaller chips */
 html.compact .sr-levels { gap: 4px; }
 html.compact .sr-lv { padding: 2px 6px; min-width: 44px; min-height: 44px; font-size: 0.78rem; }
