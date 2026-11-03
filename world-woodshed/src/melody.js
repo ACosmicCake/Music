@@ -165,9 +165,12 @@ export function fromMusicXML(text) {
   const acc = new Map(); // pitch class → how the score spells it ('#' or 'b'), by count
   const notes = [], open = new Map(); // midi → the note a tie continues
   const starts = [], fwd = [], back = [], first = []; // each measure's start; repeat signs and first endings by measure
+  const events = [], times = new Set(), implicit = []; // every note and rest of each measure as written, for writtenBars
   kids(part, 'measure').forEach((meas, mi) => {
     let barStart = pos, far = pos;
     starts.push(pos);
+    events.push([]);
+    implicit.push(meas.attrs.implicit === 'yes');
     meas.kids.forEach(x => {
       if (x.name === 'barline') {
         const rep = kid(x, 'repeat'), end = kid(x, 'ending');
@@ -178,7 +181,8 @@ export function fromMusicXML(text) {
       } else if (x.name === 'attributes') {
         const d = +txt(x, 'divisions'); if (d > 0) div = d;
         const tr = kid(x, 'transpose'); if (tr) trans = (+txt(tr, 'chromatic') || 0) + 12 * (+txt(tr, 'octave-change') || 0);
-        const t = kid(x, 'time'); if (t && !time) time = txt(t, 'beats') + '/' + txt(t, 'beat-type');
+        const t = kid(x, 'time'); if (t) times.add(txt(t, 'beats') + '/' + txt(t, 'beat-type'));
+        if (t && !time) time = txt(t, 'beats') + '/' + txt(t, 'beat-type');
         const k = kid(x, 'key'); if (k && fifths == null && txt(k, 'fifths') !== '' && isFinite(+txt(k, 'fifths'))) fifths = +txt(k, 'fifths');
       } else if (x.name === 'direction' || x.name === 'sound') {
         const snd = x.name === 'sound' ? x : kid(x, 'sound');
@@ -194,7 +198,13 @@ export function fromMusicXML(text) {
         const at = isChord ? pos - dur : pos;
         if (!isChord) pos += dur;
         far = Math.max(far, pos);
-        const p = kid(x, 'pitch');
+        const p = kid(x, 'pitch'), rest = kid(x, 'rest'), tm = kid(x, 'time-modification');
+        {
+          const step = p && txt(p, 'step'), oct = p && +txt(p, 'octave'), alter = p ? Math.round(+txt(p, 'alter') || 0) : 0;
+          events[mi].push({ v, st, chord: isChord, dur, rest: !!rest, full: !!(rest && rest.attrs.measure === 'yes'), type: txt(x, 'type'), dots: kids(x, 'dot').length,
+            tup: tm ? txt(tm, 'actual-notes') + ':' + txt(tm, 'normal-notes') : '', tie: kids(x, 'tie').some(t => t.attrs.type === 'start'), alter,
+            midi: p && step in NOTE && isFinite(oct) ? NOTE[step] + alter + (oct + 1) * 12 + trans : null });
+        }
         if (!mine || !p) return;
         const step = txt(p, 'step'), oct = +txt(p, 'octave');
         if (!(step in NOTE) || !isFinite(oct)) return;
@@ -223,7 +233,56 @@ export function fromMusicXML(text) {
   const spell = {};
   if (written) acc.forEach((a, pc) => { spell[pc] = a.b > a['#'] ? 'b' : '#'; });
   return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, repeats: repeatSpans(starts, fwd, back, first),
-    fifths: written ? fifths : null, spell };
+    fifths: written ? fifths : null, spell, written: times.size <= 1 ? writtenBars(events, time || '4/4', voice, staff, implicit, starts, written) : null };
+}
+/* The line that was read (the first voice of the top staff) bar by bar as the score writes it, as notation.js
+   notes at sounding pitch: { bars, starts (each bar's start in quarters, as the notes count them) }, or null
+   when it can't be written that way (32nd notes, tuplets other than triplets, a bar longer than the time).
+   Chords keep all their notes, ties and triplets stay, each note keeps its own sharp or flat; a short bar
+   (a pickup, or one the reader left short) is filled with rests, before the notes for a pickup. */
+const TYPE = { whole: 'w', half: 'h', quarter: 'q', eighth: '8', '16th': '16' };
+const QOF = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 };
+function restsTo(q) {
+  const out = [];
+  for (const d of ['w', 'h', 'q', '8', '16']) while (q >= QOF[d] - 1e-6) { out.push({ midi: null, dur: d }); q -= QOF[d]; }
+  return q > 1e-3 ? null : out;
+}
+function writtenBars(events, time, voice, staff, implicit, starts, ownSpell) {
+  const [num, den] = time.split('/').map(Number), barQ = num * 4 / den;
+  if (!(barQ > 0)) return null;
+  const bars = [];
+  for (let mi = 0; mi < events.length; mi++) {
+    const bar = [];
+    let used = 0;
+    for (const e of events[mi]) {
+      if (e.v !== (voice || '1') || e.st !== (staff || '1')) continue;
+      if (e.chord) {
+        const last = bar[bar.length - 1];
+        if (last && last.midi != null && e.midi != null) { last.chord = [...new Set((last.chord || [last.midi]).concat(e.midi))].sort((a, b) => a - b); last.midi = last.chord[last.chord.length - 1]; }
+        continue;
+      }
+      if (e.full) { bar.push({ midi: null, dur: 'w', full: true }); used += barQ; continue; }
+      const dur = TYPE[e.type];
+      if (!dur || e.dots > 1 || (e.tup && e.tup !== '3:2')) return null;
+      const n = { midi: e.rest ? null : e.midi, dur };
+      if (!e.rest && e.midi == null) return null;
+      if (e.dots) n.dot = true;
+      if (e.tup) n.tup = 3;
+      if (e.tie && n.midi != null) n.tie = true;
+      if (n.midi != null && e.alter && ownSpell) n.spell = e.alter > 0 ? '#' : 'b'; // (a transposing part's sharps and flats are not the sounding notes')
+      used += QOF[dur] * (e.dots ? 1.5 : 1) * (e.tup ? 2 / 3 : 1);
+      bar.push(n);
+    }
+    if (bar.some(n => n.full)) { bars.push([{ midi: null, dur: 'w' }]); continue; }
+    if (used > barQ + 1e-3) return null;
+    if (!bar.length) { bars.push([{ midi: null, dur: 'w' }]); continue; }
+    if (used < barQ - 1e-3) {
+      const fill = restsTo(barQ - used);
+      if (!fill) return null;
+      bars.push(mi === 0 && implicit[mi] ? fill.reverse().concat(bar) : bar.concat(fill));
+    } else bars.push(bar);
+  }
+  return { bars, starts: starts.slice(0, bars.length) };
 }
 /* Repeat signs as spans in quarters: { s, e, first (where the first ending starts, or null) }. A backward
    repeat goes back to the forward sign before it, or else to the start (or to just after the last repeat). */

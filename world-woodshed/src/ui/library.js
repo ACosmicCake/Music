@@ -346,6 +346,24 @@ export function entryPage(id, opts = {}) {
   if (opts.rename) { tIn.focus(); tIn.select(); }
 }
 
+/* Sight-reading for a PDF or photos: the notes the app read from them (read now when it hasn't yet) */
+async function sightReadPage(entry, f, btn) {
+  const want = f.kind === 'pdf' ? pdfReadName(f.name) : titleBase(entry.title) + READ_SUFFIX;
+  btn.disabled = true;
+  try {
+    const have = await L.localIds();
+    let e = L.getEntry(entry.id), r = e && e.files.find(x => x.name === want && have.has(x.id));
+    if (!r) {
+      toast('Reading the notes first…');
+      const res = await readNotes(entry.id, f.kind === 'pdf' ? f.id : null);
+      if (!res || res.empty) return;
+      e = L.getEntry(entry.id);
+      r = e && e.files.find(x => x.name === (res.name || want));
+    }
+    if (r) openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: entry.id, file: r.id } });
+  } finally { btn.disabled = false; }
+}
+
 /* one file: what it is, and what can be done with it here */
 function fileRow(entry, f, local, redraw, fetch) {
   const pages = entry.files.filter(x => x.kind === 'image'), i = pages.indexOf(f); // photos are the pages, read in this order
@@ -369,6 +387,8 @@ function fileRow(entry, f, local, redraw, fetch) {
       const done = entry.files.some(x => x.name === pdfReadName(f.name));
       acts.append(h('button', { class: 'btn small', onclick: () => readNotes(entry.id, f.id) }, done ? 'Read the notes again' : 'Make it playable'));
     }
+    // a PDF or the photos of a page: Sight-read the notes the app read from it, reading them first if it hasn't
+    if (TOOLS.sightread && (f.kind === 'pdf' || (f.kind === 'image' && i <= 0))) acts.append(h('button', { class: 'btn small', onclick: ev => sightReadPage(entry, f, ev.currentTarget) }, 'Sight-read it'));
     if (L.READABLE_MELODY.test(f.name) && TOOLS.sightread) acts.append(h('button', { class: 'btn small', onclick: () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: entry.id, file: f.id } }) }, 'Sight-read it'));
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
