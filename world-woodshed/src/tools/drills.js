@@ -12,6 +12,8 @@ import { Band } from '../band.js';
 import { loadDrills, drawWhenLoaded } from '../content/lazy.js';
 import { SoloTips } from '../ui/solo.js';
 import { phraseGrid, patternGrid, backingRows, offBeat } from '../countgrid.js';
+import { placeFrets } from '../notate.js';
+import { kyamNames } from '../kyam.js';
 
 /* ======================================================
    STYLE DRILLS: the exercises a teacher of each tradition would give, with a backing loop,
@@ -80,6 +82,23 @@ export function CountGrid(g) {
   return wrap;
 }
 
+/* Tab under a drill's staff: the variation's own [string, fret] per struck note when it gives them (string 1 the
+   highest, as in positions), else placed on the player's tuning */
+function drillTab(v) {
+  const flat = v.bars.flat(), out = flat.map(() => null);
+  const struck = flat.map((n, i) => (n.m === null || n.m === undefined ? -1 : i)).filter(i => i >= 0);
+  if (Array.isArray(v.tab)) struck.forEach((i, k) => { const p = v.tab[k]; if (p) out[i] = { si: 6 - p[0], f: p[1] }; });
+  else { const frets = placeFrets(struck.map(i => flat[i].m), E.STRINGS.map(st => st.midi)); struck.forEach((i, k) => { out[i] = frets[k]; }); }
+  return out;
+}
+/* Names under the notes: the variation's own (v.names, '_' for none), or the Vietnamese ký âm when the drill
+   gives the pitch of hò (d.ho or v.ho, a MIDI note) */
+function names(d, v) {
+  if (v.names) return v.names.trim().split(/\s+/).map(x => (x === '_' ? '' : x));
+  const ho = v.ho ?? d.ho;
+  return ho == null ? null : kyamNames(v.bars.flat(), ho, v.hoi || d.hoi);
+}
+
 tool('drill', {
   tab: 'train', skill: null, title: 'Style drills', eyebrow: 'Play · exercises from each tradition',
   desc: 'Concrete exercises for every style, with a backing loop, notation, variations that change as you go, and a tempo that climbs when you play clean.',
@@ -136,12 +155,13 @@ tool('drill', {
         if (v.bars && v.bars.length) {
           try {
             // n.ch: every pitch of a double stop or chord on one stem (src/content/drills-montunos.js), n.m its top note
-            const staff = renderStaff({ bars: v.bars.map(bar => bar.map(n => ({ midi: n.m === null || n.m === undefined ? null : n.m + 12, chord: n.ch ? n.ch.map(m => m + 12) : undefined, dur: n.d, dot: !!n.dot, spell: n.sp || v.spell }))), key: v.key || 'C', time: v.time || '4/4', width: Math.min(720, card.clientWidth || 680) });
+            const staff = renderStaff({ bars: v.bars.map(bar => bar.map(n => ({ midi: n.m === null || n.m === undefined ? null : n.m + 12, chord: n.ch ? n.ch.map(m => m + 12) : undefined, dur: n.d, dot: !!n.dot, spell: n.sp || v.spell }))), key: v.key || 'C', time: v.time || '4/4', width: Math.min(720, card.clientWidth || 680),
+              tab: d.tab || v.tab ? drillTab(v) : null, lyrics: names(d, v) });
             varBox.append(h('div', { class: 'drill-staff' }, staff.el));
           } catch (e) { console.error(e); }
           const play = h('button', { class: 'btn small ghost', onclick: () => {
             A.ensure(); A.fresh(); let t = A.now() + 0.05; const q = 60 / bpm * (back && back.rhythm && back.rhythm.unit === '♪' ? 2 : 1); // ♪ rhythms count eighths
-            v.bars.flat().forEach(n => { const len = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 }[n.d] * (n.dot ? 1.5 : 1) * q; if (n.m !== null && n.m !== undefined) (n.ch || [n.m]).forEach((m, k) => A.note(m, t + k * 0.012, n.ch ? 0.6 : 0.75, len * 0.95)); t += len; });
+            v.bars.flat().forEach(n => { const len = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 }[n.d] * (n.dot ? 1.5 : 1) * q; if (n.m !== null && n.m !== undefined) (n.ch || [n.m]).forEach((m, k) => A.note(m + (n.up || 0), t + k * 0.012, n.ch ? 0.6 : 0.75, len * 0.95)); t += len; }); // n.up: a pressed note (nhấn), in semitones
           } }, '▶ Hear the phrase');
           varBox.append(play);
         }
@@ -167,6 +187,7 @@ tool('drill', {
         h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: () => list() }, '← All drills'), h('span', { class: 'eyebrow', text: regionName(d.style) + ' · ' + FOCUS[d.focus] + ' · level ' + d.level })),
         h('h2', { text: d.name }), h('p', { class: 'lede', text: d.goal }),
         h('p', { class: 'small muted', text: d.why }),
+        tuningNote(d),
         h('ol', { class: 'list steps' }, d.steps.map(x => h('li', { text: x }))),
         SoloTips(d.solo, 'How to solo or make up your own'),
         varBox,
@@ -181,6 +202,13 @@ tool('drill', {
           (() => { const s2 = h('select', { 'aria-label': 'Rounds per variation' }); [[0, 'never (stay)'], [1, 'round'], [2, '2 rounds'], [4, '4 rounds']].forEach(([v, t]) => s2.append(h('option', { value: String(v), selected: v === rotateEvery ? true : null, text: t }))); s2.onchange = () => { rotateEvery = +s2.value; E.setSetting('drillRotate', rotateEvery); }; return s2; })()),
         mic.el, meterBox,
         d.listen ? h('p', { class: 'small' }, 'Hear it: ', h('a', { href: yt(d.listen.artist + ' ' + d.listen.work), target: '_blank', rel: 'noopener' }, d.listen.artist + ', ' + d.listen.work + ' ↗')) : '');
+      function tuningNote(d) {
+        const t = d.tuning && E.TUNINGS.find(x => x.id === d.tuning);
+        if (!t || E.guitar().tuning === t.id) return '';
+        const cur = (E.TUNINGS.find(x => x.id === E.guitar().tuning) || E.TUNINGS[0]).name;
+        return h('div', { class: 'callout' }, h('p', { class: 'small', text: 'This drill is written for ' + t.name + ' tuning (' + t.midi.map(m => D.NOTE_NAMES[m % 12]).join(' ') + ', low to high); the app is set to ' + cur + ', so the fretboard and tab would show other frets.' }),
+          h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: t.id }); toast('The whole app now uses ' + t.name + '. Settings → Your guitar changes it back.'); open(d); } }, 'Use ' + t.name), h('button', { class: 'btn small ghost', onclick: () => openTool('tuner', { returnTab: 'train' }) }, 'Reference tones')));
+      }
       drawVar();
       playBtn.onclick = () => { if (back.loop) { back.stop(); playBtn.textContent = '▶ Play'; ctx.setActive(false); } else { meter.reset(); back.start(); playBtn.textContent = '■ Stop'; ctx.setActive(true); } };
     }

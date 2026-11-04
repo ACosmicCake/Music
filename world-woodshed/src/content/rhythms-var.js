@@ -123,6 +123,11 @@ const WORDS = {
     ['Phin', 'the small plucked lute of Isan and Laos'],
     ['Mor lam sing', 'fast electric mor lam for dancing'],
     ['Song lang', 'the wooden clapper that marks the beat in southern Vietnamese music']
+  ],
+  vietnam: [
+    ['Song lang', 'mõ gỗ nhỏ đặt dưới chân người đờn, gõ vào phách mạnh ở cuối mỗi nhóm'],
+    ['Nhịp', 'vừa là phách, vừa là một nhóm phách; “nhịp 32” là câu dài 32 nhịp'],
+    ['Xuống song lang', 'câu nhạc đi tới và dứt đúng trên tiếng song lang']
   ]
 };
 

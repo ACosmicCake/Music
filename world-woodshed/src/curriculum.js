@@ -73,7 +73,7 @@ function baseCatalog() {
     list.push({ id: 'tune:' + t.id, kind: 'tune', ref: t.id, name: t.name, tier, order: i, styles: [t.region || 'jazz'] });
   });
   (D.DRILLS || []).forEach((d, i) => list.push({ id: 'drill:' + d.id, kind: 'drill', ref: d.id, name: d.name, tier: d.level, order: i, styles: [d.style] }));
-  D.LESSONS.forEach((l, i) => list.push({ id: 'lesson:' + l.id, kind: 'lesson', ref: l.id, name: l.title, tier: 1 + ['Foundations', 'Intermediate', 'Advanced'].indexOf(l.level), order: i, styles: [] }));
+  D.LESSONS.forEach((l, i) => list.push({ id: 'lesson:' + l.id, kind: 'lesson', ref: l.id, name: l.title, tier: l.tier || 1 + ['Foundations', 'Intermediate', 'Advanced'].indexOf(l.level), order: i, styles: l.styles || [] }));
   catCache = list;
   return list;
 }
