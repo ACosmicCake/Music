@@ -3,6 +3,7 @@ import D from './data.js';
 import { readingItems } from './content/reading.js';
 import { gymItems } from './content/gym.js';
 import { dictationItems } from './content/dictation.js';
+import { noteNameItems } from './content/notenames.js';
 import { SCHEMA, migrate, merge, digest } from './sync.js';
 import Goals from './goals.js';
 
@@ -33,6 +34,7 @@ const SKILLS = {
   repertoire: { name: 'Repertoire', cat: 'play', tool: 'repertoire', qpm: 6 },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', qpm: 1 },
   reading: { name: 'Sight-reading', cat: 'play', tool: 'sightread', qpm: 4 },
+  notenames: { name: 'Note names', cat: 'play', tool: 'notenames', qpm: 10 },
   atlas: { name: 'World knowledge', cat: 'know', tool: 'atlasquiz', qpm: 6 }
 };
 const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard, reading & repertoire', tech: 'Technique', know: 'Knowledge' };
@@ -123,6 +125,7 @@ function universe(skill) {
     case 'repertoire': list = D.TUNES.map((t, i) => ({ id: t.id, label: t.name, tier: t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(i / 3)) : 2 })); break;
     case 'technique': list = D.EXERCISES.map(e => ({ id: e.id, label: e.name, tier: 1 })); break;
     case 'reading': list = readingItems(); break;
+    case 'notenames': list = noteNameItems(); break;
     case 'tuplets': list = gymItems(); break;
     case 'atlas':
       D.REGIONS.forEach(r => r.facts.forEach((f, i) => list.push({ id: r.id + ':' + i, label: r.name + ': ' + f.q, tier: 1, region: r.id })));

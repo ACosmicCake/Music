@@ -34,6 +34,7 @@ export const BLOCKS = {
   dictation: { name: 'Melodic dictation', cat: 'ear', tool: 'dictation', skill: 'dictation', minutes: 8, fields: [], desc: 'Hear a short melody in a key and write it back.' },
   drone: { name: 'Drone improvisation', cat: 'ear', tool: 'drone', skill: 'scales', minutes: 10, fields: ['scale', 'tonic'], desc: 'Improvise in a raga, maqam or mode over a tanpura drone.' },
   sightread: { name: 'Sight-reading', cat: 'fret', tool: 'sightread', skill: 'reading', minutes: 8, fields: [], desc: 'Read notes, rhythms and melodies from the staff, level by level.' },
+  notenames: { name: 'Note names', cat: 'fret', tool: 'notenames', skill: 'notenames', minutes: 6, fields: [], desc: 'Name notes and chords on the treble, bass and grand staff.' },
   fretboard: { name: 'Fretboard notes', cat: 'fret', tool: 'fretboard', skill: 'fretboard', minutes: 6, fields: [], desc: 'Find any note on any string, fast.' },
   explorer: { name: 'Chords & scales on the neck', cat: 'fret', tool: 'explorer', skill: 'fretboard', minutes: 8, fields: [], desc: 'Map a scale or chord across the whole neck and play through it.' },
   drill: { name: 'Style drill', cat: 'music', tool: 'drill', skill: null, minutes: 10, fields: ['drill'], desc: 'An exercise from one of the styles: a backing loop, rotating variations and a tempo ladder.' },
@@ -47,7 +48,7 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
-export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'fretboard', 'explorer', 'drill', 'repertoire', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',

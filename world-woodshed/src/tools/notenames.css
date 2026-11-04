@@ -1,0 +1,23 @@
+/* Note names (src/tools/notenames.js) */
+.nn-row { gap: 6px; }
+.nn-row .seg { flex-wrap: wrap; border-radius: 14px; }
+.nn-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+.nn-levels button { display: grid; gap: 1px; padding: 7px 6px; text-align: center; }
+.nn-levels button span { font-size: 0.74rem; font-weight: 500; }
+.nn-quiz { display: grid; gap: 10px; }
+.nn-staff { justify-items: center; }
+/* the grand staff: treble over bass, joined by a line on the left */
+.nn-grand { display: grid; justify-items: start; border-left: 3px solid currentColor; padding-left: 2px; margin-left: 6px; }
+.nn-grand svg + svg { margin-top: -34px; }
+.nn-quals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.nn-quals .choice { min-height: 50px; padding: 6px 2px; }
+.nn-quals .choice span { font-size: 0.68rem; line-height: 1.15; }
+.choice.picked { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.nn-slotrow { align-items: center; justify-content: space-between; }
+.nn-slots { display: flex; gap: 6px; flex-wrap: wrap; }
+.nn-slot { min-width: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; text-align: center; font-family: var(--font-display); font-weight: 700; }
+.nn-slot.now { border-color: var(--ink); }
+.nn-slot.ok { background: var(--good-soft); border-color: var(--good); }
+.nn-slot.no { background: var(--bad-soft); border-color: var(--bad); }
+html.compact .nn-quals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html.compact .nn-levels button span { font-size: 0.68rem; }
