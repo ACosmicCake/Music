@@ -441,13 +441,41 @@ function scoresMode(root, lv, ctx, p) {
     const lineBox = h('label', { class: 'stack small', hidden: true }, 'Part', lineSel);
     card.append(h('label', { class: 'stack small' }, 'Score', select), lineBox, fixLine);
     const msg = h('p', { class: 'small', role: 'status' });
-    card.append(msg);
+    const pageHint = h('p', { class: 'small muted', hidden: true });
+    card.append(pageHint, msg);
+    // a score the app read from a PDF or photos is read from those pages in full screen, as printed
+    async function pagesOf(got, mel) {
+      pageHint.hidden = true;
+      if (!/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
+      const PL = await import('../pagelayout.js');
+      const layout = PL.layoutFromXML(await got.blob.text());
+      const e = L.getEntry(pick.e.id) || pick.e, here = await L.localIds();
+      const pdfs = e.files.filter(f => f.kind === 'pdf' && here.has(f.id));
+      const pdf = pdfs.find(f => PL.readName(f.name) === pick.f.name) || (pdfs.length === 1 ? pdfs[0] : null);
+      const photos = pdf ? [] : e.files.filter(f => f.kind === 'image' && here.has(f.id));
+      if (!pdf && !photos.length) return null;
+      const kind = pdf ? 'PDF' : photos.length > 1 ? 'photos' : 'photo';
+      pageHint.hidden = false;
+      if (!layout) { pageHint.textContent = 'Read the notes again in the Library (Read the notes again) to read from the ' + kind + ' itself in full screen: this reading is older than that.'; return null; }
+      pageHint.textContent = 'In full screen you read from the ' + kind + ' itself, page by page as printed, with the cursor over its notes (📄 The page there switches it).';
+      return {
+        layout, kind, row: PL.rowOf(layout, { part: mel.part, staff: mel.staff }),
+        on: () => saved().pages !== false,
+        set: v => keep({ pages: !!v }),
+        source: async () => {
+          if (pdf) { const g = await L.getFile(pdf.id); if (!g) throw new Error('the PDF is not on this device'); return { pdf: g.blob }; }
+          const blobs = [];
+          for (const f of photos) { const g = await L.getFile(f.id); if (g) blobs.push(g.blob); }
+          return { photos: blobs };
+        }
+      };
+    }
     async function load(at) {
       const my = ++token;
       done(); msg.textContent = 'Reading the notes…';
-      let mel = null;
+      let mel = null, got = null;
       try {
-        const got = await L.getFile(pick.f.id);
+        got = await L.getFile(pick.f.id);
         if (!got) throw new Error('the file is not on this device');
         mel = await S.readScoreMelody(got.name, got.blob, lineOf());
       } catch (e) { if (my === token) msg.textContent = 'Could not read this score: ' + (e && e.message ? e.message : 'unknown error'); return; }
@@ -488,6 +516,8 @@ function scoresMode(root, lv, ctx, p) {
           if (hooks.signal) hooks.signal('piece:' + pick.e.id, { score });
         }
       };
+      own.page = await pagesOf(got, mel);
+      if (my !== token || gone) return;
       const olv = { id: 'own', tempo: [60, 200], range: (bpm ? 'written at ' + bpm + ' bpm' : 'your tempo') + unit };
       api = melodyMode(body, olv, ctx, own);
     }
@@ -713,13 +743,49 @@ function melodyMode(root, lv, ctx, own) {
   const fsStart = h('button', { class: 'btn brass small', onclick: () => startBtn.onclick() }, '▶ Start');
   const fsNext = h('button', { class: 'btn small', onclick: () => newBtn.onclick() }, own ? 'Next' : 'New');
   const fsExit = h('button', { class: 'btn small ghost', 'aria-label': 'Leave full screen', 'data-back-close': '', onclick: () => setFull(false) }, '✕');
+  // a score read from a PDF or photos: its own pages in full screen, as printed (own.page, src/ui/pageview.js)
+  const paged = own && own.page;
+  let pv = null, pvLoading = null, gone = false;
+  const usePages = () => !!(full && paged && paged.on() && pv);
+  const fsPages = h('button', { class: 'btn small', hidden: !paged, onclick: () => { paged.set(!paged.on()); if (paged.on()) loadPages(); paintFs(); if (!run) draw(); } });
+  const fsPrev = h('button', { class: 'btn small', 'aria-label': 'Previous page', onclick: () => { if (pv) pv.turn(-1); } }, '‹');
+  const fsPage = h('span', { class: 'mono small sr-fspage' });
+  const fsNextPage = h('button', { class: 'btn small', 'aria-label': 'Next page', onclick: () => { if (pv) pv.turn(1); } }, '›');
   const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
-    h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'));
+    h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
+    fsPages, fsPrev, fsPage, fsNextPage);
   function paintFs() {
     fsBpm.textContent = bpm + ' bpm';
     fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single);
+    if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = true; return; }
+    fsPages.textContent = paged.on() ? '♫ One line' : '📄 The page';
+    fsPages.setAttribute('aria-label', paged.on() ? 'Read it on one line instead' : 'Read it from the ' + paged.kind + ' itself');
+    const on = usePages();
+    fsPrev.hidden = fsNextPage.hidden = !on;
+    fsPage.hidden = !(on || (paged.on() && full));
+    fsPage.textContent = on ? pv.label() : 'Opening the ' + paged.kind + '…';
+    if (on) { fsPrev.disabled = !pv.canTurn(-1); fsNextPage.disabled = !pv.canTurn(1); }
   }
+  function loadPages() {
+    if (pv || pvLoading || !paged) return pvLoading;
+    pvLoading = Promise.all([import('../ui/pageview.js'), paged.source()]).then(async ([PV, src]) => {
+      const source = await PV.openSource(src);
+      if (gone) { source.close(); return; }
+      pv = PV.PageView(source, paged.layout);
+      pv.onTurn = () => paintFs();
+      if (full && !run) draw();
+      paintFs();
+    }).catch(e => { console.error(e); toast('Could not open the ' + paged.kind + ': ' + (e && e.message ? e.message : 'unknown error')); paged.set(false); paintFs(); })
+      .finally(() => { pvLoading = null; });
+    return pvLoading;
+  }
+  // the arrow keys and a page-turner pedal (which sends Page Up and Page Down) turn the pages
+  const pageKeys = e => {
+    if (!usePages() || (e.target && e.target.closest && e.target.closest('input, select, textarea'))) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pv.turn(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); pv.turn(-1); }
+  };
   let resizeT = 0;
   const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (full && !run) draw(); }, 200); };
   const onFsChange = () => { if (full && !document.fullscreenElement && full.wasFull) setFull(false); else if (full && document.fullscreenElement) full.wasFull = true; };
@@ -734,11 +800,14 @@ function melodyMode(root, lv, ctx, own) {
       document.body.append(box);
       full = { box, moved, wasFull: false };
       document.addEventListener('fullscreenchange', onFsChange);
+      document.addEventListener('keydown', pageKeys);
       window.addEventListener('resize', onResize);
+      if (paged && paged.on()) loadPages();
       fullScreen(true, box).then(() => { if (full) onResize(); });
     } else {
       const f = full; full = null;
       document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('keydown', pageKeys);
       window.removeEventListener('resize', onResize);
       f.moved.forEach(([el, ph]) => ph.replaceWith(el));
       result.classList.remove('sr-fsresult');
@@ -755,6 +824,19 @@ function melodyMode(root, lv, ctx, own) {
     h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
+    staffBox.classList.toggle('sr-pagebox', usePages());
+    if (full) full.box.classList.toggle('sr-paper', paperOn() || usePages());
+    if (usePages()) {
+      // the printed page itself, as large as the screen allows, the cursor over its notes
+      staffBox.append(pv.el);
+      pv.fit(staffBox.clientWidth, staffBox.clientHeight);
+      staff = pv.forPiece(piece, paged.row, own.title + ', ' + cur.label);
+      attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
+      info.textContent = keyName(piece.key) + ' · ' + piece.time;
+      src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of);
+      paintFs();
+      return staff;
+    }
     staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, clef: piece.clef, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     if (full) {
@@ -889,5 +971,5 @@ function melodyMode(root, lv, ctx, own) {
     paintFs();
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); } };
+  return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); gone = true; if (pv) pv.destroy(); pv = null; } };
 }

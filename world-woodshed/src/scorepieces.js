@@ -103,7 +103,8 @@ export function sections(melody, per = 4) {
     x.reps.forEach(r => untie(slice[r[1]]));
     x.cuts.forEach(k => untie(slice[k]));
     if (slice.every(bar => bar.every(n => n.midi == null))) return; // nothing to read
-    const piece = { key, time, bars: slice };
+    // src: the score bar each bar is (from 0, as written), for reading from the printed page (src/pagelayout.js)
+    const piece = { key, time, bars: slice, src: x.idx.slice() };
     if (bass) piece.clef = 'bass';
     if (x.reps.length === 1) piece.repeat = x.reps[0];
     else if (x.reps.length) piece.repeats = x.reps;

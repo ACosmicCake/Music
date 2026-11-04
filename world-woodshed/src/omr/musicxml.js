@@ -2,6 +2,8 @@
    alphaTab (the app's score player) and most notation apps open. Plain functions, tested in
    test/omr.test.js. */
 
+import { encodeLayout, FIELD } from '../pagelayout.js';
+
 const DIV = 24; // divisions per quarter: a 32nd is 3, an eighth of a triplet 8
 const TYPES = [[4, 'whole'], [2, 'half'], [1, 'quarter'], [0.5, 'eighth'], [0.25, '16th'], [0.125, '32nd']];
 const ACC = { '-2': 'flat-flat', '-1': 'flat', 0: 'natural', 1: 'sharp', 2: 'double-sharp' };
@@ -43,6 +45,14 @@ function written(ev) {
   return out;
 }
 
+function miscOf(opts) {
+  const f = [];
+  if (opts.check && opts.check.length) f.push(`<miscellaneous-field name="ww-check-bars">${opts.check.map(Number).join(' ')}</miscellaneous-field>`);
+  const lay = opts.layout ? encodeLayout(opts.layout, opts.pages) : '';
+  if (lay) f.push(`<miscellaneous-field name="${FIELD}">${esc(lay)}</miscellaneous-field>`);
+  return f.length ? `    <miscellaneous>${f.join('')}</miscellaneous>` : null;
+}
+
 /* opts: { title, composer, bpm, program (General MIDI, 1–128 as MusicXML counts), date } */
 export function scoreToMusicXML(score, opts = {}) {
   const title = opts.title || score.title || 'Untitled';
@@ -58,7 +68,8 @@ export function scoreToMusicXML(score, opts = {}) {
     opts.composer ? `    <creator type="composer">${esc(opts.composer)}</creator>` : null,
     `    <encoding><software>World Woodshed (score recognition)</software>${opts.date ? `<encoding-date>${esc(opts.date)}</encoding-date>` : ''}</encoding>`,
     // the bars that didn't add up when read, for the score viewer to point out
-    opts.check && opts.check.length ? `    <miscellaneous><miscellaneous-field name="ww-check-bars">${opts.check.map(Number).join(' ')}</miscellaneous-field></miscellaneous>` : null,
+    // and where each bar sits on the page it was read from (src/pagelayout.js), for reading from the page itself
+    miscOf(opts),
     '  </identification>',
     '  <part-list>');
   score.parts.forEach((p, pi) => {
