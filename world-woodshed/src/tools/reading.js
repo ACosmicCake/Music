@@ -97,8 +97,12 @@ function followAlong(staff, x) {
    A seg is { item, piece, k, expected: [{ i, q, len, midi, chord, t, dur, j }], ats, spq, staff }. */
 const G = 1 / 12;
 function playRun(o) {
-  A.ensure();
+  const actx = A.ensure();
   const segs = [];
+  // the click through its own level (Click: soft … max), into the percussion channel; read when it sounds, so a
+  // change while playing is heard on the next beat
+  const clickBus = actx.createGain(); clickBus.connect(A.channel('perc'));
+  const click = (down, t, vel) => { clickBus.gain.value = clickLevel(); A.hit(down ? 'clickHi' : 'click', t, vel, clickBus); };
   const opts = { steps: 1e9, maxSteps: 0, ahead: 0.3 }; // the beat scheduled well ahead, so a slow phone or a long score can't make it stumble
   const make = (item, start) => {
     // piece.beatQ: the beat the click counts when the player chose another (6 quarters to a bar of 12/8)
@@ -141,8 +145,9 @@ function playRun(o) {
       // sound like a fast 3/4 (loud, soft, soft)
       if (kk % seg.beatSteps === 0) {
         const down = kk % seg.barSteps === 0;
-        if (inPre) A.hit(down ? 'clickHi' : 'click', t, 0.95);
-        else if (o.click) A.hit(down ? 'clickHi' : 'click', t, 0.45);
+        // the click while reading as loud as the count-in: at 0.45 it was half as loud and took the woodblock's
+        // soft recording, too quiet to play along to
+        if (inPre || o.click) click(down, t, 0.95);
       }
       if (!inPre && seg.byStep.has(kk)) {
         const a = seg.byStep.get(kk), e = Object.assign({}, a, { t, dur: a.len * seg.spq });
@@ -596,12 +601,24 @@ function bpmFor(lv, kind) {
   return typeof v === 'number' ? v : lv.tempo[0];
 }
 function saveBpm(lv, kind, v) { const all = Object.assign({}, E.state.settings.readingBpm || {}); all[kind + lv.id] = v; E.setSetting('readingBpm', all); }
+/* how loud the click is while reading (the woodblock at full velocity, then this gain), per device */
+const CLICK_VOLS = [['soft', 0.5, 'Soft'], ['normal', 1, 'Normal'], ['loud', 1.8, 'Loud'], ['max', 3, 'Max']];
+const clickVol = () => (CLICK_VOLS.find(c => c[0] === E.state.settings.readingClickVol) || CLICK_VOLS[2]);
+const clickLevel = () => clickVol()[1];
+function clickVolControl(onChange) {
+  const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Click volume' });
+  const paint = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === clickVol()[0] ? 'true' : 'false'));
+  CLICK_VOLS.forEach(([id, , label]) => seg.append(h('button', { 'data-v': id, onclick: () => { E.setSetting('readingClickVol', id); paint(); if (onChange) onChange(); } }, label)));
+  paint();
+  return { el: h('div', { class: 'row small sr-clickvol' }, h('span', { class: 'eyebrow', text: 'Click' }), seg), paint };
+}
+const nextClickVol = () => { const i = CLICK_VOLS.indexOf(clickVol()); E.setSetting('readingClickVol', CLICK_VOLS[(i + 1) % CLICK_VOLS.length][0]); };
 function tempoControl(get, set, lv) {
   const lbl = h('b', { class: 'mono sr-bpm' });
   const paint = () => { lbl.textContent = get() + ' bpm'; };
   const bump = d => { set(Math.max(30, Math.min(220, get() + d))); paint(); };
   paint();
-  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] })), paint, bump };
+  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] }), clickVolControl().el), paint, bump };
 }
 
 /* a short line per piece read in a run: "Rhythm 12 · 85%" */
@@ -766,12 +783,14 @@ function melodyMode(root, lv, ctx, own) {
   const fsPrev = h('button', { class: 'btn small', 'aria-label': 'Previous page', onclick: () => { if (pv) pv.turn(-1); } }, '‹');
   const fsPage = h('span', { class: 'mono small sr-fspage' });
   const fsNextPage = h('button', { class: 'btn small', 'aria-label': 'Next page', onclick: () => { if (pv) pv.turn(1); } }, '›');
+  const fsVol = h('button', { class: 'btn small', 'aria-label': 'Click volume', onclick: () => { nextClickVol(); paintFs(); } });
   const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
     h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
-    fsCursor, fsPages, fsPrev, fsPage, fsNextPage);
+    fsVol, fsCursor, fsPages, fsPrev, fsPage, fsNextPage);
   function paintFs() {
     fsBpm.textContent = bpm + ' bpm';
+    fsVol.textContent = '🔊 ' + clickVol()[2];
     fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single);
     fsCursor.textContent = (CURSORS.find(c => c[0] === cursorMode()) || CURSORS[0])[1];
     if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = true; return; }
