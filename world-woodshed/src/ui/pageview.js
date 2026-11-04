@@ -128,9 +128,10 @@ export function PageView(source, layout) {
       mark(i, cls) { const e = notes[i]; if (!e) return; e.classList.remove('now', 'good', 'bad', 'near'); if (cls) cls.split(' ').forEach(c => e.classList.add(c)); },
       clearMarks() { notes.forEach(e => e && e.classList.remove('now', 'good', 'bad', 'near')); },
       bar() {},
-      cursor(i) {
+      /* the note being played (whether or not the cursor shows it): turns the page */
+      follow(i) {
         const sp = i === null || i === undefined ? null : spotsNow[i];
-        if (!sp) { cur.hidden = true; return; }
+        if (!sp) return;
         if (ahead != null && sp.b !== ahead) ahead = null;
         if (!shown.includes(sp.p)) { if (ahead == null) show(sp.p); }
         else if (sp.p === shown[shown.length - 1] && sp.b === last[sp.p] && sp.p + 1 < pages) {
@@ -139,6 +140,10 @@ export function PageView(source, layout) {
           const L = layout.bars[sp.b];
           if (L && sp.x >= (L.x0 + L.x1) / 2) { ahead = sp.b; show(sp.p + 1); }
         }
+      },
+      cursor(i) {
+        const sp = i === null || i === undefined ? null : spotsNow[i];
+        if (!sp) { cur.hidden = true; return; }
         const s = slots[sp.p];
         if (cur.parentNode !== s.over) { cur.style.transition = 'none'; s.over.append(cur); void cur.offsetWidth; }
         else cur.style.transition = '';
