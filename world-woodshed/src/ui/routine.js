@@ -294,7 +294,7 @@ function field(f, b, set, redraw) {
       const songs = E.listSongs();
       return sel('Song', [auto(songs.length ? 'Most recent song' : 'Load a song in Transcribe first')].concat(songs.map(sg => ({ value: sg.id, text: sg.title }))), st.song || 'auto', v => set('song', v));
     }
-    case 'lesson': return sel('Lesson', [auto('Smart choice: new lessons and reviews')].concat(['Foundations', 'Intermediate', 'Advanced'].map(lv => ({ group: lv, items: D.LESSONS.filter(l => l.level === lv).map(l => ({ value: l.id, text: l.title })) }))), st.lesson || 'auto', v => set('lesson', v));
+    case 'lesson': return sel('Lesson', [auto('Smart choice: new lessons and reviews')].concat(['Foundations', 'Intermediate', 'Advanced', 'World traditions'].map(lv => ({ group: lv, items: D.LESSONS.filter(l => l.level === lv).map(l => ({ value: l.id, text: l.title })) }))), st.lesson || 'auto', v => set('lesson', v));
     case 'drill': {
       // two block types share this field: a no-guitar drill, or a style drill
       if (b.type === 'away') return sel('Drill', [auto('A different one each time')].concat(Object.entries(DRILLS).map(([k, v]) => ({ value: k, text: v }))), st.drill || 'auto', v => set('drill', v));

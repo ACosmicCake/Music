@@ -4,6 +4,7 @@ import STYLES_A from './content/styles-a.js';
 import STYLES_B from './content/styles-b.js';
 import STYLES_NEW from './content/styles-new.js';
 import STYLES_MORE from './content/styles-more.js';
+import STYLES_VN from './content/styles-vn.js';
 import EX_VARS from './content/exercise-vars.js';
 import RHY_VAR from './content/rhythms-var.js';
 import RHY_NEW from './content/rhythms-new.js';
@@ -106,6 +107,9 @@ const SCALES = [
   { id: 'yo', name: 'Yo scale', aka: 'Japanese folk pentatonic', steps: [0, 2, 5, 7, 9], tier: 5, region: 'Japan', note: 'Pentatonic without half steps, used in folk songs.' },
   { id: 'slendro', name: 'Slendro (approx.)', aka: 'Javanese and Balinese gamelan', steps: [0, 2.4, 4.8, 7.2, 9.6], tier: 5, region: 'Indonesia', note: 'Five roughly equal steps. Each gamelan has its own tuning.' },
   { id: 'pelog', name: 'Pelog (approx.)', aka: 'Gamelan 5-note selection', steps: [0, 1.2, 2.7, 6.6, 7.5], tier: 5, region: 'Indonesia', note: 'Uneven steps, small and large. Tunings vary by gamelan.' },
+  // southern Vietnam (vọng cổ): the names and notes are in Vietnamese, as that style's pages are
+  { id: 'hoibac', name: 'Hơi Bắc', aka: 'Hò xự xang xê cống · Vietnamese', steps: [0, 2, 5, 7, 9], tier: 2, region: 'Nam Bộ, Việt Nam', note: 'Năm nốt hò xự xang xê cống, đờn thẳng, không nhấn không rung: vui tươi, sáng sủa.' },
+  { id: 'hoinam', name: 'Hơi Nam, Oán (approx.)', aka: 'Hò, xự nhấn, xang, xê, cống nhấn, oan · Vietnamese', steps: [0, 3.5, 5, 7, 8.5, 10], tier: 5, region: 'Nam Bộ, Việt Nam', note: 'Xự và cống được nhấn lên lưng chừng giữa hai phím, xang và oan được rung. Cao độ thật thay đổi theo người đờn và theo câu: đây chỉ là chỗ để bắt đầu.' },
   { id: 'thai7', name: 'Thai seven-tone (approx.)', aka: 'Seven roughly equal steps', steps: [0, 1.71, 3.43, 5.14, 6.86, 8.57, 10.29], tier: 5, region: 'Thailand · Laos · Cambodia', note: 'The ideal tuning of Thai classical instruments: seven equal steps of about 171 cents. Melodies use five of them at a time. Real instruments vary.' },
   { id: 'bati', name: 'Bati (major)', aka: 'Ethiopian qenet', steps: [0, 4, 5, 7, 11], tier: 5, region: 'Ethiopia', note: 'Pentatonic with the major 7th; heard in Ethio-jazz.' },
   { id: 'anchihoye', name: 'Anchihoye', aka: 'Ethiopian qenet', steps: [0, 1, 5, 6, 9], tier: 5, region: 'Ethiopia', note: 'A striking pentatonic with two half steps.' },
@@ -458,13 +462,14 @@ const REGIONS = [
    Existing regions get them merged in; new styles are appended whole. */
 Object.values(STYLES_NEW).forEach(st => REGIONS.push(st));
 Object.values(STYLES_MORE).forEach(st => REGIONS.push(st));
+Object.values(STYLES_VN).forEach(st => REGIONS.push(st));
 REGIONS.forEach(r => Object.assign(r, STYLES_A[r.id] || {}, STYLES_B[r.id] || {}));
 // Long-form essays (r.essay) and the science page (SCIENCE) load on demand: see src/content/lazy.js
 const AREA = {
   cuba: 'Americas', brazil: 'Americas', mexico: 'Americas', colombia: 'Americas', latam: 'Americas', caribbean: 'Americas', jazz: 'Americas', blues: 'Americas', rock: 'Americas', funksoul: 'Americas', country: 'Americas', hawaii: 'Americas',
   flamenco: 'Europe', manouche: 'Europe', klezmer: 'Europe', celtic: 'Europe', classical: 'Europe', fado: 'Europe', turkbalkan: 'Europe',
   arabic: 'Middle East & India', persian: 'Middle East & India', hindustani: 'Middle East & India', carnatic: 'Middle East & India',
-  westafrica: 'Africa', centraleast: 'Africa', southernafrica: 'Africa', eastasia: 'East Asia', seasia: 'East Asia'
+  westafrica: 'Africa', centraleast: 'Africa', southernafrica: 'Africa', eastasia: 'East Asia', seasia: 'East Asia', vietnam: 'East Asia'
 };
 REGIONS.forEach(r => { r.area = AREA[r.id] || 'World'; });
 
@@ -482,6 +487,8 @@ const GROOVES = {
   highlife: { name: 'Highlife', steps: 16, spb: 4, perc: { bell: 'x.x.xx.x.x.x.x.x', shaker: 'x.x.x.x.x.x.x.x.' }, comp: '..x...x...x...x.', bass: 'r...5...r...5...' },
   soukous: { name: 'Soukous / rumba', steps: 16, spb: 4, perc: { hat: 'x.x.x.x.x.x.x.x.', high: '....x.......x...', low: 'x.......x.......' }, comp: 'x.xx.xx.x.xx.xx.', bass: 'r..5..r.r..5..r.' },
   drone: { name: 'Drone', steps: 8, spb: 2, perc: {}, comp: 'x.......', bass: 'r.......' },
+  // vọng cổ: a drone and the song lang clapper on the strong beat, the last of each four (src/content/drills-vn.js)
+  songlang: { name: 'Song lang', steps: 8, spb: 2, perc: { clave: '......X.' }, comp: 'x.......', bass: 'r.......' },
   shuffle: { name: 'Blues shuffle', steps: 12, spb: 3, perc: { ride: 'x.xx.xx.xx.x', high: '...x.....x..', low: 'x.....x.....' }, comp: '...x.....x..', bass: 'r.35.67.65.3' },
   rock: { name: 'Rock eighths', steps: 8, spb: 2, perc: { hat: 'xxxxxxxx', high: '..x...x.', low: 'x...xx..' }, comp: 'X.x.X.x.', bass: 'rrrrrrrr' },
   funk: { name: 'Funk sixteenths', steps: 16, spb: 4, perc: { hat: 'x.x.x.x.x.x.x.x.', high: '....X..x....X..x', low: 'x......x..x.....' }, comp: '..x.x..x..x.x..x', bass: 'r......r..r.8...' },

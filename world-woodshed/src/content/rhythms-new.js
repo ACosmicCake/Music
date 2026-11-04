@@ -308,6 +308,11 @@ const extra = [
   { id: 'morlam', name: 'Mor lam sing', region: 'seasia', meter: '4/4', steps: 16, spb: 4, bpm: 130, tier: 2, target: 'chick',
     tracks: B.morlam,
     note: 'Electric mor lam from Isan and Laos: four on the floor, offbeat hi-hat, and the phin or guitar chopping the & and a of every beat.' },
+  // ---------- Southern Vietnam (the style is written in Vietnamese)
+  { id: 'songlang', name: 'Song lang: nhịp mạnh ở cuối', region: 'vietnam', meter: '4/4 (2 nhịp)', steps: 16, spb: 2, bpm: 60, tier: 1, target: 'clave',
+    tracks: { clave: '......X.......X.', hat: 'x...x...x...x...' },
+    count: ['1', '&', '2', '&', '3', '&', '4', '&', '1', '&', '2', '&', '3', '&', '4', '&'],
+    note: 'Song lang là cái mõ gỗ nhỏ đặt dưới chân, người đờn gõ bằng chân. Trong đờn ca tài tử và cải lương, tiếng song lang rơi vào phách mạnh ở cuối mỗi nhóm, không phải ở đầu: câu nhạc đi tới song lang rồi nghỉ ở đó. Ở đây mỗi nhóm có bốn phách; tiếng tíc nhẹ là phách để bạn đếm.' },
 ];
 
 const rhythms = {
@@ -1164,6 +1169,19 @@ const rhythms = {
       { name: 'Drum break', cycles: 1, tracks: { low: 'x...x...x.x.x.x.', high: '....x...xxxxxxxx', hat: '..x...x.........', chick: '..xx..xx........' }, note: 'The drums take the last two beats; come back on 1.' },
     ],
     tips: ['Two quick chops after each beat.', 'Lock to the kick drum.', 'Repeat, repeat, then change one thing.'],
+  },
+  // ================= Southern Vietnam
+  songlang: {
+    cycles: 8, tempo: [40, 80],
+    variations: [
+      { name: 'Chỉ có song lang', tracks: { clave: '......X.......X.' }, note: 'Bỏ tiếng đếm. Tự đếm 1 2 3 4 trong đầu và chờ tiếng song lang ở phách 4.' },
+      { name: 'Nhịp chậm gấp đôi', tracks: { clave: '..............X.', hat: 'x...x...x...x...' }, note: 'Song lang chỉ gõ một lần sau tám phách. Vọng cổ đã đi đúng con đường này: từ nhịp 2 lên nhịp 4, 8, 16, 32, mỗi lần câu dài gấp đôi và tiếng song lang thưa hơn.' },
+      { name: 'Tay gõ phách', tracks: { clave: '......X.......X.', low: 'x.......x.......' }, note: 'Một tiếng trống nhẹ ở phách 1 để bạn thấy rõ: đầu nhóm nhẹ, cuối nhóm mới là nhịp mạnh.' },
+    ],
+    fills: [
+      { name: 'Xuống song lang dứt câu', cycles: 2, tracks: { clave: '......X.......X...............X.', hat: 'x...x...x...x...x...x...x...x...' }, note: 'Câu cuối kéo dài ra rồi dứt trên một tiếng song lang: người ta gọi là “xuống song lang”.' },
+    ],
+    tips: ['Nói “một, hai, ba, CẮC” và gõ chữ CẮC bằng chân.', 'Đừng nghe phách 1 là chỗ bắt đầu mạnh: ở đây nó là hơi thở sau tiếng song lang.', 'Hát hoặc đờn một câu ngắn sao cho nốt cuối rơi đúng tiếng song lang.'],
   },
 };
 
