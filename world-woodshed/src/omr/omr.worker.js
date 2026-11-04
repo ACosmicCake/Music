@@ -12,6 +12,7 @@ self.onmessage = e => {
     if (m.type === 'reset') { pages = []; info = []; self.postMessage({ type: 'ready' }); return; }
     if (m.type === 'page') {
       const r = readImage(m.gray);
+      r.systems.forEach(sys => { sys.page = pages.length; });
       pages.push(r.systems);
       const staves = r.prep.staves.filter(s => !s.tab).length;
       info.push({ staves, tab: r.prep.staves.some(s => s.tab), systems: r.systems.length });
@@ -24,7 +25,7 @@ self.onmessage = e => {
       if (!score || !found || !score.counts.notes) { self.postMessage({ type: 'done', empty: true, pages: info }); return; }
       // bars to check, numbered as the score shows them (a pickup is bar 0)
       const check = [...new Set(score.warnings.map(w => (score.pickup ? w.bar - 1 : w.bar)))].sort((a, b) => a - b);
-      const xml = scoreToMusicXML(score, Object.assign({}, m.opts, { check }));
+      const xml = scoreToMusicXML(score, Object.assign({}, m.opts, { check, layout: score.layout, pages: pages.length }));
       self.postMessage({ type: 'done', xml, pages: info, summary: {
         bars: score.counts.bars, notes: score.counts.notes, fixed: score.counts.fixed, check,
         time: score.time, fifths: score.fifths, parts: score.parts.map(p => p.name), staves: found, partsFrom: score.partsFrom || 0, drums: score.drums || 0

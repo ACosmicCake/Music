@@ -234,7 +234,11 @@ export function barsToCheck(xml) {
 /* The score's list of bars to check, brought up to date (the field is added or dropped as needed) */
 export function withCheckBars(xml) {
   const bars = barsToCheck(xml);
-  const field = bars.length ? `<miscellaneous><miscellaneous-field name="ww-check-bars">${bars.join(' ')}</miscellaneous-field></miscellaneous>` : '';
+  // the other fields (where the bars sit on the page) are kept as they are
+  const had = (xml.match(/<miscellaneous>([\s\S]*?)<\/miscellaneous>/) || [])[1] || '';
+  const others = had.match(/<miscellaneous-field name="(?!ww-check-bars")[^"]*">[^<]*<\/miscellaneous-field>/g) || [];
+  const fields = (bars.length ? [`<miscellaneous-field name="ww-check-bars">${bars.join(' ')}</miscellaneous-field>`] : []).concat(others);
+  const field = fields.length ? `<miscellaneous>${fields.join('')}</miscellaneous>` : '';
   if (/<miscellaneous>[\s\S]*?<\/miscellaneous>/.test(xml)) {
     return xml.replace(/\n?[ \t]*<miscellaneous>[\s\S]*?<\/miscellaneous>/, field ? '\n    ' + field : '');
   }

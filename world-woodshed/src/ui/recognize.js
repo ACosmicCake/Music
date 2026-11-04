@@ -7,6 +7,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.min.mjs';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import * as L from '../library.js';
 import { toGray } from '../omr/image.js';
+import { readName } from '../pagelayout.js';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -15,7 +16,7 @@ const MAX_SIDE = 3600; // photos are scaled down to this, which keeps a page of 
 export const MAX_PAGES = 40;
 
 /* The file name for what was read from a file (or from an entry's photos) */
-export const readName = base => String(base || 'Score').replace(/\.[a-z0-9]{1,8}$/i, '').slice(0, 120) + ' (notes read).musicxml';
+export { readName } from '../pagelayout.js';
 
 /* Draw an image source on a canvas no larger than maxW × maxSide and return it as grey levels */
 function grayOf(src, w, h, scale) {

@@ -166,7 +166,7 @@ function cutBars(s, xs, sp) {
   const rep = (x, dir) => (s.repeats || []).some(r => Math.abs(r.x - x) < sp * 2 && (r.dir === dir || r.dir === 'both'));
   for (let k = 0; k + 1 < bounds.length; k++) {
     const a = bounds[k], b = bounds[k + 1];
-    const bar = { events: s.events.filter(e => e.x >= a && e.x < b) };
+    const bar = { events: s.events.filter(e => e.x >= a && e.x < b), x0: a, x1: b };
     // a forward repeat at a bar's start (just after the header when the line opens with one), a backward one at its end
     if (rep(a, 'forward') || (k === 0 && (s.repeats || []).some(r => r.dir !== 'backward' && r.x > s.headerEnd - sp && r.x < a + sp * 2))) bar.repStart = true;
     if (rep(b, 'backward')) bar.repEnd = true;
@@ -216,7 +216,7 @@ export function buildScore(pages, opts = {}) {
   const partRows = piano ? [[0, 1]] : clefs.map((c, r) => (c === 'perc' ? null : [r])).filter(Boolean);
   if (!partRows.length) return null;
   // bars of each row, system after system
-  const rowBars = [], marks = []; // marks: repeat signs per bar of the piece, read on any row
+  const rowBars = [], marks = [], layout = []; // marks: repeat signs per bar of the piece, read on any row
   for (let r = 0; r < nRows; r++) rowBars.push([]);
   systems.forEach(sys => {
     const rs = rowsOf(sys);
@@ -230,6 +230,8 @@ export function buildScore(pages, opts = {}) {
       const s = rs[r];
       for (let k = 0; k < n; k++) rowBars[r].push(s && s.bars[k] ? s.bars[k].events : []);
     }
+    // where each bar sits on its page (readImage's layout), so the page itself can be read from
+    for (let k = 0; k < n; k++) layout.push(sys.layout && sys.layout[k] && sys.page != null ? Object.assign({ p: sys.page }, sys.layout[k], { rows: sys.layout[k].rows.slice(0, nRows) }) : null);
   });
   const nBars = Math.max(0, ...rowBars.map(b => b.length));
   // a time signature misread (a 3 taken for an 8) shows as bars that all add up to something else
@@ -289,7 +291,7 @@ export function buildScore(pages, opts = {}) {
     endings.push([b, e, n]);
     b = e;
   }
-  return { title: opts.title || '', time, fifths, parts, pickup, repeats, endings, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
+  return { title: opts.title || '', time, fifths, parts, pickup, repeats, endings, layout: layout.some(Boolean) ? { bars: layout, rows: partRows } : null, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);
