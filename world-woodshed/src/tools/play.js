@@ -3,6 +3,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { guitarMidis } from '../voicings.js';
 import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
+import { withStar, favStar } from '../ui/favs.js';
 import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
 import TN from '../mytunes.js';
@@ -638,9 +639,9 @@ tool('technique', {
       const tl = h('div', { class: 'tools' });
       D.EXERCISES.forEach(ex => {
         const t = E.state.tech[ex.id];
-        tl.append(h('button', { class: 'tile', onclick: () => open(ex) }, h('span', { class: 't-title', text: ex.name }),
+        tl.append(withStar(h('button', { class: 'tile', onclick: () => open(ex) }, h('span', { class: 't-title', text: ex.name }),
           h('span', { class: 't-desc' }, bar(t && t.best ? 100 * t.best / ex.target : 0, 'brass')),
-          h('span', { class: 't-meter', text: (t && t.best ? t.best : '—') + ' / ' + ex.target })));
+          h('span', { class: 't-meter', text: (t && t.best ? t.best : '—') + ' / ' + ex.target })), 'tech', ex.id, ex.name));
       });
       holder.append(tl);
     }
@@ -651,7 +652,7 @@ tool('technique', {
       holder.append(card);
       const back = h('button', { class: 'btn ghost small', onclick: list }, '← All exercises');
       const guide = D.TECHNIQUES.find(g => g.id === ex.id);
-      card.append(h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: ex.unit })), h('h2', { text: ex.name }), h('p', { class: 'small', text: ex.how }),
+      card.append(h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: ex.unit })), h('div', { class: 'spread' }, h('h2', { text: ex.name }), favStar('tech', ex.id, ex.name)), h('p', { class: 'small', text: ex.how }),
         guide ? h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => techniquePage(guide, () => openTool('technique', { params: { exercise: ex.id } })) }, 'Read the full guide: how, why and what to listen for →')) : null);
       const best = h('p', { class: 'small muted' });
       const progress = h('div');
