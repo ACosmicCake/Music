@@ -47,19 +47,51 @@ canvas.wave-ov { display: block; width: 100%; height: 28px; border-radius: 6px; 
 body.tr-deck-on .toast { bottom: calc(var(--tr-deck, 140px) + 14px); }
 .chip[data-speed][aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: #fff; }
 
-/* Full screen: the player card covers the screen and the waveform takes the room left */
-.card.tr-player.tr-fs { position: fixed; inset: 0; z-index: 45; border-radius: 0; border: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
-  padding: max(10px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) calc(var(--tr-deck-h, 70px) + 10px) max(10px, env(safe-area-inset-left, 0px)); }
-.tr-player.tr-fs .wave-wrap { flex: 1 1 auto; min-height: 100px; }
-.tr-player.tr-fs canvas.wave { position: absolute; inset: 0; width: 100%; height: 100%; }
-.tr-player.tr-fs .tr-video, .tr-player.tr-fs .tr-help, .tr-player.tr-fs .tr-title { display: none; }
-.tr-player.tr-fs > * { flex: none; }
-/* in full screen the buttons keep to one line each (swipe them sideways if they don't fit), so the waveform gets the height */
-.tr-player.tr-fs > .row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; }
-.tr-player.tr-fs > .row > * { flex: none; }
-.tr-player.tr-fs .tr-nudges { display: none; }
-.tr-player.tr-fs .tr-fs-btn { order: -1; }
-.tr-player.tr-fs > .wave-wrap { flex: 1 1 auto; }
+/* Player head: the title, and in full screen the way out */
+.tr-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tr-head .tr-title { flex: 1 1 auto; min-width: 0; margin: 0; }
+.tr-fs-exit, .tr-ws-bar, .tr-ws-jump { display: none; }
+
+/* Full screen is a workspace: the tool covers the screen and scrolls; the player (title, a short wide waveform,
+   the overview strip, the loop and zoom toolbar and the panel strip) stays at the top; every card scrolls under it,
+   in columns on a wide screen; the deck stays at the bottom */
+.section.tr-ws { position: fixed; inset: 0; z-index: 45; margin: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--bg);
+  align-content: start; gap: 10px;
+  padding: 0 max(10px, env(safe-area-inset-right, 0px)) calc(var(--tr-deck-h, 70px) + 16px) max(10px, env(safe-area-inset-left, 0px)); }
+.tr-ws > .card.tr-player.tr-fs { position: sticky; top: 0; z-index: 3; gap: 6px; margin: 0 calc(-1 * max(10px, env(safe-area-inset-right, 0px))) 0 calc(-1 * max(10px, env(safe-area-inset-left, 0px)));
+  border-radius: 0; border-width: 0 0 1px; box-shadow: 0 6px 14px -10px rgb(0 0 0 / 0.35);
+  padding: max(8px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) 8px max(10px, env(safe-area-inset-left, 0px)); }
+.tr-player.tr-fs .tr-title { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-player.tr-fs .tr-fs-exit { display: inline-flex; flex: none; }
+.tr-player.tr-fs .tr-video, .tr-player.tr-fs .tr-help, .tr-player.tr-fs .tr-zoomrow, .tr-player.tr-fs .tr-looprow, .tr-player.tr-fs .tr-nudges { display: none; }
+.tr-player.tr-fs canvas.wave-ov { height: 24px; }
+.tr-player.tr-fs .tr-head .tr-times { flex: none; gap: 10px; justify-content: flex-end; }
+.tr-player.tr-fs .tr-head .tr-title { flex: 1 1 0; }
+/* the toolbar: groups of buttons; on a phone it is one line that swipes sideways, on a wide screen it wraps */
+.tr-player.tr-fs .tr-ws-bar { display: flex; gap: 6px 14px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); padding-right: 18px; }
+.tr-ws-bar::-webkit-scrollbar, .tr-ws-jump::-webkit-scrollbar { display: none; }
+.tr-ws-grp { display: flex; gap: 4px; flex: none; align-items: center; }
+.tr-ws-grp + .tr-ws-grp { border-left: 1px solid var(--line); padding-left: 12px; }
+.tr-ws-bar .btn { white-space: nowrap; }
+.tr-player.tr-fs .tr-ws-jump { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); padding-top: 6px; }
+.tr-ws-jump .chip { flex: none; white-space: nowrap; }
+.tr-ws-jump .chip[aria-pressed="true"] { border-color: var(--patina); color: var(--ink); background: var(--sunk); }
+@media (max-width: 599px) { .tr-fs-exit-l { display: none; } }
+@media (max-width: 519px) { .tr-player.tr-fs .tr-head .tr-times > :last-child { display: none; } }
+@media (min-width: 760px) {
+  .tr-player.tr-fs .tr-ws-bar { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; padding-right: 0; }
+  .tr-player.tr-fs .tr-ws-jump { flex-wrap: wrap; overflow: visible; }
+}
+/* a wide screen: the panels side by side under the waveform */
+@media (min-width: 900px) {
+  .section.tr-ws { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; padding-left: 16px; padding-right: 16px; }
+  .tr-ws > .card.tr-player.tr-fs { grid-column: 1 / -1; margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+}
+/* a short screen (a phone on its side, a 3-inch phone): the waveform and its buttons scroll away too, so the panels get the room */
+@media (max-height: 560px) {
+  .tr-ws > .card.tr-player.tr-fs { position: relative; }
+}
 body.tr-fs-on { overflow: hidden; }
 body.tr-fs-on .toast { z-index: 60; }
 .tr-fs-btn[aria-pressed="true"] { border-color: var(--patina); }
@@ -73,4 +105,6 @@ html.compact .tr-deck .tr-play { width: 44px; height: 44px; font-size: 1rem; }
 html.compact .tr-deck .tr-loop { padding: 4px 10px; }
 html.compact .tr-deck-row .tr-step, html.compact .tr-deck-fs { display: none; }
 html.compact .tr-speedval { min-width: 4.4em; padding: 3px 8px; }
-html.compact .card.tr-player.tr-fs { gap: 5px; padding-left: max(6px, env(safe-area-inset-left, 0px)); padding-right: max(6px, env(safe-area-inset-right, 0px)); }
+html.compact .tr-ws > .card.tr-player.tr-fs { gap: 5px; }
+html.compact .tr-fs-exit-l { display: none; }
+html.compact .tr-ws-jump .chip { padding: 3px 9px; }

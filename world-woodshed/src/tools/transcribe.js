@@ -832,7 +832,7 @@ export default function transcribe(UI) {
       function restartIfPlaying() { if (P.wantPlay) play(curPos()); else prefetch(); }
 
       /* ----- UI ----- */
-      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
+      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, fsExit, wsJump, timesEl, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
       let hlFret;
       function setStatus(msg, prog) {
         if (!statusEl) return;
@@ -859,11 +859,11 @@ export default function transcribe(UI) {
         ovCanvas = h('canvas', { class: 'wave-ov', 'aria-label': 'The whole song. Tap or drag to move the zoomed view.' });
         ovCtx = ovCanvas.getContext('2d');
         timeLbl = h('span', { class: 'mono' }); loopLbl = h('span', { class: 'mono small muted' });
-        const back = h('button', { class: 'btn small', 'aria-label': 'Back 5 seconds', onclick: () => seek(curPos() - 5) }, '−5 s');
-        const fwd = h('button', { class: 'btn small', 'aria-label': 'Forward 5 seconds', onclick: () => seek(curPos() + 5) }, '+5 s');
-        const setA = h('button', { class: 'btn small', onclick: ev => markA(ev.shiftKey) }, 'Set A');
-        const setB = h('button', { class: 'btn small', onclick: ev => markB(ev.shiftKey, false) }, 'Set B');
-        const clearL = h('button', { class: 'btn small ghost', onclick: () => { P.a = P.b = null; P.loopOn = false; drawStatic(); persist(); refreshTransport(); restartIfPlaying(); } }, 'Clear loop');
+        const back = () => h('button', { class: 'btn small', 'aria-label': 'Back 5 seconds', onclick: () => seek(curPos() - 5) }, '−5 s');
+        const fwd = () => h('button', { class: 'btn small', 'aria-label': 'Forward 5 seconds', onclick: () => seek(curPos() + 5) }, '+5 s');
+        const setA = () => h('button', { class: 'btn small', onclick: ev => markA(ev.shiftKey) }, 'Set A');
+        const setB = () => h('button', { class: 'btn small', onclick: ev => markB(ev.shiftKey, false) }, 'Set B');
+        const clearL = () => h('button', { class: 'btn small ghost', onclick: () => { P.a = P.b = null; P.loopOn = false; drawStatic(); persist(); refreshTransport(); restartIfPlaying(); } }, 'Clear loop');
         const nudge = (which, d) => h('button', { class: 'btn small ghost', 'aria-label': 'Move ' + which.toUpperCase() + (d < 0 ? ' earlier' : ' later'), onclick: () => {
           if (P.a === null) return;
           const dd = snapping() ? Math.sign(d) * 60 / P.bpm : d; // with snapping on, nudge by a beat
@@ -871,20 +871,31 @@ export default function transcribe(UI) {
           drawStatic(); persist(); refreshTransport(); restartIfPlaying();
         } }, (which === 'a' ? 'A ' : 'B ') + (d < 0 ? '◂' : '▸'));
         fsBtn = h('button', { class: 'btn small tr-fs-btn', onclick: () => setFull(!P.full) }, '⛶ Full screen');
-        const zoomRow = h('div', { class: 'row tr-zoomrow' },
+        const zoomBtns = () => [
           h('button', { class: 'btn small ghost', onclick: () => { P.view = [0, P.dur]; drawStatic(); } }, 'Whole song'),
           h('button', { class: 'btn small ghost', onclick: zoomToLoop }, 'Zoom to loop'),
           h('button', { class: 'btn small ghost', 'aria-label': 'Zoom out', onclick: () => zoom(2) }, '−'),
-          h('button', { class: 'btn small ghost', 'aria-label': 'Zoom in', onclick: () => zoom(0.5) }, '+'),
-          fsBtn);
+          h('button', { class: 'btn small ghost', 'aria-label': 'Zoom in', onclick: () => zoom(0.5) }, '+')];
+        const zoomRow = h('div', { class: 'row tr-zoomrow' }, ...zoomBtns(), fsBtn);
+        // full screen: one toolbar with the loop, the nudges, the skips and the zoom, under the waveform
+        const grp = (label, ...kids) => h('div', { class: 'tr-ws-grp', role: 'group', 'aria-label': label }, ...kids);
+        const wsBar = h('div', { class: 'tr-ws-bar', role: 'toolbar', 'aria-label': 'Loop and view' },
+          grp('Loop', setA(), setB(), clearL()),
+          grp('Move A and B', nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
+          grp('Skip', back(), fwd()),
+          grp('Zoom', ...zoomBtns()));
+        fsExit = h('button', { class: 'btn small tr-fs-exit', 'aria-label': 'Exit full screen', onclick: () => setFull(false) }, '✕', h('span', { class: 'tr-fs-exit-l', text: ' Exit full screen' }));
+        // full screen: a strip of the panels under the waveform; a tap scrolls to one
+        wsJump = h('div', { class: 'tr-ws-jump', role: 'navigation', 'aria-label': 'Panels' });
         statusEl = h('div', { class: 'small', hidden: true });
         statusBar = bar(0, 'brass'); statusBar.hidden = true;
         repsLbl = h('span', { class: 'small muted mono', text: '' });
-        player.append(titleH, ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, h('div', { class: 'spread' }, timeLbl, loopLbl), zoomRow,
-          h('div', { class: 'row' }, setA, setB, back, fwd, clearL),
+        timesEl = h('div', { class: 'spread tr-times' }, timeLbl, loopLbl);
+        player.append(h('div', { class: 'tr-head' }, titleH, fsExit), ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, timesEl, wsBar, zoomRow,
+          h('div', { class: 'row tr-looprow' }, setA(), setB(), back(), fwd(), clearL()),
           h('div', { class: 'row tr-nudges' }, nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
-          statusEl, statusBar, repsLbl,
-          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s, - and + speed, F full screen. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
+          wsJump, statusEl, statusBar, repsLbl,
+          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Full screen keeps the waveform and its buttons at the top with every panel under them. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s, - and + speed, F full screen. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
         root.append(player);
 
         /* The deck: play, loop and speed, always in reach at the bottom of the screen */
@@ -911,7 +922,7 @@ export default function transcribe(UI) {
         document.body.classList.add('tr-deck-on');
 
         /* Speed card: the slider, transpose and the loop options */
-        const speedCard = h('div', { class: 'card tr-ui' });
+        const speedCard = h('div', { class: 'card tr-ui', 'data-pane': 'Speed & pitch' });
         speedIn = h('input', { type: 'range', min: 25, max: 125, step: 5, id: 'tr-speed', 'aria-label': 'Speed' });
         speedLbl = h('b', { class: 'mono' });
         semisLbl = h('b', { class: 'mono' });
@@ -950,7 +961,7 @@ export default function transcribe(UI) {
         renderSpeed();
 
         /* Focus card */
-        const focusCard = h('div', { class: 'card tr-ui' });
+        const focusCard = h('div', { class: 'card tr-ui', 'data-pane': 'Focus' });
         const modeChips = h('div', { class: 'chips' });
         modeNote = h('p', { class: 'small muted' });
         const mono = P.buffer.numberOfChannels < 2;
@@ -994,7 +1005,7 @@ export default function transcribe(UI) {
         root.append(buildNoteCard());
 
         /* Sections card */
-        const secCard = h('div', { class: 'card tr-ui' });
+        const secCard = h('div', { class: 'card tr-ui', 'data-pane': 'Sections' });
         const secName = h('input', { type: 'text', id: 'tr-sec', placeholder: 'Name, e.g. Intro riff, Solo bars 1–4', 'aria-label': 'Section name' });
         sectionsList = h('div', { class: 'stack' });
         const addSec = h('button', { class: 'btn small brass', onclick: () => {
@@ -1038,7 +1049,7 @@ export default function transcribe(UI) {
         renderSections();
 
         /* Note finder */
-        const anCard = h('div', { class: 'card tr-ui' });
+        const anCard = h('div', { class: 'card tr-ui', 'data-pane': 'Find the notes' });
         analysisOut = h('div', { class: 'stack' });
         hlFret = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.4) });
         hlFret.el.hidden = true;
@@ -1048,7 +1059,7 @@ export default function transcribe(UI) {
         root.append(anCard);
 
         /* Notes + tempo */
-        const notesCard = h('div', { class: 'card tr-ui' });
+        const notesCard = h('div', { class: 'card tr-ui', 'data-pane': 'Notes' });
         const ta = h('textarea', { id: 'tr-notes', rows: 6, placeholder: 'Your transcription: chords, tab, fingerings, what to practice next…', 'aria-label': 'Notes' });
         ta.value = st.notes || '';
         ta.addEventListener('input', () => { st.notes = ta.value; persist(); });
@@ -1063,13 +1074,13 @@ export default function transcribe(UI) {
         const syncLink = () => { const v = webLink(linkIn.value.trim()); linkA.hidden = !v; if (v) linkA.href = v; };
         linkIn.addEventListener('input', () => { st.link = linkIn.value.trim(); syncLink(); persist(); });
         syncLink();
-        root.append(h('div', { class: 'card tr-ui' },
+        root.append(h('div', { class: 'card tr-ui', 'data-pane': 'Song' },
           h('label', { class: 'stack', for: 'tr-title' }, h('span', { class: 'eyebrow', text: 'Song title' }), titleIn),
           h('label', { class: 'stack', for: 'tr-link' }, h('span', { class: 'eyebrow', text: 'Reference link' }), linkIn), linkA,
           h('div', { class: 'spread' }, h('span', { class: 'small muted mono', text: st.fileName + ' · ' + fmt(P.dur) + (P.buffer.numberOfChannels > 1 ? ' · stereo' : ' · mono') }), savedLbl),
           h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => fileInput.click() }, 'Replace audio file'))));
 
-
+        buildJump();
         setupCanvas();
         refreshTransport();
         savedLbl.textContent = 'Saved';
@@ -1109,7 +1120,7 @@ export default function transcribe(UI) {
         if (prog !== undefined) anBar.firstChild.style.width = Math.round(prog * 100) + '%';
       }
       function buildEstCard() {
-        const c = h('div', { class: 'card tr-ui tr-est' });
+        const c = h('div', { class: 'card tr-ui tr-est', 'data-pane': 'Key & tempo' });
         keyOut = h('p', { class: 'tr-keyline' });
         keyHint = h('p', { class: 'small muted' });
         loopKeyOut = h('span', { class: 'small' });
@@ -1276,7 +1287,7 @@ export default function transcribe(UI) {
         else if (!noteOnBoard) noteWhy.textContent = 'Above the 12th fret.';
       }
       function buildNoteCard() {
-        const c = h('div', { class: 'card tr-ui tr-notecard' });
+        const c = h('div', { class: 'card tr-ui tr-notecard', 'data-pane': 'Note' });
         noteBig = h('span', { class: 'tr-note dim', text: '—' });
         noteCents = h('span', { class: 'mono' });
         noteFreq = h('span', { class: 'mono small muted' });
@@ -1364,18 +1375,24 @@ export default function transcribe(UI) {
         P.view = [Math.max(0, P.a - pad), Math.min(P.dur, P.b + pad)]; P.followHold = 0; drawStatic();
       }
 
-      /* ----- full screen: the waveform fills the screen, the deck stays under it ----- */
+      /* ----- full screen: a workspace. The waveform, short and wide, stays at the top with its buttons;
+         every panel scrolls under it (in columns on a wide screen); the deck stays at the bottom ----- */
       function setFull(on) {
         on = !!on;
         if (on === !!P.full || !playerEl) return;
         P.full = on;
         playerEl.classList.toggle('tr-fs', on);
+        root.classList.toggle('tr-ws', on);
         document.body.classList.toggle('tr-fs-on', on);
         fsBtn.textContent = on ? '✕ Exit full screen' : '⛶ Full screen';
         deckFs.textContent = on ? '✕' : '⛶';
-        deckFs.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen waveform');
+        deckFs.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
         // the Android back button leaves full screen first
-        if (on) deckFs.setAttribute('data-back-close', ''); else deckFs.removeAttribute('data-back-close');
+        if (on) fsExit.setAttribute('data-back-close', ''); else fsExit.removeAttribute('data-back-close');
+        root.scrollTop = 0;
+        // the time and the loop go up beside the title, so the waveform's buttons sit closer to it
+        if (on) fsExit.before(timesEl); else playerEl.querySelector('.wave-wrap').after(ovCanvas, timesEl);
+        markJump();
         const de = document.documentElement;
         if (on && !isNative() && de.requestFullscreen && !document.fullscreenElement) {
           de.requestFullscreen({ navigationUI: 'hide' }).then(() => { if (P.full) P.fsApi = true; }, () => {});
@@ -1385,8 +1402,26 @@ export default function transcribe(UI) {
         }
         if (on) window.scrollTo(0, 0);
         placeDeck();
-        requestAnimationFrame(() => { sizeCanvas(); if (on) deckFs.focus({ preventScroll: true }); });
+        requestAnimationFrame(() => { sizeCanvas(); if (on) fsExit.focus({ preventScroll: true }); else if (playerEl) playerEl.scrollIntoView({ block: 'nearest' }); });
       }
+      /* the panel strip: a chip per card; in full screen a tap scrolls that card up under the waveform */
+      const panes = () => [...root.querySelectorAll(':scope > .tr-ui[data-pane]')];
+      const stickyH = () => (playerEl && getComputedStyle(playerEl).position === 'sticky' ? playerEl.offsetHeight + 10 : 0);
+      function buildJump() {
+        wsJump.innerHTML = '';
+        panes().forEach(c => wsJump.append(h('button', { class: 'chip', 'aria-pressed': 'false', onclick: () => {
+          root.scrollTo({ top: Math.max(0, c.offsetTop - stickyH()), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        } }, c.dataset.pane)));
+      }
+      // the chip of the panel at the top of the view is lit (with columns, the first one in view)
+      function markJump() {
+        if (!wsJump) return;
+        const top = root.scrollTop + stickyH() + 24, list = panes();
+        let at = -1;
+        if (P.full && root.scrollTop > 4) list.forEach((c, i) => { if (c.offsetTop <= top && (at < 0 || c.offsetTop > list[at].offsetTop)) at = i; });
+        [...wsJump.children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === at)));
+      }
+      root.addEventListener('scroll', () => { if (P.full) markJump(); }, { passive: true });
       const onFsChange = () => { if (!document.fullscreenElement && P.fsApi) { P.fsApi = false; setFull(false); } };
       document.addEventListener('fullscreenchange', onFsChange);
       /* the deck sits on top of the tab bar (or the bottom of the screen); the page leaves room for it */
@@ -1463,9 +1498,11 @@ export default function transcribe(UI) {
         if (!canvas || !canvas.isConnected) return;
         const dpr = window.devicePixelRatio || 1;
         const wrap = canvas.parentElement, w = wrap.clientWidth;
-        const hgt = P.full ? Math.max(100, wrap.clientHeight) : document.documentElement.classList.contains('compact') ? 96 : 128;
+        const compact = document.documentElement.classList.contains('compact');
+        // full screen keeps it wide and short, so the buttons and panels have the room
+        const hgt = P.full ? Math.round(clamp(window.innerHeight * 0.17, compact ? 64 : 76, compact ? 90 : 170)) : compact ? 96 : 128;
         canvas.width = Math.max(200, Math.round(w * dpr)); canvas.height = Math.round(hgt * dpr);
-        canvas.style.height = P.full ? '' : hgt + 'px';
+        canvas.style.height = hgt + 'px';
         ovCanvas.width = canvas.width; ovCanvas.height = Math.round(28 * dpr);
         ovCache = null;
         drawStatic();
@@ -1476,7 +1513,7 @@ export default function transcribe(UI) {
         window.addEventListener('resize', sizeCanvas);
         cleanups.push(() => window.removeEventListener('resize', sizeCanvas));
         if ('ResizeObserver' in window) {
-          const ro = new ResizeObserver(() => { const r = canvas.getBoundingClientRect(); if (Math.round(r.width * (window.devicePixelRatio || 1)) !== canvas.width || (P.full && Math.abs(r.height * (window.devicePixelRatio || 1) - canvas.height) > 2)) sizeCanvas(); });
+          const ro = new ResizeObserver(() => { const r = canvas.getBoundingClientRect(); if (Math.round(r.width * (window.devicePixelRatio || 1)) !== canvas.width) sizeCanvas(); });
           ro.observe(canvas.parentElement); cleanups.push(() => ro.disconnect());
         }
         const tAtX = x => { const r = canvas.getBoundingClientRect(); return P.view[0] + clamp((x - r.left) / r.width, 0, 1) * (P.view[1] - P.view[0]); };
