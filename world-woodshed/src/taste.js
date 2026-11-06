@@ -9,10 +9,19 @@
 /* Players the app has drills and tunes for. `match` are lower-case names as Spotify or the app write them. */
 export const PLAYERS = [
   { id: 'monk', name: 'Thelonious Monk', style: 'jazz', match: ['thelonious monk'], blurb: 'Whole-tone runs, minor seconds that rub, ideas moved across the beat, stride.' },
-  { id: 'sunra', name: 'Sun Ra', style: 'jazz', match: ['sun ra'], blurb: 'Long vamps with space, chords in fourths, free playing over a pulse.' }
+  { id: 'sunra', name: 'Sun Ra', style: 'jazz', match: ['sun ra'], blurb: 'Long vamps with space, chords in fourths, free playing over a pulse.' },
+  { id: 'miles', name: 'Miles Davis', style: 'jazz', match: ['miles davis'], blurb: 'Few notes and much space, one mode for many bars, electric vamps.' },
+  { id: 'arsenio', name: 'Arsenio Rodríguez', style: 'cuba', match: ['arsenio rodriguez'], blurb: 'Tres solos built on one cell, horn riffs in the montuno, son over the rumba clave.' },
+  { id: 'bvsc', name: 'Buena Vista Social Club', style: 'cuba', match: ['buena vista social club', 'compay segundo', 'ibrahim ferrer', 'eliades ochoa', 'omara portuondo'], blurb: 'The second voice in thirds and sixths, bolero accompaniment, strum-and-fill son.' },
+  { id: 'piazzolla', name: 'Astor Piazzolla', style: 'latam', match: ['astor piazzolla'], blurb: 'The 3-3-2 accents, an ostinato under long notes, percussion on the strings.' },
+  { id: 'sosa', name: 'Mercedes Sosa', style: 'latam', match: ['mercedes sosa'], blurb: 'Zamba arpeggios, chacarera with the bombo, a free opening before the pulse.' },
+  { id: 'milton', name: 'Milton Nascimento', style: 'brazil', match: ['milton nascimento'], blurb: 'Shapes over ringing open strings, suspended chords, phrases that add a beat.' },
+  { id: 'getz', name: 'Stan Getz', style: 'brazil', match: ['stan getz'], blurb: 'The bossa nova batida, long singing lines, ii–Vs that slide down a fret.' },
+  { id: 'kulthum', name: 'Umm Kulthum', style: 'arabic', match: ['umm kulthum', 'oum kalthoum', 'oum kalsoum', 'om kalthoum', 'umm kalthum', 'om kolthoum', 'oum koulsoum'], blurb: 'The lazima, one line sung again and again, the qafla that ends it.' }
 ];
 
-/* Spotify genre words → the app's styles. Checked in order; a genre can count for more than one style. */
+/* Spotify genre words → the app's styles. Checked in order; a genre can count for more than one style.
+   Genres are matched after norm(), which drops accents, so the words here are plain ASCII (forro, not forró). */
 export const GENRES = [
   [/\b(jazz|bebop|bop|swing|big band|cool jazz|free jazz|avant-garde jazz|spiritual jazz|fusion)\b/, 'jazz'],
   [/\b(gypsy jazz|jazz manouche|manouche)\b/, 'manouche'],
@@ -21,16 +30,16 @@ export const GENRES = [
   [/\b(funk|soul|r&b|neo soul|motown|disco|hip hop|rap)\b/, 'funksoul'],
   [/\b(country|bluegrass|folk|americana|singer-songwriter)\b/, 'country'],
   [/\b(classical|baroque|romantic era|early music|classical guitar)\b/, 'classical'],
-  [/\b(son cubano|salsa|rumba|timba|mambo|cha-cha|bolero|latin jazz|afro-cuban)\b/, 'cuba'],
-  [/\b(bossa nova|samba|mpb|choro|forró|forro|tropicália|tropicalia|brazilian)\b/, 'brazil'],
+  [/\b(son cubano|salsa|rumba|timba|mambo|cha-cha|bolero|latin jazz|afro-cuban|guaracha|trova)\b/, 'cuba'],
+  [/\b(bossa nova|samba|mpb|choro|forro|tropicalia|brazilian|clube da esquina)\b/, 'brazil'],
   [/\b(flamenco|rumba flamenca|nuevo flamenco)\b/, 'flamenco'],
   [/\b(hindustani|indian classical|sitar|ghazal|qawwali)\b/, 'hindustani'],
   [/\b(carnatic)\b/, 'carnatic'],
-  [/\b(arab|arabic|maqam|oud|tarab|raï|rai|gnawa|chaabi)\b/, 'arabic'],
+  [/\b(arab|arabic|maqam|oud|tarab|rai|gnawa|chaabi|egyptian)\b/, 'arabic'],
   [/\b(turkish|balkan|rebetiko|greek|anatolian)\b/, 'turkbalkan'],
   [/\b(afrobeat|highlife|mande|malian|desert blues|griot|kora|afropop|afrobeats)\b/, 'westafrica'],
   [/\b(soukous|rumba congolaise|congolese|benga|ethio|ethiopian)\b/, 'centraleast'],
-  [/\b(tango|chacarera|zamba|nueva canción|andean|cueca|milonga)\b/, 'latam'],
+  [/\b(tango|chacarera|zamba|nueva cancion|andean|cueca|milonga|folklore argentino|folclore)\b/, 'latam'],
   [/\b(reggae|ska|rocksteady|dub|dancehall)\b/, 'caribbean'],
   [/\b(klezmer)\b/, 'klezmer'],
   [/\b(j-pop|japanese|enka|city pop|k-pop|chinese|gamelan|min'yo)\b/, 'eastasia'],
@@ -39,7 +48,7 @@ export const GENRES = [
   [/\b(persian|iranian)\b/, 'persian'],
   [/\b(hawaiian|slack key)\b/, 'hawaii'],
   [/\b(mbaqanga|kwaito|amapiano|south african|maskandi|malagasy|salegy)\b/, 'southernafrica'],
-  [/\b(mariachi|ranchera|norteño|norteno|son jarocho|corrido|mexican)\b/, 'mexico'],
+  [/\b(mariachi|ranchera|norteno|son jarocho|corrido|mexican)\b/, 'mexico'],
   [/\b(cumbia|vallenato|joropo|champeta|colombian)\b/, 'colombia'],
   [/\b(mor lam|molam|luk thung|thai|cambodian|khmer|lao)\b/, 'seasia']
 ];

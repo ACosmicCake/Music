@@ -140,7 +140,9 @@ tool('drill', {
             varBox.append(h('div', { class: 'drill-staff' }, staff.el));
           } catch (e) { console.error(e); }
           const play = h('button', { class: 'btn small ghost', onclick: () => {
-            A.ensure(); A.fresh(); let t = A.now() + 0.05; const q = 60 / bpm * (back && back.rhythm && back.rhythm.unit === '♪' ? 2 : 1); // ♪ rhythms count eighths
+            A.ensure(); A.fresh(); let t = A.now() + 0.05; const [tn, td] = (v.time || '4/4').split('/').map(Number);
+            // ♪ rhythms count eighths; in 6/8, 9/8 and 12/8 the beat is a dotted quarter
+            const q = 60 / bpm * (back && back.rhythm && back.rhythm.unit === '♪' ? 2 : td === 8 && tn % 3 === 0 && tn > 3 ? 2 / 3 : 1);
             v.bars.flat().forEach(n => { const len = { w: 4, h: 2, q: 1, 8: 0.5, 16: 0.25 }[n.d] * (n.dot ? 1.5 : 1) * q; if (n.m !== null && n.m !== undefined) (n.ch || [n.m]).forEach((m, k) => A.note(m, t + k * 0.012, n.ch ? 0.6 : 0.75, len * 0.95)); t += len; });
           } }, '▶ Hear the phrase');
           varBox.append(play);

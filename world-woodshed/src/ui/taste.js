@@ -1,4 +1,4 @@
-/* World Woodshed — your music taste in the app: favourite players (Monk, Sun Ra), the Spotify connection, and
+/* World Woodshed — your music taste in the app: favourite players (PLAYERS in src/taste.js), the Spotify connection, and
    the "Because you listen to…" card on Today. The plain functions are in src/taste.js, the login and API call in
    src/spotifyauth.js. Every name from Spotify is set as text, never as HTML. */
 import D from '../data.js';
@@ -41,20 +41,26 @@ export async function bootSpotify(openSettings) {
   if (openSettings) openSettings();
 }
 
+/* The players as chips, under their style's name, in the order PLAYERS lists them */
 export function playerChips(onChange) {
-  const row = h('div', { class: 'chips' });
+  const box = h('div', { class: 'stack player-chips' });
+  const styles = [...new Set(PLAYERS.map(p => p.style))];
   const draw = () => {
-    row.innerHTML = '';
-    PLAYERS.forEach(pl => {
-      const on = favourites().includes(pl.id);
-      row.append(h('button', { class: 'chip', 'aria-pressed': String(on), title: pl.blurb, onclick: () => {
-        Cur.setPrefs({ players: on ? favourites().filter(x => x !== pl.id) : favourites().concat([pl.id]) });
-        draw(); if (onChange) onChange();
-      } }, (on ? '★ ' : '☆ ') + pl.name));
+    box.innerHTML = '';
+    styles.forEach(st => {
+      const row = h('div', { class: 'chips' });
+      PLAYERS.filter(p => p.style === st).forEach(pl => {
+        const on = favourites().includes(pl.id);
+        row.append(h('button', { class: 'chip', 'aria-pressed': String(on), title: pl.blurb, onclick: () => {
+          Cur.setPrefs({ players: on ? favourites().filter(x => x !== pl.id) : favourites().concat([pl.id]) });
+          draw(); if (onChange) onChange();
+        } }, (on ? '★ ' : '☆ ') + pl.name));
+      });
+      box.append(h('div', { class: 'player-group' }, h('span', { class: 'small muted', text: regionName(st) }), row));
     });
   };
   draw();
-  return row;
+  return box;
 }
 
 /* Settings → Your music taste */
