@@ -2,7 +2,7 @@
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
-import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
+import { h, tool, toast, Fretboard, hooks, isCompact } from '../ui/core.js';
 import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
@@ -482,7 +482,8 @@ function scoresMode(root, lv, ctx, p) {
     // a score the app read from a PDF or photos is read from those pages in full screen, as printed
     async function pagesOf(got, mel) {
       pageHint.hidden = true;
-      if (!/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
+      // not on a small phone (html.compact): a printed page is too small to read there, so One line only and no switch
+      if (isCompact() || !/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
       const PL = await import('../pagelayout.js');
       const layout = PL.layoutFromXML(await got.blob.text());
       const e = L.getEntry(pick.e.id) || pick.e, here = await L.localIds();
@@ -543,10 +544,12 @@ function scoresMode(root, lv, ctx, p) {
         single: secs.length === 1,
         opts: h('div', { class: 'stack sr-opts' }, ts.compound ? h('div', { class: 'row small' }, 'Click on', clickSeg) : '', wholeBox, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
         make() {
-          const x = secs[idx], label = barsLabel(x);
-          idx = (idx + 1) % secs.length;
-          return { piece: beatQ === ts.beatQ ? x.piece : Object.assign({}, x.piece, { beatQ }), label, of: title };
+          const i = idx, x = secs[i], label = barsLabel(x);
+          idx = (i + 1) % secs.length;
+          return { piece: beatQ === ts.beatQ ? x.piece : Object.assign({}, x.piece, { beatQ }), label, of: title, no: i + 1, total: secs.length };
         },
+        // the section at index i (wrapping round), for Previous and Next section
+        go(i) { idx = ((i % secs.length) + secs.length) % secs.length; return own.make(); },
         record(score) {
           // practising a Library piece counts for it in the daily plan, as its own page does
           if (hooks.signal) hooks.signal('piece:' + pick.e.id, { score });
@@ -781,6 +784,10 @@ function melodyMode(root, lv, ctx, own) {
   const startBtn = h('button', { class: 'btn brass' }, '▶ Start reading');
   const hearBtn = h('button', { class: 'btn' }, 'Hear it');
   const newBtn = h('button', { class: 'btn ghost' }, NEXT);
+  // Your scores in sections: back a section as well as on, and which section of how many this is
+  const sectioned = !!(own && !own.single && own.go);
+  const prevBtn = sectioned ? h('button', { class: 'btn ghost', onclick: () => { cur = own.go(cur.no - 2); piece = cur.piece; fresh(); } }, '← Previous section') : '';
+  const secCount = h('span', { class: 'mono small sr-seccount', hidden: !sectioned });
   const stopBtn = h('button', { class: 'btn small', onclick: () => stop(true) }, '■ Stop');
   const runBar = h('div', { class: 'sr-runbar live', hidden: true }, h('div', { class: 'stack' }, phase, live), stopBtn);
   let micNoteOff = null;
@@ -789,7 +796,9 @@ function melodyMode(root, lv, ctx, own) {
   const fullBtn = h('button', { class: 'btn ghost', onclick: () => setFull(true) }, '⛶ Full screen');
   const fsBpm = h('b', { class: 'mono' });
   const fsStart = h('button', { class: 'btn brass small', onclick: () => startBtn.onclick() }, '▶ Start');
+  const fsPrevSec = h('button', { class: 'btn small', hidden: !sectioned, 'aria-label': 'Previous section', onclick: () => prevBtn.onclick() }, 'Prev');
   const fsNext = h('button', { class: 'btn small', onclick: () => newBtn.onclick() }, own ? 'Next' : 'New');
+  const fsSecCount = h('span', { class: 'mono small sr-seccount', hidden: !sectioned });
   const fsExit = h('button', { class: 'btn small ghost', 'aria-label': 'Leave full screen', 'data-back-close': '', onclick: () => setFull(false) }, '✕');
   // a score read from a PDF or photos: its own pages in full screen, as printed (own.page, src/ui/pageview.js)
   const paged = own && own.page;
@@ -808,14 +817,15 @@ function melodyMode(root, lv, ctx, own) {
   const fsPage = h('span', { class: 'mono small sr-fspage' });
   const fsNextPage = h('button', { class: 'btn small', 'aria-label': 'Next page', onclick: () => { if (pv) pv.turn(1); } }, '›');
   const fsVol = h('button', { class: 'btn small', 'aria-label': 'Click volume', onclick: () => { nextClickVol(); paintFs(); } });
-  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsNext,
+  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsPrevSec, fsSecCount, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
     h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
     fsVol, fsCursor, fsPages, fsPrev, fsPage, fsNextPage);
   function paintFs() {
     fsBpm.textContent = bpm + ' bpm';
     fsVol.textContent = '🔊 ' + clickVol()[2];
-    fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single);
+    fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single); fsPrevSec.hidden = !!run || !sectioned;
+    if (sectioned && cur.total) fsSecCount.textContent = cur.no + '/' + cur.total;
     fsCursor.textContent = (CURSORS.find(c => c[0] === cursorMode()) || CURSORS[0])[1];
     if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = true; return; }
     fsPages.textContent = paged.on() ? '♫ One line' : '📄 The page';
@@ -880,7 +890,7 @@ function melodyMode(root, lv, ctx, own) {
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
   const opts = own ? own.opts : lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
   card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: own ? own.title : lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
-    h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
+    h('div', { class: 'row' }, startBtn, hearBtn, prevBtn, newBtn, secCount, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
   function draw() {
     staffBox.innerHTML = '';
     staffBox.classList.toggle('sr-pagebox', usePages());
@@ -908,6 +918,7 @@ function melodyMode(root, lv, ctx, own) {
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
     info.textContent = keyName(piece.key) + ' · ' + timeText(piece) + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
     if (own) { src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of); } else sourceLine(src, cur, 'm');
+    if (sectioned && cur.total) { secCount.textContent = 'Section ' + cur.no + ' of ' + cur.total; fsSecCount.textContent = cur.no + '/' + cur.total; }
     libBtn.paint();
     return staff;
   }
@@ -915,7 +926,7 @@ function melodyMode(root, lv, ctx, own) {
   function stop(byHand) {
     if (run) run.stop(); run = null;
     if (micNoteOff) micNoteOff(); micNoteOff = null;
-    ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; runBar.hidden = true;
+    ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; if (prevBtn) prevBtn.disabled = false; runBar.hidden = true;
     paintFs();
     const f = onStop; onStop = null;
     if (byHand && f) setTimeout(f, 320); // after the piece that just ended is scored
@@ -926,10 +937,10 @@ function melodyMode(root, lv, ctx, own) {
     run = playRun({ first: { piece }, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
     if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + playLength(piece)) * 60 / bpm / (piece.beatQ || parseTime(piece.time).beatQ) + 1.5);
   };
-  newBtn.onclick = () => { cur = make(); piece = cur.piece; fresh(); };
+  newBtn.onclick = () => { cur = sectioned ? own.go(cur.no) : make(); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
     fresh(); A.ensure(); ctx.setActive(true);
-    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; runBar.hidden = false;
+    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; if (prevBtn) prevBtn.disabled = true; runBar.hidden = false;
     const listening = mic.on, chained = runOn() && !(own && own.single);
     const read = []; // pieces read to the end: { seg, score }
     const exp = [];  // every expected attack so far, across the run
