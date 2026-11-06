@@ -37,9 +37,15 @@ describe('favourite players', () => {
     await loadDrills();
     for (const p of PLAYERS) {
       const ds = D.DRILLS.filter(d => (d.players || []).includes(p.id));
-      expect(ds.length, p.id).toBeGreaterThanOrEqual(3);
+      expect(ds.length, p.id).toBeGreaterThanOrEqual(5);
       ds.forEach(d => { expect(d.style, d.id).toBe(p.style); expect(d.variations.length, d.id).toBeGreaterThanOrEqual(3); expect(d.listen, d.id).toBeTruthy(); });
       expect(D.TUNES.filter(t => (t.players || []).includes(p.id)).length, p.id).toBeGreaterThanOrEqual(1);
+    }
+  });
+  it('every player has records to hear, each with a title and a year or a note', () => {
+    for (const p of PLAYERS) {
+      expect((p.records || []).length, p.id).toBeGreaterThanOrEqual(3);
+      p.records.forEach(r => { expect(typeof r[0], p.id).toBe('string'); expect(r[1], p.id).toBeTruthy(); });
     }
   });
   it('the index the planner sees before the drills load knows their players', () => {
