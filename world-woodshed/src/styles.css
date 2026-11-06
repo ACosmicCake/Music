@@ -1023,3 +1023,5 @@ html.compact .sr-fsbar .btn { padding: 3px 8px; min-width: 0; }
 html.compact .open-strings { gap: 4px; }
 html.compact .open-string { padding: 6px 1px; }
 html.compact .open-string b { font-size: 1.1rem; }
+.player-hub { scroll-margin-top: 72px; }
+.player-records li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }

@@ -12,6 +12,8 @@ import { Band } from '../band.js';
 import { loadDrills, drawWhenLoaded } from '../content/lazy.js';
 import { SoloTips } from '../ui/solo.js';
 import { phraseGrid, patternGrid, backingRows, offBeat } from '../countgrid.js';
+import { PLAYERS } from '../taste.js';
+import { spotifyWeb, openSpotify } from '../spotify.js';
 
 /* ======================================================
    STYLE DRILLS: the exercises a teacher of each tradition would give, with a backing loop,
@@ -87,20 +89,54 @@ tool('drill', {
     const holder = h('div', { class: 'section' }); body.append(holder);
     let back = null, cleanupExtra = null;
     const stopAll = () => { if (back) back.stop(); back = null; if (cleanupExtra) { cleanupExtra(); cleanupExtra = null; } ctx.setActive(false); };
-    function list(filter = 'all') {
+    const drillTile = d => {
+      const best = (E.state.settings.drillBest || {})[d.id];
+      return h('button', { class: 'tile', onclick: () => open(d) }, h('span', { class: 't-title', text: d.name }), h('span', { class: 't-desc', text: FOCUS[d.focus] + ' · level ' + d.level + ' · ' + d.goal }), h('span', { class: 't-meter', text: best ? best + ' bpm' : 'new' }));
+    };
+    /* The drills listed by style (the regions, your ranked styles first) or by musician (PLAYERS, your favourites
+       first, each with their drills, tunes and records). The choice is kept in settings.drillsBy. */
+    function list(filter = 'all', scrollTo) {
       stopAll(); holder.innerHTML = '';
+      const by = E.state.settings.drillsBy === 'musician' ? 'musician' : 'style';
+      holder.append(h('div', { class: 'seg' }, [['style', 'By style'], ['musician', 'By musician']].map(([k, t]) =>
+        h('button', { 'aria-pressed': by === k ? 'true' : 'false', onclick: () => { E.setSetting('drillsBy', k); list(filter); } }, t))));
+      holder.append(h('div', { class: 'chips' }, [['all', 'All']].concat(Object.entries(FOCUS)).map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': k === filter ? 'true' : 'false', onclick: () => list(k) }, t))));
+      if (by === 'musician') { byMusician(filter, scrollTo); return; }
       const pri = (Cur.prefs().styles || []);
       const styles = [...new Set(D.DRILLS.map(d => d.style))].sort((a, b) => (pri.indexOf(a) < 0 ? 99 : pri.indexOf(a)) - (pri.indexOf(b) < 0 ? 99 : pri.indexOf(b)));
-      holder.append(h('div', { class: 'chips' }, [['all', 'All']].concat(Object.entries(FOCUS)).map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': k === filter ? 'true' : 'false', onclick: () => list(k) }, t))));
       styles.forEach(st => {
         const ds = D.DRILLS.filter(d => d.style === st && (filter === 'all' || d.focus === filter));
         if (!ds.length) return;
         holder.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: regionName(st) + (pri.includes(st) ? ' · your focus' : '') }),
-          h('div', { class: 'tools' }, ds.map(d => {
-            const best = (E.state.settings.drillBest || {})[d.id];
-            return h('button', { class: 'tile', onclick: () => open(d) }, h('span', { class: 't-title', text: d.name }), h('span', { class: 't-desc', text: FOCUS[d.focus] + ' · level ' + d.level + ' · ' + d.goal }), h('span', { class: 't-meter', text: best ? best + ' bpm' : 'new' }));
-          }))));
+          h('div', { class: 'tools' }, ds.map(drillTile))));
       });
+    }
+    function byMusician(filter, scrollTo) {
+      const fav = Cur.prefs().players || [];
+      const order = PLAYERS.slice().sort((a, b) => fav.includes(b.id) - fav.includes(a.id));
+      holder.append(h('nav', { class: 'chips', 'aria-label': 'Musicians' }, order.map(pl => h('button', { class: 'chip', onclick: () => { const el = document.getElementById('pl-' + pl.id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, (fav.includes(pl.id) ? '★ ' : '') + pl.name))));
+      order.forEach(pl => {
+        const on = fav.includes(pl.id);
+        const ds = D.DRILLS.filter(d => (d.players || []).includes(pl.id) && (filter === 'all' || d.focus === filter)).sort((a, b) => a.level - b.level);
+        const ts = D.TUNES.filter(t => (t.players || []).includes(pl.id));
+        const star = h('button', { class: 'chip', 'aria-pressed': String(on), onclick: () => {
+          Cur.setPrefs({ players: on ? fav.filter(x => x !== pl.id) : fav.concat([pl.id]) }); list(filter, pl.id);
+        } }, on ? '★ Favourite' : '☆ Favourite');
+        holder.append(h('section', { class: 'card stack player-hub', id: 'pl-' + pl.id },
+          h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: regionName(pl.style) }), star),
+          h('h2', { text: pl.name }),
+          h('p', { class: 'small muted', text: pl.blurb }),
+          ds.length ? h('div', { class: 'tools' }, ds.map(drillTile)) : h('p', { class: 'small muted', text: 'No ' + FOCUS[filter].toLowerCase() + ' drills for ' + pl.name + ' yet.' }),
+          ts.length ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tunes for the band' }),
+            h('div', { class: 'chips' }, ts.map(t => h('button', { class: 'chip', onclick: () => openTool('repertoire', { params: { tune: t.id } }) }, t.name)))) : '',
+          (pl.records || []).length ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Records to hear' }),
+            h('ul', { class: 'list small player-records' }, pl.records.map(([work, when, note]) => {
+              const q = pl.name + ' ' + work;
+              return h('li', {}, h('a', { href: spotifyWeb(q), target: '_blank', rel: 'noopener', onclick: ev => openSpotify(ev, q) }, work + ' ↗'),
+                ' · ' + when + (note ? ', ' + note : ''));
+            }))) : ''));
+      });
+      if (scrollTo) { const el = document.getElementById('pl-' + scrollTo); if (el) el.scrollIntoView({ block: 'start' }); }
     }
     function open(d) {
       stopAll(); holder.innerHTML = '';
@@ -188,8 +224,9 @@ tool('drill', {
     }
     // the drill texts, phrases and variations load on first use (src/content/lazy.js)
     const stopLoad = drawWhenLoaded(loadDrills, holder, () => {
-      const start = D.DRILLS.find(d => d.id === (ctx.params || {}).drill);
-      if (start) open(start); else list();
+      const p = ctx.params || {}, start = D.DRILLS.find(d => d.id === p.drill);
+      if (p.player && PLAYERS.some(x => x.id === p.player)) E.setSetting('drillsBy', 'musician');
+      if (start) open(start); else list('all', p.player);
     });
     return () => { stopLoad(); stopAll(); };
   }
