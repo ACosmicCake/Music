@@ -218,17 +218,23 @@ const indentOf = (text, at) => { const ls = text.lastIndexOf('\n', at) + 1; retu
 
 /* The bars whose voices don't fill the bar exactly (counted from 1, as the score viewer shows them) */
 export function barsToCheck(xml) {
-  const { div, barQ } = settings(xml), len = Math.round(barQ * div), out = new Set();
-  layout(xml).forEach(part => part.measures.forEach((ms, i) => {
-    const measure = xml.slice(ms.start, ms.end);
-    if (measure.includes('implicit="yes"')) return;
-    measure.split(/<backup>/).forEach(piece => {
-      const notes = (piece.match(/<note>[\s\S]*?<\/note>/g) || []).filter(n => !n.includes('<chord/>'));
-      if (!notes.length) return;
-      const used = notes.reduce((a, n) => a + num(n, 'duration', 0), 0);
-      if (used !== len) out.add(i + 1);
+  const { div, barQ } = settings(xml), out = new Set();
+  layout(xml).forEach(part => {
+    let len = Math.round(barQ * div);
+    part.measures.forEach((ms, i) => {
+      const measure = xml.slice(ms.start, ms.end);
+      // a time that changes from bar to bar: each measure against the last time signature printed
+      const t = measure.match(/<time\b[^>]*>([\s\S]*?)<\/time>/);
+      if (t) len = Math.round(num(t[1], 'beats', 4) * 4 / num(t[1], 'beat-type', 4) * div);
+      if (measure.includes('implicit="yes"')) return;
+      measure.split(/<backup>/).forEach(piece => {
+        const notes = (piece.match(/<note>[\s\S]*?<\/note>/g) || []).filter(n => !n.includes('<chord/>'));
+        if (!notes.length) return;
+        const used = notes.reduce((a, n) => a + num(n, 'duration', 0), 0);
+        if (used !== len) out.add(i + 1);
+      });
     });
-  }));
+  });
   return [...out].sort((a, b) => a - b);
 }
 /* The score's list of bars to check, brought up to date (the field is added or dropped as needed) */

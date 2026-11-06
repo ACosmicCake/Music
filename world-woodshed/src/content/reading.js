@@ -657,26 +657,27 @@ export function playOrder(piece) {
 }
 /* the chord symbol sounding at a place in a bar (piece.chords: [[{ text, at }] per bar]) */
 const chordAt = (piece, b, q) => { let c = null; ((piece.chords || [])[b] || []).forEach(x => { if (x.at <= q + 1e-6) c = x.text; }); return c; };
+/* A bar's time signature: piece.times[b] when the time changes from bar to bar (a score that does), else the piece's */
+export const barTime = (piece, b) => parseTime((piece.times && piece.times[b]) || piece.time);
 /* Every event (note or rest) as played, repeats included: { i (its place in the written bars), q, bar } */
 export function eventStarts(piece) {
-  const ts = parseTime(piece.time), first = [], out = [];
+  const first = [], out = [];
   let i = 0;
   piece.bars.forEach(bar => { first.push(i); i += bar.length; });
   let q = 0;
   playOrder(piece).forEach(b => {
     const bar = piece.bars[b], full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
     let at = 0;
-    bar.forEach((n, j) => { out.push({ i: first[b] + j, q, bar: b, at, n }); const len = full ? ts.barQ : durQ(n); q += len; at += len; });
+    bar.forEach((n, j) => { out.push({ i: first[b] + j, q, bar: b, at, n }); const len = full ? barTime(piece, b).barQ : durQ(n); q += len; at += len; });
   });
   return out;
 }
 /* The notes to play, as played: { i, q, len, midi, chord?, slash?, sym? } (a tied note is one attack) */
 export function attacks(piece) {
   const out = []; let prev = null;
-  const ts = parseTime(piece.time);
   eventStarts(piece).forEach(e => {
     const n = e.n, bar = piece.bars[e.bar], full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
-    const len = full ? ts.barQ : durQ(n);
+    const len = full ? barTime(piece, e.bar).barQ : durQ(n);
     if (n.midi != null) {
       if (prev && prev.midi === n.midi && prev.tie) out[out.length - 1].len += len;
       else {
@@ -691,5 +692,7 @@ export function attacks(piece) {
   return out;
 }
 /* the written length in quarters, and the played one (repeats included) */
-export const pieceLength = piece => sum(piece.bars.map(b => (b.length === 1 && b[0].midi == null && b[0].dur === 'w') ? parseTime(piece.time).barQ : sum(b.map(durQ))));
-export const playLength = piece => { const ts = parseTime(piece.time); return sum(playOrder(piece).map(k => { const b = piece.bars[k]; return (b.length === 1 && b[0].midi == null && b[0].dur === 'w') ? ts.barQ : sum(b.map(durQ)); })); };
+/* a bar's length in quarters (a whole-bar rest is as long as its time) */
+export const barLength = (piece, k) => { const b = piece.bars[k]; return (b.length === 1 && b[0].midi == null && b[0].dur === 'w') ? barTime(piece, k).barQ : sum(b.map(durQ)); };
+export const pieceLength = piece => sum(piece.bars.map((b, k) => barLength(piece, k)));
+export const playLength = piece => sum(playOrder(piece).map(k => barLength(piece, k)));

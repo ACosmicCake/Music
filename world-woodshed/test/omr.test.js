@@ -212,6 +212,30 @@ describe('half-note chords and ledger lines, drawn', () => {
   });
 });
 
+describe('a time that changes from bar to bar, drawn', () => {
+  // made by scripts/omr/meter-page.py: time signatures in a bold text font (as Finale prints them) before bars
+  // of 4/4, 5/4 and 7/4, a courtesy 4/4 after the last bar line, three quarters under a bracketed 3, and on a
+  // second staff an eighth whose flag runs into the next note's sharp, then 3/4
+  const page = () => fixture('meter').gray;
+  it('reads each bar\'s time signature, and the courtesy one at the end of a line is not a bar', () => {
+    const s = recognize([page()]);
+    expect(s.times.map(t => t.num + '/' + t.den)).toEqual(['4/4', '5/4', '7/4', '4/4', '3/4']);
+    expect(s.counts.bars).toBe(5);
+    expect(s.warnings).toHaveLength(0);
+    const bars = s.parts[0].bars.map(b => b[0][0].map(e => (e.rest ? 'r' : midiOf(e.pitches[0])) + ':' + +e.q.toFixed(3)));
+    expect(bars[1]).toEqual(['67:1', '69:1', '71:1', '72:1', '74:1']);
+    // the triplet: three quarters in the time of two
+    expect(bars[2]).toEqual(['74:0.667', '76:0.667', '77:0.667', '71:1', '69:1', '67:1', '65:1', '64:1']);
+    expect(s.parts[0].bars[2][0][0].slice(0, 3).map(e => e.tuplet)).toEqual(['start', 'mid', 'stop']);
+    // the sharp the flag touches is still read
+    expect(bars[3]).toEqual(['67:0.5', '70:0.5', '71:1', '72:1', '74:1']);
+    const xml = scoreToMusicXML(s);
+    expect(xml.match(/<time>/g)).toHaveLength(5);
+    expect(xml).toContain('<time><beats>7</beats><beat-type>4</beat-type></time>');
+    expect(xml.match(/<time-modification>/g)).toHaveLength(3);
+  });
+});
+
 describe('the symbol classifier', () => {
   it('has examples of every class it can name', () => {
     ['clefG', 'clefF', 'sharp', 'flat', 'natural', 'rest4', 'rest8', 'rest16', 'restW', 'restH', 'note', 'other'].forEach(c => expect(CLASSES).toContain(c));

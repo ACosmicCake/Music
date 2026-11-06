@@ -7,7 +7,7 @@ import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
-import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts } from '../content/reading.js';
+import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts, barTime, barLength } from '../content/reading.js';
 import { placeFrets } from '../notate.js';
 import { parseChord } from '../theory.js';
 import { guitarMidis } from '../voicings.js';
@@ -52,6 +52,9 @@ function markAttack(staff, piece, a, cls) {
   for (let j = a.i; flat[j] && flat[j].tie && flat[j + 1] && flat[j + 1].midi === flat[j].midi; j++) staff.mark(j + 1, cls);
 }
 function minGapQ(ats) { let g = Infinity; for (let i = 1; i < ats.length; i++) g = Math.min(g, ats[i].q - ats[i - 1].q); return isFinite(g) ? g : 1; }
+
+/* the time signature to name: a score whose time changes from bar to bar names each one it uses */
+const timeText = piece => (piece.times ? [...new Set(piece.times)].join(', ') + ' (it changes)' : piece.time);
 
 /* counting syllables under each note: 1 e & a, or 1 2 3 4 5 6 in 6/8 */
 function countLabels(piece) {
@@ -110,16 +113,35 @@ function playRun(o) {
     const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
     const pre = segs.length || o.countIn ? barSteps : 0;
     const len = Math.round(playLength(piece) / G), order = playOrder(piece);
+    // a time that changes from bar to bar: where each bar starts as played, and its beat
+    const bars = piece.times ? [] : null;
+    if (bars) {
+      let at = 0;
+      order.forEach(b => {
+        const bt = barTime(piece, b);
+        bars.push({ at, b, beat: Math.round((piece.beatQ || bt.beatQ) / G) });
+        at += Math.round(barLength(piece, b) / G);
+      });
+    }
     const ats = attacks(piece);
     const byStep = new Map(); ats.forEach((a, j) => byStep.set(Math.round(a.q / G), Object.assign({ j }, a)));
     const evAt = new Map(); eventStarts(piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
     // the first note of each note's bar, for a cursor that shows only where each bar starts
     const barFirst = []; piece.bars.forEach(bar => { const f = barFirst.length; bar.forEach(() => barFirst.push(f)); });
-    const seg = { item, piece, order, barFirst, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
+    const seg = { item, piece, order, barFirst, bars, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
     segs.push(seg);
     return seg;
   };
   const segAt = i => { for (let k = segs.length - 1; k >= 0; k--) if (segs[k].start <= i) return segs[k]; return segs[0]; };
+  // the beat at step kk of a piece (after its count-in): { beat (a click here), down (a bar's first), bar (as
+  // written), n (which beat of it) }
+  const beatAt = (seg, kk) => {
+    if (!seg.bars) return { beat: kk % seg.beatSteps === 0, down: kk % seg.barSteps === 0, bar: seg.order[Math.floor(kk / seg.barSteps)] || 0, n: (kk % seg.barSteps) / seg.beatSteps + 1 };
+    let k = 0;
+    while (k + 1 < seg.bars.length && seg.bars[k + 1].at <= kk) k++;
+    const x = seg.bars[k], into = kk - x.at;
+    return { beat: into % x.beat === 0, down: into === 0, bar: x.b, n: into / x.beat + 1 };
+  };
   make(o.first, 0);
   let nowEl = null, nowSys = -1, ended = false;
   const setNow = (seg, i) => {
@@ -143,8 +165,9 @@ function playRun(o) {
       const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
       // only the beats: in 12/8 four dotted quarters, never the eighths between, which at a slow beat
       // sound like a fast 3/4 (loud, soft, soft)
-      if (kk % seg.beatSteps === 0) {
-        const down = kk % seg.barSteps === 0;
+      const bt = inPre ? { beat: kk % seg.beatSteps === 0, down: kk % seg.barSteps === 0 } : beatAt(seg, kk);
+      if (bt.beat) {
+        const down = bt.down;
         // the click while reading as loud as the count-in: at 0.45 it was half as loud and took the woodblock's
         // soft recording, too quiet to play along to
         if (inPre || o.click) click(down, t, 0.95);
@@ -173,7 +196,8 @@ function playRun(o) {
         if (!seg.staff.line) follow(seg.staff, 0);
       }
       if (inPre) { if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : 'Count-in: ') + (kk / seg.beatSteps + 1) + ' …'; return; }
-      if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + ((seg.order[Math.floor(kk / seg.barSteps)] || 0) + 1) + ' of ' + seg.piece.bars.length + ' · beat ' + ((kk % seg.barSteps) / seg.beatSteps + 1);
+      const bt = beatAt(seg, kk);
+      if (o.phase && bt.beat) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + (bt.bar + 1) + ' of ' + seg.piece.bars.length + (seg.bars ? ' · ' + seg.piece.times[bt.bar] : '') + ' · beat ' + bt.n;
       if (seg.evAt.has(kk)) setNow(seg, seg.evAt.get(kk));
     },
     onEnd: () => {
@@ -867,12 +891,12 @@ function melodyMode(root, lv, ctx, own) {
       pv.fit(staffBox.clientWidth, staffBox.clientHeight);
       staff = pv.forPiece(piece, paged.row, own.title + ', ' + cur.label);
       attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
-      info.textContent = keyName(piece.key) + ' · ' + piece.time;
+      info.textContent = keyName(piece.key) + ' · ' + timeText(piece);
       src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of);
       paintFs();
       return staff;
     }
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, clef: piece.clef, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, times: piece.times, clef: piece.clef, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     if (full) {
       // larger than on the page, as the height allows, but not so large that too little of what comes next shows
@@ -882,7 +906,7 @@ function melodyMode(root, lv, ctx, own) {
       staffBox.scrollLeft = 0;
     }
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
-    info.textContent = keyName(piece.key) + ' · ' + piece.time + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
+    info.textContent = keyName(piece.key) + ' · ' + timeText(piece) + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
     if (own) { src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of); } else sourceLine(src, cur, 'm');
     libBtn.paint();
     return staff;
