@@ -756,6 +756,8 @@ html.compact .because-list { grid-template-columns: 1fr; }
 .gym-tl .gtap.ok { stroke: var(--good); }
 .gym-tl .gym-head { stroke: var(--patina); stroke-width: 2; opacity: 0.7; }
 .gym-label { font-size: 1.15rem; }
+.gym-label.cue { color: var(--brass); }
+.gym-seg { align-items: center; gap: 6px; }
 .gym-stats { color: var(--muted); min-height: 1.2em; }
 .tile.dim { opacity: 0.6; }
 .techvar { display: grid; gap: 6px; background: var(--sunk); border-radius: 12px; padding: 10px 12px; }

@@ -25,6 +25,51 @@ add('tuplets', { id: 'htrip', tier: 3, name: 'Half-note triplets: 3 over 4 beats
 add('tuplets', { id: 'q5over2', tier: 4, name: 'Five over two beats', desc: 'Five even notes across two beats. Count the 16th-note quintuplets (10 per 2 beats) and play every other one.', pattern: () => overSpan(5, 2, 4), label: () => '5 in the time of 2 beats' });
 add('tuplets', { id: 'q5over4', tier: 5, name: 'Quarter-note quintuplets: 5 over 4 beats', desc: 'Five even notes across the bar. A favourite of modern jazz and progressive rock.', pattern: () => overSpan(5, 4, 4), label: () => '5 in the time of 4 beats' });
 
+// --- feel changes: one steady beat, the feel underneath it changes every few bars (you choose 1, 2 or 4).
+// The bar before a change shows the next feel and rings a bell on its last beat; the first bar of each feel is guided.
+export const FEELS = {
+  q: { name: 'Quarters', say: 'ta', pos: perBeat(1, 4) },
+  e: { name: 'Eighths', say: 'ta-ka', pos: perBeat(2, 4) },
+  t: { name: 'Triplets', say: 'ta-ki-ta', pos: perBeat(3, 4) },
+  s: { name: 'Sixteenths', say: 'ta-ka-di-mi', pos: perBeat(4, 4) },
+  sw: { name: 'Swing eighths', say: 'ta – ta (the 1st and 3rd of each triplet)', pos: perBeat(3, 4).filter((_, i) => i % 3 !== 1) },
+  q3: { name: '3 against 2 (quarter-note triplets)', say: '3 even notes across every 2 beats', pos: overSpan(3, 2, 4) },
+  h3: { name: '3 against 4 (half-note triplets)', say: '3 even notes across the bar', pos: overSpan(3, 4, 4) },
+  d8: { name: 'Dotted eighths (3 + 3 + 3 …)', say: 'every 3rd sixteenth', pos: sixteenths([0, 3, 6, 9, 12, 15]) }
+};
+export const SEGS = [1, 2, 4];
+const segOf = o => (o && SEGS.includes(o.seg) ? o.seg : 2);
+const surprise = new Map(); // run → feels chosen so far, so a change never lands on the same feel
+function feelSeq(ex, i, run) {
+  if (!ex.random) return ex.seq[i % ex.seq.length];
+  let got = surprise.get(run);
+  if (!got) { if (surprise.size > 20) surprise.clear(); got = [ex.seq[0]]; surprise.set(run, got); }
+  while (got.length <= i) {
+    const rng = seeded(run * 131 + got.length * 17 + 5), prev = ex.seq.indexOf(got[got.length - 1]);
+    rng();
+    got.push(ex.seq[(prev + 1 + Math.floor(rng() * (ex.seq.length - 1))) % ex.seq.length]);
+  }
+  return got[i];
+}
+export const feelAt = (ex, bar, run = 0, o) => FEELS[feelSeq(ex, Math.floor(bar / segOf(o)), run)];
+export const nextFeel = (ex, bar, run = 0, o) => { const seg = segOf(o); return bar % seg === seg - 1 ? FEELS[feelSeq(ex, Math.floor(bar / seg) + 1, run)] : null; };
+const feelAdd = (id, tier, name, seq, desc, x) => add('feel', Object.assign({
+  id, tier, name, seq, feels: true, desc: desc + ' The bar before each change shows the next feel and rings a bell on its last beat.',
+  pattern: (bar, run, o) => feelAt(GYM.find(g => g.id === id), bar, run, o).pos,
+  label: (bar, run, o) => { const ex = GYM.find(g => g.id === id), f = feelAt(ex, bar, run, o), n = nextFeel(ex, bar, run, o); return f.name + ': ' + f.say + (n && n !== f ? '  →  next: ' + n.name : ''); },
+  cue: (bar, run, o) => { const ex = GYM.find(g => g.id === id), n = nextFeel(ex, bar, run, o); return !!n && n !== feelAt(ex, bar, run, o); },
+  // the first bar of each feel is guided; with one bar per feel, guided and alone take turns a whole pass at a time
+  guided: (bar, o) => { const seg = segOf(o), ex = GYM.find(g => g.id === id); return seg === 1 ? Math.floor(bar / (ex.random ? 4 : ex.seq.length)) % 2 === 0 : bar % seg < seg / 2; }
+}, x));
+feelAdd('feel-up', 1, 'Quarters → eighths → triplets → sixteenths', ['q', 'e', 't', 's', 't', 'e'], 'Up the gears and back down over the same beat: 1, 2, 3, then 4 notes per beat. Keep the beat where it is; only what you fit inside it changes.', { bpm: [50, 90] });
+feelAdd('feel-8t', 1, 'Eighths ↔ triplets', ['e', 't'], 'Two notes per beat, then three. The beat stays put: the second triplet comes earlier than the “&” did.', { bpm: [50, 100] });
+feelAdd('feel-q32', 2, 'Quarters ↔ 3 against 2', ['q', 'q3'], 'On the beat, then three even notes across every two beats (quarter-note triplets) while the click keeps the beat. Only every other one lands on a beat.', { bpm: [50, 100] });
+feelAdd('feel-t32', 2, 'Triplets ↔ 3 against 2', ['t', 'q3'], 'Three per beat, then every other triplet: that is 3 against 2. Keep the triplets running in your head through the slow bars.', { bpm: [50, 100] });
+feelAdd('feel-swing', 2, 'Straight ↔ swing eighths', ['e', 'sw'], 'Even eighths, then swung: the “&” moves late to the last note of the triplet. The same two notes per beat, a different feel.', { bpm: [60, 140] });
+feelAdd('feel-16d8', 3, 'Sixteenths ↔ dotted eighths', ['s', 'd8'], 'Four per beat, then every third sixteenth: a group of three that drifts across the beat and comes home after three beats.', { bpm: [50, 90] });
+feelAdd('feel-over', 3, 'Over the bar: quarters, 3 against 2, 3 against 4', ['q', 'q3', 'h3', 'q3'], 'The notes get longer than the beat: on the beat, then three across two beats, then three across the whole bar, and back.', { bpm: [50, 100] });
+feelAdd('feel-all', 4, 'Surprise changes', ['q', 'e', 't', 's', 'sw', 'q3', 'h3', 'd8'], 'Every feel, in an order you can\'t predict. Read the next one in the bar before it and change on the bar line.', { random: true, bpm: [50, 90] });
+
 // --- polyrhythms: the click plays one side, you play the other
 [[3, 2, 1], [2, 3, 2], [4, 3, 3], [3, 4, 3], [5, 4, 4], [4, 5, 4], [5, 3, 5], [7, 4, 5]].forEach(([n, m, tier]) => add('poly', {
   id: 'p' + n + m, tier, beats: m, bpm: [50, 110], name: n + ' against ' + m, poly: [n, m],
@@ -68,5 +113,5 @@ function randomBar(rng, tier) {
   pattern: (bar, run) => randomBar(seeded(1000 * run + Math.floor(bar / 2) * 7 + 3), tier), label: bar => (bar % 2 ? 'Your turn: play it back' : 'Listen…') }));
 
 export const gymItems = () => GYM.map(x => ({ id: x.id, label: x.name, tier: x.tier }));
-export const CATS = { tuplets: 'Subdivisions & tuplets', poly: 'Polyrhythms', grid16: 'The 16th-note grid', displace: 'Displaced click', echo: 'Echo' };
+export const CATS = { tuplets: 'Subdivisions & tuplets', feel: 'Feel changes', poly: 'Polyrhythms', grid16: 'The 16th-note grid', displace: 'Displaced click', echo: 'Echo' };
 

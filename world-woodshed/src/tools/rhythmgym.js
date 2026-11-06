@@ -2,7 +2,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, toast, tool, hooks, pickFor } from '../ui/core.js';
 import { TapPad, tapTime, scoreTaps, OffsetChart, describeOffset, feel16On } from './rhythm.js';
-import { GYM, CATS, beatsClick } from '../content/gym.js';
+import { GYM, CATS, SEGS, beatsClick } from '../content/gym.js';
 
 /* ======================================================
    RHYTHM GYM: tuplets, polyrhythms, the 16th-note grid, displaced clicks and rhythmic echo.
@@ -53,7 +53,17 @@ tool('gym', {
       let bpm = bpms[ex.id] || ex.bpm[0], running = null, run = Math.floor(Math.random() * 1000);
       const card = h('div', { class: 'card' }); holder.append(card);
       const bpmLbl = h('b', { class: 'mono', text: bpm + ' bpm' });
-      const label = h('div', { class: 'prompt gym-label', text: ex.label(0) });
+      const segs = E.state.settings.gymSeg || {};
+      const opts = { seg: SEGS.includes(segs[ex.id]) ? segs[ex.id] : 2 };
+      const label = h('div', { class: 'prompt gym-label', text: ex.label(0, run, opts) });
+      const segRow = ex.feels ? h('div', { class: 'row gym-seg' }, h('span', { class: 'small', text: 'Bars per feel' }), SEGS.map(n => h('button', {
+        class: 'btn small' + (n === opts.seg ? ' primary' : ''), 'aria-pressed': n === opts.seg ? 'true' : 'false',
+        onclick: e => {
+          opts.seg = n; const o = Object.assign({}, E.state.settings.gymSeg || {}); o[ex.id] = n; E.setSetting('gymSeg', o);
+          [...e.target.parentNode.querySelectorAll('button')].forEach(b => { const on = b === e.target; b.classList.toggle('primary', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+          if (!running) label.textContent = ex.label(0, run, opts);
+        }
+      }, String(n)))) : '';
       const status = h('div', { class: 'phase', role: 'status' });
       const tl = Timeline(ex.beats);
       const stats = h('div', { class: 'gym-stats small mono' });
@@ -64,7 +74,7 @@ tool('gym', {
       const f16 = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: feel16On() ? true : null, onchange: e => E.setSetting('feel16', e.target.checked) }), 'Feel the 16ths (soft pulse)');
       card.append(h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: list }, '← All exercises'), h('span', { class: 'eyebrow', text: CATS[ex.cat] + ' · level ' + ex.tier })),
         h('h2', { text: ex.name }), h('p', { class: 'small', text: ex.desc }),
-        label, tl.el, status, stats,
+        label, tl.el, status, stats, segRow,
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), bpmLbl, h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'), f16),
         h('div', { class: 'row' }, practiceBtn, testBtn), padHolder, result,
         h('p', { class: 'small muted', text: 'Filled circles: the app plays your part. Hollow: you play it alone. Lines are your notes, green when on time. Tap the pad or space bar, or switch on the mic and play.' }));
@@ -80,9 +90,10 @@ tool('gym', {
         let barStart = 0, barIdx = -1, curBar = null, rafId = 0;
         const barPlan = b => {
           const k = b - 1; // bar 0 is a count-in
-          const guided = k < 0 ? false : mode === 'test' ? testPlan[k] : ex.plan[k % ex.plan.length];
+          const guided = k < 0 ? false : mode === 'test' ? testPlan[k] : ex.guided ? ex.guided(k, opts) : ex.plan[k % ex.plan.length];
           const click = ex.click ? ex.click(Math.max(0, k)) : ex.poly ? beatsClick(ex.poly[1]) : beatsClick(ex.beats);
-          return { k, guided, click: k < 0 ? beatsClick(ex.beats) : click, pattern: k < 0 ? [] : ex.pattern(Math.max(0, k), run), label: k < 0 ? 'Count-in…' : ex.label(k) };
+          return { k, guided, click: k < 0 ? beatsClick(ex.beats) : click, pattern: k < 0 ? [] : ex.pattern(Math.max(0, k), run, opts), cue: k >= 0 && !!ex.cue && ex.cue(k, run, opts),
+          label: k < 0 ? (ex.feels ? 'Count-in… first: ' + ex.label(0, run, opts).split(':')[0] : 'Count-in…') : ex.label(k, run, opts) };
         };
         const win = () => { const p = (curBar && curBar.pattern.length) ? curBar.pattern.slice().sort((a, b) => a - b) : [0, 1]; let g = ex.beats; for (let i = 1; i < p.length; i++) g = Math.min(g, p[i] - p[i - 1]); return Math.max(0.035, Math.min(0.09, g * beatDur() * 0.42)); };
         const pad = TapPad(ev => {
@@ -99,6 +110,7 @@ tool('gym', {
           onStep: (i, t, cycle) => {
             const bar = barPlan(cycle), bd = beatDur();
             bar.click.filter(c => c.pos >= i && c.pos < i + 1).forEach(c => A.hit(c.hi || (c.pos === 0 && cycle === 0) ? 'clickHi' : 'click', t + (c.pos - i) * bd, 0.9));
+            if (bar.cue && i === ex.beats - 1) A.hit('bell', t, 0.8);
             if (feel16On()) for (let k = 0; k < 4; k++) A.hit('hat', t + k * bd / 4, k ? 0.09 : 0.14);
             bar.pattern.filter(p => p >= i && p < i + 1).forEach(p => {
               const at = t + (p - i) * bd;
@@ -111,7 +123,7 @@ tool('gym', {
               const bar = barPlan(cycle);
               curBar = bar; barIdx = cycle;
               barStart = A.heard();
-              tl.draw(bar); label.textContent = bar.label;
+              tl.draw(bar); label.textContent = bar.label; label.classList.toggle('cue', !!bar.cue);
               status.textContent = bar.k < 0 ? 'Count-in' : (bar.guided ? 'With the guide' : 'On your own') + (mode === 'test' ? ' · bar ' + (bar.k + 1) + ' of ' + testPlan.length : ' · bar ' + (bar.k + 1));
               status.className = 'phase' + (bar.guided || bar.k < 0 ? '' : ' ghost');
               // running accuracy over the last few bars
