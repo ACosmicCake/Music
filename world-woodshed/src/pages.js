@@ -21,6 +21,8 @@ import { SAMPLE_SOURCES } from './content/samples.js';
 import * as Rem from './reminder.js';
 import { statsPage, heatmap, dayChart } from './ui/stats.js';
 import { tasteSettingsCard, becauseCard } from './ui/taste.js';
+import { favList, withStar, repaintStars } from './ui/favs.js';
+import { GYM } from './content/gym.js';
 
 /* ======================================================
    PAGES
@@ -29,7 +31,29 @@ function toolTile(id, extra) {
   const t = TOOLS[id];
   let m = t.skill && E.SKILLS[t.skill] ? Math.round(E.mastery(t.skill)) : null;
   if (m === 0 && !(E.state.skills[t.skill] || {}).last) m = null; // not tried yet: no score, rather than a 0% that reads as failing
-  return h('button', { class: 'tile', onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: m !== null ? m + '%' : '' }));
+  const tile = h('button', { class: 'tile', onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: m !== null ? m + '%' : '' }));
+  return extra && extra.star ? withStar(tile, 'tool', id, t.title, extra.star) : tile;
+}
+/* Your favourites at the top of Train: tools, Rhythm gym and technique exercises, style drills (src/ui/favs.js) */
+function favTile(f, redraw) {
+  const go = (tool, params, title, desc) => withStar(h('button', { class: 'tile', onclick: () => openTool(tool, { params, returnTab: 'train' }) }, h('span', { class: 't-title', text: title }), h('span', { class: 't-desc', text: desc })), f.kind, f.id, title, redraw);
+  if (f.kind === 'tool') return TOOLS[f.id] ? toolTile(f.id, { returnTab: 'train', star: redraw }) : null;
+  if (f.kind === 'gym') { const x = GYM.find(g => g.id === f.id); return x && TOOLS.gym ? go('gym', { ex: x.id }, x.name, 'Rhythm gym · ' + x.desc.split('. ')[0] + '.') : null; }
+  if (f.kind === 'tech') { const x = D.EXERCISES.find(e => e.id === f.id); return x && TOOLS.technique ? go('technique', { exercise: x.id }, x.name, 'Technique · ' + (x.how || '').split('. ')[0]) : null; }
+  if (f.kind === 'drill') { const x = D.DRILLS.find(d => d.id === f.id); return x && TOOLS.drill ? go('drill', { drill: x.id }, x.name, 'Style drill · ' + (x.goal || '')) : null; }
+  return null;
+}
+function favSection(changed) {
+  const sec = h('section', { class: 'stack tool-group fav-group' });
+  const draw = () => {
+    sec.innerHTML = '';
+    const tiles = favList().map(f => favTile(f, changed || draw)).filter(Boolean);
+    sec.append(h('h2', { class: 'eyebrow', text: '★ Your favourites' }), tiles.length ? h('div', { class: 'tools' }, tiles)
+      : h('p', { class: 'small muted', text: 'Tap ☆ beside a tool, a Rhythm gym or technique exercise or a style drill to keep it here.' }));
+  };
+  draw();
+  sec.redraw = draw;
+  return sec;
 }
 const TRAIN = {
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
@@ -170,8 +194,11 @@ Object.assign(PAGES, {
     const t = TRAIN[sec];
     view.append(h('div', { class: 'pagehead' }, h('span', { class: 'eyebrow', text: 'Train' }), h('h1', { text: t.title })));
     view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
-    if (t.groups) t.groups.forEach(([name, ids]) => view.append(h('section', { class: 'stack tool-group' }, h('h2', { class: 'eyebrow', text: name }), h('div', { class: 'tools' }, ids.map(id => toolTile(id, { returnTab: 'train' }))))));
-    else view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train' }))));
+    const redraw = () => { favs.redraw(); repaintStars(view); };
+    const favs = favSection(redraw);
+    view.append(favs);
+    if (t.groups) t.groups.forEach(([name, ids]) => view.append(h('section', { class: 'stack tool-group' }, h('h2', { class: 'eyebrow', text: name }), h('div', { class: 'tools' }, ids.map(id => toolTile(id, { returnTab: 'train', star: redraw }))))));
+    else view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train', star: redraw }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
     view.append(settingsLink('Your guitar (tuning, capo, left-handed), display, sounds and microphone'));
   }

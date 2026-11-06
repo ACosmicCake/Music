@@ -2,7 +2,8 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, toast, tool, hooks, pickFor } from '../ui/core.js';
 import { TapPad, tapTime, scoreTaps, OffsetChart, describeOffset, feel16On } from './rhythm.js';
-import { GYM, CATS, SEGS, beatsClick } from '../content/gym.js';
+import { withStar, favStar } from '../ui/favs.js';
+import { GYM, CATS, SEGS, FEELS, FEEL_PRESETS, feelOpts, feelAt, beatsClick } from '../content/gym.js';
 
 /* ======================================================
    RHYTHM GYM: tuplets, polyrhythms, the 16th-note grid, displaced clicks and rhythmic echo.
@@ -29,6 +30,29 @@ function Timeline(beats) {
   };
 }
 
+/* Feel changes: pick the feels (tap to add, tap one in the list to take it out), their order and bars per feel.
+   Mutates opts in place, so a change made while it plays takes effect at the next bar. */
+function FeelBuilder(opts, changed) {
+  const el = h('div', { class: 'stack gym-build' });
+  const chip = (text, on, onclick, extra = {}) => h('button', Object.assign({ class: 'chip', 'aria-pressed': on ? 'true' : 'false', onclick }, extra), text);
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  function draw() {
+    el.innerHTML = '';
+    const set = fn => () => { fn(); changed(); draw(); };
+    el.append(
+      h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Start from' }), FEEL_PRESETS.map(p => chip(p.name, same(p.seq, opts.seq) && !!p.random === opts.random,
+        set(() => { opts.seq = p.seq.slice(); opts.random = !!p.random; })))),
+      h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Your feels' }), opts.seq.map((k, i) => chip((opts.random ? '' : (i + 1) + '. ') + FEELS[k].short + (opts.seq.length > 1 ? ' ✕' : ''), true,
+        set(() => { if (opts.seq.length > 1) opts.seq.splice(i, 1); }), { 'aria-label': 'Take out ' + FEELS[k].name }))),
+      h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Add' }), Object.keys(FEELS).map(k => chip('+ ' + FEELS[k].short, false,
+        set(() => { if (opts.seq.length < 16) opts.seq.push(k); }), { 'aria-label': 'Add ' + FEELS[k].name, title: FEELS[k].name }))),
+      h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Order' }), chip('In order', !opts.random, set(() => { opts.random = false; })), chip('Shuffle', opts.random, set(() => { opts.random = true; }))),
+      h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Bars per feel' }), SEGS.map(n => chip(String(n), n === opts.seg, set(() => { opts.seg = n; })))));
+  }
+  draw();
+  return el;
+}
+
 tool('gym', {
   tab: 'rhythm', skill: 'tuplets', title: 'Rhythm gym', eyebrow: 'Rhythm · tuplets, polyrhythms, 16ths',
   desc: 'Tuplets from triplets to septuplets, polyrhythms, every spot in the 16th grid, displaced clicks and echo. Guided bars alternate with silent ones, all over a felt 16th pulse.',
@@ -43,7 +67,7 @@ tool('gym', {
         holder.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: nm }),
           h('div', { class: 'tools' }, GYM.filter(x => x.cat === c).map(x => {
             const it = E.skillState('tuplets').items[x.id];
-            return h('button', { class: 'tile' + (x.tier > unlocked + 1 ? ' dim' : ''), onclick: () => open(x) }, h('span', { class: 't-title', text: x.name }), h('span', { class: 't-desc', text: 'Level ' + x.tier + ' · ' + x.desc }), h('span', { class: 't-meter', text: it ? Math.round(it.ema * 100) + '%' : 'new' }));
+            return withStar(h('button', { class: 'tile' + (x.tier > unlocked + 1 ? ' dim' : ''), onclick: () => open(x) }, h('span', { class: 't-title', text: x.name }), h('span', { class: 't-desc', text: 'Level ' + x.tier + ' · ' + x.desc }), h('span', { class: 't-meter', text: it ? Math.round(it.ema * 100) + '%' : 'new' })), 'gym', x.id, x.name);
           }))));
       });
     }
@@ -53,17 +77,12 @@ tool('gym', {
       let bpm = bpms[ex.id] || ex.bpm[0], running = null, run = Math.floor(Math.random() * 1000);
       const card = h('div', { class: 'card' }); holder.append(card);
       const bpmLbl = h('b', { class: 'mono', text: bpm + ' bpm' });
-      const segs = E.state.settings.gymSeg || {};
-      const opts = { seg: SEGS.includes(segs[ex.id]) ? segs[ex.id] : 2 };
+      const opts = feelOpts(E.state.settings.gymFeel);
       const label = h('div', { class: 'prompt gym-label', text: ex.label(0, run, opts) });
-      const segRow = ex.feels ? h('div', { class: 'row gym-seg' }, h('span', { class: 'small', text: 'Bars per feel' }), SEGS.map(n => h('button', {
-        class: 'btn small' + (n === opts.seg ? ' primary' : ''), 'aria-pressed': n === opts.seg ? 'true' : 'false',
-        onclick: e => {
-          opts.seg = n; const o = Object.assign({}, E.state.settings.gymSeg || {}); o[ex.id] = n; E.setSetting('gymSeg', o);
-          [...e.target.parentNode.querySelectorAll('button')].forEach(b => { const on = b === e.target; b.classList.toggle('primary', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-          if (!running) label.textContent = ex.label(0, run, opts);
-        }
-      }, String(n)))) : '';
+      const builder = ex.feels ? FeelBuilder(opts, () => {
+        E.setSetting('gymFeel', { seq: opts.seq.slice(), random: opts.random, seg: opts.seg });
+        if (!running) label.textContent = ex.label(0, run, opts);
+      }) : '';
       const status = h('div', { class: 'phase', role: 'status' });
       const tl = Timeline(ex.beats);
       const stats = h('div', { class: 'gym-stats small mono' });
@@ -73,8 +92,8 @@ tool('gym', {
       const setBpm = v => { bpm = Math.max(30, Math.min(220, Math.round(v))); bpmLbl.textContent = bpm + ' bpm'; const o = Object.assign({}, E.state.settings.gymBpm || {}); o[ex.id] = bpm; E.setSetting('gymBpm', o); };
       const f16 = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: feel16On() ? true : null, onchange: e => E.setSetting('feel16', e.target.checked) }), 'Feel the 16ths (soft pulse)');
       card.append(h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: list }, '← All exercises'), h('span', { class: 'eyebrow', text: CATS[ex.cat] + ' · level ' + ex.tier })),
-        h('h2', { text: ex.name }), h('p', { class: 'small', text: ex.desc }),
-        label, tl.el, status, stats, segRow,
+        h('div', { class: 'spread' }, h('h2', { text: ex.name }), favStar('gym', ex.id, ex.name)), h('p', { class: 'small', text: ex.desc }),
+        builder, label, tl.el, status, stats,
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), bpmLbl, h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'), f16),
         h('div', { class: 'row' }, practiceBtn, testBtn), padHolder, result,
         h('p', { class: 'small muted', text: 'Filled circles: the app plays your part. Hollow: you play it alone. Lines are your notes, green when on time. Tap the pad or space bar, or switch on the mic and play.' }));
@@ -93,7 +112,7 @@ tool('gym', {
           const guided = k < 0 ? false : mode === 'test' ? testPlan[k] : ex.guided ? ex.guided(k, opts) : ex.plan[k % ex.plan.length];
           const click = ex.click ? ex.click(Math.max(0, k)) : ex.poly ? beatsClick(ex.poly[1]) : beatsClick(ex.beats);
           return { k, guided, click: k < 0 ? beatsClick(ex.beats) : click, pattern: k < 0 ? [] : ex.pattern(Math.max(0, k), run, opts), cue: k >= 0 && !!ex.cue && ex.cue(k, run, opts),
-          label: k < 0 ? (ex.feels ? 'Count-in… first: ' + ex.label(0, run, opts).split(':')[0] : 'Count-in…') : ex.label(k, run, opts) };
+          label: k < 0 ? (ex.feels ? 'Count-in… first: ' + feelAt(0, run, opts).name : 'Count-in…') : ex.label(k, run, opts) };
         };
         const win = () => { const p = (curBar && curBar.pattern.length) ? curBar.pattern.slice().sort((a, b) => a - b) : [0, 1]; let g = ex.beats; for (let i = 1; i < p.length; i++) g = Math.min(g, p[i] - p[i - 1]); return Math.max(0.035, Math.min(0.09, g * beatDur() * 0.42)); };
         const pad = TapPad(ev => {

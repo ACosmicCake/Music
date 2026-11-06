@@ -8,6 +8,7 @@ import { renderStaff } from '../notation.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter } from '../ui/mic.js';
 import Cur from '../curriculum.js';
+import { favStar, favList } from '../ui/favs.js';
 import { Band } from '../band.js';
 import { loadDrills, drawWhenLoaded } from '../content/lazy.js';
 import { SoloTips } from '../ui/solo.js';
@@ -90,15 +91,8 @@ tool('drill', {
     let back = null, cleanupExtra = null;
     const stopAll = () => { if (back) back.stop(); back = null; if (cleanupExtra) { cleanupExtra(); cleanupExtra = null; } ctx.setActive(false); };
     /* Favourite drills: settings.favDrills, a list of drill ids, starred on a tile or on the drill's own page. */
-    const favs = () => E.state.settings.favDrills || [];
-    const isFav = id => favs().includes(id);
-    const toggleFav = id => { const on = isFav(id); E.setSetting('favDrills', on ? favs().filter(x => x !== id) : favs().concat([id])); toast(on ? 'Taken out of your favourites' : 'Added to your favourite drills'); return !on; };
-    const starBtn = (d, onChange) => {
-      const b = h('button', { class: 'fav-star' });
-      const paint = () => { const on = isFav(d.id); b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + d.name + (on ? ' from' : ' to') + ' favourite drills'); };
-      b.onclick = () => { toggleFav(d.id); paint(); if (onChange) onChange(); };
-      paint(); return b;
-    };
+    const favs = () => favList().filter(f => f.kind === 'drill').map(f => f.id);
+    const starBtn = (d, onChange) => favStar('drill', d.id, d.name, onChange);
     let relist = null;
     const drillTile = d => {
       const best = (E.state.settings.drillBest || {})[d.id];

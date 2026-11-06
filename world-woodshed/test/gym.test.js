@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GYM, FEELS, SEGS, feelAt, nextFeel } from '../src/content/gym.js';
-
-const feelEx = GYM.filter(x => x.cat === 'feel');
+import { GYM, FEELS, SEGS, FEEL_PRESETS, feelOpts, feelAt, nextFeel } from '../src/content/gym.js';
 
 describe('rhythm gym', () => {
   it('has unique ids and patterns inside the bar', () => {
@@ -21,27 +19,35 @@ describe('rhythm gym', () => {
   });
 
   it('feel changes hold each feel for the chosen bars and cue the bar before a change', () => {
-    expect(feelEx.length).toBeGreaterThanOrEqual(6);
-    for (const ex of feelEx.filter(x => !x.random)) for (const seg of SEGS) {
-      for (let bar = 0; bar < ex.seq.length * seg * 2; bar++) {
-        expect(feelAt(ex, bar, 0, { seg })).toBe(FEELS[ex.seq[Math.floor(bar / seg) % ex.seq.length]]);
-        const changes = feelAt(ex, bar + 1, 0, { seg }) !== feelAt(ex, bar, 0, { seg });
-        expect(ex.cue(bar, 0, { seg })).toBe(changes);
-        if (changes) expect(ex.label(bar, 0, { seg })).toContain('next: ' + feelAt(ex, bar + 1, 0, { seg }).name);
+    const ex = GYM.find(x => x.id === 'feel-mix');
+    for (const p of FEEL_PRESETS.filter(x => !x.random)) for (const seg of SEGS) {
+      const o = { seq: p.seq, seg };
+      for (let bar = 0; bar < p.seq.length * seg * 2; bar++) {
+        expect(feelAt(bar, 0, o)).toBe(FEELS[p.seq[Math.floor(bar / seg) % p.seq.length]]);
+        const changes = feelAt(bar + 1, 0, o) !== feelAt(bar, 0, o);
+        expect(ex.cue(bar, 0, o)).toBe(changes);
+        if (changes) expect(ex.label(bar, 0, o)).toContain('next: ' + feelAt(bar + 1, 0, o).name);
       }
-      expect(ex.guided(0, { seg })).toBe(true);
+      expect(ex.guided(0, o)).toBe(true);
     }
   });
 
-  it('surprise changes never repeat a feel and are the same for one run', () => {
-    const ex = feelEx.find(x => x.random);
+  it('cleans up a saved mix', () => {
+    expect(feelOpts({ seq: ['t', 'nope', 'q3'], seg: 3, random: 1 })).toEqual({ seq: ['t', 'q3'], random: true, seg: 2 });
+    expect(feelOpts(undefined).seq.length).toBeGreaterThan(0);
+    expect(feelOpts({ seq: [] }).seq).toEqual(FEEL_PRESETS[0].seq);
+    expect(feelAt(5, 0, { seq: ['t'], random: true })).toBe(FEELS.t);
+  });
+
+  it('shuffled changes never repeat a feel and are the same for one run', () => {
+    const o = { seq: Object.keys(FEELS), random: true, seg: 2 };
     const seen = new Set();
     for (let bar = 0; bar < 200; bar += 2) {
-      const f = feelAt(ex, bar, 42, { seg: 2 });
+      const f = feelAt(bar, 42, o);
       seen.add(f);
-      expect(nextFeel(ex, bar + 1, 42, { seg: 2 })).not.toBe(f);
+      expect(nextFeel(bar + 1, 42, o)).not.toBe(f);
     }
-    expect(seen.size).toBe(ex.seq.length);
-    expect(feelAt(ex, 50, 42, { seg: 2 })).toBe(feelAt(ex, 50, 42, { seg: 2 }));
+    expect(seen.size).toBe(o.seq.length);
+    expect(feelAt(50, 42, o)).toBe(feelAt(50, 42, o));
   });
 });
