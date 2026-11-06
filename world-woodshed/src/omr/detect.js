@@ -5,6 +5,7 @@
    All sizes are in staff spaces (sp, line to line), so the rules hold at any resolution. */
 import { components, distance, holes, verticals, features } from './shapes.js';
 import { lineY, staffPos, spaceAt } from './image.js';
+import { classify as classifyAny, classifyDigit } from './classify.js';
 
 /* Which staff a point belongs to, and its staff position there; null when it is far from every staff */
 export function staffAt(staves, x, y, reach = 6) {
@@ -71,6 +72,31 @@ export function detect(R, staves, metrics, classify, bin = R) {
     if (r.cls.startsWith('clef') && c.x0 > staves[where.staff].x0 + sp * 8) return;
     kind.set(c.id, r);
     syms.push(Object.assign({ cls: r.cls, conf: r.conf, x: c.cx, y: c.cy, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, id: c.id }, where));
+  });
+  // a time signature in a text font whose two digits don't touch (Finale's, Sibelius's): a digit filling the
+  // top half of the staff over one filling the bottom half
+  const halves = [];
+  comps.forEach(c => {
+    if (!c || /^t\d$|^time$/.test((kind.get(c.id) || {}).cls || '')) return;
+    const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
+    if (cw < 0.5 || cw > 2.4 || ch < 1.5 || ch > 2.6) return;
+    const where = onStaff(c.cx, c.cy, 1);
+    if (!where) return;
+    const st = staves[where.staff], mx = (c.x0 + c.x1) / 2, top = lineY(st, 0, mx), mid = lineY(st, 2, mx), bot = lineY(st, st.nLines - 1, mx);
+    const upper = Math.abs(c.y0 - top) < sp * 0.6 && Math.abs(c.y1 - mid) < sp * 0.6, lower = Math.abs(c.y0 - mid) < sp * 0.6 && Math.abs(c.y1 - bot) < sp * 0.6;
+    if (!upper && !lower) return;
+    const r = classifyDigit(features(labels, w, c, sp), 'time');
+    if (r && r.d < 0.45) halves.push({ c, r, upper, staff: where.staff });
+  });
+  halves.forEach(a => {
+    if (!a.upper) return;
+    const b = halves.find(o => !o.upper && o.staff === a.staff && o.c.x0 < a.c.x1 && a.c.x0 < o.c.x1);
+    if (!b) return;
+    [a, b].forEach(({ c, r, staff }) => {
+      for (let i = syms.length - 1; i >= 0; i--) if (syms[i].id === c.id) syms.splice(i, 1);
+      kind.set(c.id, { cls: r.cls, conf: 1 });
+      syms.push({ cls: r.cls, conf: 1, x: c.cx, y: c.cy, x0: c.x0, x1: c.x1, y0: c.y0, y1: c.y1, id: c.id, staff, pos: staffPos(staves[staff], c.cy, c.cx) });
+    });
   });
   // a rest away from the staff with letters of its size beside it is a letter in a word (an "L" can pass for a rest)
   for (let i = syms.length - 1; i >= 0; i--) {
@@ -450,6 +476,29 @@ export function detect(R, staves, metrics, classify, bin = R) {
     }
   });
 
+  // a sharp or natural that touches other ink (a flag curling over it) is not a piece of its own, so it was
+  // not classified: its two upright strokes, just left of a head and level with it, are found among the
+  // strokes with no head (a sharp's are the same length; a natural's left one is higher, its right one lower)
+  const ACCS = /^(sharp|flat|natural|dsharp|dflat)$/;
+  heads.forEach(hd => {
+    if (!hd.stem && !hd.filled) return;
+    if (syms.some(y => ACCS.test(y.cls) && hd.x - y.x1 > -sp * 0.3 && hd.x - y.x1 < sp * 3.2 && hd.y > y.y0 - sp * 0.3 && hd.y < y.y1 + sp * 0.3)) return;
+    const cand = stems.filter(v => !v.heads.length && v.len >= sp * 1.8 && v.len <= sp * 3.6 && v.width <= Math.max(3, sp * 0.3) &&
+      v.x > hd.x - sp * 2.6 && v.x < hd.x - sp * 0.6 && Math.abs((v.y0 + v.y1) / 2 - hd.y) < sp * 0.9);
+    let best = null;
+    cand.forEach(a => cand.forEach(b => {
+      const gap = b.x - a.x;
+      if (gap < sp * 0.3 || gap > sp * 0.8) return;
+      const dt = b.y0 - a.y0, db = b.y1 - a.y1;
+      let cls = null, bad;
+      if (Math.abs(dt) < sp * 0.5 && Math.abs(db) < sp * 0.5) { cls = 'sharp'; bad = Math.abs(dt) + Math.abs(db); }
+      else if (dt > sp * 0.5 && db > sp * 0.5 && dt < sp * 1.6 && db < sp * 1.6) { cls = 'natural'; bad = Math.abs(dt - db); }
+      if (cls && (!best || bad < best.bad)) best = { a, b, cls, bad };
+    }));
+    if (!best) return;
+    const { a, b, cls } = best, y0 = Math.min(a.y0, b.y0), y1 = Math.max(a.y1, b.y1);
+    syms.push({ cls, conf: 0.5, x: (a.x + b.x) / 2, y: (y0 + y1) / 2, x0: Math.round(a.x - sp * 0.3), x1: Math.round(b.x + sp * 0.3), y0, y1, staff: hd.staff, pos: staffPos(staves[hd.staff], (y0 + y1) / 2, a.x), carved: true });
+  });
   // an accidental between two staves goes with the note it stands before (a low note's sharp is often
   // nearer the staff below)
   const ACC = /^(sharp|flat|natural|dsharp|dflat)$/;
@@ -461,7 +510,69 @@ export function detect(R, staves, metrics, classify, bin = R) {
     const hd = heads.find(near);
     if (hd) { y.staff = hd.staff; y.pos = staffPos(staves[hd.staff], yc, y.x); }
   });
-  return { notes, syms, bars, heads, stems, dots, endings, labels, comps, ink: R };
+  const tuplets = findTuplets(bin, labels, w, comps, kind, staves, notes, sp, onStaff);
+  return { notes, syms, bars, heads, stems, dots, endings, tuplets, labels, comps, ink: R };
+}
+
+/* Tuplet numbers: a small digit (3, or 5, 6, 7) above or below a staff, with a bracket on either side (its
+   arms traced on the page with the lines in: taking the staff lines out takes out bracket arms close to the
+   staff too) or over a beamed group. → [{ staff, n, x0, x1 }]: the notes from x0 to x1 are the tuplet */
+function findTuplets(bin, labels, w, comps, kind, staves, notes, sp, onStaff) {
+  const out = [];
+  comps.forEach(c => {
+    if (!c) return;
+    const k = kind.get(c.id);
+    if (k && k.cls !== 'other' && !/^t\d$/.test(k.cls)) return;
+    const cw = (c.x1 - c.x0 + 1) / sp, ch = (c.y1 - c.y0 + 1) / sp;
+    if (ch < 0.7 || ch > 1.6 || cw < 0.35 || cw > 1.3) return;
+    const at = onStaff(c.cx, c.cy, 5);
+    if (!at) return;
+    const st = staves[at.staff], top = lineY(st, 0, c.cx), bot = lineY(st, st.nLines - 1, c.cx);
+    // outside the staff, after the clef (a bar number over the clef is not one)
+    if (!(c.y1 < top - sp * 0.3 || c.y0 > bot + sp * 0.3) || c.x0 < st.x0 + sp * 4) return;
+    const r = classifyDigit(features(labels, w, c, sp), 'tuplet');
+    if (!r || r.d > 0.35 || !/^t[3567]$/.test(r.cls)) return;
+    const n = +r.cls.slice(1);
+    // the bracket: its arms run out from the number at about its height
+    const y0 = Math.round(c.y0 - sp * 0.3), y1 = Math.round(c.y1 + sp * 0.3);
+    const left = traceArm(bin, c.x0, y0, y1, -1, sp, top, bot), right = traceArm(bin, c.x1, y0, y1, 1, sp, top, bot);
+    let x0 = null, x1 = null;
+    if (left != null && right != null) { x0 = left; x1 = right; }
+    else {
+      // no bracket: the beamed group the number is over (or under)
+      const mine = notes.filter(nt => nt.staff === at.staff && nt.stem && nt.hooks > 0);
+      const by = mine.find(nt => Math.abs(nt.x - c.cx) < sp * 2.5);
+      if (!by) return;
+      const group = mine.filter(nt => nt.stem.comp === by.stem.comp);
+      if (group.length < 2) return;
+      x0 = Math.min(...group.map(nt => nt.x0)) - sp * 0.6; x1 = Math.max(...group.map(nt => nt.x)) + sp * 0.6;
+    }
+    out.push({ staff: at.staff, n, x0, x1, x: c.cx });
+  });
+  return out;
+}
+/* From beside a tuplet number, follow its bracket's arm along the page (with the lines in) to where it ends:
+   its x, or null when there is no arm. The arm may slope; it never runs into the staff. */
+function traceArm(bin, x, y0, y1, dir, sp, top, bot) {
+  const { w, h } = bin;
+  const inkAt = (xx, y) => xx >= 0 && xx < w && y >= 0 && y < h && bin.d[y * w + xx];
+  let y = null, cx = x;
+  for (let k = 1; k <= Math.round(sp * 0.9) && y == null; k++) {
+    cx = Math.round(x + dir * k);
+    const ys = [];
+    for (let yy = y0; yy <= y1; yy++) if (inkAt(cx, yy)) ys.push(yy);
+    // an arm is a thin line: a few pixels of ink in the column, not a digit or a note
+    if (ys.length && ys.length <= Math.max(3, sp * 0.2)) y = ys[Math.floor(ys.length / 2)];
+  }
+  if (y == null) return null;
+  let end = cx, gap = 0;
+  for (let xx = cx; xx >= 0 && xx < w && Math.abs(xx - cx) < sp * 30; xx += dir) {
+    let f = null;
+    for (const d of [0, -1, 1, -2, 2]) if (inkAt(xx, y + d) && (y + d < top - sp * 0.4 || y + d > bot + sp * 0.4)) { f = y + d; break; }
+    if (f == null) { if (++gap > 2) break; continue; }
+    gap = 0; y = f; end = xx;
+  }
+  return Math.abs(end - cx) > sp * 0.8 ? end : null;
 }
 
 /* Away from a stroke at x (more than half a space), is every column of the piece thin (a curve, not a beam)?
@@ -592,6 +703,34 @@ function inkIn(labels, w, c, y0, y1) {
 /* The digits of a stacked time signature that came out as one piece: the top half and the bottom half of the
    staff, each cut where a column has no ink. Null unless every piece reads as a digit. */
 const DIGITS = /^t\d$/;
+/* How many loops (paper closed in by the ink) a piece has inside a box */
+function holesIn(labels, w, box, id) {
+  const bw = box.x1 - box.x0 + 3, bh = box.y1 - box.y0 + 3;
+  const m = new Uint8Array(bw * bh); // 1 ink, 2 paper reached from outside
+  for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+    const gx = x + box.x0 - 1, gy = y + box.y0 - 1;
+    if (x > 0 && y > 0 && x < bw - 1 && y < bh - 1 && labels[gy * w + gx] === id) m[y * bw + x] = 1;
+  }
+  const fill = (sx, sy, v) => {
+    const st = [sy * bw + sx]; let n = 0;
+    m[st[0]] = v;
+    while (st.length) {
+      const i = st.pop(), x = i % bw, y = (i - x) / bw; n++;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= bw || yy >= bh) continue;
+        const j = yy * bw + xx;
+        if (!m[j]) { m[j] = v; st.push(j); }
+      }
+    }
+    return n;
+  };
+  fill(0, 0, 2);
+  let holes = 0;
+  for (let i = 0; i < m.length; i++) if (!m[i] && fill(i % bw, Math.floor(i / bw), 3) >= 3) holes++;
+  return holes;
+}
+
 function splitDigits(labels, w, c, st, sp, classify) {
   const mid = lineY(st, 2, (c.x0 + c.x1) / 2);
   const out = [];
@@ -607,7 +746,13 @@ function splitDigits(labels, w, c, st, sp, classify) {
       const f = features(labels, w, box, sp, c.id);
       let r = classify(f);
       if (!r || !/^t\d$/.test(r.cls)) r = classify(f, DIGITS);
-      if (!r || !/^t\d$/.test(r.cls) || r.d > 0.4) return null;
+      // or a digit in a text font (Finale's, Sibelius's), whichever is nearer
+      if (r && (!/^t\d$/.test(r.cls) || r.d > 0.4)) r = null;
+      let t = classifyDigit(f, 'time');
+      // an 8 has two loops: a 6 whose top a staff line closes can look like one, but has one
+      if (t && t.cls === 't8' && holesIn(labels, w, box, c.id) < 2) t = classifyAny(f, 3, /^t[0-79]$/, 'time');
+      if (t && t.d < 0.45 && (!r || t.d < r.d)) r = t;
+      if (!r) return null;
       return Object.assign({ cls: r.cls, conf: r.conf, x: (box.x0 + box.x1) / 2, y: (a + b) / 2 }, box);
     };
     const tall = (from, to) => {

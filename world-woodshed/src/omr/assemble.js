@@ -84,18 +84,26 @@ function readStaff(st, index, det, syms, sp) {
   const inStaff = y => { const p0 = staffPos(st, y.y0, y.x), p1 = staffPos(st, y.y1, y.x); return Math.max(p0, p1) < 9.5 && Math.min(p0, p1) > -1.5; };
   const tsyms = syms.filter(y => /^t\d$|^common$|^cut$/.test(y.cls) && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5) && inStaff(y)).sort((a, b) => a.x - b.x);
   if (tsyms.length) {
-    const cmn = tsyms.find(y => y.cls === 'common' || y.cls === 'cut');
-    if (cmn) s.time = cmn.cls === 'common' ? { num: 4, den: 4, symbol: 'common' } : { num: 2, den: 2, symbol: 'cut' };
-    else {
-      const top = tsyms.filter(y => staffPos(st, y.y, y.x) > 4), bot = tsyms.filter(y => staffPos(st, y.y, y.x) <= 4);
-      const num = Number(top.map(y => y.cls.slice(1)).join('')), den = Number(bot.map(y => y.cls.slice(1)).join(''));
-      if (num > 0 && num <= 16 && [1, 2, 4, 8, 16].includes(den)) s.time = { num, den };
-    }
+    s.time = timeOf(tsyms, st);
     hx = Math.max(hx, ...tsyms.map(y => y.x1));
   }
   // one the reader could not read: the header ends after it all the same
   syms.filter(y => y.cls === 'timeUnread' && y.x > hx - sp && y.x < Math.min(firstNote, hx + sp * 5)).forEach(y => { hx = Math.max(hx, y.x1); });
   s.headerEnd = hx;
+  // time signatures further along the line (a time that changes from bar to bar), each a stack of digits
+  // inside the staff with a number on top and a note value under it: { x0, x1, time }
+  s.times = [];
+  const later = syms.filter(y => /^t\d$|^common$|^cut$/.test(y.cls) && y.x0 > hx && inStaff(y)).sort((a, b) => a.x - b.x);
+  const groups = [];
+  later.forEach(y => {
+    const g = groups.find(o => y.x0 < o.x1 + sp * 0.4 && y.x1 > o.x0 - sp * 0.4);
+    if (g) { g.syms.push(y); g.x0 = Math.min(g.x0, y.x0); g.x1 = Math.max(g.x1, y.x1); } else groups.push({ x0: y.x0, x1: y.x1, syms: [y] });
+  });
+  groups.forEach(g => {
+    const t = timeOf(g.syms, st);
+    // (both numbers read: a lone digit is more likely a misread note or fingering)
+    if (t && (t.symbol || g.syms.length >= 2)) s.times.push({ x0: g.x0, x1: g.x1, time: t });
+  });
   // bar lines on this staff, a thin and a thick (or two thin) close together counted once
   const xs = det.bars.filter(b => b.staff === index).map(b => b.x).sort((a, b) => a - b);
   s.barXs = [];
@@ -124,6 +132,12 @@ function readStaff(st, index, det, syms, sp) {
     s.events.push({ x: r.x0, q: REST_Q[cls] * (dot ? 1.5 : 1), base: REST_Q[cls], dots: dot ? 1 : 0, rest: true, wholeRest: cls === 'restW', pos: staffPos(st, r.y, r.x) });
   });
   s.events.sort((a, b) => a.x - b.x);
+  // tuplets (a 3 with its bracket): the notes and rests under it, three in the time of two
+  (det.tuplets || []).filter(t => t.staff === index && t.n === 3).forEach((t, k) => {
+    const under = s.events.filter(e => !e.tup && e.x >= t.x0 - sp * 0.7 && e.x <= t.x1 + sp * 0.2);
+    if (under.length < 2) return;
+    under.forEach((e, i) => { e.tup = k + 1; e.q = e.q * 2 / 3; e.tuplet = i === 0 ? 'start' : i === under.length - 1 ? 'stop' : 'mid'; });
+  });
   if (det.ink) findTies(det.ink, s.events, sp);
   // accidentals: each to the head right after it at its height
   const accOf = new Map();
@@ -146,6 +160,15 @@ function readStaff(st, index, det, syms, sp) {
   return s;
 }
 
+/* A time signature from its symbols: { num, den, symbol? }, or null when it doesn't read as one */
+function timeOf(tsyms, st) {
+  const cmn = tsyms.find(y => y.cls === 'common' || y.cls === 'cut');
+  if (cmn) return cmn.cls === 'common' ? { num: 4, den: 4, symbol: 'common' } : { num: 2, den: 2, symbol: 'cut' };
+  const top = tsyms.filter(y => staffPos(st, y.y, y.x) > 4), bot = tsyms.filter(y => staffPos(st, y.y, y.x) <= 4);
+  const num = Number(top.map(y => y.cls.slice(1)).join('')), den = Number(bot.map(y => y.cls.slice(1)).join(''));
+  return num > 0 && num <= 16 && [1, 2, 4, 8, 16].includes(den) ? { num, den } : null;
+}
+
 /* Staff positions (0 the bottom line) of a key's sharps and flats in order, per clef */
 const KEY_POS = (() => {
   const G = { flat: [4, 7, 3, 6, 2, 5, 1], sharp: [8, 5, 9, 6, 3, 7, 4] };
@@ -161,12 +184,19 @@ function isBeamed(n, det) {
 function cutBars(s, xs, sp) {
   const cuts = xs.filter(x => x > s.headerEnd - sp * 0.5);
   const bounds = [s.headerEnd].concat(cuts);
-  if (s.x1 - bounds[bounds.length - 1] > sp * 3) bounds.push(s.x1 + 1);
+  // after the last bar line: a bar with no closing line, unless nothing is in it (a courtesy time signature or
+  // key for the next line, printed after the bar line at the end of the line)
+  const tail = bounds[bounds.length - 1];
+  if (s.x1 - tail > sp * 3 && s.events.some(e => e.x >= tail)) bounds.push(s.x1 + 1);
   s.bars = [];
   const rep = (x, dir) => (s.repeats || []).some(r => Math.abs(r.x - x) < sp * 2 && (r.dir === dir || r.dir === 'both'));
   for (let k = 0; k + 1 < bounds.length; k++) {
     const a = bounds[k], b = bounds[k + 1];
     const bar = { events: s.events.filter(e => e.x >= a && e.x < b), x0: a, x1: b };
+    // its time signature: at the start of the line, or one printed in the bar before its first note
+    const first = bar.events.length ? bar.events[0].x : b;
+    const ts = (s.times || []).find(t => t.x0 >= a - sp * 0.5 && t.x1 <= first + sp * 0.5);
+    if (ts) bar.time = ts.time;
     // a forward repeat at a bar's start (just after the header when the line opens with one), a backward one at its end
     if (rep(a, 'forward') || (k === 0 && (s.repeats || []).some(r => r.dir !== 'backward' && r.x > s.headerEnd - sp && r.x < a + sp * 2))) bar.repStart = true;
     if (rep(b, 'backward')) bar.repEnd = true;
@@ -178,13 +208,15 @@ function cutBars(s, xs, sp) {
   // a header-only stretch before the first bar line (clef and key with nothing in it) is not a bar
   // (or one that ends at a forward repeat: the clef, then the repeat sign)
   if (s.bars.length > 1 && !s.bars[0].events.length && cuts.length && (cuts[0] - s.headerEnd < sp * 3 || (s.bars[1].repStart && cuts[0] - s.headerEnd < sp * 6))) s.bars.shift();
+  // the time at the start of the line is the first bar's
+  if (s.time && s.bars.length && !s.bars[0].time) s.bars[0].time = s.time;
 }
 
 /* ---------- the whole piece ---------- */
 
 
 /* Pages of systems → a score:
-   { title, time: { num, den, symbol? }, fifths, parts: [{ name, staves: [clef], bars: [[staff][voice][event]] }],
+   { title, time: { num, den, symbol? }, times (each bar's, when the time changes; else null), fifths, parts: [{ name, staves: [clef], bars: [[staff][voice][event]] }],
      pickup: quarters | 0, warnings: [{ bar, part, text }], counts: { notes, bars, fixed } } */
 export function buildScore(pages, opts = {}) {
   // a full score followed by its parts (one PDF, "Score and parts"): the pages from the first one whose
@@ -223,7 +255,7 @@ export function buildScore(pages, opts = {}) {
     const n = Math.max(...rs.map(s => s.bars.length));
     for (let k = 0; k < n; k++) {
       const m = {};
-      rs.forEach(s => { const b = s && s.bars[k]; if (b && b.repStart) m.start = true; if (b && b.repEnd) m.end = true; if (b && b.ending) m.ending = m.ending || b.ending; });
+      rs.forEach(s => { const b = s && s.bars[k]; if (b && b.repStart) m.start = true; if (b && b.repEnd) m.end = true; if (b && b.ending) m.ending = m.ending || b.ending; if (b && b.time && !m.time) m.time = b.time; });
       marks.push(m);
     }
     for (let r = 0; r < nRows; r++) {
@@ -234,32 +266,39 @@ export function buildScore(pages, opts = {}) {
     for (let k = 0; k < n; k++) layout.push(sys.layout && sys.layout[k] && sys.page != null ? Object.assign({ p: sys.page }, sys.layout[k], { rows: sys.layout[k].rows.slice(0, nRows) }) : null);
   });
   const nBars = Math.max(0, ...rowBars.map(b => b.length));
+  // a time that changes from bar to bar: each bar keeps the last one printed
+  const sameTime = (a, b) => a.num === b.num && a.den === b.den;
+  const printed = marks.map(m => m.time).filter(Boolean);
+  const varies = printed.some(t => !sameTime(t, printed[0]));
+  if (varies) time = marks[0] && marks[0].time || printed[0];
   // a time signature misread (a 3 taken for an 8) shows as bars that all add up to something else
-  if (time) {
+  if (time && !varies) {
     const g = guessTime(rowBars), lens = barLengths(rowBars);
     const want = time.num * 4 / time.den, got = g.num * 4 / g.den;
     if (Math.abs(want - got) > EPS && lens.filter(q => Math.abs(q - got) < EPS).length >= lens.length * 0.5 && lens.length >= 3) time = Object.assign(g, { misread: true });
   }
   if (!time) time = guessTime(rowBars);
-  const barQ = time.num * 4 / time.den;
+  const times = [];
+  for (let b = 0, cur = time; b < nBars; b++) { if (varies && marks[b] && marks[b].time) cur = marks[b].time; times.push(cur); }
+  const qOf = t => t.num * 4 / t.den;
   const warnings = [];
   let fixed = 0, noteCount = 0;
   // a first bar shorter than the rest, in every row, is a pickup
   const firstLen = rowBars.map(b => sum((b[0] || []).filter(e => !e.wholeRest)));
-  const pickup = nBars > 1 && firstLen.every(l => l > EPS && l < barQ - EPS) ? Math.max(...firstLen) : 0;
+  const pickup = nBars > 1 && firstLen.every(l => l > EPS && l < qOf(times[0]) - EPS) ? Math.max(...firstLen) : 0;
   const parts = partRows.map((rows, pi) => ({
     name: piano ? 'Piano' : partRows.length > 1 ? 'Part ' + (pi + 1) : opts.instrument || 'Guitar', // played on the app's nylon guitar
     staves: rows.map(r => clefs[r]),
     bars: []
   }));
   for (let b = 0; b < nBars; b++) {
-    const len = b === 0 && pickup ? pickup : barQ;
+    const len = b === 0 && pickup ? pickup : qOf(times[b]);
     partRows.forEach((rows, pi) => {
       const bar = rows.map(r => {
         const ev = (rowBars[r][b] || []).map(e => Object.assign({}, e));
         const voices = splitVoices(ev, len);
         return voices.map((v, vi) => {
-          const r2 = fitBar(v, len, time);
+          const r2 = fitBar(v, len, times[b]);
           if (r2.fixed) { fixed++; warnings.push({ bar: b + 1, part: pi, staff: rows.indexOf(r), text: r2.fixed }); }
           return r2.events.map(e => toEvent(e, clefs[r], fifths, vi));
         });
@@ -291,7 +330,7 @@ export function buildScore(pages, opts = {}) {
     endings.push([b, e, n]);
     b = e;
   }
-  return { title: opts.title || '', time, fifths, parts, pickup, repeats, endings, layout: layout.some(Boolean) ? { bars: layout, rows: partRows } : null, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
+  return { title: opts.title || '', time, times: varies ? times : null, fifths, parts, pickup, repeats, endings, layout: layout.some(Boolean) ? { bars: layout, rows: partRows } : null, warnings, counts: { notes: noteCount, bars: nBars, fixed }, drums, partsFrom: partsFrom > 0 ? partsFrom + 1 : 0 };
 }
 
 const sum = evs => evs.reduce((a, e) => a + e.q, 0);

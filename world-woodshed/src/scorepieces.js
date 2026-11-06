@@ -32,7 +32,8 @@ export async function readScoreMelody(name, blob, line = null) {
    there are several), and one with a first ending written out (the bars, then the 2nd time without it).
    A melody that lies low (a guitar recording, a MIDI file at sounding pitch) is written an octave up, as
    guitar music is; one already in the treble staff (a score read from a page) stays where it is. The score's
-   own time signature is kept (10/4, 13/8, 16/4 as well as 4/4 or 6/8); triplets are rounded to the grid. */
+   own time signature is kept (10/4, 13/8, 16/4 as well as 4/4 or 6/8), and when it changes from bar to bar
+   each piece has every bar's in piece.times; triplets are rounded to the grid. */
 export function sections(melody, per = 4) {
   const whole = !(per > 0 && per < Infinity);
   if (whole) per = Infinity;
@@ -52,6 +53,7 @@ export function sections(melody, per = 4) {
   // a MusicXML score is read bar by bar as it is written (its notes, rests, ties, triplets, chords and
   // accidentals); a MIDI file or a played draft has only times, so it is written out by quantize
   const wr = melody.written && melody.written.bars && melody.written.bars.length && time === (melody.time || time) ? melody.written : null;
+  const barTimes = wr && Array.isArray(melody.times) && melody.times.length >= wr.bars.length && melody.times.every(okTime) ? melody.times : null;
   const shift = bass ? (melody.trans && melody.trans % 12 === 0 && melody.written ? -melody.trans : 0) : up ? 12 : 0;
   const bars = wr ? wr.bars.map(bar => bar.map(n => Object.assign({}, n, n.midi == null ? {} : { midi: n.midi + shift }, n.chord ? { chord: n.chord.map(m => m + shift) } : {}))) : q.bars;
   // leave out whole-bar rests at the start (a pickup or an intro played by others)
@@ -105,6 +107,8 @@ export function sections(melody, per = 4) {
     if (slice.every(bar => bar.every(n => n.midi == null))) return; // nothing to read
     // src: the score bar each bar is (from 0, as written), for reading from the printed page (src/pagelayout.js)
     const piece = { key, time, bars: slice, src: x.idx.slice() };
+    // a time that changes from bar to bar: each bar's (notation.js draws a new signature where it changes)
+    if (barTimes) { piece.times = x.idx.map(b => barTimes[b]); piece.time = piece.times[0]; }
     if (bass) piece.clef = 'bass';
     if (x.reps.length === 1) piece.repeat = x.reps[0];
     else if (x.reps.length) piece.repeats = x.reps;
