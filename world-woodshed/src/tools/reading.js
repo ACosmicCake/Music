@@ -2,7 +2,7 @@
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
-import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
+import { h, tool, toast, Fretboard, hooks, isCompact } from '../ui/core.js';
 import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
@@ -482,7 +482,8 @@ function scoresMode(root, lv, ctx, p) {
     // a score the app read from a PDF or photos is read from those pages in full screen, as printed
     async function pagesOf(got, mel) {
       pageHint.hidden = true;
-      if (!/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
+      // not on a small phone (html.compact): a printed page is too small to read there, so One line only and no switch
+      if (isCompact() || !/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
       const PL = await import('../pagelayout.js');
       const layout = PL.layoutFromXML(await got.blob.text());
       const e = L.getEntry(pick.e.id) || pick.e, here = await L.localIds();
