@@ -5,13 +5,15 @@
    and only after you connect. What it learns (your top artists and the styles and players they point to) is
    kept in your learning plan (Cur.prefs().taste) so your other devices get it too.
 
-   The client ID comes from the build (VITE_SPOTIFY_CLIENT_ID) or from Settings on this device. The app in the
+   The client ID is the app's own (APP_ID), or VITE_SPOTIFY_CLIENT_ID at build time, or one typed in Settings on this device. The app in the
    Spotify developer dashboard must list this page's address as a redirect URI (redirectUri()). */
 
 const KEY = 'ww-spotify', PEND = 'ww-spotify-pending';
 const AUTH = 'https://accounts.spotify.com/authorize', TOKEN = 'https://accounts.spotify.com/api/token', API = 'https://api.spotify.com/v1';
 export const SCOPE = 'user-top-read';
-const BUILT_ID = (import.meta.env && import.meta.env.VITE_SPOTIFY_CLIENT_ID) || '';
+// the app's own Spotify app (a client ID is public: PKCE needs no secret); VITE_SPOTIFY_CLIENT_ID overrides it
+const APP_ID = 'f2bfc00c38f349beb5aa3dcfba6198b8';
+const BUILT_ID = (import.meta.env && import.meta.env.VITE_SPOTIFY_CLIENT_ID) || APP_ID;
 
 const listeners = new Set();
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
