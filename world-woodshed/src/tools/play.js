@@ -13,6 +13,7 @@ import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { loadTuneNotes, drawWhenLoaded } from '../content/lazy.js';
 import { chartNumerals, keyName, prettyNumeral } from '../harmony.js';
 import { SoloTips } from '../ui/solo.js';
+import { PLAYERS } from '../taste.js';
 import { renderStaff } from '../notation.js';
 import { guessKey, cleanDraft } from '../notate.js';
 import { parseMel, cleanMelody, packNotes, shiftNotes, trimLead, staffKey, melodyBars, readMelodyFile, MELODY_FILE } from '../melody.js';
@@ -196,9 +197,21 @@ tool('repertoire', {
       const mine = E.listTunes().map(TN.playable).filter(Boolean);
       listCard.append(h('div', { class: 'spread' }, h('h2', { text: 'Your tunes' }), h('button', { class: 'btn small', onclick: () => editTune() }, '+ New tune')));
       listCard.append(mine.length ? h('div', { class: 'tools' }, mine.map(tile)) : h('p', { class: 'small muted', text: 'Type a chord chart, pick a groove and a tempo, and the band plays it like the tunes below.' }));
-      ['Jazz standards', 'Monk and Sun Ra', 'Blues, rock & roots', 'World grooves'].forEach(g => {
-        listCard.append(h('h2', { text: g }));
-        listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
+      ['Jazz standards', 'Players', 'Blues, rock & roots', 'World grooves'].forEach(g => {
+        if (g !== 'Players') {
+          listCard.append(h('h2', { text: g }));
+          listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
+          return;
+        }
+        // tunes in the manner of a player, a heading each, your favourite players first
+        const fav = (E.state.cur && E.state.cur.prefs && E.state.cur.prefs.players) || [];
+        listCard.append(h('h2', { text: 'Favourite players' }));
+        PLAYERS.slice().sort((a, b) => fav.includes(b.id) - fav.includes(a.id)).forEach(pl => {
+          const ts = D.TUNES.filter(t => t.group === g && (t.players || []).includes(pl.id));
+          if (!ts.length) return;
+          listCard.append(h('h3', { class: 'small', text: (fav.includes(pl.id) ? '★ ' : '') + pl.name + (pl.style !== 'jazz' ? ' · ' + regionName(pl.style) : '') }));
+          listCard.append(h('div', { class: 'tools' }, ts.map(tile)));
+        });
       });
     }
     /* Write a tune, edit one of yours, start your own version of a preset (src), or check a draft made from
@@ -485,7 +498,7 @@ tool('repertoire', {
           if (!f) return;
           try { takeIt(await readMelodyFile(f.name, f), 'file', f.name); } catch (e) { toast('Couldn’t read ' + f.name + ': ' + (e && e.message ? e.message : 'not a score')); }
         });
-        if (!replacing) box.append(h('p', { class: 'small', text: t.mine ? 'Add the melody and it shows here under the chords and plays with the band.' : 'The melody of ' + t.name + ' is still under copyright, so it isn’t built in. Add it yourself and it shows here under the chords and plays with the band.' }));
+        if (!replacing) box.append(h('p', { class: 'small', text: t.mine ? 'Add the melody and it shows here under the chords and plays with the band.' : t.players ? 'These are changes in the manner of ' + t.players.map(id => (PLAYERS.find(p => p.id === id) || { name: id }).name).join(' and ') + ', with no melody of their own. Write one by playing and it shows here under the chords and plays with the band.' : 'The melody of ' + t.name + ' is still under copyright, so it isn’t built in. Add it yourself and it shows here under the chords and plays with the band.' }));
         box.append(h('div', { class: 'row' },
           h('button', { class: 'btn small brass', onclick: () => openTool('notate', { params: { forTune: { id: t.id, name: t.name } }, returnTab: 'play' }) }, 'Write it by playing'),
           h('button', { class: 'btn small', onclick: () => fileIn.click() }, 'Open a file'), fileIn));

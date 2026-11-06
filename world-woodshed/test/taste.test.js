@@ -11,6 +11,27 @@ describe('favourite players', () => {
     expect(playersOf('Sun Ra')).toEqual(['sunra']);
     expect(playersOf('Sunra')).toEqual([]);
     expect(playersOf('Meredith Monk')).toEqual([]);
+    expect(playersOf('Miles Davis Quintet')).toEqual(['miles']);
+    expect(playersOf('Arsenio Rodríguez y su Conjunto')).toEqual(['arsenio']);
+    expect(playersOf('Compay Segundo')).toEqual(['bvsc']);
+    expect(playersOf('Astor Piazzolla y su Quinteto Tango Nuevo')).toEqual(['piazzolla']);
+    expect(playersOf('Mercedes Sosa')).toEqual(['sosa']);
+    expect(playersOf('Milton Nascimento')).toEqual(['milton']);
+    expect(playersOf('Stan Getz & João Gilberto')).toEqual(['getz']);
+    expect(playersOf('Oum Kalthoum')).toEqual(['kulthum']);
+    expect(playersOf('Umm Kulthum')).toEqual(['kulthum']);
+    expect(playersOf('Miles Kane')).toEqual([]);
+  });
+  it('every player belongs to a style the app has, and their tunes say who they are for', () => {
+    for (const p of PLAYERS) expect(D.REGIONS.some(r => r.id === p.style), p.id).toBe(true);
+    for (const t of D.TUNES.filter(x => x.players)) {
+      expect(t.group, t.id).toBe('Players');
+      t.players.forEach(id => expect(PLAYERS.some(p => p.id === id), t.id).toBe(true));
+    }
+  });
+  it('reads genres written with accents', () => {
+    const t = tasteFrom([{ name: 'Someone', genres: ['nueva canción'] }, { name: 'Other', genres: ['forró'] }], D.REGIONS);
+    expect(t.styles.map(s => s.id)).toEqual(expect.arrayContaining(['latam', 'brazil']));
   });
   it('every player has drills and a tune, all in their style', async () => {
     await loadDrills();
@@ -48,7 +69,7 @@ describe('taste from top artists', () => {
     expect(t.styles[0].id).toBe('jazz');
     expect(t.styles[0].artists).toEqual(['Thelonious Monk', 'Sun Ra']);
     expect(t.styles.map(s => s.id)).toEqual(expect.arrayContaining(['westafrica', 'cuba', 'rock']));
-    expect(t.players).toEqual(['monk', 'sunra']);
+    expect(t.players).toEqual(['monk', 'sunra', 'bvsc']);
     expect(rankedStyles(t)[0]).toBe('jazz');
   });
   it('works without genres, from the artists the app’s own style pages name', () => {
@@ -56,7 +77,7 @@ describe('taste from top artists', () => {
     expect(idx.size).toBeGreaterThan(50);
     const t = tasteFrom([{ name: 'Buena Vista Social Club', genres: [] }, { name: 'Sun Ra Arkestra', genres: [] }], D.REGIONS);
     expect(t.styles.map(s => s.id)).toEqual(expect.arrayContaining(['cuba', 'jazz']));
-    expect(t.players).toEqual(['sunra']);
+    expect(t.players).toEqual(['sunra', 'bvsc']);
   });
   it('ignores what matches nothing and keeps names as plain short text', () => {
     const t = tasteFrom([{ name: 'x'.repeat(500), genres: ['vaporwave'] }, null, { genres: ['jazz'] }], D.REGIONS);

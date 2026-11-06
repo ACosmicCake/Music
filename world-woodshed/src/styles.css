@@ -714,6 +714,8 @@ html.compact .goal-streaks > div { padding: 4px 6px; }
 .because-item .because-label { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
 .because-item .because-why { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
 .taste-card code { overflow-wrap: anywhere; user-select: all; }
+.player-chips { gap: 8px; }
+.player-group { display: grid; gap: 4px; }
 html.compact .because-list { grid-template-columns: 1fr; }
 .prio { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .prio li { display: flex; gap: 8px; align-items: center; background: var(--sunk); border-radius: 10px; padding: 6px 8px; }
