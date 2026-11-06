@@ -8,6 +8,7 @@
    player has right now and take earlier sessions on the same day into account. */
 import D from './data.js';
 import E from './engine.js';
+import { playerBoost } from './taste.js';
 
 const DAY = 86400000, HOUR = 3600000;
 
@@ -69,10 +70,10 @@ function baseCatalog() {
   D.RHYTHMS.forEach((r, i) => list.push({ id: 'rhythm:' + r.id, kind: 'rhythm', ref: r.id, name: r.name, tier: r.tier, order: i, styles: [r.region] }));
   let jazzIdx = 0;
   D.TUNES.forEach((t, i) => {
-    const tier = t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(jazzIdx++ / 3)) : 2;
-    list.push({ id: 'tune:' + t.id, kind: 'tune', ref: t.id, name: t.name, tier, order: i, styles: [t.region || 'jazz'] });
+    const tier = t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(jazzIdx++ / 3)) : t.tier || 2;
+    list.push({ id: 'tune:' + t.id, kind: 'tune', ref: t.id, name: t.name, tier, order: i, styles: [t.region || 'jazz'], players: t.players || [] });
   });
-  (D.DRILLS || []).forEach((d, i) => list.push({ id: 'drill:' + d.id, kind: 'drill', ref: d.id, name: d.name, tier: d.level, order: i, styles: [d.style] }));
+  (D.DRILLS || []).forEach((d, i) => list.push({ id: 'drill:' + d.id, kind: 'drill', ref: d.id, name: d.name, tier: d.level, order: i, styles: [d.style], players: d.players || [] }));
   D.LESSONS.forEach((l, i) => list.push({ id: 'lesson:' + l.id, kind: 'lesson', ref: l.id, name: l.title, tier: 1 + ['Foundations', 'Intermediate', 'Advanced'].indexOf(l.level), order: i, styles: [] }));
   catCache = list;
   return list;
@@ -122,10 +123,12 @@ export function gradeFromScore(score) { return score >= 0.9 ? 'easy' : score >= 
 /* ---------- style priorities ---------- */
 function styleWeight(item) {
   const order = prefs().styles || [];
-  if (!order.length || !item.styles || !item.styles.length) return 0.3;
+  // the drills and tunes of your favourite players (Settings → Your learning plan, or from Spotify) come first
+  const fav = playerBoost(item, prefs().players) * 0.5;
+  if (!order.length || !item.styles || !item.styles.length) return 0.3 + fav;
   let w = 0.12;
   item.styles.forEach(s => { const i = order.indexOf(s); if (i >= 0) w = Math.max(w, 1 - i * 0.18); });
-  return w;
+  return w + fav;
 }
 export function focusStyle() {
   const order = prefs().styles || [];

@@ -28,7 +28,7 @@ import './tools/rhythmgym.js';
 import './tools/learn.js';
 import { bootSession } from './ui/session.js';
 import './ui/routine.js';
-import './pages.js';
+import { settingsPage } from './pages.js';
 import './ui/library.js';
 import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
@@ -38,6 +38,7 @@ import { initLibSync } from './libsync.js';
 import './tools/commute.js';
 import { initSaveBanner } from './ui/savebanner.js';
 import { initReminder } from './reminder.js';
+import { bootSpotify } from './ui/taste.js';
 
 /* ---------- plugins (e.g. Transcribe) ---------- */
 const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, ICONS, renderTabs, get ui() { return ui; } };
@@ -67,6 +68,8 @@ const hashTab = () => { const t = (location.hash || '').replace('#', ''); return
 const startHash = location.hash;
 go(hashTab() || 'today');
 if (startHash === '#go') openTool('commute', { returnTab: 'today' }); // the 'On the go' shortcut
+// coming back from the Spotify login (Settings → Your music taste): finish it, then show what it found
+if (!isNative() && /[?&](code|error)=/.test(location.search)) bootSpotify(settingsPage);
 // Links and app shortcuts like #transcribe switch tabs without a reload.
 window.addEventListener('hashchange', () => { if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
 // The Android app has no service worker (it is already offline); its back button closes tools first.

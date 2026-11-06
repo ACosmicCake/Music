@@ -213,3 +213,15 @@ describe('Library pieces in the plan', () => {
     expect(Cur.context().practisedToday('piece:' + id)).toBe(1);
   });
 });
+
+describe('favourite players', () => {
+  it('bring their drills and tunes in first', () => {
+    Cur.setPrefs({ styles: ['jazz'], players: [] });
+    const plain = Cur.choose('tune', Cur.context());
+    expect(plain.item.players || []).not.toContain('sunra');
+    Cur.setPrefs({ styles: ['jazz'], players: ['sunra'] });
+    expect(Cur.choose('tune', Cur.context()).item.id).toBe('tune:sunravamp');
+    Cur.setPrefs({ styles: [], players: ['monk'] });
+    expect(Cur.choose('tune', Cur.context()).item.players).toContain('monk');
+  });
+});

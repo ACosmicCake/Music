@@ -196,7 +196,7 @@ tool('repertoire', {
       const mine = E.listTunes().map(TN.playable).filter(Boolean);
       listCard.append(h('div', { class: 'spread' }, h('h2', { text: 'Your tunes' }), h('button', { class: 'btn small', onclick: () => editTune() }, '+ New tune')));
       listCard.append(mine.length ? h('div', { class: 'tools' }, mine.map(tile)) : h('p', { class: 'small muted', text: 'Type a chord chart, pick a groove and a tempo, and the band plays it like the tunes below.' }));
-      ['Jazz standards', 'Blues, rock & roots', 'World grooves'].forEach(g => {
+      ['Jazz standards', 'Monk and Sun Ra', 'Blues, rock & roots', 'World grooves'].forEach(g => {
         listCard.append(h('h2', { text: g }));
         listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
       });
