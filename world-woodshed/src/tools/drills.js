@@ -89,19 +89,38 @@ tool('drill', {
     const holder = h('div', { class: 'section' }); body.append(holder);
     let back = null, cleanupExtra = null;
     const stopAll = () => { if (back) back.stop(); back = null; if (cleanupExtra) { cleanupExtra(); cleanupExtra = null; } ctx.setActive(false); };
+    /* Favourite drills: settings.favDrills, a list of drill ids, starred on a tile or on the drill's own page. */
+    const favs = () => E.state.settings.favDrills || [];
+    const isFav = id => favs().includes(id);
+    const toggleFav = id => { const on = isFav(id); E.setSetting('favDrills', on ? favs().filter(x => x !== id) : favs().concat([id])); toast(on ? 'Taken out of your favourites' : 'Added to your favourite drills'); return !on; };
+    const starBtn = (d, onChange) => {
+      const b = h('button', { class: 'fav-star' });
+      const paint = () => { const on = isFav(d.id); b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + d.name + (on ? ' from' : ' to') + ' favourite drills'); };
+      b.onclick = () => { toggleFav(d.id); paint(); if (onChange) onChange(); };
+      paint(); return b;
+    };
+    let relist = null;
     const drillTile = d => {
       const best = (E.state.settings.drillBest || {})[d.id];
-      return h('button', { class: 'tile', onclick: () => open(d) }, h('span', { class: 't-title', text: d.name }), h('span', { class: 't-desc', text: FOCUS[d.focus] + ' · level ' + d.level + ' · ' + d.goal }), h('span', { class: 't-meter', text: best ? best + ' bpm' : 'new' }));
+      return h('div', { class: 'dtile' }, h('button', { class: 'tile', onclick: () => open(d) }, h('span', { class: 't-title', text: d.name }), h('span', { class: 't-desc', text: FOCUS[d.focus] + ' · level ' + d.level + ' · ' + d.goal }), h('span', { class: 't-meter', text: best ? best + ' bpm' : 'new' })),
+        starBtn(d, () => { if (relist) relist(); }));
     };
     /* The drills listed by style (the regions, your ranked styles first) or by musician (PLAYERS, your favourites
-       first, each with their drills, tunes and records). The choice is kept in settings.drillsBy. */
+       first, each with their drills, tunes and records) or only your favourites. The choice is kept in settings.drillsBy. */
     function list(filter = 'all', scrollTo) {
-      stopAll(); holder.innerHTML = '';
-      const by = E.state.settings.drillsBy === 'musician' ? 'musician' : 'style';
-      holder.append(h('div', { class: 'seg' }, [['style', 'By style'], ['musician', 'By musician']].map(([k, t]) =>
+      stopAll(); holder.innerHTML = ''; relist = null;
+      const by = ['musician', 'favourites'].includes(E.state.settings.drillsBy) ? E.state.settings.drillsBy : 'style';
+      relist = by === 'favourites' ? () => list(filter) : null;
+      holder.append(h('div', { class: 'seg' }, [['style', 'By style'], ['musician', 'By musician'], ['favourites', '★ Favourites']].map(([k, t]) =>
         h('button', { 'aria-pressed': by === k ? 'true' : 'false', onclick: () => { E.setSetting('drillsBy', k); list(filter); } }, t))));
       holder.append(h('div', { class: 'chips' }, [['all', 'All']].concat(Object.entries(FOCUS)).map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': k === filter ? 'true' : 'false', onclick: () => list(k) }, t))));
       if (by === 'musician') { byMusician(filter, scrollTo); return; }
+      if (by === 'favourites') {
+        const ds = favs().map(id => D.DRILLS.find(d => d.id === id)).filter(d => d && (filter === 'all' || d.focus === filter));
+        holder.append(ds.length ? h('div', { class: 'tools' }, ds.map(drillTile))
+          : h('p', { class: 'muted', text: favs().length ? 'None of your favourites is a ' + FOCUS[filter].toLowerCase() + ' drill.' : 'No favourite drills yet. Tap ☆ beside any drill, or on its page, to keep it here.' }));
+        return;
+      }
       const pri = (Cur.prefs().styles || []);
       const styles = [...new Set(D.DRILLS.map(d => d.style))].sort((a, b) => (pri.indexOf(a) < 0 ? 99 : pri.indexOf(a)) - (pri.indexOf(b) < 0 ? 99 : pri.indexOf(b)));
       styles.forEach(st => {
@@ -202,7 +221,7 @@ tool('drill', {
       const backingName = b.rhythm ? (back.rhythm ? back.rhythm.name : b.rhythm) : b.groove ? D.GROOVES[b.groove].name + (b.bars ? ': ' + b.bars.map(prettySym).join(' · ') : '') : 'Click';
       const unit = back.rhythm && back.rhythm.unit ? back.rhythm.unit + '/min' : 'bpm';
       card.append(
-        h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: () => list() }, '← All drills'), h('span', { class: 'eyebrow', text: regionName(d.style) + ' · ' + FOCUS[d.focus] + ' · level ' + d.level })),
+        h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: () => list() }, '← All drills'), h('div', { class: 'row' }, h('span', { class: 'eyebrow', text: regionName(d.style) + ' · ' + FOCUS[d.focus] + ' · level ' + d.level }), starBtn(d))),
         h('h2', { text: d.name }), h('p', { class: 'lede', text: d.goal }),
         h('p', { class: 'small muted', text: d.why }),
         h('ol', { class: 'list steps' }, d.steps.map(x => h('li', { text: x }))),

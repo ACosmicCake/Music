@@ -1025,3 +1025,7 @@ html.compact .open-string { padding: 6px 1px; }
 html.compact .open-string b { font-size: 1.1rem; }
 .player-hub { scroll-margin-top: 72px; }
 .player-records li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.dtile { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: stretch; }
+.fav-star { min-width: 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0 8px; }
+.fav-star[aria-pressed="true"] { color: var(--brass, #b8860b); }
+.row > .fav-star { min-height: 36px; }
