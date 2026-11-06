@@ -164,6 +164,35 @@ export default {
     ]
   },
 
+  monkblues: {
+    intro: 'A 12-bar blues in B♭ with dominant 7ths on I, IV and V, and a diminished chord in bar 6 that lets the bass climb from E♭ through E to F (B♭7 with F in the bass). Monk kept blues like this plain so that his own sounds stood out: whole-tone runs over the dominants, minor seconds in the chords, and a lot of space.',
+    rn: ['I7', 'IV7', 'I7', 'I7', 'IV7', '#iv°7', 'I7', 'I7', 'V7', 'IV7', 'I7', 'V7'],
+    sections: [
+      { bars: [1, 4], key: 'Bb', title: 'I with a quick IV', text: 'B♭7, a quick E♭7 in bar 2, then B♭7 for two bars.', aim: 'D (the 3rd of B♭7) falls to D♭ (the 7th of E♭7); A♭ (the 7th of B♭7) falls to G (the 3rd of E♭7).', scale: 'The B♭ blues scale (B♭ D♭ E♭ E F A♭) over the whole form.' },
+      { bars: [5, 8], key: 'Bb', title: 'IV and the diminished step', text: 'E♭7, then E°7 (E G B♭ D♭), then home to B♭7. E°7 shares three notes with B♭7 (G, B♭ and D♭ against B♭7♭9), so it sounds like B♭7 leaning upward.', aim: 'G on E°7 rising to A♭, or D♭ falling to D on B♭7.' },
+      { bars: [9, 12], key: 'Bb', title: 'V, IV, I and a turnaround', text: 'F7 (V) falls to E♭7 (IV), then B♭7 and F7 to go round again.', aim: 'A (the 3rd of F7) falls to G (the 3rd of E♭7); then D on B♭7.', scale: 'Over F7, the whole-tone scale on F (F G A B C♯ E♭) for the Monk sound.' }
+    ]
+  },
+
+  monkslips: {
+    intro: 'F, with each F7 nudged up a half step to G♭7 and straight back. The second half climbs: D♭7, D7, E♭7, E7, a dominant on every half step, until E7 slides into F7. Monk built tunes on moves like this; every chord is a 7th, so the colour comes from the root moving, not the chord type.',
+    rn: ['I7 bII7', 'I7 bII7', 'I7 bII7', 'I7', 'bVI7', 'VI7', 'bVII7 VII7', 'I7'],
+    sections: [
+      { bars: [1, 4], key: 'F', title: 'Up a half step and back', text: 'F7 to G♭7 and back, three times, then F7. G♭7 is a half step above home, so it falls back like a neighbour note.', aim: 'A (the 3rd of F7) up to B♭ (the 3rd of G♭7) and back; E♭ (the 7th of F7) to E (the 7th of G♭7, F♭) and back.' },
+      { bars: [5, 8], key: 'F', title: 'Dominants climbing by half steps', text: 'D♭7, D7, E♭7, E7: the same chord moved up a fret at a time until it lands on F7.', aim: 'Move one shape up a fret per chord. The 3rds climb F, F♯, G, G♯ and arrive on A.', scale: 'Mixolydian on each root, or simply the chord’s own four notes moved up a fret at a time.' }
+    ]
+  },
+
+  sunravamp: {
+    intro: 'E minor for four bars, two of F7♯11, then E minor again. F7♯11 is a half step above home (♭II), so it is a short trip out and straight back. The vamp is the point: in Sun Ra’s Arkestra one chord could go on for minutes while chants and solos floated over it.',
+    rn: ['i7', 'i7', 'i7', 'i7', 'bII7#11', 'bII7#11', 'i7', 'i7'],
+    sections: [
+      { bars: [1, 4], key: 'Em', title: 'The vamp', text: 'Em7 over the bell pattern. Nothing moves, so you choose when to play and when to wait.', aim: 'G (the 3rd) and D (the 7th); end phrases on E or B.', scale: 'E Dorian (E F♯ G A B C♯ D) or E minor pentatonic.' },
+      { bars: [5, 6], key: 'Em', title: 'Out a half step', text: 'F7♯11 (F A C E♭ B), a half step above E. The B is the ♯11 and is also the 5th of Em7, so it can carry over.', aim: 'Hold B through the change; or play A and E♭ (the 3rd and 7th of F7) and let them fall to G and D on Em7.', scale: 'F Lydian dominant (F G A B C D E♭).' },
+      { bars: [7, 8], key: 'Em', title: 'Home', text: 'Back to Em7 for two bars before the top.' }
+    ]
+  },
+
   /* ---------- Blues, rock and roots; world grooves ---------- */
   minorswing: {
     intro: 'A gypsy jazz tune in A minor with three chords: Am6 (i), Dm6 (iv) and E7 (V). Each lasts two bars, so there is time to outline every chord.',
@@ -378,6 +407,18 @@ export const SOLO = {
   giant: {
     harmony: ['Learn the three major triads first (B D♯ F♯, G B D, E♭ G B♭) and arpeggiate each in its bar.', 'Then the V7s: D7 (D F♯ A C), B♭7 (B♭ D F A♭), F♯7 (F♯ A♯ C♯ E). Each 7th falls a half step to the next 3rd.', 'Play 1-2-3-5 shapes on every chord, as Coltrane did: they keep you in the key at speed.'],
     theory: ['Three major scales (B, G, E♭), switching every bar or two.', 'On each V7 or ii–V, the scale of the key it leads to.', 'Start at 60–80 bpm and loop bars 1–4 until the changes feel automatic.']
+  },
+  monkblues: {
+    harmony: ['Aim for the 3rd of each chord as it arrives: D on B♭7, G on E♭7, A on F7.', 'Over E°7 in bar 6, play its own four notes (E G B♭ D♭), then land on D in bar 7.', 'Play one short idea and repeat it, shifted across the beat, for a whole chorus (see the drill “One idea, moved across the beat”).'],
+    theory: ['The B♭ blues scale (B♭ D♭ E♭ E F A♭) fits the whole form.', 'Whole-tone runs over the dominants: on F7, F G A B C♯ E♭ (see the drill “Whole-tone runs down a dominant”).', 'Strike a chord tone with the note a half step below it, and leave silence after it.']
+  },
+  monkslips: {
+    harmony: ['Play the same small idea on F7 and on G♭7, moved up a fret, so the slip is in your line too.', 'In bars 5–8, move one chord shape up a fret per chord and let the 3rds climb F, F♯, G, G♯, A.', 'Land on A (the 3rd of F7) on beat 1 of bar 8.'],
+    theory: ['F Mixolydian over F7, G♭ Mixolydian over G♭7: one shape, a fret apart.', 'The whole-tone scale on F (F G A B C♯ E♭) covers F7 and its ♯11 and ♯5.', 'Over the climbing dominants, the chord’s own notes are enough: speed comes from moving the shape, not from scales.']
+  },
+  sunravamp: {
+    harmony: ['On Em7, rest on G and D; end phrases on E or B.', 'On F7♯11, hold B (the ♯11, also the 5th of Em7) across the change, or play A and E♭ and let them fall to G and D.', 'Leave whole bars empty: the vamp keeps going without you.'],
+    theory: ['E Dorian (with C♯) or E minor pentatonic over Em7.', 'F Lydian dominant (F G A B C D E♭) over F7♯11.', 'Chords in fourths (the four open bass strings, E A D G) slide up and down a fret for colour.']
   },
   minorswing: {
     harmony: ['Arpeggiate the chords, as Django did: Am6 (A C E F♯), Dm6 (D F A B), E7 (E G♯ B D, adding F for the ♭9).', 'Land on G♯ over E7 and resolve it to A on Am6.', 'Slide into chord notes from a half step below (see the drill “Arpeggios with chromatic approach”).'],

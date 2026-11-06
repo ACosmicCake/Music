@@ -20,6 +20,7 @@ import { VOICES } from './guitars.js';
 import { SAMPLE_SOURCES } from './content/samples.js';
 import * as Rem from './reminder.js';
 import { statsPage, heatmap, dayChart } from './ui/stats.js';
+import { tasteSettingsCard, becauseCard } from './ui/taste.js';
 
 /* ======================================================
    PAGES
@@ -85,6 +86,9 @@ Object.assign(PAGES, {
     // the daily goal and the streaks (the goal grows first, if it is time)
     applyRamp();
     view.append(goalCard());
+    // drills, tunes and styles that match your favourite players and what you listen to on Spotify
+    const because = becauseCard();
+    if (because) view.append(because);
     // commuting: a no-guitar session or hands-free ear training (first thing in the Android app)
     const goCard = h('div', { class: 'card go-card' }, h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'On the go' }), h('b', { text: 'Commuting? Headphones in, no guitar needed.' })),
       h('button', { class: 'btn brass', onclick: () => openTool('commute', { returnTab: 'today' }) }, 'Open →')),
@@ -197,7 +201,7 @@ export function settingsPage() {
       danger.append(c);
     } }, 'Reset progress')));
   view.append(h('div', { class: 'stack settings' },
-    fold(guitarCard(), 'Your guitar'), fold(displayCard(), 'Display and sounds'), fold(micSettingsCard(), 'Microphone'),
+    fold(guitarCard(), 'Your guitar'), fold(tasteSettingsCard(), 'Your music taste'), fold(displayCard(), 'Display and sounds'), fold(micSettingsCard(), 'Microphone'),
     fold(backupCard(), 'Your progress on every device'), fold(h('div', { class: 'card' }, updateBox()), 'App updates'), fold(danger, 'Reset progress')));
   focusView();
 }

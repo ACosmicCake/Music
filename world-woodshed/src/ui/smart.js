@@ -10,6 +10,7 @@ import { openSwap } from './swap.js';
 import { goalSettings } from './goal.js';
 import Goals from '../goals.js';
 import { loadScience, whenLoaded } from '../content/lazy.js';
+import { playerChips } from './taste.js';
 
 const TIMES = [10, 15, 20, 30, 45, 60, 90, 120];
 
@@ -94,6 +95,8 @@ export function learningPrefsCard(opts = {}) {
     });
     card.append(chosen.length ? list : h('p', { class: 'small', text: 'No styles chosen yet: the plan spreads across everything.' }));
     card.append(h('div', { class: 'chips' }, D.REGIONS.filter(r => !chosen.includes(r.id)).map(r => h('button', { class: 'chip', disabled: chosen.length >= 5 ? true : null, onclick: () => set({ styles: chosen.concat([r.id]) }) }, '+ ' + r.name))));
+    card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Favourite players' }), playerChips(opts.onChange),
+      h('span', { class: 'small muted', text: 'Their drills and tunes come first. Connect Spotify in Settings → Your music taste to fill this in and order your styles from what you listen to.' })));
     card.append(h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Pace of new material' }),
       h('div', { class: 'seg' }, Object.entries(Cur.PACE).map(([k, v]) => h('button', { 'aria-pressed': (p.pace || 'steady') === k ? 'true' : 'false', onclick: () => set({ pace: k }) }, v.name))),
       h('span', { class: 'small muted', text: Cur.PACE[p.pace || 'steady'].desc })));
