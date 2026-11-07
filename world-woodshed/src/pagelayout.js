@@ -89,3 +89,67 @@ export function spreadOf(p, two, pages) {
   const a = p - (p % 2);
   return a + 1 < pages ? [a, a + 1] : [a];
 }
+
+/* Zoom in the page view, as a word processor has it: 'page' (the whole page in view, two side by side when
+   they fit), 'width' (the page as wide as the screen) or a size, 1 being the page's printed size (a PDF's
+   points at 96 to the inch, a photo as wide as A4). The steps the − and + buttons go through: */
+export const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+export const ZOOM_MIN = ZOOMS[0], ZOOM_MAX = ZOOMS[ZOOMS.length - 1];
+export const clampZoom = z => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+
+/* The next step in (dir 1) or out (dir −1) from the size shown now (z), as Word steps from an odd size to the
+   next round one */
+export function stepZoom(z, dir) {
+  if (dir > 0) return ZOOMS.find(s => s > z * 1.02) || ZOOM_MAX;
+  for (let i = ZOOMS.length - 1; i >= 0; i--) if (ZOOMS[i] < z / 1.02) return ZOOMS[i];
+  return ZOOM_MIN;
+}
+
+/* A saved zoom made safe (it is a setting): 'page', 'width' or a size within the range */
+export function zoomOf(v) {
+  if (v === 'width' || v === 'page') return v;
+  return typeof v === 'number' && v > 0 ? clampZoom(v) : 'page';
+}
+
+/* Where to scroll so the line being read stays in view: view { top, height } (the scroller, in its own px),
+   now { top, bottom } (the line being read, with room for what is printed above and below it), next (the
+   line after it, once the cursor is halfway through this line's last bar, else null). Returns the new top,
+   or null to stay. The view moves only when it must, and then puts the line near the top, so as much as
+   possible of what comes next shows. */
+export function followTop(view, now, next) {
+  const pad = Math.min(24, view.height * 0.06);
+  const fits = (a, b) => a >= view.top && b <= view.top + view.height;
+  if (next) {
+    if (fits(now.top, now.bottom) && fits(next.top, next.bottom)) return null;
+    // both in view if they fit together, else the next line
+    const top = Math.min(now.top, next.top), bottom = Math.max(now.bottom, next.bottom);
+    return Math.max(0, (bottom - top + pad <= view.height ? top : next.top) - pad);
+  }
+  if (fits(now.top, now.bottom)) return null;
+  return Math.max(0, now.top - pad);
+}
+
+/* For each spot (as spots() gives them) in the last bar of a printed line: the index of the first spot of the
+   next line, else null */
+export function rowEnds(list) {
+  const out = list.map(() => null);
+  const bars = []; // [first index, last index] of each of the piece's bars that has spots
+  list.forEach((sp, i) => {
+    if (!sp) return;
+    const g = bars[bars.length - 1];
+    if (g && list[g[0]].bi === sp.bi) g[1] = i; else bars.push([i, i]);
+  });
+  for (let k = 0; k + 1 < bars.length; k++) {
+    const a = list[bars[k][0]], b = list[bars[k + 1][0]];
+    if (a.p !== b.p || Math.abs(a.y0 - b.y0) > 0.002) for (let i = bars[k][0]; i <= bars[k][1]; i++) if (list[i]) out[i] = bars[k + 1][0];
+  }
+  return out;
+}
+
+/* The same across: a place x (px in the scroller) kept in view { left, width }, for a page zoomed wider than
+   the screen; a new line, back at the left, brings the view back with it */
+export function followLeft(view, x) {
+  const m = view.width * 0.12;
+  if (x >= view.left + m && x <= view.left + view.width - m) return null;
+  return Math.max(0, x - view.width * 0.25);
+}
