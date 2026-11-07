@@ -4,6 +4,8 @@
 
 A practice app for guitar, ear training, rhythm and world music, with a planner that tests you, tracks every skill and builds a daily routine. It lives in [`world-woodshed/`](world-woodshed/).
 
+**Open the app:** https://acosmiccake.github.io/Music/
+
 It is an installable web app: it works offline on phone and computer, gets its own icon and window, and updates itself when a new version is published.
 
 ### Start it on your computer with one click
@@ -19,7 +21,7 @@ The first start installs what the app needs (about a minute, internet needed onc
 
 ### Use it online
 
-Every push to `main` builds the app and publishes it to GitHub Pages (see `.github/workflows/deploy.yml`). Open the Pages link, then:
+Every push to `main` builds the app and publishes it to GitHub Pages (see `.github/workflows/deploy.yml`). Open [acosmiccake.github.io/Music](https://acosmiccake.github.io/Music/), then:
 
 - **iPhone or iPad (Safari):** Share → Add to Home Screen.
 - **Android (Chrome):** tap Install when the banner appears, or menu → Install app.
