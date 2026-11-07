@@ -45,3 +45,62 @@ export async function qrGrid(text) {
   for (let r = -q; r < n + q; r++) { const row = []; for (let c = -q; c < n + q; c++) row.push(r >= 0 && c >= 0 && r < n && c < n && qr.isDark(r, c)); rows.push(row); }
   return rows;
 }
+
+/* ---- A 12-digit code typed on the other device ----
+   The device that syncs makes a random code, encrypts the setup with a key stretched from it (PBKDF2 → AES-GCM)
+   and posts it to a public relay (ntfy.sh) under a topic that is a hash of the code. The other device types the
+   code, finds the topic, fetches and decrypts. The relay sees only the scrambled setup, and finding it at all
+   takes the code; the app refuses a message older than CODE_MINUTES. Only used while linking. */
+export const RELAY = 'https://ntfy.sh/';
+export const CODE_MINUTES = 10;
+const enc = new TextEncoder();
+const b64u = bytes => { let bin = ''; bytes.forEach(b => { bin += String.fromCharCode(b); }); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64u = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); return Uint8Array.from(atob(s + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0)); };
+
+/* twelve random digits, shown as 4821 9375 1046 */
+export function makeCode() {
+  const r = crypto.getRandomValues(new Uint32Array(12));
+  return Array.from(r, x => x % 10).join('');
+}
+export const showCode = code => code.replace(/(\d{4})(?=\d)/g, '$1 ');
+/* what was typed → the 12 digits, or null */
+export function normCode(text) { const d = String(text || '').replace(/[\s-]/g, ''); return /^\d{12}$/.test(d) ? d : null; }
+
+async function topicOf(code) {
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode('ww-link-topic:' + code)));
+  return 'ww-' + Array.from(h.slice(0, 16), b => b.toString(16).padStart(2, '0')).join('');
+}
+async function keyOf(code) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(code), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: enc.encode('ww-link-v1'), iterations: 150000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
+/* post the setup under a code; resolves when the relay has it */
+export async function sendByCode(cfg, code, fetchFn = fetch, now = Date.now()) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const body = enc.encode(JSON.stringify({ t: now, link: encodeLink(cfg) }));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await keyOf(code), body));
+  let res;
+  try { res = await fetchFn(RELAY + await topicOf(code), { method: 'POST', body: 'ww1:' + b64u(iv) + '.' + b64u(ct) }); } catch (e) { res = null; }
+  if (!res || !res.ok) throw new Error('Could not reach the code service (ntfy.sh). Use the QR code or the link instead.');
+}
+
+/* fetch and open the setup for a typed code → { owner, repo, token, path } */
+export async function receiveByCode(code, fetchFn = fetch, now = Date.now()) {
+  let res;
+  try { res = await fetchFn(RELAY + await topicOf(code) + '/json?poll=1&since=' + CODE_MINUTES + 'm', { cache: 'no-store' }); } catch (e) { res = null; }
+  if (!res || !res.ok) throw new Error('Could not reach the code service (ntfy.sh). Check the connection, or use the link instead.');
+  const msgs = (await res.text()).split('\n').map(l => { try { return JSON.parse(l); } catch (e) { return null; } })
+    .filter(m => m && m.event === 'message' && typeof m.message === 'string' && m.message.startsWith('ww1:')).reverse();
+  const key = await keyOf(code);
+  for (const m of msgs) {
+    try {
+      const [iv, ct] = m.message.slice(4).split('.').map(unb64u);
+      const p = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)));
+      if (typeof p.t !== 'number' || now - p.t > CODE_MINUTES * 60000 || p.t - now > 5 * 60000) continue;
+      const cfg = decodeLink(p.link);
+      if (cfg) return cfg;
+    } catch (e) { /* not ours, or tampered with */ }
+  }
+  throw new Error('No device is showing that code. Check the digits, or make a new code (each lasts ' + CODE_MINUTES + ' minutes).');
+}

@@ -12,7 +12,7 @@ import { shareFile, isNative } from './native.js';
 import { checkForUpdate as checkWebUpdate } from './pwa.js';
 import { currentVersion, checkRelease } from './update.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus, linkSetup } from './ghsync.js';
-import { decodeLink, linkUrl, qrGrid, SITE } from './linkcode.js';
+import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendByCode, receiveByCode, CODE_MINUTES } from './linkcode.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
 import Samples from './samples.js';
@@ -259,12 +259,29 @@ function githubSyncBox() {
     const grid = await qrGrid(url), n = grid.length;
     let d = '';
     grid.forEach((row, y) => row.forEach((on, x) => { if (on) d += 'M' + x + ' ' + y + 'h1v1h-1z'; }));
+    // a 12-digit code to type on a device with no camera (a laptop): sent encrypted through ntfy.sh
+    const codeBox = h('div', { class: 'stack' });
+    const codeBtn = h('button', { class: 'btn small brass' }, 'Show a code to type');
+    codeBtn.onclick = async () => {
+      codeBtn.disabled = true; codeBtn.textContent = 'Making a code…';
+      const code = makeCode();
+      try {
+        await sendByCode(cfg, code);
+        codeBox.innerHTML = '';
+        codeBox.append(h('p', { class: 'linkcode mono', text: showCode(code) }),
+          h('p', { class: 'small', text: 'On the other device, open Settings → Your progress on every device → Have a code or link from another device? and type this code. It works for ' + CODE_MINUTES + ' minutes.' }));
+        codeBtn.textContent = 'New code';
+      } catch (e) { codeBox.innerHTML = ''; codeBox.append(h('p', { class: 'small bad-text', text: e.message })); codeBtn.textContent = 'Show a code to type'; }
+      codeBtn.disabled = false;
+    };
     linkBox.innerHTML = '';
     linkBox.append(h('div', { class: 'linkqr' }, s('svg', { viewBox: '0 0 ' + n + ' ' + n, role: 'img', 'aria-label': 'QR code that links another device', 'shape-rendering': 'crispEdges' },
         s('rect', { width: n, height: n, fill: '#fff' }), s('path', { d, fill: '#000' }))),
-      h('p', { class: 'small', text: 'Point the other device’s camera at this code. The app opens there and joins this sync. In the Android app, paste the link instead: Settings → Your progress on every device → Have a link from another device?' }),
-      h('p', { class: 'small bad-text', text: 'The code holds your sync token: anyone who scans it can read and change your progress. Show it only to your own devices.' }),
+      h('p', { class: 'small', text: 'Point the other device’s camera at this QR code: the app opens there and joins this sync. On a laptop or in the Android app, tap Show a code to type and type the code there instead.' }),
+      h('p', { class: 'small bad-text', text: 'The QR code, the link and the code each let a device read and change your progress. Show them only to your own devices.' }),
+      codeBox,
       h('div', { class: 'row' },
+        codeBtn,
         h('button', { class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { toast('Could not copy. Scan the code instead.'); } } }, 'Copy the link'),
         h('button', { class: 'btn small ghost', onclick: () => { linkBox.innerHTML = ''; } }, 'Hide')));
   }
@@ -315,14 +332,27 @@ function githubSyncBox() {
       try { await ghConnect({ owner: v('gh-owner'), repo: v('gh-repo'), token: v('gh-token'), deviceName: v('gh-dev') }); connecting = false; toast('Connected: progress now syncs by itself'); draw(); }
       catch (e) { connecting = false; err.hidden = false; err.textContent = e.message; go.disabled = false; go.textContent = 'Connect'; }
     };
-    const paste = h('input', { id: 'gh-link', type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'https://…#link=ww1.…' });
+    const paste = h('input', { id: 'gh-link', type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: '4821 9375 1046', onkeydown: e => { if (e.key === 'Enter') usePaste(); } });
     const pasteErr = h('p', { class: 'small bad-text', hidden: true });
-    const usePaste = () => { const c = decodeLink(paste.value); if (!c) { pasteErr.hidden = false; pasteErr.textContent = 'That isn’t a link from Link another device. Copy it again on the device that syncs.'; return; } pendingLink = c; draw(); };
+    const useBtn = h('button', { class: 'btn small brass' }, 'Use it');
+    const usePaste = async () => {
+      pasteErr.hidden = true;
+      const code = normCode(paste.value);
+      if (code) {
+        useBtn.disabled = true; useBtn.textContent = 'Looking…';
+        try { pendingLink = await receiveByCode(code); draw(); return; }
+        catch (e) { pasteErr.hidden = false; pasteErr.textContent = e.message; useBtn.disabled = false; useBtn.textContent = 'Use it'; return; }
+      }
+      const c = decodeLink(paste.value);
+      if (!c) { pasteErr.hidden = false; pasteErr.textContent = 'Type the 12-digit code, or paste the link, from Link another device on the device that syncs.'; return; }
+      pendingLink = c; draw();
+    };
+    useBtn.onclick = usePaste;
     box.append(h('p', { class: 'small', text: 'Sync by itself through a private GitHub repository of your own: when the app opens, every few minutes while it is open, and shortly after you practise. It merges the same way as the sync file.' }),
-      h('details', { class: 'small' }, h('summary', { text: 'Have a link from another device?' }),
-        h('p', { class: 'small muted', text: 'On a device that already syncs, open Settings → Your progress on every device → Link another device. Scan its code with this device’s camera, or copy its link and paste it here.' }),
-        h('label', { class: 'stack field', for: 'gh-link' }, h('span', { class: 'eyebrow', text: 'Link' }), paste),
-        h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: usePaste }, 'Use this link')), pasteErr),
+      h('details', { class: 'small' }, h('summary', { text: 'Have a code or link from another device?' }),
+        h('p', { class: 'small muted', text: 'On a device that already syncs, open Settings → Your progress on every device → Link another device. Scan its QR code with this device’s camera, or tap Show a code to type there and type the code here.' }),
+        h('label', { class: 'stack field', for: 'gh-link' }, h('span', { class: 'eyebrow', text: 'Code or link' }), paste),
+        h('div', { class: 'row' }, useBtn), pasteErr),
       h('details', { class: 'small' }, h('summary', { text: 'Set it up (about 3 minutes)' }),
         h('ol', { class: 'list small' },
           h('li', {}, 'Create a private repository, for example ', h('b', { text: 'woodshed-sync' }), ': ', h('a', { href: 'https://github.com/new', target: '_blank', rel: 'noopener' }, 'github.com/new'), ' (choose Private).'),
