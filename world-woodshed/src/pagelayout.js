@@ -52,7 +52,7 @@ export function rowOf(layout, line) {
 
 /* Where each note of a reading piece sits on the page: one spot per note of piece.bars.flat(), or null.
    piece.src gives the score bar each of its bars is (sections() in src/scorepieces.js), else bar for bar.
-   A spot is { p (page from 0), b (score bar), x, y0, y1 (the staff row's top and bottom line) }: x is the
+   A spot is { p (page from 0), b (score bar), bi (the piece's bar), x, y0, y1 (the staff row's top and bottom line) }: x is the
    printed note's own place when the bar holds as many as were read from the page, else its place by time. */
 export function spots(piece, layout, row = 0) {
   const out = [];
@@ -68,7 +68,7 @@ export function spots(piece, layout, row = 0) {
     let q = 0;
     bar.forEach((n, k) => {
       const x = R.xs.length === bar.length ? R.xs[k] : lo + (hi - lo) * (q / len);
-      out.push({ p: L.p, b, x, y0: R.y0, y1: R.y1 });
+      out.push({ p: L.p, b, bi, x, y0: R.y0, y1: R.y1 });
       q += durOf(n);
     });
   });
