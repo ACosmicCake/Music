@@ -62,8 +62,8 @@ function favSection(changed) {
 const TRAIN = {
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
-  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['scalewarm', 'technique', 'drill', 'sightread', 'notenames', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'],
-    groups: [['Hands and the neck', ['scalewarm', 'technique', 'fretboard', 'explorer']], ['Styles and tunes', ['drill', 'repertoire', 'callresp']], ['Reading and writing', ['sightread', 'notenames', 'notate']]], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
+  play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['tuner', 'scalewarm', 'technique', 'drill', 'sightread', 'notenames', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'],
+    groups: [['Hands and the neck', ['tuner', 'scalewarm', 'technique', 'fretboard', 'explorer']], ['Styles and tunes', ['drill', 'repertoire', 'callresp']], ['Reading and writing', ['sightread', 'notenames', 'notate']]], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
   games: { name: 'Games', title: 'Practice as a game', tools: ['tower', 'lighthouse', 'firefly', 'opening', 'formgame', 'tightrope', 'twodrums', 'parrot'], tip: 'Every game counts as practice: its time goes to the skill it trains and its answers into your progress there. High scores are your own, synced to your other devices with the rest of your progress.' },
   away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['commute', 'away', 'dictation', 'sightread', 'notenames', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
 };
@@ -577,3 +577,6 @@ function updateBox() {
 // the gear in the top bar opens Settings from anywhere
 const gear = document.getElementById('settings-btn');
 if (gear) gear.addEventListener('click', () => settingsPage());
+// the tuning fork beside it opens the tuner from anywhere; Back returns to the tab you were on
+const fork = document.getElementById('tuner-btn');
+if (fork) fork.addEventListener('click', () => { if (!(ui.runner && ui.runner.id === 'tuner')) openTool('tuner', { returnTab: ui.tab }); });

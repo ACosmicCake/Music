@@ -8,6 +8,7 @@ import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { keepAwake } from '../native.js';
+import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote, pickString, advice, centsText, needleAngle, Steady } from '../tuner.js';
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
 import { statsPage } from '../ui/stats.js';
@@ -446,65 +447,130 @@ tool('circle', {
   render(body) { body.append(h('div', { class: 'card' }, CircleWidget())); }
 });
 
-/* ---------- Reference tones (tuner) ---------- */
+/* ---------- Tuner and reference tones ---------- */
 const TUNINGS = E.TUNINGS.map(t => [t.name, t.midi]);
+/* the dial: an arc from −50 to +50 cents, the in-tune zone in the middle, a needle */
+function TunerDial() {
+  const W = 240, H = 132, cx = 120, cy = 122, R = 104;
+  const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const arc = (a0, a1, r) => { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 0 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); };
+  const ticks = [];
+  for (let c = -50; c <= 50; c += 5) {
+    const big = c % 25 === 0, [x0, y0] = pt(needleAngle(c), R - (big ? 14 : 8)), [x1, y1] = pt(needleAngle(c), R);
+    ticks.push(s('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'td-tick' + (big ? ' big' : '') }));
+  }
+  const labs = [[-50, '−50'], [-25, '−25'], [25, '+25'], [50, '+50']].map(([c, t]) => { const [x, y] = pt(needleAngle(c), R - 26); return s('text', { x, y: y + 4, class: 'td-lab' }, t); });
+  const needle = s('g', { class: 'td-needle' }, s('line', { x1: cx, y1: cy, x2: cx, y2: cy - R + 4 }), s('circle', { cx, cy, r: 6 }));
+  const svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'tdial', role: 'img', 'aria-hidden': 'true' },
+    s('path', { d: arc(needleAngle(-50), needleAngle(50), R), class: 'td-arc' }),
+    s('path', { d: arc(needleAngle(-IN_TUNE), needleAngle(IN_TUNE), R - 4), class: 'td-zone' }),
+    ...ticks, ...labs, needle);
+  return { el: svg, set(cents) { needle.style.transform = cents === null ? '' : 'rotate(' + needleAngle(cents).toFixed(1) + 'deg)'; svg.classList.toggle('idle', cents === null); } };
+}
 tool('tuner', {
-  tab: 'learn', skill: null, title: 'Tuner & reference tones', eyebrow: 'Reference · tune up',
-  desc: 'Let the app hear each string and show how far off it is, or tune by ear to sustained reference tones in eight tunings.',
+  tab: 'learn', skill: null, title: 'Tuner', eyebrow: 'Tune up',
+  desc: 'A chromatic and guitar tuner that listens through the mic: the note, how many cents sharp or flat, and which way to turn the peg, in ten tunings and at any A from 430 to 450 Hz. Reference tones below for tuning by ear.',
   render(body) {
+    const saved = Object.assign({ mode: 'guitar', a4: 440 }, E.state.settings.tuner || {});
+    const opt = { mode: saved.mode === 'chromatic' ? 'chromatic' : 'guitar', a4: a4Of(saved.a4) };
+    const keep = () => E.setSetting('tuner', { mode: opt.mode, a4: opt.a4 });
     let ti = Math.max(0, E.TUNINGS.findIndex(t => t.id === E.guitar().tuning)), stopFn = null, playing = -1, cycle = null;
+    let pinned = -1, done = new Set(), inSince = 0, heardSi = -1, quiet = null;
+    const steady = Steady();
     // the listening tuner
     const tcard = h('div', { class: 'card tuner' });
+    const dial = TunerDial(); dial.set(null);
     const noteEl = h('div', { class: 'tn-note', text: '—' });
     const centsEl = h('div', { class: 'mono tn-cents', text: '' });
-    const needle = h('i', { class: 'tn-needle' });
-    const scale = h('div', { class: 'tn-scale' }, h('span', { class: 'tn-zone' }), needle, h('span', { class: 'tn-lab l', text: '−50' }), h('span', { class: 'tn-lab c', text: '0' }), h('span', { class: 'tn-lab r', text: '+50' }));
-    const strEl = h('p', { class: 'small muted', text: 'Play one string at a time and let it ring.' });
-    const recent = [];
-    let pitchOff = null, quiet = null;
+    const adviceEl = h('p', { class: 'tn-advice', 'aria-live': 'polite', text: 'Turn on the mic, then play one string at a time and let it ring.' });
+    const modeSeg = h('div', { class: 'seg tn-mode' });
+    const strRow = h('div', { class: 'tn-strings' });
+    const a4Lbl = h('b', { class: 'mono', text: '' });
+    const tunSel = h('div', { class: 'tn-tuning' });
+    const idle = () => { dial.set(null); noteEl.textContent = '—'; centsEl.textContent = ''; heardSi = -1; tcard.classList.remove('intune', 'live'); paintStrings(); };
+    function paintMode() {
+      modeSeg.innerHTML = '';
+      [['guitar', 'Guitar'], ['chromatic', 'Chromatic']].forEach(([id, t]) => modeSeg.append(h('button', { type: 'button', 'aria-pressed': String(opt.mode === id), onclick: () => { opt.mode = id; keep(); paintMode(); idle(); } }, t)));
+      strRow.hidden = tunSel.hidden = opt.mode !== 'guitar';
+      if (opt.mode === 'chromatic') adviceEl.textContent = 'Any note, on any instrument: the nearest note and how far off it is.';
+      else adviceEl.textContent = pinned >= 0 ? 'Tuning string ' + (6 - pinned) + '. Tap Auto to let the tuner pick.' : 'Play one string at a time and let it ring. Tap a string to tune only that one.';
+    }
+    function paintStrings() {
+      strRow.innerHTML = '';
+      const midis = TUNINGS[ti][1];
+      strRow.append(h('button', { type: 'button', class: 'tn-str auto', 'aria-pressed': String(pinned < 0), onclick: () => { pinned = -1; steady.reset(); paintMode(); paintStrings(); } }, h('b', { text: 'Auto' }), h('span', { class: 'small muted', text: 'any string' })));
+      midis.forEach((m, i) => strRow.append(h('button', { type: 'button', class: 'tn-str' + (heardSi === i ? ' heard' : '') + (done.has(i) ? ' done' : ''), 'aria-pressed': String(pinned === i), 'aria-label': 'String ' + (6 - i) + ', ' + flatName(m) + (done.has(i) ? ', in tune' : ''),
+        onclick: () => { pinned = pinned === i ? -1 : i; steady.reset(); paintMode(); paintStrings(); } },
+      h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: done.has(i) ? '✓' : String(6 - i) }))));
+    }
+    function paintA4() { a4Lbl.textContent = 'A = ' + opt.a4 + ' Hz'; }
+    const stepA4 = d => { opt.a4 = a4Of(Math.max(A4_MIN, Math.min(A4_MAX, opt.a4 + d))); keep(); paintA4(); steady.reset(); if (playing >= 0) { stopTone(); draw(); } };
+    let pitchOff = null;
     const mic = MicToggle({ label: 'Tune with the mic', onLabel: 'Listening', hint: '',
-      onOn: () => { pitchOff = Mic.on('pitch', ev => {
-        recent.push(ev.midi); if (recent.length > 5) recent.shift();
-        const sorted = recent.slice().sort((a, b) => a - b), m = sorted[sorted.length >> 1];
-        if (Math.abs(ev.midi - m) > 0.7) return; // wait for the reading to settle
-        const r = Math.round(m), c = Math.round((m - r) * 100);
-        noteEl.textContent = noteLabel(r);
-        centsEl.textContent = (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(c) + ' cents · ' + ev.freq.toFixed(1) + ' Hz';
-        needle.style.left = (50 + Math.max(-50, Math.min(50, c))) + '%';
-        tcard.classList.toggle('intune', Math.abs(c) <= 4);
-        const midis = TUNINGS[ti][1];
-        let si = 0; midis.forEach((x, i) => { if (Math.abs(x - m) < Math.abs(midis[si] - m)) si = i; });
-        const off = Math.round((m - midis[si]) * 100);
-        strEl.textContent = 'String ' + (6 - si) + ' (' + flatName(midis[si]) + '): ' + (Math.abs(off) <= 4 ? 'in tune' : Math.abs(off) > 150 ? 'far off: check you’re on the right string' : (off > 0 ? 'sharp by ' + off + ' cents, tune down' : 'flat by ' + (-off) + ' cents, tune up'));
-        clearTimeout(quiet); quiet = setTimeout(() => { tcard.classList.remove('intune'); }, 1500);
+      onOn: () => { keepAwake(true, 'tuner'); pitchOff = Mic.on('pitch', ev => {
+        const m = steady.push(freqToMidi(ev.freq, opt.a4));
+        if (m === null) return;
+        tcard.classList.add('live');
+        let cents, label;
+        if (opt.mode === 'guitar') {
+          const midis = TUNINGS[ti][1], p = pickString(m, midis, pinned);
+          const moved = heardSi !== p.si;
+          if (moved) inSince = 0;
+          cents = p.cents; heardSi = p.si; label = flatName(midis[p.si]);
+          noteEl.textContent = label; noteEl.dataset.sub = 'string ' + (6 - p.si);
+          adviceEl.textContent = 'String ' + (6 - p.si) + ' (' + label + '): ' + advice(cents);
+          if (Math.abs(cents) <= IN_TUNE) {
+            if (!inSince) inSince = Date.now();
+            else if (Date.now() - inSince >= HOLD_MS && !done.has(p.si)) { done.add(p.si); paintStrings(); }
+          } else inSince = 0;
+          if (moved) paintStrings();
+        } else {
+          const n = nearestNote(m);
+          cents = n.cents; label = noteLabel(n.midi).split(' ')[0];
+          noteEl.textContent = label; noteEl.dataset.sub = '';
+          adviceEl.textContent = advice(cents);
+        }
+        dial.set(cents);
+        centsEl.textContent = centsText(cents) + ' cents · ' + ev.freq.toFixed(1) + ' Hz';
+        tcard.classList.toggle('intune', Math.abs(cents) <= IN_TUNE);
+        clearTimeout(quiet); quiet = setTimeout(() => { inSince = 0; steady.reset(); idle(); }, 1500);
       }); },
-      onOff: () => { if (pitchOff) pitchOff(); pitchOff = null; noteEl.textContent = '—'; centsEl.textContent = ''; } });
-    tcard.append(h('div', { class: 'spread' }, h('h2', { text: 'Tuner' }), mic.el), noteEl, centsEl, scale, strEl);
+      onOff: () => { keepAwake(false, 'tuner'); if (pitchOff) pitchOff(); pitchOff = null; clearTimeout(quiet); steady.reset(); idle(); paintMode(); } });
+    tcard.append(h('div', { class: 'spread' }, modeSeg, mic.el),
+      h('div', { class: 'tn-dialwrap' }, dial.el, h('div', { class: 'tn-read' }, noteEl, centsEl)), adviceEl, strRow, tunSel,
+      h('div', { class: 'row tn-a4' }, h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Lower A by 1 Hz', onclick: () => stepA4(-1) }, '−'), a4Lbl,
+        h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Raise A by 1 Hz', onclick: () => stepA4(1) }, '+'),
+        h('button', { class: 'btn small ghost', type: 'button', onclick: () => stepA4(440 - opt.a4) }, '440')));
     body.append(tcard);
     const card = h('div', { class: 'card' }); body.append(card);
     function stopTone() { if (stopFn) stopFn(); stopFn = null; playing = -1; clearTimeout(cycle); cycle = null; }
+    const toneOf = m => at440(m, opt.a4);
+    function drawTuning() {
+      tunSel.innerHTML = '';
+      tunSel.append(selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; done = new Set(); pinned = -1; steady.reset(); drawTuning(); paintStrings(); paintMode(); draw(); }));
+    }
     function draw() {
       card.innerHTML = '';
       const [name, midis] = TUNINGS[ti];
-      card.append(h('h3', { text: 'Reference tones' }), selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; draw(); }),
+      card.append(h('h3', { text: 'Reference tones' }),
         h('div', { class: 'strings' }, midis.map((m, i) => h('button', { class: 'stringbtn' + (playing === i ? ' on' : ''), onclick: () => {
           A.ensure(); const was = playing === i; stopTone();
-          if (!was) { stopFn = A.tone(m, A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
+          if (!was) { stopFn = A.tone(toneOf(m), A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
           draw();
         } }, h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
         h('div', { class: 'row' },
           h('button', { class: 'btn', onclick: () => {
             A.ensure(); stopTone();
             let i = 0;
-            const step = () => { if (i >= midis.length) { stopTone(); draw(); return; } stopFn && stopFn(); stopFn = A.tone(midis[i], A.now() + 0.02, 2.2); playing = i; draw(); i++; cycle = setTimeout(step, 2400); };
+            const step = () => { if (i >= midis.length) { stopTone(); draw(); return; } stopFn && stopFn(); stopFn = A.tone(toneOf(midis[i]), A.now() + 0.02, 2.2); playing = i; draw(); i++; cycle = setTimeout(step, 2400); };
             step();
           } }, '▶ Play all strings'),
           h('button', { class: 'btn ghost', onclick: () => { stopTone(); draw(); } }, 'Stop')),
-        E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo : '') + '.' }),
-        h('p', { class: 'small muted', text: name + '. Tones use A = 440 Hz, without a capo. Tap a string to hold its note; tap again to stop. The tuner above uses the tuning you pick here.' }));
+        E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo + ' (tune the open strings without it)' : '') + '.' }),
+        h('p', { class: 'small muted', text: name + '. Tones use A = ' + opt.a4 + ' Hz, without a capo. Tap a string to hold its note; tap again to stop.' }));
     }
-    draw();
-    return () => { stopTone(); clearTimeout(quiet); mic.cleanup(); };
+    paintA4(); drawTuning(); paintStrings(); paintMode(); draw();
+    return () => { stopTone(); clearTimeout(quiet); keepAwake(false, 'tuner'); mic.cleanup(); };
   }
 });
 
