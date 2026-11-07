@@ -6,6 +6,7 @@ import { dictationItems } from './content/dictation.js';
 import { noteNameItems } from './content/notenames.js';
 import { SCHEMA, migrate, merge, digest } from './sync.js';
 import Goals from './goals.js';
+import { addScore, table as gameTable, rankFor } from './games.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
@@ -146,7 +147,7 @@ function freshState() {
   return {
     v: 1, schema: SCHEMA, created: Date.now(), updatedAt: 0,
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
-    tech: {}, scaleTime: {}, records: {},
+    tech: {}, scaleTime: {}, records: {}, games: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
     routine: null, placementDone: false, songs: {}, tunes: {}, melodies: {}, library: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
@@ -535,6 +536,16 @@ function streaks() {
   return st;
 }
 function streak() { return streaks().current; }
+/* Game mode's high scores (src/games.js): a game's table, best first, and adding a score to it */
+function gameScores(id) { return gameTable((state.games || {})[id]); }
+function addGameScore(id, entry) {
+  if (!state.games) state.games = {};
+  const r = addScore(state.games[id], Object.assign({}, entry, { t: entry.t || Date.now(), d: DEV }));
+  state.games[id] = r.list;
+  touch();
+  return r.rank;
+}
+const gameRank = (id, score) => rankFor((state.games || {})[id], score);
 function trend(skill) {
   const nowM = mastery(skill);
   for (let i = 7; i <= 14; i++) {
@@ -919,6 +930,6 @@ export default {
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, streaks, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
-  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, exportBackup, importBackup,
+  gameScores, addGameScore, gameRank, techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, exportBackup, importBackup,
   storageNote: () => (saveHealth().level === 'failing' ? 'Not saving on this device' : storageNote), saveHealth, onSaveHealth, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };

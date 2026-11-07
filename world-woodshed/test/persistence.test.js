@@ -215,7 +215,7 @@ describe('loading a save from every past format', () => {
     expect(s.readLib).toEqual(saved.readLib);
     expect(s.settings).toMatchObject({ readingBpm: { m25: 58, r28: 64, m33: 54 }, readingOwn: { per: 4, entry: 'lb1', file: 'lf1', from: 1 } });
   });
-  it('schema 10 (current): band-chart progress and a kept chord chart with repeats and accents load as saved', async () => {
+  it('schema 10 (before game mode): band-chart progress and a kept chord chart with repeats and accents load as saved', async () => {
     const saved = JSON.parse(fixture(10));
     localStorage.setItem(LS_KEY, fixture(10));
     const E = await boot();
@@ -230,6 +230,17 @@ describe('loading a save from every past format', () => {
     expect(chart.chords).toEqual([[{ text: 'Am7', at: 0 }], [{ text: 'G', at: 0 }, { text: 'C', at: 2 }]]);
     expect(chart.bars[0][0]).toMatchObject({ slash: true, acc: true, dur: '8' });
     expect(chart.bars[0][3]).toMatchObject({ slash: true, stac: true });
+    expect(s.games).toEqual({});
+  });
+  it('schema 11 (current): the high scores of both games, from two devices, load as saved', async () => {
+    const saved = JSON.parse(fixture(11));
+    localStorage.setItem(LS_KEY, fixture(11));
+    const E = await boot();
+    const s = E.state;
+    expect(s.schema).toBe(SCHEMA);
+    expect(s.games).toEqual(saved.games);
+    expect(E.gameScores('tower').map(x => x.s)).toEqual([420, 130]);
+    expect(E.gameScores('updraft')[0]).toMatchObject({ ex: 'pos-and', bpm: 72 });
   });
   it('a save that cannot be read leaves a fresh start, and does not throw', async () => {
     localStorage.setItem(LS_KEY, '{not json');

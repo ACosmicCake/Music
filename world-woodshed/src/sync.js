@@ -5,10 +5,12 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 10;
+export const SCHEMA = 11;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder', 'readingClickVol'];
+
+import { mergeGames } from './games.js';
 
 const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -90,6 +92,11 @@ const MIGRATIONS = {
   // last level, Everything (40 → 44), and take its record when you had read it.
   10(s) {
     return moveLevels(s, { 40: 44 }, 44, n => n >= 40 && n <= 43);
+  },
+  // 10 → 11: game mode's high-score tables (src/games.js), by game
+  11(s) {
+    if (!isObj(s.games)) s.games = {};
+    return s;
   }
 };
 /* Sight-reading levels renumbered: each level's progress (skill items L<n>:rhythm|melody), tempos
@@ -261,6 +268,7 @@ export function merge(local, remote) {
     lessons: byKey(a.lessons, b.lessons, maxNum),
     heard: byKey(a.heard, b.heard, maxNum),
     records: byKey(a.records, b.records, maxNum),
+    games: mergeGames(a.games, b.games),
     placementDone: !!(a.placementDone || b.placementDone),
     // a running session belongs to the device it runs on: another copy (the phone's sync file, the cloud, an
     // older save) must never start it here, or bring back one that was finished or discarded on this device
@@ -289,7 +297,7 @@ const stable = x => {
 };
 export function digest(s) {
   const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, melodies: s.melodies, songs: s.songs, library: s.library, journal: (s.journal || []).length,
-    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
+    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, games: s.games, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
   const str = stable(pick);
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }

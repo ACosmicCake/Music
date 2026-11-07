@@ -1,6 +1,6 @@
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, s, toast, tool, hooks, pickFor } from '../ui/core.js';
+import { h, s, toast, tool, hooks, pickFor, openTool, TOOLS } from '../ui/core.js';
 import { TapPad, tapTime, scoreTaps, OffsetChart, describeOffset, feel16On } from './rhythm.js';
 import { withStar, favStar } from '../ui/favs.js';
 import { GYM, CATS, SEGS, FEELS, FEEL_PRESETS, feelOpts, feelAt, beatsClick } from '../content/gym.js';
@@ -95,7 +95,7 @@ tool('gym', {
         h('div', { class: 'spread' }, h('h2', { text: ex.name }), favStar('gym', ex.id, ex.name)), h('p', { class: 'small', text: ex.desc }),
         builder, label, tl.el, status, stats,
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), bpmLbl, h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'), f16),
-        h('div', { class: 'row' }, practiceBtn, testBtn), padHolder, result,
+        h('div', { class: 'row' }, practiceBtn, testBtn, TOOLS.updraft && !ctx.block ? h('button', { class: 'btn ghost', onclick: () => openTool('updraft', { params: { ex: ex.id }, returnTab: 'train' }) }, '🎮 Play as a game') : ''), padHolder, result,
         h('p', { class: 'small muted', text: 'Filled circles: the app plays your part. Hollow: you play it alone. Lines are your notes, green when on time. Tap the pad or space bar, or switch on the mic and play.' }));
 
       // shared engine for practice (open-ended) and test (fixed bars)

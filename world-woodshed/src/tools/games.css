@@ -1,0 +1,47 @@
+/* Game mode: Updraft, The Tower and the high-score tables */
+.game-scores { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.game-scores li { display: grid; grid-template-columns: 2em 1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; }
+.game-scores li:nth-child(odd) { background: var(--sunk); }
+.game-scores li.new { background: var(--brass-soft); outline: 2px solid var(--brass); }
+.game-scores .gs-rank { color: var(--muted); text-align: right; }
+.game-scores .gs-what { display: grid; gap: 1px; min-width: 0; }
+.game-scores li:first-child .gs-rank { color: var(--brass); font-weight: 700; }
+.game-end { text-align: center; justify-items: center; }
+.game-end.best { background: linear-gradient(160deg, var(--brass-soft), var(--surface) 70%); }
+.game-big { font-size: 2.6rem; font-weight: 500; line-height: 1; }
+.game-tile .t-meter { color: var(--brass); }
+
+/* Updraft */
+.ud-sky { display: block; width: 100%; border-radius: 12px; border: 1px solid var(--line); touch-action: manipulation; user-select: none; -webkit-user-select: none; cursor: pointer; }
+.ud-hud, .tw-hud { font-size: 0.95rem; }
+.ud-card .tappad { min-height: 84px; }
+
+/* The Tower */
+.tw-wrap { display: flex; justify-content: center; background: linear-gradient(180deg, var(--patina-soft), var(--surface)); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+.tw-scene { width: 100%; max-width: 260px; max-height: 34vh; display: block; overflow: visible; }
+.tw-hill { fill: color-mix(in srgb, var(--good) 30%, var(--surface)); }
+.tw-stone { fill: var(--wood); stroke: var(--wood-line); stroke-width: 1.2; }
+.tw-crenel { fill: var(--wood); stroke: var(--wood-line); stroke-width: 1.2; }
+.tw-brick { stroke: var(--wood-line); stroke-width: 0.6; opacity: 0.6; }
+.tw-window, .tw-door { fill: color-mix(in srgb, var(--ink) 70%, var(--brass)); }
+.tw-flag { fill: none; stroke-width: 1.6; }
+.tw-sill { fill: var(--wood-line); }
+.tw-ledge { fill: var(--wood-line); }
+.tw-hair { fill: #6b3d1e; }
+.tw-skin { fill: #e8b98f; }
+.tw-crown { fill: #e6b422; stroke: #9a6a14; stroke-width: 0.5; }
+.tw-me { transition: transform 0.45s cubic-bezier(.3,1.4,.5,1); }
+.tw-me .tw-body { fill: var(--patina); }
+.tw-me .tw-hat { fill: var(--brass); }
+.tw-me .tw-lute { fill: var(--wood-line); }
+.tw-me .tw-legs { stroke: var(--ink); stroke-width: 1.6; fill: none; }
+.tw-me.slip > * { animation: tw-shake 0.4s; }
+@keyframes tw-shake { 25% { transform: translateX(-3px) rotate(-8deg); } 75% { transform: translateX(3px) rotate(8deg); } }
+.tw-note { fill: var(--brass); font-size: 14px; animation: tw-float 2.2s ease-out both; }
+@keyframes tw-float { from { opacity: 0; transform: translate(0, 0); } 15% { opacity: 1; } to { opacity: 0; transform: translate(26px, -34px); } }
+.tw-time { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.tw-time span { display: block; height: 100%; width: 100%; background: var(--brass); }
+.tw-card .prompt { font-size: 1.15rem; }
+html.compact .tw-scene { max-height: 30vh; }
+html.compact .game-big { font-size: 2rem; }
+@media (prefers-reduced-motion: reduce) { .tw-me { transition: none; } .tw-note, .tw-me.slip > * { animation: none; } }
