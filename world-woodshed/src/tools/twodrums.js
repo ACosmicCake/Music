@@ -8,8 +8,8 @@ import E from '../engine.js';
 import { h, s, tool, hooks } from '../ui/core.js';
 import { tapTime } from './rhythm.js';
 import { GYM } from '../content/gym.js';
-import { matchTaps, drumPassed, drumRoundPoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { matchShifted, drumPassed, drumRoundPoints, delayTracker, DRUM_PASS } from '../games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 const ROUNDS = GYM.filter(x => x.cat === 'poly').slice().sort((a, b) => a.tier - b.tier);
@@ -48,10 +48,17 @@ tool('twodrums', {
       holder.innerHTML = '';
       const chip = v => h('button', { class: 'chip', 'aria-pressed': bpmNow() === v ? 'true' : 'false', onclick: () => { E.setSetting('drumsBpm', v); menu(mark); } }, v + ' bpm');
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'Hold the phone in both hands: your left thumb plays the beat on the left drum, your right thumb the other layer on the right. On a keyboard, F and J (or ← and →).' }),
-        h('p', { class: 'small', text: 'The polyrhythms, in order: ' + ROUNDS.map(x => x.poly[0] + ':' + x.poly[1]).join(', ') + '.' }),
+        HowTo({ game: 'twodrums',
+          goal: 'Play two rhythms at once, one with each hand: a polyrhythm such as 3 against 2.',
+          steps: ['Hold the phone in both hands. Your left thumb plays the beat on the left drum, your right thumb the other rhythm on the right drum. On a keyboard: F and J, or ← and →.',
+            'The circle is one bar: the inner dots are the left drum\'s notes, the outer dots the right drum\'s, and the hand goes round once a bar. A dot flashes green when you hit it in time.',
+            'Each round is a bar of count-in and then 4 bars. In bars 1 and 2 the app plays both drums with you; in bars 3 and 4 you are alone, with a soft click on 1.',
+            'Pass a round with 75% of the notes in time on each drum and the next polyrhythm comes: ' + ROUNDS.map(x => x.poly[0] + ' against ' + x.poly[1]).join(', ') + '. After the last one they come round again 8 bpm faster.',
+            'The game learns your screen\'s own delay as you play, so a steady delay that isn\'t you doesn\'t count.'],
+          scoring: ['Each round passed scores the share of notes in time on both drums, more for polyrhythms with more notes, less 10 for each extra tap.', 'Doubled on the second time round, tripled on the third.'],
+          ends: 'after three failed rounds (♥). A failed round comes again.',
+          note: 'Taps only: the mic can\'t tell which hand played.' }),
         h('div', { class: 'chips' }, h('span', { class: 'small muted', text: 'Tempo' }), BPMS.map(chip)),
-        h('p', { class: 'small muted', text: 'Taps only: the mic can\'t tell which hand played.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Play'))),
       Leaderboard('twodrums', { mark, detail }));
     }
@@ -63,6 +70,7 @@ tool('twodrums', {
       let idx = first, lap = 1, hearts = 3, score = 0, passed = 0, loop = null, raf = 0, alive = true, ended = false;
       let exp = { l: [], r: [] }, taps = { l: [], r: [] }, barStart = 0, barDur = 1, curCycle = 0;
       const clock = Clock();
+      const delay = delayTracker(0.12); // your screen's own steady delay, taken off before judging (src/games.js)
       const hud = h('div', { class: 'ud-hud mono' });
       const status = h('div', { class: 'phase', role: 'status' });
       const label = h('div', { class: 'prompt' });
@@ -77,7 +85,8 @@ tool('twodrums', {
         pads[side].classList.add('flash'); setTimeout(() => pads[side].classList.remove('flash'), 80);
         // light the dot this tap was for
         const list = exp[side]; let k = -1, bd = Infinity;
-        list.forEach((x, i) => { const d = Math.abs(x.t - t); if (d < bd) { bd = d; k = i; } });
+        const tt = t - delay.get();
+        list.forEach((x, i) => { const d = Math.abs(x.t - tt); if (d < bd) { bd = d; k = i; } });
         if (k >= 0 && bd < 0.12) clock.flash(side, list[k].k, bd <= win());
       };
       Object.entries(pads).forEach(([side, el]) => el.addEventListener('pointerdown', ev => { ev.preventDefault(); tap(side, ev); }));
@@ -126,7 +135,7 @@ tool('twodrums', {
       function judge(ex) {
         if (!alive) return;
         loop = null;
-        const L = matchTaps(exp.l.map(x => x.t), taps.l, win()), R = matchTaps(exp.r.map(x => x.t), taps.r, win());
+        const L = matchShifted(exp.l.map(x => x.t), taps.l, win(), delay), R = matchShifted(exp.r.map(x => x.t), taps.r, win(), delay);
         const ok = drumPassed(L.rate, R.rate), [n, m] = ex.poly;
         E.record('tuplets', ex.id, ok, { score: (L.rate + R.rate) / 2 });
         if (hooks.signal) hooks.signal('gym:' + ex.id, { score: (L.rate + R.rate) / 2 });
@@ -140,7 +149,7 @@ tool('twodrums', {
           status.textContent = 'Passed! ' + line + '. Next: ' + ROUNDS[idx].poly.join(' against ') + (idx === 0 ? ', ' + bpm() + ' bpm' : '') + '.';
         } else {
           hearts--;
-          status.textContent = 'Not yet: ' + line + '. You need ' + Math.round(75) + '% on each drum.' + (hearts ? ' Again!' : '');
+          status.textContent = 'Not yet: ' + line + '. You need ' + Math.round(DRUM_PASS * 100) + '% on each drum.' + (hearts ? ' Again!' : '');
         }
         drawHud();
         if (hearts <= 0) { setTimeout(end, 1500); return; }

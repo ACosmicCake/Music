@@ -25,7 +25,6 @@ import './tools/notenames.js';
 import './tools/notate.js';
 import './tools/drills.js';
 import './tools/rhythmgym.js';
-import './tools/updraft.js';
 import './tools/tower.js';
 import './tools/tightrope.js';
 import './tools/twodrums.js';

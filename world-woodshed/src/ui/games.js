@@ -5,7 +5,6 @@ import E from '../engine.js';
 import { h } from './core.js';
 
 export const GAMES = {
-  updraft: { title: 'Updraft', tool: 'updraft' },
   tower: { title: 'The Tower', tool: 'tower' },
   tightrope: { title: 'Tightrope', tool: 'tightrope' },
   twodrums: { title: 'Two Drums', tool: 'twodrums' },
@@ -42,6 +41,19 @@ export function endCard({ title, score, rank, lines = [], again, extra }) {
     h('div', { class: 'game-big mono', text: score.toLocaleString() }),
     lines.map(l => h('p', { class: 'small', text: l })),
     h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: again }, 'Play again'), extra || ''));
+}
+
+/* How a game is played, the same on every game's first screen: what you do, how it scores, when the run ends.
+   goal: one sentence, always shown; steps, scoring: lists of sentences; ends: one sentence. The rules are open
+   until you have a score in that game (game: its id), then folded under one line so Play is near the top. */
+export function HowTo({ game, goal, steps = [], scoring = [], ends, note }) {
+  const sec = (title, items) => (items.length ? [h('h4', { text: title }), h('ul', { class: 'game-how-list' }, items.map(t => h('li', { text: t })))] : []);
+  const rules = h('details', { class: 'game-rules', open: game && E.gameScores(game).length ? null : true },
+    h('summary', { text: 'How to play and how it scores' }),
+    sec('How to play', steps), sec('Scoring', scoring),
+    ends ? h('p', { class: 'small game-ends' }, h('b', { text: 'The run ends ' }), ends) : '',
+    note ? h('p', { class: 'small muted', text: note }) : '');
+  return h('div', { class: 'game-how' }, goal ? h('p', { class: 'game-goal', text: goal }) : '', rules);
 }
 
 /* Your best on a Games tile */

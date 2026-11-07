@@ -10,7 +10,7 @@ import Mic from '../listen.js';
 import { h, tool, Fretboard, positionsOfPc } from '../ui/core.js';
 import { MicToggle } from '../ui/mic.js';
 import { FIREFLY_PENALTY, fireflyRound, fireflyPoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 const NATURAL = [0, 2, 4, 5, 7, 9, 11];
@@ -27,8 +27,14 @@ tool('firefly', {
       if (cleanupRun) cleanupRun();
       holder.innerHTML = '';
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'Each round names a note. Fireflies hide at every place it sits on the neck, frets 0 to 12, on every string: tap them all before they fade.' }),
-        h('p', { class: 'small', text: 'A wrong tap costs ' + FIREFLY_PENALTY + ' seconds. Natural notes first, then sharps and flats, then two notes at once. Three lives.' }),
+        HowTo({ game: 'firefly',
+          goal: 'Catch every firefly: find every place the named note sits on the neck before the time runs out.',
+          steps: ['A note is named, say G. It sits at several places on the neck, frets 0 (open) to 12, on every string. Tap all of them. The counter shows how many are left.',
+            'A caught firefly lights up with its name. A wrong tap shows ✕, tells you which note you tapped and takes ' + FIREFLY_PENALTY + ' seconds off the clock.',
+            'Rounds 1 to 4 ask natural notes (no sharps or flats), from round 5 any note, from round 10 two notes at once. Each round has a little less time: 30 seconds, down to 12.',
+            'With the mic on you can play the note on your guitar instead: each note you play catches its lowest firefly still out.'],
+          scoring: ['10 points for each firefly caught.', 'When you catch them all, 5 points for each second left on the clock, doubled from round 4, tripled from round 7 and so on.'],
+          ends: 'when three rounds have run out of time (♥). Those that got away are shown in gold so you can learn where they were.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Start the hunt'))),
       Leaderboard('firefly', { mark, detail }));
     }

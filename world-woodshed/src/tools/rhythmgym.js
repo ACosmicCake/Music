@@ -53,11 +53,11 @@ function FeelBuilder(opts, changed) {
   return el;
 }
 
-/* The game for an exercise: polyrhythms on Two Drums, echo on Parrot, a displaced click on Tightrope, the rest on Updraft */
+/* The game for an exercise: polyrhythms on Two Drums, echo on Parrot, a displaced click on Tightrope; the rest have no game */
 const GAME_FOR = { poly: 'twodrums', echo: 'parrot', displace: 'tightrope' };
 function gameBtn(ex, ctx) {
-  const id = GAME_FOR[ex.cat] || 'updraft';
-  if (!TOOLS[id] || ctx.block) return '';
+  const id = GAME_FOR[ex.cat];
+  if (!id || !TOOLS[id] || ctx.block) return '';
   return h('button', { class: 'btn ghost', onclick: () => openTool(id, { params: { ex: ex.id }, returnTab: 'train' }) }, '🎮 Play as a game: ' + TOOLS[id].title);
 }
 
