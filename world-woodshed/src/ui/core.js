@@ -113,6 +113,8 @@ export function renderTabs() {
   document.body.classList.toggle('in-settings', !!ui.runner && ui.runner.id === 'settings');
   const gear = document.getElementById('settings-btn');
   if (gear) gear.setAttribute('aria-pressed', String(!!ui.runner && ui.runner.id === 'settings'));
+  const fork = document.getElementById('tuner-btn');
+  if (fork) fork.setAttribute('aria-pressed', String(!!ui.runner && ui.runner.id === 'tuner'));
   tabsEl.innerHTML = '';
   TABS.forEach(([id, label]) => {
     // inside a tool, the tab it was opened from stays marked (not as the current page), so you know where Back goes
