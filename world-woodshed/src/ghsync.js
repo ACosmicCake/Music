@@ -126,6 +126,8 @@ export async function connect({ owner, repo, token, path, deviceName }) {
 }
 export function disconnect() { stop(); cfg = null; save(); }
 export function status() { return cfg ? { on: true, owner: cfg.owner, repo: cfg.repo, path: cfg.path, lastSync: cfg.lastSync, lastError: cfg.lastError, busy: !!busy } : { on: false }; }
+/* what another device needs to join this sync (Settings → Link another device); null when sync is off */
+export function linkSetup() { return cfg ? { owner: cfg.owner, repo: cfg.repo, token: cfg.token, path: cfg.path } : null; }
 export function onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 function start() {

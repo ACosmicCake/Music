@@ -1,6 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
-import { view, h, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, noteName, isCompact, applyDisplay, teardown, renderTabs, focusView } from './ui/core.js';
+import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, noteName, isCompact, applyDisplay, teardown, renderTabs, focusView } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
@@ -11,7 +11,8 @@ import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
 import { checkForUpdate as checkWebUpdate } from './pwa.js';
 import { currentVersion, checkRelease } from './update.js';
-import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus } from './ghsync.js';
+import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus, linkSetup } from './ghsync.js';
+import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendByCode, receiveByCode, CODE_MINUTES } from './linkcode.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
 import Samples from './samples.js';
@@ -234,11 +235,71 @@ export function settingsPage() {
 }
 
 const CONTRAST_SKILLS = ['intervals', 'chords', 'degrees', 'scales', 'rhythmId'];
+/* A link from another device (Link another device), opened from a scanned code: Settings asks to join it */
+let pendingLink = null;
+export function offerLink(cfg) {
+  pendingLink = cfg;
+  settingsPage();
+  const b = view.querySelector('.ghsync');
+  if (!b) return;
+  const d = b.closest('details'); if (d) d.open = true;
+  b.scrollIntoView({ block: 'center' });
+}
 /* Automatic sync through a private GitHub repository the player owns (opt-in; the token stays on this device) */
 function githubSyncBox() {
   const box = h('div', { class: 'ghsync stack' });
   let connecting = false;
   const ago = t => { if (!t) return 'not yet'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + ' h ago'; };
+  const linkBox = h('div', { class: 'stack' });
+  // the QR code and link that let another device join this sync without typing
+  async function showLink() {
+    const cfg = linkSetup();
+    if (!cfg) return;
+    const url = linkUrl(isNative() ? SITE : location.origin + location.pathname, cfg);
+    const grid = await qrGrid(url), n = grid.length;
+    let d = '';
+    grid.forEach((row, y) => row.forEach((on, x) => { if (on) d += 'M' + x + ' ' + y + 'h1v1h-1z'; }));
+    // a 12-digit code to type on a device with no camera (a laptop): sent encrypted through ntfy.sh
+    const codeBox = h('div', { class: 'stack' });
+    const codeBtn = h('button', { class: 'btn small brass' }, 'Show a code to type');
+    codeBtn.onclick = async () => {
+      codeBtn.disabled = true; codeBtn.textContent = 'Making a code…';
+      const code = makeCode();
+      try {
+        await sendByCode(cfg, code);
+        codeBox.innerHTML = '';
+        codeBox.append(h('p', { class: 'linkcode mono', text: showCode(code) }),
+          h('p', { class: 'small', text: 'On the other device, open Settings → Your progress on every device → Have a code or link from another device? and type this code. It works for ' + CODE_MINUTES + ' minutes.' }));
+        codeBtn.textContent = 'New code';
+      } catch (e) { codeBox.innerHTML = ''; codeBox.append(h('p', { class: 'small bad-text', text: e.message })); codeBtn.textContent = 'Show a code to type'; }
+      codeBtn.disabled = false;
+    };
+    linkBox.innerHTML = '';
+    linkBox.append(h('div', { class: 'linkqr' }, s('svg', { viewBox: '0 0 ' + n + ' ' + n, role: 'img', 'aria-label': 'QR code that links another device', 'shape-rendering': 'crispEdges' },
+        s('rect', { width: n, height: n, fill: '#fff' }), s('path', { d, fill: '#000' }))),
+      h('p', { class: 'small', text: 'Point the other device’s camera at this QR code: the app opens there and joins this sync. On a laptop or in the Android app, tap Show a code to type and type the code there instead.' }),
+      h('p', { class: 'small bad-text', text: 'The QR code, the link and the code each let a device read and change your progress. Show them only to your own devices.' }),
+      codeBox,
+      h('div', { class: 'row' },
+        codeBtn,
+        h('button', { class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { toast('Could not copy. Scan the code instead.'); } } }, 'Copy the link'),
+        h('button', { class: 'btn small ghost', onclick: () => { linkBox.innerHTML = ''; } }, 'Hide')));
+  }
+  // join the sync another device showed (a scanned code or a pasted link)
+  function joinCard(cfg) {
+    const err = h('p', { class: 'small bad-text', hidden: true });
+    const dev = h('input', { id: 'gh-link-dev', type: 'text', autocomplete: 'off', placeholder: isNative() ? 'Phone' : 'Laptop' });
+    const join = h('button', { class: 'btn brass small' }, 'Join');
+    join.onclick = async () => {
+      join.disabled = true; join.textContent = 'Joining…'; err.hidden = true; connecting = true;
+      try { await ghConnect({ owner: cfg.owner, repo: cfg.repo, token: cfg.token, path: cfg.path, deviceName: dev.value.trim() }); pendingLink = null; connecting = false; toast('Linked: progress now syncs by itself'); draw(); }
+      catch (e) { connecting = false; err.hidden = false; err.textContent = e.message; join.disabled = false; join.textContent = 'Join'; }
+    };
+    box.append(h('div', { class: 'stack linkjoin' },
+      h('p', { class: 'small', text: 'Join the automatic sync through ' + cfg.owner + '/' + cfg.repo + '? This device’s progress is merged with what is there; nothing practised on either side is lost.' }),
+      h('label', { class: 'stack field', for: 'gh-link-dev' }, h('span', { class: 'eyebrow', text: 'This device’s name' }), dev),
+      h('div', { class: 'row' }, join, h('button', { class: 'btn small ghost', onclick: () => { pendingLink = null; draw(); } }, 'Cancel')), err));
+  }
   function draw() {
     box.innerHTML = '';
     const st = ghStatus();
@@ -247,9 +308,14 @@ function githubSyncBox() {
       box.append(h('p', { class: 'small', text: 'On, through ' + st.owner + '/' + st.repo + '. Last synced ' + ago(st.lastSync) + (st.busy ? ' · syncing…' : '') + '.' }),
         st.lastError ? h('p', { class: 'small bad-text', text: st.lastError }) : '',
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: async () => { await ghSyncNow('button'); draw(); toast(ghStatus().lastError ? 'Sync failed' : 'Synced'); } }, 'Sync now'),
-          h('button', { class: 'btn small ghost', onclick: () => { ghDisconnect(); draw(); toast('Automatic sync is off on this device'); } }, 'Turn off')));
+          h('button', { class: 'btn small', onclick: () => showLink() }, 'Link another device'),
+          h('button', { class: 'btn small ghost', onclick: () => { ghDisconnect(); draw(); toast('Automatic sync is off on this device'); } }, 'Turn off')),
+        linkBox);
+      if (pendingLink) { const same = pendingLink.owner === st.owner && pendingLink.repo === st.repo; pendingLink = null; toast(same ? 'This device already syncs with that repository' : 'This device already syncs. Turn it off first to join another repository.'); }
       return;
     }
+    linkBox.innerHTML = ''; // the code stays open through status redraws while sync is on, never after
+    if (pendingLink) { joinCard(pendingLink); return; }
     const f = (id, label, attrs) => h('label', { class: 'stack field', for: id }, h('span', { class: 'eyebrow', text: label }), h('input', Object.assign({ id, type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' }, attrs)));
     const err = h('p', { class: 'small bad-text', hidden: true });
     const go = h('button', { class: 'btn brass small' }, 'Connect');
@@ -266,7 +332,27 @@ function githubSyncBox() {
       try { await ghConnect({ owner: v('gh-owner'), repo: v('gh-repo'), token: v('gh-token'), deviceName: v('gh-dev') }); connecting = false; toast('Connected: progress now syncs by itself'); draw(); }
       catch (e) { connecting = false; err.hidden = false; err.textContent = e.message; go.disabled = false; go.textContent = 'Connect'; }
     };
+    const paste = h('input', { id: 'gh-link', type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: '4821 9375 1046', onkeydown: e => { if (e.key === 'Enter') usePaste(); } });
+    const pasteErr = h('p', { class: 'small bad-text', hidden: true });
+    const useBtn = h('button', { class: 'btn small brass' }, 'Use it');
+    const usePaste = async () => {
+      pasteErr.hidden = true;
+      const code = normCode(paste.value);
+      if (code) {
+        useBtn.disabled = true; useBtn.textContent = 'Looking…';
+        try { pendingLink = await receiveByCode(code); draw(); return; }
+        catch (e) { pasteErr.hidden = false; pasteErr.textContent = e.message; useBtn.disabled = false; useBtn.textContent = 'Use it'; return; }
+      }
+      const c = decodeLink(paste.value);
+      if (!c) { pasteErr.hidden = false; pasteErr.textContent = 'Type the 12-digit code, or paste the link, from Link another device on the device that syncs.'; return; }
+      pendingLink = c; draw();
+    };
+    useBtn.onclick = usePaste;
     box.append(h('p', { class: 'small', text: 'Sync by itself through a private GitHub repository of your own: when the app opens, every few minutes while it is open, and shortly after you practise. It merges the same way as the sync file.' }),
+      h('details', { class: 'small' }, h('summary', { text: 'Have a code or link from another device?' }),
+        h('p', { class: 'small muted', text: 'On a device that already syncs, open Settings → Your progress on every device → Link another device. Scan its QR code with this device’s camera, or tap Show a code to type there and type the code here.' }),
+        h('label', { class: 'stack field', for: 'gh-link' }, h('span', { class: 'eyebrow', text: 'Code or link' }), paste),
+        h('div', { class: 'row' }, useBtn), pasteErr),
       h('details', { class: 'small' }, h('summary', { text: 'Set it up (about 3 minutes)' }),
         h('ol', { class: 'list small' },
           h('li', {}, 'Create a private repository, for example ', h('b', { text: 'woodshed-sync' }), ': ', h('a', { href: 'https://github.com/new', target: '_blank', rel: 'noopener' }, 'github.com/new'), ' (choose Private).'),

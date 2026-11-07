@@ -28,7 +28,8 @@ import './tools/rhythmgym.js';
 import './tools/learn.js';
 import { bootSession } from './ui/session.js';
 import './ui/routine.js';
-import { settingsPage } from './pages.js';
+import { settingsPage, offerLink } from './pages.js';
+import { decodeLink, isLinkHash } from './linkcode.js';
 import './ui/library.js';
 import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
@@ -70,8 +71,17 @@ go(hashTab() || 'today');
 if (startHash === '#go') openTool('commute', { returnTab: 'today' }); // the 'On the go' shortcut
 // coming back from the Spotify login (Settings → Your music taste): finish it, then show what it found
 if (!isNative() && /[?&](code|error)=/.test(location.search)) bootSpotify(settingsPage);
+// a scanned Link another device code (#link=ww1.…): take the token out of the address bar and history, then ask to join
+function takeLink(hash = location.hash) {
+  if (!isLinkHash(hash)) return false;
+  const cfg = decodeLink(hash);
+  history.replaceState(null, '', location.pathname + location.search + '#' + (ui.tab || 'today'));
+  if (cfg) offerLink(cfg); else toast('That link is broken. Copy it again on the device that syncs.');
+  return true;
+}
+takeLink(startHash); // go() above already put #today in the address bar
 // Links and app shortcuts like #transcribe switch tabs without a reload.
-window.addEventListener('hashchange', () => { if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
+window.addEventListener('hashchange', () => { if (takeLink()) return; if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
 // The Android app has no service worker (it is already offline); its back button closes tools first.
 if (!isNative()) registerApp(toast);
 // a full-screen view inside a tool marks its close button with data-back-close: back closes that first
