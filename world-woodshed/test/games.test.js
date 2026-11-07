@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { BOARD, addScore, rankFor, best, table, mergeGames, climb, TOWER, towerStage, towerPoints, gatePoints, updraftBpm,
-  matchTaps, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints, ROPE_BARS, drumPassed, drumRoundPoints, parrotCell, phraseNotes, echoPassed, echoPoints } from '../src/games.js';
+  matchTaps, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints, ROPE_BARS, drumPassed, drumRoundPoints, parrotCell, phraseNotes, echoPassed, echoPoints,
+  SHIPS, harbourSecs, harbourTier, shipPoints, fireflyRound, fireflyPoints, formStarts, formLetters, formJudge, formPoints, sectionLetter,
+  barSilent, barKept, crowdAfter, curtain, showNotePoints, CROWD_SILENT } from '../src/games.js';
 import { merge } from '../src/sync.js';
 
 /* Game mode (src/games.js): personal high-score tables that sync, and the rules of The Tower and Updraft */
@@ -142,5 +144,76 @@ describe('Parrot', () => {
     expect(echoPassed(matchTaps([1, 2], [1.01, 1.5, 1.7, 2.01], 0.05))).toBe(false);
     expect(echoPassed(matchTaps([1, 2], [1.01], 0.05))).toBe(false);
     expect(echoPoints(matchTaps([1, 2], [1, 2], 0.05), 0.05)).toBe(40);
+  });
+});
+
+describe('Lighthouse Keeper', () => {
+  it('gives less time each harbour, never under 5 seconds', () => {
+    expect(harbourSecs(0)).toBe(12);
+    expect(harbourSecs(2)).toBe(9);
+    expect(harbourSecs(20)).toBe(5);
+    expect(SHIPS).toBe(8);
+  });
+  it('brings in one tier past those opened from the third harbour, never past the last', () => {
+    expect(harbourTier(0, 1)).toBe(1);
+    expect(harbourTier(1, 1)).toBe(1);
+    expect(harbourTier(2, 1)).toBe(2);
+    expect(harbourTier(5, 5)).toBe(5);
+    expect(shipPoints(0, 12, 0)).toBe(15);
+    expect(shipPoints(0, 12, 2)).toBe(30);
+  });
+});
+
+describe('Firefly Hunt', () => {
+  it('starts with natural notes, adds accidentals, then two notes, with less time', () => {
+    expect(fireflyRound(0)).toMatchObject({ accidentals: false, two: false, secs: 30 });
+    expect(fireflyRound(4).accidentals).toBe(true);
+    expect(fireflyRound(9).two).toBe(true);
+    expect(fireflyRound(50).secs).toBe(12);
+    expect(fireflyPoints(7, 10, 0)).toBe(120);
+  });
+});
+
+describe('Lost in the Form', () => {
+  it('finds where each section starts and its letter', () => {
+    const form = [['A1', 8], ['A2', 8], ['B', 8], ['A3', 12]];
+    expect(formStarts(form)).toEqual([{ bar: 0, letter: 'A' }, { bar: 8, letter: 'A' }, { bar: 16, letter: 'B' }, { bar: 24, letter: 'A' }]);
+    expect(formLetters(form)).toEqual(['A', 'B']);
+    expect(sectionLetter('C')).toBe('C');
+  });
+  it('judges a tap by beats from the section\'s first downbeat', () => {
+    expect(formJudge(0.3)).toBe('perfect');
+    expect(formJudge(-0.9)).toBe('good');
+    expect(formJudge(2)).toBeNull();
+    expect(formPoints('perfect', 0)).toBe(100);
+    expect(formPoints('good', 4)).toBe(120);
+  });
+  it('has at least one tune in the app with more than one kind of section', async () => {
+    const D = (await import('../src/data.js')).default;
+    expect(D.TUNES.filter(t => t.form && formLetters(t.form).length > 1).length).toBeGreaterThan(3);
+  });
+});
+
+describe('Opening Night', () => {
+  it('makes stopping cost far more than wrong notes', () => {
+    const wrong = crowdAfter(100, { notes: 4, played: 4, right: 0 });
+    const silent = crowdAfter(100, { notes: 4, played: 0, right: 0 });
+    expect(wrong).toBe(100);
+    expect(silent).toBe(100 - CROWD_SILENT);
+    expect(showNotePoints(true, false)).toBe(10);
+    expect(showNotePoints(true, true)).toBe(20);
+    expect(showNotePoints(true, null)).toBe(15);
+    expect(showNotePoints(false, undefined)).toBe(0);
+  });
+  it('brings the curtain down after two silent bars in a row, not after wrong notes', () => {
+    expect(curtain(65, 1)).toBe(false);
+    expect(curtain(30, 2)).toBe(true);
+    expect(curtain(0, 0)).toBe(true);
+    expect(barSilent({ notes: 0, played: 0 })).toBe(false);
+  });
+  it('counts a bar as kept going when most of its notes were played, right or wrong', () => {
+    expect(barKept({ notes: 5, played: 3 })).toBe(true);
+    expect(barKept({ notes: 5, played: 2 })).toBe(false);
+    expect(barKept({ notes: 0, played: 0 })).toBe(true);
   });
 });
