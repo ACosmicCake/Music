@@ -94,6 +94,8 @@ describe('spots for the notes being read', () => {
     expect(s[0].p).toBe(1);
     expect(s[1].p).toBe(0);
     expect(s[1].y0).toBe(0.2);
+    // and which of the piece's bars each spot is in, so a tap on the page finds the bar to play from
+    expect(s.map(x => x.bi)).toEqual([0, 1]);
   });
 
   it('knows the last bar of each page and the pages shown together', () => {

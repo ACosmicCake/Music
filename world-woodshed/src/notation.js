@@ -599,6 +599,22 @@ export function renderStaff(opts) {
     systemBox: k => (systems[k] ? { top: systems[k].top + systems[k].minY, bottom: systems[k].top + systems[k].maxY } : null),
     xOf: i => (items[i] ? items[i].x : null),
     posOf,
+    /* the written bar under a point on the screen (a tap), or null: the line nearest it, then the bar along it */
+    barAt(cx, cy) {
+      const m = svg.getScreenCTM && svg.getScreenCTM();
+      if (!m || !systems.length) return null;
+      const p = new DOMPoint(cx, cy).matrixTransform(m.inverse());
+      let best = null, bd = Infinity;
+      systems.forEach(sy => {
+        const d = Math.max(0, sy.top + sy.minY - p.y, p.y - (sy.top + sy.maxY));
+        if (d < bd) { bd = d; best = sy; }
+      });
+      if (!best || bd > 30) return null;
+      const k = best.bars.findIndex(b => p.x >= b.x0 && p.x < b.x1);
+      if (k >= 0) return best.first + k;
+      // left of the first bar (the clef and key) is that bar; past the last, the last
+      return p.x < best.bars[0].x0 ? best.first : best.first + best.bars.length - 1;
+    },
     mark(i, cls) { const e = noteEls[i]; if (!e) return; e.classList.remove('now', 'good', 'bad', 'near'); if (cls) cls.split(' ').forEach(c => e.classList.add(c)); },
     bar(i, cls) { barBands.forEach((e, k) => e && e.classList.toggle(cls || 'now', k === i)); },
     clearMarks() { noteEls.forEach(e => e && e.classList.remove('now', 'good', 'bad', 'near')); },

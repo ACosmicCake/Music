@@ -96,7 +96,8 @@ function followAlong(staff, x) {
    the start of its count-in, so there is a bar to look it over while the beat goes on.
    o: { first: { piece }, staff (drawn for the first piece), bpm, countIn, click, notes (play the pitches),
         phase (element), next(): the next { piece } of the run or null to stop, show(item): draws an item's piece
-        and returns its staff, onExpected(e, seg), onPieceEnd(seg): a piece was read to its end, onEnd() }
+        and returns its staff, onExpected(e, seg), onPieceEnd(seg): a piece was read to its end, onEnd(),
+        from: start the first piece at this bar of its play order (a tapped bar), after a count-in in that bar's time }
    A seg is { item, piece, k, expected: [{ i, q, len, midi, chord, t, dur, j }], ats, spq, staff }. */
 const G = 1 / 12;
 function playRun(o) {
@@ -107,12 +108,17 @@ function playRun(o) {
   const clickBus = actx.createGain(); clickBus.connect(A.channel('perc'));
   const click = (down, t, vel) => { clickBus.gain.value = clickLevel(); A.hit(down ? 'clickHi' : 'click', t, vel, clickBus); };
   const opts = { steps: 1e9, maxSteps: 0, ahead: 0.3 }; // the beat scheduled well ahead, so a slow phone or a long score can't make it stumble
-  const make = (item, start) => {
+  const make = (item, start, from) => {
     // piece.beatQ: the beat the click counts when the player chose another (6 quarters to a bar of 12/8)
     const piece = item.piece, ts0 = parseTime(piece.time), ts = piece.beatQ ? Object.assign({}, ts0, { beatQ: piece.beatQ }) : ts0, spq = 60 / o.bpm / ts.beatQ;
-    const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
-    const pre = segs.length || o.countIn ? barSteps : 0;
-    const len = Math.round(playLength(piece) / G), order = playOrder(piece);
+    const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G), order = playOrder(piece);
+    // from a tapped bar: the steps before it are skipped, and the count-in is a bar of that bar's own time
+    const f = from > 0 && from < order.length ? from : 0;
+    let skipQ = 0; for (let x = 0; x < f; x++) skipQ += barLength(piece, order[x]);
+    const skip = Math.round(skipQ / G), t0 = barTime(piece, order[f] || 0);
+    const preBar = Math.round(t0.barQ / G), preBeat = Math.round((piece.beatQ || t0.beatQ) / G);
+    const pre = segs.length || o.countIn || f ? preBar : 0;
+    const len = Math.round(playLength(piece) / G) - skip;
     // a time that changes from bar to bar: where each bar starts as played, and its beat
     const bars = piece.times ? [] : null;
     if (bars) {
@@ -123,12 +129,12 @@ function playRun(o) {
         at += Math.round(barLength(piece, b) / G);
       });
     }
-    const ats = attacks(piece);
+    const ats = attacks(piece).filter(a => a.q >= skipQ - 1e-6);
     const byStep = new Map(); ats.forEach((a, j) => byStep.set(Math.round(a.q / G), Object.assign({ j }, a)));
     const evAt = new Map(); eventStarts(piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
     // the first note of each note's bar, for a cursor that shows only where each bar starts
     const barFirst = []; piece.bars.forEach(bar => { const f = barFirst.length; bar.forEach(() => barFirst.push(f)); });
-    const seg = { item, piece, order, barFirst, bars, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
+    const seg = { item, piece, order, barFirst, bars, k: segs.length, start, pre, preBar, preBeat, skip, from: f, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
     segs.push(seg);
     return seg;
   };
@@ -142,7 +148,7 @@ function playRun(o) {
     const x = seg.bars[k], into = kk - x.at;
     return { beat: into % x.beat === 0, down: into === 0, bar: x.b, n: into / x.beat + 1 };
   };
-  make(o.first, 0);
+  make(o.first, 0, o.from);
   let nowEl = null, nowSys = -1, ended = false;
   const setNow = (seg, i) => {
     // o.cursor(): 'note' (default) follows every note, 'bar' shows only where each bar starts, 'off' none;
@@ -162,10 +168,10 @@ function playRun(o) {
   Object.assign(opts, {
     stepDur: i => segAt(i).spq * G,
     onStep: (i, t) => {
-      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre + seg.skip;
       // only the beats: in 12/8 four dotted quarters, never the eighths between, which at a slow beat
       // sound like a fast 3/4 (loud, soft, soft)
-      const bt = inPre ? { beat: kk % seg.beatSteps === 0, down: kk % seg.barSteps === 0 } : beatAt(seg, kk);
+      const bt = inPre ? { beat: kk % seg.preBeat === 0, down: kk % seg.preBar === 0 } : beatAt(seg, kk);
       if (bt.beat) {
         const down = bt.down;
         // the click while reading as loud as the count-in: at 0.45 it was half as loud and took the woodblock's
@@ -187,7 +193,7 @@ function playRun(o) {
       }
     },
     onVisual: i => {
-      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre + seg.skip;
       if (i === seg.start && seg.k > 0) {
         const prev = segs[seg.k - 1];
         setNow(prev, null);
@@ -195,7 +201,12 @@ function playRun(o) {
         seg.staff = o.show(seg.item, seg); nowSys = -1;
         if (!seg.staff.line) follow(seg.staff, 0);
       }
-      if (inPre) { if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : 'Count-in: ') + (kk / seg.beatSteps + 1) + ' …'; return; }
+      if (inPre) {
+        // started from a tapped bar: the cursor waits on it through the count-in
+        if (kk === 0 && seg.skip && seg.evAt.has(seg.skip)) setNow(seg, seg.evAt.get(seg.skip));
+        if (o.phase && kk % seg.preBeat === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : seg.skip ? 'From bar ' + (seg.order[seg.from] + 1) + ' · count-in: ' : 'Count-in: ') + (kk / seg.preBeat + 1) + ' …';
+        return;
+      }
       const bt = beatAt(seg, kk);
       if (o.phase && bt.beat) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + (bt.bar + 1) + ' of ' + seg.piece.bars.length + (seg.bars ? ' · ' + seg.piece.times[bt.bar] : '') + ' · beat ' + bt.n;
       if (seg.evAt.has(kk)) setNow(seg, seg.evAt.get(kk));
@@ -771,6 +782,9 @@ function melodyMode(root, lv, ctx, own) {
   const make = own ? own.make : () => Lib.next(lv.id, 'm', () => genMelody(lv, { bars: lenFor('m') }));
   const NEXT = own ? 'Next section' : 'Next melody';
   let cur = make(), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
+  // a tapped bar: the next run starts there (its place in the play order), and whether it was Hear it playing
+  let from = 0, hearing = false;
+  const takeFrom = () => { const f = from; from = 0; return f; };
   const src = h('p', { class: 'small sr-src' });
   const lib = own ? { el: '', toggle() {}, draw() {} } : libraryPanel('m', lv, id => { cur = Lib.open(id); piece = cur.piece; fresh(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
   const libBtn = own ? { el: '', paint() {} } : libButton('m', lv, lib);
@@ -890,7 +904,20 @@ function melodyMode(root, lv, ctx, own) {
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
   const opts = own ? own.opts : lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
   card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: own ? own.title : lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
-    h('div', { class: 'row' }, startBtn, hearBtn, prevBtn, newBtn, secCount, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
+    h('div', { class: 'row' }, startBtn, hearBtn, prevBtn, newBtn, secCount, libBtn.el, fullBtn), mic.el, staffBox,
+    h('p', { class: 'small muted sr-taphint', text: 'Tap a bar to play from there, after a bar of count-in.' }), runBar, runList, result, lib.el);
+  // tap a bar (on the staff, the one long line or the printed page): play from there, after a count-in bar in
+  // that bar's time. Hear it carries on as Hear it; otherwise it is read from there. A repeated bar starts at
+  // its first time through.
+  staffBox.addEventListener('click', e => {
+    if (!staff || !staff.barAt || (e.target.closest && e.target.closest('button, a, input'))) return;
+    const b = staff.barAt(e.clientX, e.clientY);
+    const at = b == null ? -1 : playOrder(piece).indexOf(b);
+    if (at < 0) return;
+    const hear = !!run && hearing;
+    from = at;
+    (hear ? hearBtn : startBtn).onclick();
+  });
   function draw() {
     staffBox.innerHTML = '';
     staffBox.classList.toggle('sr-pagebox', usePages());
@@ -924,7 +951,7 @@ function melodyMode(root, lv, ctx, own) {
   }
   let onStop = null;
   function stop(byHand) {
-    if (run) run.stop(); run = null;
+    if (run) run.stop(); run = null; hearing = false;
     if (micNoteOff) micNoteOff(); micNoteOff = null;
     ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; if (prevBtn) prevBtn.disabled = false; runBar.hidden = true;
     paintFs();
@@ -933,12 +960,16 @@ function melodyMode(root, lv, ctx, own) {
   }
   function fresh() { stop(); marks = {}; result.innerHTML = ''; runList.innerHTML = ''; runList.hidden = true; live.textContent = ''; draw(); }
   hearBtn.onclick = () => {
+    const f = takeFrom();
     fresh(); ctx.setActive(true); hearBtn.disabled = true; runBar.hidden = false;
-    run = playRun({ first: { piece }, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
-    if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + playLength(piece)) * 60 / bpm / (piece.beatQ || parseTime(piece.time).beatQ) + 1.5);
+    run = playRun({ first: { piece }, from: f, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
+    hearing = true;
+    const sg = run.segs[0];
+    if (mic.on) Mic.muteUntil(A.now() + 0.2 + sg.end * G * sg.spq + 1.5);
   };
   newBtn.onclick = () => { cur = sectioned ? own.go(cur.no) : make(); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
+    const f = takeFrom();
     fresh(); A.ensure(); ctx.setActive(true);
     startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; if (prevBtn) prevBtn.disabled = true; runBar.hidden = false;
     const listening = mic.on, chained = runOn() && !(own && own.single);
@@ -1031,7 +1062,7 @@ function melodyMode(root, lv, ctx, own) {
     }
     onStop = finishAll;
     run = playRun({
-      first: { piece, cur }, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: false, phase,
+      first: { piece, cur }, from: f, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: false, phase,
       next: chained ? () => { const c = make(); return { piece: c.piece, cur: c }; } : null,
       show: item => { cur = item.cur; piece = item.piece; marks = {}; return draw(); },
       onExpected: (e, seg) => exp.push(Object.assign({ seg }, e)),

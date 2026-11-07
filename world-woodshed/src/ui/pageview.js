@@ -128,6 +128,24 @@ export function PageView(source, layout) {
       mark(i, cls) { const e = notes[i]; if (!e) return; e.classList.remove('now', 'good', 'bad', 'near'); if (cls) cls.split(' ').forEach(c => e.classList.add(c)); },
       clearMarks() { notes.forEach(e => e && e.classList.remove('now', 'good', 'bad', 'near')); },
       bar() {},
+      /* the piece's bar under a tap on a page shown, or null: the printed bar whose box (across the row read) holds it */
+      barAt(cx, cy) {
+        for (const p of shown) {
+          const r = slots[p].el.getBoundingClientRect();
+          if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) continue;
+          const fx = (cx - r.left) / r.width, fy = (cy - r.top) / r.height;
+          let best = null, bd = Infinity;
+          spotsNow.forEach(sp => {
+            if (!sp || sp.p !== p || sp.bi == null) return;
+            const L = layout.bars[sp.b];
+            if (!L || fx < L.x0 || fx > L.x1) return;
+            const gap = sp.y1 - sp.y0, d = Math.max(0, sp.y0 - gap * 1.5 - fy, fy - sp.y1 - gap * 1.5);
+            if (d < bd) { bd = d; best = sp; }
+          });
+          return best && bd < 0.03 ? best.bi : null;
+        }
+        return null;
+      },
       /* the note being played (whether or not the cursor shows it): turns the page */
       follow(i) {
         const sp = i === null || i === undefined ? null : spotsNow[i];
