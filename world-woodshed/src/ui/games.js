@@ -6,7 +6,10 @@ import { h } from './core.js';
 
 export const GAMES = {
   updraft: { title: 'Updraft', tool: 'updraft' },
-  tower: { title: 'The Tower', tool: 'tower' }
+  tower: { title: 'The Tower', tool: 'tower' },
+  tightrope: { title: 'Tightrope', tool: 'tightrope' },
+  twodrums: { title: 'Two Drums', tool: 'twodrums' },
+  parrot: { title: 'Parrot', tool: 'parrot' }
 };
 
 const when = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });

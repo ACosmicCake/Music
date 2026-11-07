@@ -45,3 +45,63 @@
 html.compact .tw-scene { max-height: 30vh; }
 html.compact .game-big { font-size: 2rem; }
 @media (prefers-reduced-motion: reduce) { .tw-me { transition: none; } .tw-note, .tw-me.slip > * { animation: none; } }
+
+/* Tightrope */
+.tr-wrap, .td-wrap, .pr-wrap { background: linear-gradient(180deg, var(--patina-soft), var(--surface)); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.tr-scene, .pr-scene { display: block; width: 100%; max-height: 36vh; }
+.tr-far { fill: color-mix(in srgb, var(--patina) 18%, var(--surface)); }
+.tr-cliff { fill: var(--wood-line); }
+.tr-net { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.tr-rope { stroke: var(--ink); stroke-width: 1.5; }
+.tr-post { stroke: var(--wood-line); stroke-width: 3; }
+.tr-mark { fill: var(--muted); font: 9px var(--font-mono); text-anchor: middle; }
+.tr-pole { stroke: var(--ink); stroke-width: 2; }
+.tr-weight { fill: var(--brass); }
+.tr-body { fill: var(--c-tech); }
+.tr-cap { fill: var(--brass); }
+.tr-legs { stroke: var(--ink); stroke-width: 2; fill: none; }
+.tr-walker { transition: transform 0.12s ease-out; }
+.tr-walker.fall { transition: transform 1s ease-in; transform: translate(160px, 172px) rotate(120deg) !important; }
+.tr-meter { position: relative; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--bad-soft), var(--good-soft) 35%, var(--good-soft) 65%, var(--bad-soft)); }
+.tr-meter .tr-mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--muted); }
+.tr-meter .tr-dot { position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--patina); transition: left 0.12s; }
+.tr-meter.warn .tr-dot { background: var(--bad); }
+.tr-words { display: flex; justify-content: space-between; gap: 6px; color: var(--muted); }
+.tr-words .tr-last { color: var(--ink); font-weight: 500; text-align: center; }
+
+/* Two Drums */
+.td-wrap { display: flex; justify-content: center; padding: 8px; }
+.td-clock { width: 100%; max-width: 220px; max-height: 30vh; }
+.td-ring { fill: none; stroke: var(--line); stroke-width: 2; }
+.td-hand { stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+.td-dot { stroke: var(--surface); stroke-width: 2; }
+.td-dot.l { fill: var(--patina); }
+.td-dot.r { fill: var(--brass); }
+.td-dot.ok { animation: td-ok 0.35s; }
+.td-dot.no { animation: td-no 0.35s; }
+@keyframes td-ok { 40% { fill: var(--good); r: 13px; } }
+@keyframes td-no { 40% { fill: var(--bad); } }
+.td-pads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.td-pad { min-height: 130px; border-radius: 14px; font: 700 1.05rem var(--font-display); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; border: 2px solid; }
+.td-pad.l { background: var(--patina-soft); border-color: var(--patina); color: var(--ink); }
+.td-pad.r { background: var(--brass-soft); border-color: var(--brass); color: var(--ink); }
+.td-pad.flash.l { background: var(--patina); color: var(--surface); }
+.td-pad.flash.r { background: var(--brass); color: var(--surface); }
+
+/* Parrot */
+.pr-branch { fill: none; stroke: var(--wood-line); stroke-width: 6; stroke-linecap: round; }
+.pr-body, .pr-head { fill: var(--good); }
+.pr-wing { fill: var(--c-ear); }
+.pr-tail { fill: var(--c-tech); }
+.pr-eye { fill: var(--ink); }
+.pr-beak { fill: var(--brass); }
+.pr-bird.hop { transform: translate(60px, 48px); }
+.pr-beat { stroke: var(--line); stroke-width: 1; }
+.pr-dot { fill: var(--muted); transition: fill 0.15s; }
+.pr-dot.hit { fill: var(--good); }
+.pr-dot.miss { fill: var(--bad); }
+.pr-hidden .pr-dot { opacity: 0; }
+.pr-hidden .pr-dot.hit { opacity: 1; }
+.pr-cursor { stroke: var(--brass); stroke-width: 2; }
+html.compact .td-pad { min-height: 96px; font-size: 0.9rem; }
+@media (prefers-reduced-motion: reduce) { .tr-walker, .tr-meter .tr-dot { transition: none; } }

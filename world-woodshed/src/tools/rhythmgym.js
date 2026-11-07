@@ -53,6 +53,14 @@ function FeelBuilder(opts, changed) {
   return el;
 }
 
+/* The game for an exercise: polyrhythms on Two Drums, echo on Parrot, a displaced click on Tightrope, the rest on Updraft */
+const GAME_FOR = { poly: 'twodrums', echo: 'parrot', displace: 'tightrope' };
+function gameBtn(ex, ctx) {
+  const id = GAME_FOR[ex.cat] || 'updraft';
+  if (!TOOLS[id] || ctx.block) return '';
+  return h('button', { class: 'btn ghost', onclick: () => openTool(id, { params: { ex: ex.id }, returnTab: 'train' }) }, '🎮 Play as a game: ' + TOOLS[id].title);
+}
+
 tool('gym', {
   tab: 'rhythm', skill: 'tuplets', title: 'Rhythm gym', eyebrow: 'Rhythm · tuplets, polyrhythms, 16ths',
   desc: 'Tuplets from triplets to septuplets, polyrhythms, every spot in the 16th grid, displaced clicks and echo. Guided bars alternate with silent ones, all over a felt 16th pulse.',
@@ -95,7 +103,7 @@ tool('gym', {
         h('div', { class: 'spread' }, h('h2', { text: ex.name }), favStar('gym', ex.id, ex.name)), h('p', { class: 'small', text: ex.desc }),
         builder, label, tl.el, status, stats,
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), bpmLbl, h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'), f16),
-        h('div', { class: 'row' }, practiceBtn, testBtn, TOOLS.updraft && !ctx.block ? h('button', { class: 'btn ghost', onclick: () => openTool('updraft', { params: { ex: ex.id }, returnTab: 'train' }) }, '🎮 Play as a game') : ''), padHolder, result,
+        h('div', { class: 'row' }, practiceBtn, testBtn, gameBtn(ex, ctx)), padHolder, result,
         h('p', { class: 'small muted', text: 'Filled circles: the app plays your part. Hollow: you play it alone. Lines are your notes, green when on time. Tap the pad or space bar, or switch on the mic and play.' }));
 
       // shared engine for practice (open-ended) and test (fixed bars)

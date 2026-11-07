@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { BOARD, addScore, rankFor, best, table, mergeGames, climb, TOWER, towerStage, towerPoints, gatePoints, updraftBpm } from '../src/games.js';
+import { BOARD, addScore, rankFor, best, table, mergeGames, climb, TOWER, towerStage, towerPoints, gatePoints, updraftBpm,
+  matchTaps, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints, ROPE_BARS, drumPassed, drumRoundPoints, parrotCell, phraseNotes, echoPassed, echoPoints } from '../src/games.js';
 import { merge } from '../src/sync.js';
 
 /* Game mode (src/games.js): personal high-score tables that sync, and the rules of The Tower and Updraft */
@@ -78,5 +79,68 @@ describe('Updraft', () => {
     expect(updraftBpm(60, 3, 100)).toBe(60);
     expect(updraftBpm(60, 4, 100)).toBe(64);
     expect(updraftBpm(60, 400, 100)).toBe(120);
+  });
+});
+
+describe('matching taps to notes', () => {
+  it('takes the nearest tap within the window, once, and counts the rest as extra', () => {
+    const m = matchTaps([1, 2, 3], [1.02, 1.03, 2.2, 2.97], 0.05);
+    expect(m.hits).toBe(2);
+    expect(m.errs[0]).toBeCloseTo(0.02);
+    expect(m.errs[1]).toBeNull();
+    expect(m.errs[2]).toBeCloseTo(-0.03);
+    expect(m.extra).toBe(2);
+    expect(m.rate).toBeCloseTo(2 / 3);
+  });
+});
+
+describe('Tightrope', () => {
+  it('thins the click every 8 bars', () => {
+    expect(ropeStage(0)).toBe(0);
+    expect(ropeStage(ROPE_BARS * 4)).toBe(1);
+    expect(ropeStage(10000)).toBe(4);
+    expect([0, 1, 2, 3].map(b => ropeClick(1, b))).toEqual([false, true, false, true]);
+    expect([0, 1, 4].map(b => ropeClick(2, b))).toEqual([true, false, true]);
+    expect([0, 4, 8].map(b => ropeClick(3, b))).toEqual([true, false, true]);
+    expect([0, 4, 8, 12, 16].map(b => ropeClick(4, b))).toEqual([true, false, false, false, true]);
+  });
+  it('falls with a steady drag of a tenth of a beat, but not with a small one or with even errors', () => {
+    const run = errs => { let l = 0; for (const e of errs) { l = leanAfter(l, e); if (ropeFell(l)) return true; } return false; };
+    expect(run(Array(40).fill(0.1))).toBe(true);
+    expect(run(Array(40).fill(-0.1))).toBe(true);
+    expect(run(Array(40).fill(0.04))).toBe(false);
+    expect(run(Array.from({ length: 40 }, (_, i) => (i % 2 ? 0.08 : -0.08)))).toBe(false);
+    expect(run([null, null, null, null])).toBe(true);
+  });
+  it('pays more for a beat on time and once the click has thinned', () => {
+    expect(ropePoints(0, 0)).toBe(20);
+    expect(ropePoints(0.1, 0)).toBe(10);
+    expect(ropePoints(0, 2)).toBe(40);
+  });
+});
+
+describe('Two Drums', () => {
+  it('passes with three in four on each drum', () => {
+    expect(drumPassed(0.75, 1)).toBe(true);
+    expect(drumPassed(1, 0.7)).toBe(false);
+    expect(drumRoundPoints(1, 1, 0, 5)).toBe(500);
+    expect(drumRoundPoints(0, 0, 3, 5)).toBe(0);
+  });
+});
+
+describe('Parrot', () => {
+  it('makes a phrase of one sixteenth cell a beat', () => {
+    expect(phraseNotes([[0], [0, 2], [1, 3]])).toEqual([0, 1, 1.5, 2.25, 2.75]);
+    for (let i = 0; i < 50; i++) {
+      const c = parrotCell(Math.random, 2);
+      expect(c[0]).toBe(0); // short phrases start every beat on the beat
+      expect(c.every(x => x >= 0 && x < 4)).toBe(true);
+    }
+  });
+  it('passes only with every note back and at most one extra', () => {
+    expect(echoPassed(matchTaps([1, 2], [1.01, 2.01], 0.05))).toBe(true);
+    expect(echoPassed(matchTaps([1, 2], [1.01, 1.5, 1.7, 2.01], 0.05))).toBe(false);
+    expect(echoPassed(matchTaps([1, 2], [1.01], 0.05))).toBe(false);
+    expect(echoPoints(matchTaps([1, 2], [1, 2], 0.05), 0.05)).toBe(40);
   });
 });
