@@ -245,6 +245,38 @@ function lengthControls(kind, onChange) {
   return h('div', { class: 'stack sr-opts' }, seg, keep);
 }
 
+/* ======================================================
+   KEYBOARD: shortcuts on a computer keyboard. Each mode lists its keys ({ on, label, when, run }), which both
+   answer the keys and make the list that ? shows, so the two never disagree.
+   ====================================================== */
+const KEY_NAME = { ' ': 'Space', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', PageUp: 'Page Up', PageDown: 'Page Down', Escape: 'Esc', Home: 'Home', End: 'End', Enter: 'Enter' };
+const keyLabel = k => KEY_NAME[k] || (k.length === 1 ? k.toUpperCase() : k);
+// typing in a field: no shortcuts (a checkbox, radio or button is not typing)
+const typing = t => !!(t && (t.isContentEditable || (t.closest && t.closest('textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=button])'))));
+// Space or Enter on a focused button, link, checkbox or summary does what it does there
+const pressable = t => !!(t && t.closest && t.closest('button, a, summary, input, [role=button]'));
+/* the entry a key press matches: letters in either case; a shifted arrow or Home only where an entry asks for
+   Shift (+ and ? need Shift on many keyboards, so a typed character is matched as it comes) */
+function keyFor(list, e) {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if ((k === ' ' || k === 'Enter') && pressable(e.target)) return null;
+  return list.find(x => x.on && x.on.includes(k) && (k.length === 1 || !!x.shift === e.shiftKey) && (!x.when || x.when())) || null;
+}
+function keysSheet(host, groups, onClose) {
+  const close = () => { back.remove(); onClose(); };
+  const row = x => [h('dt', {}, (x.keys || x.on.map(k => (x.shift ? 'Shift + ' : '') + keyLabel(k))).map((k, i) => [i ? ' ' : '', h('kbd', { text: k })])), h('dd', { text: x.label })];
+  const closeBtn = h('button', { class: 'btn small ghost', 'aria-label': 'Close', onclick: () => close() }, '✕');
+  const back = h('div', { class: 'sheet-back sr-keys-back', onclick: e => { if (e.target === back) close(); } },
+    h('div', { class: 'sheet sr-keys', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Keyboard shortcuts' },
+      h('div', { class: 'spread' }, h('h3', { text: 'Keyboard shortcuts' }), closeBtn),
+      groups.filter(g => g[1].length).map(([title, list]) => h('section', { class: 'stack' }, h('span', { class: 'eyebrow', text: title }),
+        h('dl', { class: 'sr-keylist' }, list.map(row)))),
+      h('p', { class: 'small muted', text: 'Not while typing in a box. Press ? or Esc to close this.' })));
+  host.append(back);
+  closeBtn.focus({ preventScroll: true });
+  return { close };
+}
+
 tool('sightread', {
   tab: 'train', skill: SKILL, title: 'Sight-reading', eyebrow: 'Reading · notes, rhythm, melody',
   desc: 'Read standard notation on the guitar, level by level: name notes, tap rhythms, then play melodies at sight while a cursor keeps time.',
@@ -265,7 +297,10 @@ tool('sightread', {
       h('summary', {}, h('b', { text: 'How to sight-read' })),
       h('ul', { class: 'sr-howlist' }, HOW_TO.map(([t, d]) => h('li', {}, h('b', { text: t + '. ' }), d))));
     const accBox = h('label', { class: 'check small sr-acctoggle' }, h('input', { type: 'checkbox', checked: accOn() ? true : null, onchange: e => { E.setSetting('readingAcc', e.target.checked); renderLevel(); renderMode(); } }), 'Sharps and flats: add ♯ and ♭ beside the notes, at any level');
-    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, how);
+    // shown only where there is a keyboard and a mouse (styles.css hides it on a touch screen)
+    const keyHelp = h('button', { class: 'btn small ghost' }, '⌨ Keyboard shortcuts');
+    const keyHint = h('p', { class: 'row small muted sr-keyhint' }, keyHelp, h('span', { text: 'or press ?' }));
+    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, keyHint, how);
     body.append(wrap);
 
     const L = () => accOn() ? withAccidentals(LEVELS[level - 1]) : LEVELS[level - 1];
@@ -314,8 +349,39 @@ tool('sightread', {
     let rsz = null, lastW = window.innerWidth;
     const onResize = () => { clearTimeout(rsz); rsz = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) < 40) return; lastW = window.innerWidth; if (modeApi && modeApi.redraw) modeApi.redraw(); }, 250); };
     window.addEventListener('resize', onResize);
+    // keys for the whole tool: ? lists every key; Shift + ← and → change the level. The mode's own keys first.
+    const busy = () => !!(modeApi && modeApi.busy && modeApi.busy());
+    const toolKeys = [
+      { on: ['?'], label: 'Show these keys' },
+      { on: ['ArrowLeft'], shift: true, label: 'Previous level', when: () => mode !== 'scores' && !busy() && level > 1, run: () => go(level - 1) },
+      { on: ['ArrowRight'], shift: true, label: 'Next level', when: () => mode !== 'scores' && !busy() && level < LEVELS.length, run: () => go(level + 1) }
+    ];
+    let sheet = null;
+    const showKeys = () => {
+      if (sheet) return;
+      const mk = modeApi && modeApi.keys ? modeApi.keys() : [];
+      const name = { notes: 'Notes', rhythm: 'Rhythm', melody: 'Melody', scores: 'Your scores' }[mode];
+      sheet = keysSheet((modeApi && modeApi.host && modeApi.host()) || document.body, [[name, mk.filter(x => !x.when || x.when() || x.list)], ['Sight-reading', toolKeys.filter(x => !x.when || x.when())]], () => { sheet = null; });
+    };
+    const onKey = e => {
+      if (sheet) { // the list is open: ? or Esc closes it, and nothing else happens underneath
+        if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); sheet.close(); }
+        if (e.key !== 'Tab') e.stopImmediatePropagation();
+        return;
+      }
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+      if (!wrap.isConnected) return;
+      // another window over the tool (the score viewer, Fix notes): its keys, not these
+      if ([...document.querySelectorAll('[role="dialog"]')].some(d => !d.classList.contains('sr-fs'))) return;
+      if (e.key === '?') { e.preventDefault(); showKeys(); return; }
+      const k = keyFor((modeApi && modeApi.keys ? modeApi.keys() : []).concat(toolKeys), e);
+      if (!k || !k.run || k.run(e) === false) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+    };
+    document.addEventListener('keydown', onKey, true);
+    keyHelp.onclick = showKeys;
     renderLevel(); renderSeg(); renderMode();
-    return () => { window.removeEventListener('resize', onResize); clearTimeout(rsz); if (modeApi) modeApi.cleanup(); };
+    return () => { window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey, true); if (sheet) sheet.close(); clearTimeout(rsz); if (modeApi) modeApi.cleanup(); };
   }
 });
 
@@ -419,6 +485,14 @@ function notesMode(root, lv, ctx) {
   next();
   return {
     redraw: () => q && draw(),
+    // answered by onKey above; listed for ?
+    keys: () => [
+      { keys: ['A … G'], label: 'Name the note' },
+      { keys: ['#', '+'], label: 'Sharp, before the letter' },
+      { keys: ['-'], label: 'Flat, before the letter' },
+      { keys: ['='], label: 'Natural, before the letter' },
+      { keys: ['Space', 'Enter'], label: 'Next note, once answered' }
+    ],
     cleanup() { clearTimeout(auto); document.removeEventListener('keydown', onKey); if (micOff) micOff(); mic.cleanup(); }
   };
 }
@@ -574,7 +648,7 @@ function scoresMode(root, lv, ctx, p) {
     }
     load(pick.f.id === want.file ? want.from || 0 : 0);
   })().catch(e => { console.error(e); status.textContent = 'Could not open your Library here.'; });
-  return { redraw: () => { if (api && api.redraw) api.redraw(); }, cleanup: () => { gone = true; done(); } };
+  return { redraw: () => { if (api && api.redraw) api.redraw(); }, keys: () => (api && api.keys ? api.keys() : []), busy: () => !!(api && api.busy && api.busy()), host: () => (api && api.host ? api.host() : null), cleanup: () => { gone = true; done(); } };
 }
 
 /* ======================================================
@@ -657,7 +731,10 @@ function tempoControl(get, set, lv) {
   const paint = () => { lbl.textContent = get() + ' bpm'; };
   const bump = d => { set(Math.max(30, Math.min(220, get() + d))); paint(); };
   paint();
-  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] }), clickVolControl().el), paint, bump };
+  const vol = clickVolControl();
+  // vol: the next click volume (the M key), shown on the buttons here too
+  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] }), vol.el), paint, bump,
+    vol() { nextClickVol(); vol.paint(); toast('Click: ' + clickVol()[2]); } };
 }
 
 /* a short line per piece read in a run: "Rhythm 12 · 85%" */
@@ -758,7 +835,20 @@ function rhythmMode(root, lv, ctx) {
     });
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: () => stop() };
+  // while you tap, Space is the tap (TapPad); otherwise it starts, and stops Hear it
+  const keys = () => [
+    { on: [' '], label: 'Start: count-in, then tap (Space is then the tap)', when: () => !pad, run: () => { if (run) stop(true); else startBtn.onclick(); } },
+    { on: ['Escape'], label: 'Stop', when: () => !!run, run: () => stop(true) },
+    { on: ['h'], label: 'Hear it, or stop it', run: () => { if (run) stop(true); else hearBtn.onclick(); } },
+    { on: ['n', 'ArrowRight'], label: 'Next rhythm', when: () => !run, run: () => newBtn.onclick() },
+    { on: ['ArrowUp'], label: '4 bpm faster', run: () => tempo.bump(4) },
+    { on: ['ArrowDown'], label: '4 bpm slower', run: () => tempo.bump(-4) },
+    { on: ['ArrowUp'], shift: true, label: '1 bpm faster', run: () => tempo.bump(1) },
+    { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => tempo.bump(-1) },
+    { on: ['m'], label: 'Click volume: soft, normal, loud, max', run: () => tempo.vol() },
+    { on: ['c'], label: 'Show the counts, or hide them', when: () => !run, run: () => { const i = countBox.querySelector('input'); i.checked = !i.checked; i.dispatchEvent(new Event('change')); } }
+  ];
+  return { redraw: () => { if (!run) draw(); }, keys, busy: () => !!run, cleanup: () => stop() };
 }
 
 /* ======================================================
@@ -839,7 +929,9 @@ function melodyMode(root, lv, ctx, own) {
     h('button', { class: 'btn small', 'aria-label': 'Zoom out', title: 'Zoom out', onclick: () => { if (pv) pv.zoomOut(); } }, '−'), fsZoomPct,
     h('button', { class: 'btn small', 'aria-label': 'Zoom in', title: 'Zoom in', onclick: () => { if (pv) pv.zoomIn(); } }, '+'), fsFitW);
   const fsVol = h('button', { class: 'btn small', 'aria-label': 'Click volume', onclick: () => { nextClickVol(); paintFs(); } });
-  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsPrevSec, fsSecCount, fsNext,
+  // the keyboard shortcuts (the tool's own list, opened as the ? key opens it); not on a touch screen
+  const fsKeys = h('button', { class: 'btn small ghost sr-keybtn', 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts (?)', onclick: () => document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' })) }, '⌨');
+  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsKeys, fsStart, fsPrevSec, fsSecCount, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
     h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
     fsVol, fsCursor, fsPages, fsPrev, fsPage, fsNextPage, fsZoom);
@@ -879,16 +971,6 @@ function melodyMode(root, lv, ctx, own) {
       .finally(() => { pvLoading = null; });
     return pvLoading;
   }
-  // the arrow keys and a page-turner pedal (which sends Page Up and Page Down) turn the pages
-  const pageKeys = e => {
-    if (!usePages() || (e.target && e.target.closest && e.target.closest('input, select, textarea'))) return;
-    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pv.turn(1); }
-    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); pv.turn(-1); }
-    else if (e.ctrlKey || e.metaKey || e.altKey) return;
-    else if (e.key === '+' || e.key === '=') { e.preventDefault(); pv.zoomIn(); }
-    else if (e.key === '-') { e.preventDefault(); pv.zoomOut(); }
-    else if (e.key === '0') { e.preventDefault(); pv.setZoom('page'); }
-  };
   let resizeT = 0;
   const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (full && !run) draw(); }, 200); };
   const onFsChange = () => { if (full && !document.fullscreenElement && full.wasFull) setFull(false); else if (full && document.fullscreenElement) full.wasFull = true; };
@@ -903,14 +985,12 @@ function melodyMode(root, lv, ctx, own) {
       document.body.append(box);
       full = { box, moved, wasFull: false };
       document.addEventListener('fullscreenchange', onFsChange);
-      document.addEventListener('keydown', pageKeys);
       window.addEventListener('resize', onResize);
       if (paged && paged.on()) loadPages();
       fullScreen(true, box).then(() => { if (full) onResize(); });
     } else {
       const f = full; full = null;
       document.removeEventListener('fullscreenchange', onFsChange);
-      document.removeEventListener('keydown', pageKeys);
       window.removeEventListener('resize', onResize);
       f.moved.forEach(([el, ph]) => ph.replaceWith(el));
       result.classList.remove('sr-fsresult');
@@ -1092,5 +1172,34 @@ function melodyMode(root, lv, ctx, own) {
     paintFs();
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); gone = true; if (pv) pv.destroy(); pv = null; } };
+  /* the keys (the tool answers them, ? lists them). In the page view the arrow keys and a page-turner pedal
+     (which sends Page Up and Page Down) turn the pages, and + − 0 W zoom as a word processor does. */
+  const idle = () => !run;
+  const nextOk = () => idle() && !(own && own.single);
+  const goSec = i => { cur = own.go(i); piece = cur.piece; fresh(); };
+  const keys = () => [
+    { on: [' '], label: run && hearing ? 'Stop' : run ? 'Stop reading' : 'Start reading, or stop', run: () => { if (run) stop(true); else startBtn.onclick(); } },
+    { on: ['h'], label: 'Hear it, or stop it', run: () => { if (run) stop(true); else hearBtn.onclick(); } },
+    { on: ['Escape'], label: full ? 'Stop, or leave full screen' : 'Stop', when: () => !!(run || full), run: () => { if (run) stop(true); else setFull(false); } },
+    { on: ['ArrowRight', 'PageDown'], label: 'Next page', when: usePages, run: () => pv.turn(1) },
+    { on: ['ArrowLeft', 'PageUp'], label: 'Previous page', when: usePages, run: () => pv.turn(-1) },
+    { on: ['n', 'ArrowRight'], label: NEXT, when: nextOk, run: () => newBtn.onclick() },
+    { on: ['p', 'ArrowLeft'], label: 'Previous section', when: () => sectioned && idle(), run: () => prevBtn.onclick() },
+    { on: ['Home'], label: 'First section', when: () => sectioned && idle(), run: () => goSec(0) },
+    { on: ['End'], label: 'Last section', when: () => sectioned && idle(), run: () => goSec(cur.total - 1) },
+    { on: ['ArrowUp'], label: '4 bpm faster', run: () => { tempo.bump(4); paintFs(); } },
+    { on: ['ArrowDown'], label: '4 bpm slower', run: () => { tempo.bump(-4); paintFs(); } },
+    { on: ['ArrowUp'], shift: true, label: '1 bpm faster', run: () => { tempo.bump(1); paintFs(); } },
+    { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => { tempo.bump(-1); paintFs(); } },
+    { on: ['m'], label: 'Click volume: soft, normal, loud, max', run: () => { tempo.vol(); paintFs(); } },
+    { on: ['l'], label: 'Check my playing (the mic), on or off', when: idle, run: () => { const b = mic.el.querySelector('.micbtn'); if (b) b.click(); } },
+    { on: ['f'], label: full ? 'Leave full screen' : 'Full screen', run: () => setFull(!full) },
+    { on: ['c'], label: 'Cursor: every note, each bar, off', when: () => !!full, run: () => fsCursor.click() },
+    { on: ['v'], label: 'The printed page, or one line', when: () => !!(full && paged), run: () => fsPages.click() },
+    { on: ['+', '='], label: 'Zoom in', when: usePages, run: () => pv.zoomIn() },
+    { on: ['-'], label: 'Zoom out', when: usePages, run: () => pv.zoomOut() },
+    { on: ['0'], label: 'The whole page', when: usePages, run: () => pv.setZoom('page') },
+    { on: ['w'], label: 'As wide as the screen', when: usePages, run: () => fsFitW.click() }
+  ];
+  return { redraw: () => { if (!run) draw(); }, keys, busy: () => !!(run || full), host: () => (full ? full.box : null), cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); gone = true; if (pv) pv.destroy(); pv = null; } };
 }
