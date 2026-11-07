@@ -9,7 +9,11 @@ export const GAMES = {
   tower: { title: 'The Tower', tool: 'tower' },
   tightrope: { title: 'Tightrope', tool: 'tightrope' },
   twodrums: { title: 'Two Drums', tool: 'twodrums' },
-  parrot: { title: 'Parrot', tool: 'parrot' }
+  parrot: { title: 'Parrot', tool: 'parrot' },
+  lighthouse: { title: 'Lighthouse Keeper', tool: 'lighthouse' },
+  firefly: { title: 'Firefly Hunt', tool: 'firefly' },
+  formgame: { title: 'Lost in the Form', tool: 'formgame' },
+  opening: { title: 'Opening Night', tool: 'opening' }
 };
 
 const when = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });

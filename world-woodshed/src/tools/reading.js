@@ -2,7 +2,7 @@
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
-import { h, tool, toast, Fretboard, hooks, isCompact } from '../ui/core.js';
+import { h, tool, toast, Fretboard, hooks, isCompact, TOOLS, openTool } from '../ui/core.js';
 import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
@@ -250,6 +250,7 @@ tool('sightread', {
   desc: 'Read standard notation on the guitar, level by level: name notes, tap rhythms, then play melodies at sight while a cursor keeps time.',
   render(body, ctx) {
     const p = ctx.params || {};
+    if (TOOLS.opening && !ctx.block && p.mode !== 'scores') body.append(h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => openTool('opening', { returnTab: 'train' }) }, '🎮 Play as a game: Opening Night')));
     const unlocked = () => Math.max(1, Math.min(LEVELS.length, E.unlockedTier(SKILL) || 1));
     let level = p.level ? clampLevel(p.level) : unlocked();
     let mode = ['notes', 'rhythm', 'melody', 'scores'].includes(p.mode) ? p.mode : (E.state.settings.readingMode || 'notes');

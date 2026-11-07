@@ -66,7 +66,7 @@ tool('fretboard', {
         else if (!locked) sub.textContent = 'Heard ' + noteLabel(ev.midi) + ': that isn’t on the ' + E.STRINGS[si].name + ' string between frets 0 and 12.';
       }); },
       onOff: () => { if (micOff) micOff(); micOff = null; } });
-    card.append(prompt, sub, mic.el, fb.el, fbk);
+    card.append(prompt, sub, mic.el, fb.el, fbk, TOOLS.firefly && !ctx.block ? h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => openTool('firefly', { returnTab: 'train' }) }, '🎮 Play as a game: Firefly Hunt')) : '');
     function next() {
       clearTimeout(timer); locked = false; fbk.hidden = true; fb.clear();
       item = pickFor('fretboard', ctx);
@@ -399,7 +399,9 @@ tool('repertoire', {
       const checkCard = h('div', { class: 'callout patina formcheck' },
         h('label', { class: 'check' }, checkBox, h('b', { text: 'Follow the form by ear' })),
         h('p', { class: 'small', text: 'The bar marker and chord readout go dark. Keep your place by listening, best with just the bass. When asked, or whenever you like, tap the bar the band is in. Play over it at the same time if you can: soloing without losing the form is the skill.' }),
-        tally);
+        tally,
+        TOOLS.formgame && !ctx.block && !t.mine && t.form && new Set(t.form.map(f => f[0].replace(/\d+$/, ''))).size > 1
+          ? h('button', { class: 'btn small ghost', onclick: () => { stopLoop(); openTool('formgame', { params: { tune: t.id }, returnTab: 'train' }); } }, '🎮 Play as a game: Lost in the Form') : null);
       const card = h('div', { class: 'card' },
         h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: g.name })),
         h('h2', { text: t.name }), t.note ? h('p', { class: 'small muted', text: t.note }) : null,

@@ -138,3 +138,55 @@ export function parrotCell(rnd, len) {
 export const phraseNotes = cells => cells.flatMap((c, b) => c.map(i => b + i / 4));
 export const echoPassed = m => m.hits === m.errs.length && m.extra <= 1;
 export const echoPoints = (m, win) => Math.round(m.errs.reduce((a, e) => a + (e === null ? 0 : 10 + Math.max(0, 10 * (1 - Math.abs(e) / win))), 0));
+
+/* ---------- Lighthouse Keeper: scale degrees ----------
+   A harbour is one key, set by a cadence when you arrive; SHIPS ships call one note each and you light the
+   lamp for its degree before they reach the rocks. Three wrecks end the run. Each harbour moves to a new key,
+   gives less time and, from the third, brings in degrees one tier past those you have opened. */
+export const SHIPS = 8;
+export const WRECKS = 3;
+export const harbourSecs = n => Math.max(5, 12 - n * 1.5);
+export const harbourTier = (n, opened) => Math.min(5, Math.max(opened, n >= 2 ? opened + 1 : opened));
+export const shipPoints = (secs, limit, harbour) => Math.round(towerPoints(secs, limit) * (1 + harbour * 0.5));
+
+/* ---------- Firefly Hunt: the fretboard ----------
+   Each round names a note (later two): find every place it sits on the neck, frets 0 to 12, before the
+   fireflies fade. A wrong tap costs FIREFLY_PENALTY seconds; a round that runs out costs one of three lives. */
+export const FIREFLY_PENALTY = 2;
+export function fireflyRound(n) {
+  return { secs: Math.max(12, 30 - n * 1.5), accidentals: n >= 4, two: n >= 9 };
+}
+export const fireflyPoints = (found, secsLeft, round) => found * 10 + Math.round(secsLeft * 5) * (1 + Math.floor(round / 3));
+
+/* ---------- Lost in the Form: hear where the sections start ----------
+   The band plays a tune's form with the chart hidden; tap the section's letter as it comes in. Within half a
+   beat of its first downbeat is perfect, within a beat and a quarter good (early or late). */
+export const sectionLetter = lbl => String(lbl || '').replace(/^([A-Z])\d+$/, '$1');
+/* the bars where each section starts, with its letter: [{ bar, letter }] (bars counted from 0) */
+export function formStarts(form) {
+  const out = []; let n = 0;
+  (form || []).forEach(([lbl, len]) => { out.push({ bar: n, letter: sectionLetter(lbl) }); n += len; });
+  return out;
+}
+export const formLetters = form => [...new Set(formStarts(form).map(x => x.letter))];
+export const formJudge = beats => (Math.abs(beats) <= 0.5 ? 'perfect' : Math.abs(beats) <= 1.25 ? 'good' : null);
+export const formPoints = (kind, chorus) => Math.round((kind === 'perfect' ? 100 : kind === 'good' ? 60 : 0) * (1 + chorus * 0.25));
+
+/* ---------- Opening Night: sight-reading that never stops ----------
+   The music scrolls at tempo and never waits. A note played in time scores, the right pitch more; a wrong note
+   costs almost nothing. Stopping costs a lot: a bar with notes written and none played drops the crowd by
+   CROWD_SILENT, two such bars in a row (or an empty crowd) bring the curtain down. Coming back in on the first
+   note after a slip doubles that bar. The streak counts bars kept going (most of their notes played, right or
+   wrong). A new reading level every SHOW_LEVEL_BARS bars. */
+export const SHOW_LEVEL_BARS = 8;
+export const CROWD_SILENT = 35;
+/* bar: { notes, played (in time, any pitch), right (in time and the right pitch) } */
+export const barSilent = b => b.notes > 0 && b.played === 0;
+export const barKept = b => b.notes === 0 || b.played / b.notes >= 0.6;
+export function crowdAfter(crowd, b) {
+  if (barSilent(b)) return Math.max(0, crowd - CROWD_SILENT);
+  return Math.max(0, Math.min(100, crowd + 2 * b.played - 3 * (b.notes - b.played)));
+}
+export const curtain = (crowd, silentRun) => crowd <= 0 || silentRun >= 2;
+/* a note's points: 10 in time, 10 more for the right pitch; tapped (no pitch heard) 5 more */
+export const showNotePoints = (inTime, pitch) => (inTime ? 10 + (pitch === true ? 10 : pitch === null ? 5 : 0) : 0);

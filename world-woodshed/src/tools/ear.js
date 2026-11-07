@@ -102,6 +102,7 @@ tool('degrees', {
   tab: 'ear', skill: 'degrees', title: 'Scale degrees', eyebrow: 'Ear · functional hearing',
   desc: 'A cadence sets the key, then one note sounds. Name its degree. This is the core skill for playing by ear.',
   render(body, ctx) {
+    if (TOOLS.lighthouse && !ctx.block) body.append(h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => openTool('lighthouse', { returnTab: 'train' }) }, '🎮 Play as a game: Lighthouse Keeper')));
     return Quiz(body, ctx, () => {
       const item = pickFor('degrees', ctx);
       const dg = D.DEGREES.find(d => d.id === item.id);
