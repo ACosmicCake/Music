@@ -103,10 +103,9 @@ const G = 1 / 12;
 function playRun(o) {
   const actx = A.ensure();
   const segs = [];
-  // the click through its own level (Click: soft … max), into the percussion channel; read when it sounds, so a
-  // change while playing is heard on the next beat
-  const clickBus = actx.createGain(); clickBus.connect(A.channel('perc'));
-  const click = (down, t, vel) => { clickBus.gain.value = clickLevel(); A.hit(down ? 'clickHi' : 'click', t, vel, clickBus); };
+  // the click at one fixed level into the percussion channel: how loud it is follows the device's own volume
+  const clickBus = actx.createGain(); clickBus.gain.value = CLICK_LEVEL; clickBus.connect(A.channel('perc'));
+  const click = (down, t, vel) => A.hit(down ? 'clickHi' : 'click', t, vel, clickBus);
   const opts = { steps: 1e9, maxSteps: 0, ahead: 0.3 }; // the beat scheduled well ahead, so a slow phone or a long score can't make it stumble
   const make = (item, start, from) => {
     // piece.beatQ: the beat the click counts when the player chose another (6 quarters to a bar of 12/8)
@@ -714,27 +713,15 @@ function bpmFor(lv, kind) {
   return typeof v === 'number' ? v : lv.tempo[0];
 }
 function saveBpm(lv, kind, v) { const all = Object.assign({}, E.state.settings.readingBpm || {}); all[kind + lv.id] = v; E.setSetting('readingBpm', all); }
-/* how loud the click is while reading (the woodblock at full velocity, then this gain), per device */
-const CLICK_VOLS = [['soft', 0.5, 'Soft'], ['normal', 1, 'Normal'], ['loud', 1.8, 'Loud'], ['max', 3, 'Max']];
-const clickVol = () => (CLICK_VOLS.find(c => c[0] === E.state.settings.readingClickVol) || CLICK_VOLS[2]);
-const clickLevel = () => clickVol()[1];
-function clickVolControl(onChange) {
-  const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Click volume' });
-  const paint = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === clickVol()[0] ? 'true' : 'false'));
-  CLICK_VOLS.forEach(([id, , label]) => seg.append(h('button', { 'data-v': id, onclick: () => { E.setSetting('readingClickVol', id); paint(); if (onChange) onChange(); } }, label)));
-  paint();
-  return { el: h('div', { class: 'row small sr-clickvol' }, h('span', { class: 'eyebrow', text: 'Click' }), seg), paint };
-}
-const nextClickVol = () => { const i = CLICK_VOLS.indexOf(clickVol()); E.setSetting('readingClickVol', CLICK_VOLS[(i + 1) % CLICK_VOLS.length][0]); };
+/* how loud the click is while reading: the woodblock at full velocity through this gain, as loud as the old
+   default (Loud). There is no setting: the device's own volume sets how loud it is */
+const CLICK_LEVEL = 1.8;
 function tempoControl(get, set, lv) {
   const lbl = h('b', { class: 'mono sr-bpm' });
   const paint = () => { lbl.textContent = get() + ' bpm'; };
   const bump = d => { set(Math.max(30, Math.min(220, get() + d))); paint(); };
   paint();
-  const vol = clickVolControl();
-  // vol: the next click volume (the M key), shown on the buttons here too
-  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] }), vol.el), paint, bump,
-    vol() { nextClickVol(); vol.paint(); toast('Click: ' + clickVol()[2]); } };
+  return { el: h('div', { class: 'row sr-tempo' }, h('span', { class: 'eyebrow', text: 'Tempo' }), h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => bump(-4) }, '−4'), lbl, h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => bump(4) }, '+4'), h('span', { class: 'small muted', text: lv.range || 'level range ' + lv.tempo[0] + '–' + lv.tempo[1] })), paint, bump };
 }
 
 /* a short line per piece read in a run: "Rhythm 12 · 85%" */
@@ -845,7 +832,6 @@ function rhythmMode(root, lv, ctx) {
     { on: ['ArrowDown'], label: '4 bpm slower', run: () => tempo.bump(-4) },
     { on: ['ArrowUp'], shift: true, label: '1 bpm faster', run: () => tempo.bump(1) },
     { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => tempo.bump(-1) },
-    { on: ['m'], label: 'Click volume: soft, normal, loud, max', run: () => tempo.vol() },
     { on: ['c'], label: 'Show the counts, or hide them', when: () => !run, run: () => { const i = countBox.querySelector('input'); i.checked = !i.checked; i.dispatchEvent(new Event('change')); } }
   ];
   return { redraw: () => { if (!run) draw(); }, keys, busy: () => !!run, cleanup: () => stop() };
@@ -928,16 +914,14 @@ function melodyMode(root, lv, ctx, own) {
   const fsZoom = h('span', { class: 'sr-fszoom', role: 'group', 'aria-label': 'Zoom' },
     h('button', { class: 'btn small', 'aria-label': 'Zoom out', title: 'Zoom out', onclick: () => { if (pv) pv.zoomOut(); } }, '−'), fsZoomPct,
     h('button', { class: 'btn small', 'aria-label': 'Zoom in', title: 'Zoom in', onclick: () => { if (pv) pv.zoomIn(); } }, '+'), fsFitW);
-  const fsVol = h('button', { class: 'btn small', 'aria-label': 'Click volume', onclick: () => { nextClickVol(); paintFs(); } });
   // the keyboard shortcuts (the tool's own list, opened as the ? key opens it); not on a touch screen
   const fsKeys = h('button', { class: 'btn small ghost sr-keybtn', 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts (?)', onclick: () => document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' })) }, '⌨');
   const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsKeys, fsStart, fsPrevSec, fsSecCount, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
     h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
-    fsVol, fsCursor, fsPages, fsPrev, fsPage, fsNextPage, fsZoom);
+    fsCursor, fsPages, fsPrev, fsPage, fsNextPage, fsZoom);
   function paintFs() {
     fsBpm.textContent = bpm + ' bpm';
-    fsVol.textContent = '🔊 ' + clickVol()[2];
     fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single); fsPrevSec.hidden = !!run || !sectioned;
     if (sectioned && cur.total) fsSecCount.textContent = cur.no + '/' + cur.total;
     fsCursor.textContent = (CURSORS.find(c => c[0] === cursorMode()) || CURSORS[0])[1];
@@ -1191,7 +1175,6 @@ function melodyMode(root, lv, ctx, own) {
     { on: ['ArrowDown'], label: '4 bpm slower', run: () => { tempo.bump(-4); paintFs(); } },
     { on: ['ArrowUp'], shift: true, label: '1 bpm faster', run: () => { tempo.bump(1); paintFs(); } },
     { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => { tempo.bump(-1); paintFs(); } },
-    { on: ['m'], label: 'Click volume: soft, normal, loud, max', run: () => { tempo.vol(); paintFs(); } },
     { on: ['l'], label: 'Check my playing (the mic), on or off', when: idle, run: () => { const b = mic.el.querySelector('.micbtn'); if (b) b.click(); } },
     { on: ['f'], label: full ? 'Leave full screen' : 'Full screen', run: () => setFull(!full) },
     { on: ['c'], label: 'Cursor: every note, each bar, off', when: () => !!full, run: () => fsCursor.click() },
