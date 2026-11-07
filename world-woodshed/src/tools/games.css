@@ -12,7 +12,6 @@
 .game-tile .t-meter { color: var(--brass); }
 
 /* Updraft */
-.ud-sky { display: block; width: 100%; border-radius: 12px; border: 1px solid var(--line); touch-action: manipulation; user-select: none; -webkit-user-select: none; cursor: pointer; }
 .ud-hud, .tw-hud { font-size: 0.95rem; }
 .ud-card .tappad { min-height: 84px; }
 
@@ -154,3 +153,13 @@ html.compact .fg-pad { min-height: 80px; }
 .on-status { font-size: 1.1rem; min-height: 1.4em; }
 .on-staff { overflow: hidden; }
 .on-staff.next { opacity: 0.55; }
+
+/* how to play, on every game's first screen */
+.game-how h4 { margin: 0.9rem 0 0.25rem; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.game-how .game-goal { font-size: 1.02rem; margin: 0 0 0.2rem; }
+.game-how-list { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+.game-how-list li { line-height: 1.4; }
+.game-how .game-ends { margin-top: 0.8rem; }
+.game-rules { margin-top: 0.4rem; }
+.game-rules > summary { cursor: pointer; font-weight: 600; color: var(--patina); padding: 0.3rem 0; }
+.game-rules[open] > summary { margin-bottom: 0.1rem; }

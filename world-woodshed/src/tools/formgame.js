@@ -10,7 +10,7 @@ import { h, tool, hooks } from '../ui/core.js';
 import { parseChord } from '../theory.js';
 import { Band } from '../band.js';
 import { formStarts, formLetters, formJudge, formPoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 // tunes with more than one section, shortest form first
@@ -38,7 +38,15 @@ tool('formgame', {
       holder.append(h('div', { class: 'card' },
         h('label', { class: 'stack small' }, h('span', { text: 'The tune' }), sel),
         h('p', { text: 'Its form: ' + t.form.map(([l, n]) => l.replace(/\d+$/, '') + ' (' + n + ' bars)').join(', ') + '.' }),
-        h('p', { class: 'small', text: 'Tap the section\'s letter right on its first beat (the first A is given). In the first chorus the sections light up as they pass; then you\'re on your own, with less of the band and a faster tempo each time round.' }),
+        HowTo({ game: 'formgame',
+          goal: 'Keep your place in the tune by ear: the band plays it round and round with the chart hidden, and you call out each section as it begins.',
+          steps: ['After a bar of count-in the band starts on the first A, which is given to you.',
+            'Count the bars. When a new section begins, tap its letter (or press the A, B or C key) right on its first beat. An A that comes back is tapped as A again.',
+            'In the first chorus the strip above the buttons lights up each section as it passes, so you can learn the form. From the second chorus on it stays dark.',
+            'Each chorus is 6 bpm faster, and the band thins out: from the third chorus the piano drops out, from the fourth the drums too, leaving the bass.'],
+          scoring: ['100 points for a letter within half a beat of the section\'s first beat, 60 within a beat and a quarter (early or late).', 'A quarter more for each chorus you get through: ×1.25 in the second, ×1.5 in the third and so on.'],
+          ends: 'after three slips (♥): a section gone by without its letter, the wrong letter, or a tap where no section starts.',
+          note: 'Every chorus counts in your Repertoire progress for this tune.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play(t) }, '▶ Count me in'))),
       Leaderboard('formgame', { mark, detail }));
     }
@@ -63,6 +71,11 @@ tool('formgame', {
       const drawHud = () => { hud.textContent = score.toLocaleString() + ' pts · chorus ' + (chorus + 1) + ' · ' + '♥'.repeat(hearts) + '♡'.repeat(3 - hearts) + ' · ' + bpm + ' bpm · ' + PART_NAME[Math.min(chorus, 3)]; };
       const lightSec = bi => { const i = starts.findIndex((x, k) => bi >= x.bar && (k === starts.length - 1 || bi < starts[k + 1].bar)); [...strip.children].forEach((el, k) => el.classList.toggle('now', k === i)); };
       const flashPad = (l, cls) => { const el = [...pads.children].find(b => b.textContent === l); if (!el) return; el.classList.remove('right', 'wrong'); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), 700); };
+      // a chorus done (or the run ended in one): it counts for the tune
+      function closeChorus() {
+        if (chorusAsks) { const sc = chorusHits / chorusAsks; E.record('repertoire', t.id, sc >= 0.75, { score: sc }); ctx.tick(1); if (sc === 1) bestChorus = Math.max(bestChorus, chorus + 1); }
+        chorusHits = 0; chorusAsks = 0;
+      }
       function lose(msg) { hearts--; status.textContent = msg; drawHud(); if (hearts <= 0) { over = true; setTimeout(end, 1600); } }
 
       function tap(letter, ev) {
@@ -103,8 +116,7 @@ tool('formgame', {
           if (over) return;
           if (ch !== chorus) {
             // a chorus done: it counts for the tune; the next is faster with less of the band
-            if (chorusAsks) { const sc = chorusHits / chorusAsks; E.record('repertoire', t.id, sc >= 0.75, { score: sc }); ctx.tick(1); if (sc === 1) bestChorus = Math.max(bestChorus, chorus + 1); }
-            chorusHits = 0; chorusAsks = 0;
+            closeChorus();
             chorus = ch; bpm = Math.min(t.bpm + 30, bpm + 6);
             band.set({ parts: PARTS[Math.min(chorus, 3)] });
             drawHud();
@@ -122,7 +134,7 @@ tool('formgame', {
       function cleanup() { over = true; band.stop(); document.removeEventListener('keydown', onKey); ctx.setActive(false); stopRun = null; }
       function end() {
         if (ended || !holder.isConnected) return;
-        ended = true; cleanup();
+        ended = true; cleanup(); closeChorus();
         if (hooks.signal && hits >= 3) hooks.signal('tune:' + t.id, { score: hits / Math.max(1, judged.size - 1) });
         const tm = Date.now(), rank = score > 0 ? E.addGameScore('formgame', { s: score, t: tm, tune: t.id, chorus: chorus + 1 }) : 0;
         holder.innerHTML = '';

@@ -52,7 +52,7 @@ export const TOWER_HEARTS = 5;
 export function towerStage(n) {
   if (n <= 0) return { dirs: ['up'], secs: 0, name: 'The garden tower', note: 'Rising intervals, no hurry.' };
   if (n === 1) return { dirs: ['down'], secs: 12, name: 'The bell tower', note: 'Falling intervals, 12 seconds each.' };
-  if (n === 2) return { dirs: ['up', 'down'], secs: 9, name: 'The lighthouse', note: 'Rising and falling, 9 seconds each.' };
+  if (n === 2) return { dirs: ['up', 'down'], secs: 9, name: 'The watchtower', note: 'Rising and falling, 9 seconds each.' };
   if (n === 3) return { dirs: ['harm'], secs: 9, name: 'The star tower', note: 'Two notes at once, 9 seconds each.' };
   return { dirs: ['up', 'down', 'harm'], secs: Math.max(4, 8 - (n - 4)), name: 'The cloud tower ' + (n - 3), note: 'Everything, faster each tower.' };
 }
@@ -65,18 +65,28 @@ export function climb(step, ok) {
 /* points for a right answer: 10 a step, up to 5 more for answering in the first seconds */
 export const towerPoints = (secs, limit) => 10 + Math.max(0, Math.round(5 - secs * (limit ? 5 / limit : 1)));
 
-/* ---------- Updraft: how a run scores ----------
-   Every note of the rhythm is a gate in the clouds. A tap within PERFECT of it is a perfect pass, within the
-   exercise's window a good one; a gate passed without a tap costs a heart. Points grow with the combo, and
-   gates in the bars you play alone (the guide silent) are worth double. */
-export const PERFECT = 0.04;
-export const UPDRAFT_HEARTS = 3;
-export function gatePoints(kind, combo, alone) {
-  const base = kind === 'perfect' ? 100 : kind === 'good' ? 50 : 0;
-  return Math.round(base * (1 + Math.min(combo, 20) * 0.1) * (alone ? 2 : 1));
+/* ---------- Your own steady delay ----------
+   A phone screen, a Bluetooth speaker or a keyboard adds a delay of its own, the same on every tap, which the app
+   doesn't know (nothing calibrates taps). Played along with a click, that delay shows as every note a little late
+   (or early) by the same amount. The rhythm games learn it from the bars you play with the click or the guide and
+   take it off before judging, so a steady 60 ms from the screen doesn't count against you; what changes from note
+   to note (rushing, dragging, an uneven hand) still does. delayTracker(max) keeps the median of the last errors
+   it was given within ±max (seconds or beats, as given); get() is 0 until it has `need` of them. */
+export function delayTracker(max, need = 3, keep = 24) {
+  const list = [];
+  return {
+    add(e) { if (e !== null && e !== undefined && Number.isFinite(e) && Math.abs(e) <= max) { list.push(e); if (list.length > keep) list.shift(); } },
+    get() { if (list.length < need) return 0; const s = list.slice().sort((a, b) => a - b), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; },
+    get size() { return list.length; }
+  };
 }
-/* the tempo after a number of bars: 4 bpm more every 4 bars, up to the exercise's top tempo plus 20 */
-export const updraftBpm = (start, bars, top) => Math.min(Math.max(start, top + 20), start + 4 * Math.floor(Math.max(0, bars) / 4));
+/* Match taps after taking off the delay learned from them: a first pass with a wide window finds the steady delay
+   (median of the errors, at most `max`), the second judges the shifted taps in the real window. */
+export function matchShifted(expected, taps, win, tracker, max = 0.12) {
+  matchTaps(expected, taps, Math.max(win, max)).errs.forEach(e => tracker.add(e));
+  const off = tracker.get();
+  return Object.assign(matchTaps(expected, taps.map(t => t - off), win), { offset: off });
+}
 
 /* ---------- Matching taps to notes (Two Drums, Parrot) ----------
    Each written time takes the nearest unused tap within win seconds. Returns the hits, the signed errors

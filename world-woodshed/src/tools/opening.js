@@ -12,8 +12,8 @@ import { MicToggle } from '../ui/mic.js';
 import { TapPad, tapTime } from './rhythm.js';
 import { renderStaff, parseTime } from '../notation.js';
 import { LEVELS, genMelody, attacks, eventStarts, barLength } from '../content/reading.js';
-import { SHOW_LEVEL_BARS, barSilent, barKept, crowdAfter, curtain, showNotePoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { SHOW_LEVEL_BARS, delayTracker, barSilent, barKept, crowdAfter, curtain, showNotePoints } from '../games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 const SHOW_LEVELS = LEVELS.filter(L => !L.chords && !L.repeats);
@@ -33,13 +33,15 @@ tool('opening', {
       holder.innerHTML = '';
       const L = levelFrom(E.unlockedTier('reading'));
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'Tonight the music never stops for you. Four bars at a time scroll in at tempo, the next line already showing underneath: read ahead and keep playing.' }),
-        h('ul', { class: 'list small' },
-          h('li', { text: 'A note in time scores; the right pitch scores more. A wrong note costs almost nothing.' }),
-          h('li', { text: 'A bar with notes and silence from you loses the crowd. Two silent bars in a row and the curtain comes down.' }),
-          h('li', { text: 'Slipped? Come back in on the next note and that bar scores double.' }),
-          h('li', { text: 'You start at level ' + L.id + ' (' + L.name + ') and climb a level every ' + SHOW_LEVEL_BARS + ' bars.' })),
-        h('p', { class: 'small muted', text: 'Switch on the mic on the next screen to be scored on pitch too; otherwise tap the rhythm.' }),
+        HowTo({ game: 'opening',
+          goal: 'Sight-read a live show. The music never waits for you, so whatever happens, keep playing.',
+          steps: ['After a bar of count-in the click keeps time. Read the line on top and play it; the next line is already showing underneath, so read ahead.',
+            'Play on the guitar with the mic on (Score my pitch, on the next screen) to be scored on the notes, or tap the rhythm on the pad or the space bar.',
+            'A wrong note costs almost nothing. Stopping costs a lot: the crowd meter drops a third for every bar you leave silent.',
+            'Slipped? Come straight back in on the next bar\'s first note and that bar scores double.',
+            'You start at level ' + L.id + ' (' + L.name + ') at its slowest tempo, which stays steady all night, and the lines move up a level every ' + SHOW_LEVEL_BARS + ' bars.'],
+          scoring: ['10 points for each note played in time, 10 more when the mic hears the right pitch (5 more when tapped).', 'The crowd meter fills a little for each note played and empties a little for each note missed.', 'Your run counts the bars in a row where you played most of the notes.'],
+          ends: 'when the crowd meter is empty or two bars in a row go silent: the curtain comes down.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Curtain up'))),
       Leaderboard('opening', { mark, detail }));
     }
@@ -53,6 +55,7 @@ tool('opening', {
       let crowd = 100, silentRun = 0, score = 0, streak = 0, bestStreak = 0, barsDone = 0, over = false, ended = false, slipped = false, usedMic = false;
       const lines = []; // { piece, L, q0 (start, quarters from t0), len, ats, bars: [{ q0, len, notes: [exp] }] }
       const exp = [];   // every expected note: { t, a, line, bar, hit, pitch }
+      const delay = delayTracker(0.15); // your screen's or mic's own steady delay, taken off before judging (src/games.js)
       let t0 = 0, sched = null, raf = 0, clickQ = 0, staffNow = null, shown = -1;
 
       const hud = h('div', { class: 'tw-hud mono' });
@@ -70,7 +73,8 @@ tool('opening', {
       const drawHud = () => {
         hud.textContent = score.toLocaleString() + ' pts · ' + barsDone + ' bars · run ' + streak + ' · ' + bpm + ' bpm';
         crowdBar.firstChild.style.width = crowd + '%'; crowdBar.classList.toggle('low', crowd < 40);
-        holder.querySelector('.on-level').textContent = 'Level ' + L.id + ': ' + L.name;
+        const RL = shown >= 0 && lines[shown] ? lines[shown].L : L;
+        holder.querySelector('.on-level').textContent = 'Level ' + RL.id + ': ' + RL.name;
       };
 
       // the next four-bar line, at the current level, straight after the last
@@ -90,16 +94,20 @@ tool('opening', {
         if (i === shown) return; shown = i;
         while (lines.length < i + 2) addLine();
         staffNow = draw(nowBox, lines[i]); draw(nextBox, lines[i + 1]);
+        if (i > 0 && lines[i].L !== lines[i - 1].L) status.textContent = 'Level up: ' + lines[i].L.name + '!';
+        else if (lines[i + 1].L !== lines[i].L) status.textContent = 'Next line: level ' + lines[i + 1].L.id + ', ' + lines[i + 1].L.name + '.';
+        drawHud();
       }
 
-      function heard(t, midi) {
+      function heard(raw, midi) {
         if (over) return;
+        const t = raw - delay.get();
         let best = null, bd = Infinity;
         for (let x = exp.length - 1; x >= 0; x--) { const e = exp[x]; if (e.hit) continue; const d = Math.abs(t - e.t); if (d < bd) { bd = d; best = e; } if (e.t < t - 1) break; }
         if (!best) return;
         const gap = Math.min(...best.line.ats.map(a => Math.abs(a.q - best.a.q)).filter(x => x > 1e-6), 2) * qd;
         if (bd > Math.max(0.08, Math.min(0.16, gap * 0.5))) return;
-        best.hit = true;
+        best.hit = true; delay.add(raw - best.t);
         best.pitch = midi === null ? null : ((midi - (best.a.midi - 12)) % 12 + 12) % 12 === 0;
         if (staffNow && best.line.idx === shown) staffNow.mark(best.a.i, best.pitch === false ? 'bad' : 'good');
       }
@@ -160,7 +168,7 @@ tool('opening', {
             if (judgedTo.bar >= line.bars.length) {
               lineDone(line); judgedTo = { line: judgedTo.line + 1, bar: 0 };
               // a new level every SHOW_LEVEL_BARS bars: the lines not yet made come at the next level
-              if (barsDone % SHOW_LEVEL_BARS === 0) { const n = nextLevel(L); if (n !== L) { L = n; status.textContent = 'Level up: ' + L.name; } }
+              if (barsDone % SHOW_LEVEL_BARS === 0) L = nextLevel(L);
             }
             if (over) return;
           }

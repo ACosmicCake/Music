@@ -6,8 +6,8 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, tool, hooks } from '../ui/core.js';
 import { TapPad, tapTime } from './rhythm.js';
-import { matchTaps, parrotCell, phraseNotes, echoPassed, echoPoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { matchShifted, delayTracker, parrotCell, phraseNotes, echoPassed, echoPoints } from '../games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 const BPMS = [60, 75, 90, 105];
@@ -63,9 +63,15 @@ tool('parrot', {
       holder.innerHTML = '';
       const chip = v => h('button', { class: 'chip', 'aria-pressed': bpmNow() === v ? 'true' : 'false', onclick: () => { E.setSetting('parrotBpm', v); menu(mark); } }, v + ' bpm');
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'After a bar of count-in the parrot whistles a phrase, and you play it back straight after, on the click. Each round keeps the phrase and adds a beat. Count “1 e & a” to place the sixteenths.' }),
+        HowTo({ game: 'parrot',
+          goal: 'Echo the parrot: play back each rhythm it whistles, a beat longer every round.',
+          steps: ['A bar of count-in, then the parrot whistles a short rhythm over the click. The dots under it show the notes.',
+            'Straight after, with the click still going, play it back: tap the pad, press the space bar, or switch on the mic and play it on the guitar. Count “1 e & a” to place the sixteenths.',
+            'Get it right and the parrot keeps the phrase and adds a beat. From 4 beats on, the dots hide while you answer: listen and remember.',
+            'The game learns your screen\'s own delay as you play, so a steady delay that isn\'t you doesn\'t count.'],
+          scoring: ['A phrase passes when every note is in time and you add at most one extra tap.', '10 to 20 points a note, the most for one right on time, times the phrase\'s length in beats.'],
+          ends: 'after three slips (🪶). A missed phrase comes again.' }),
         h('div', { class: 'chips' }, h('span', { class: 'small muted', text: 'Tempo' }), BPMS.map(chip)),
-        h('p', { class: 'small muted', text: 'Tap, use the space bar, or switch on the mic and play it on your guitar.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Start'))),
       Leaderboard('parrot', { mark, detail }));
     }
@@ -77,6 +83,7 @@ tool('parrot', {
       const cells = [parrotCell(Math.random, 1), parrotCell(Math.random, 2)];
       let feathers = 3, score = 0, best = 0, alive = true, ended = false, raf = 0, taps = [], plan = null;
       const timers = [], sounds = [];
+      const delay = delayTracker(0.12); // your screen's own steady delay, taken off before judging (src/games.js)
       const later = (fn, ms) => timers.push(setTimeout(() => { if (alive) fn(); }, ms));
       const scene = Scene();
       const hud = h('div', { class: 'ud-hud mono' });
@@ -90,7 +97,8 @@ tool('parrot', {
       scene.el.addEventListener('pointerdown', ev => { ev.preventDefault(); if (plan) { taps.push(tapTime(ev, lat)); markTap(taps[taps.length - 1]); } });
       function markTap(t) {
         if (!plan || t < plan.back - win) return;
-        plan.exp.forEach((x, i) => { if (Math.abs(x - t) <= win) scene.dot(i, 'hit'); });
+        const tt = t - delay.get();
+        plan.exp.forEach((x, i) => { if (Math.abs(x - tt) <= win) scene.dot(i, 'hit'); });
       }
 
       function round() {
@@ -108,7 +116,7 @@ tool('parrot', {
       }
       function judge() {
         const p = plan; plan = null;
-        const m = matchTaps(p.exp, taps.filter(t => t >= p.back - win && t <= p.endT + win), win);
+        const m = matchShifted(p.exp, taps.filter(t => t >= p.back - 0.15 && t <= p.endT + 0.15), win, delay);
         const ok = echoPassed(m);
         const item = p.L >= 5 ? 'echo4' : 'echo2';
         E.record('tuplets', item, ok, { score: m.rate });

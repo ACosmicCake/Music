@@ -8,7 +8,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, tool, rand, noteName } from '../ui/core.js';
 import { SHIPS, WRECKS, harbourSecs, harbourTier, shipPoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 function cadence(t, at) {
@@ -61,8 +61,14 @@ tool('lighthouse', {
     function menu(mark) {
       clear(); holder.innerHTML = ''; ctx.setActive(false);
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'At each harbour a cadence sets the key. Then ships come in one at a time, each sounding one note. Name the note\'s degree in the key and the lighthouse guides it home.' }),
-        h('p', { class: 'small', text: SHIPS + ' ships to a harbour; each new harbour is a new key with less time, and from the third, a degree you haven\'t opened yet. Hold the key in your head: hearing it again takes time.' }),
+        HowTo({ game: 'lighthouse',
+          goal: 'Guide the ships into harbour by naming the scale degree each one sounds on its horn.',
+          steps: ['At each harbour four chords (I, IV, V, I) set the key. Keep its home note in your head.',
+            'A ship sails in and sounds one note. Tap its degree in the key: 1 is the home note, 5 the fifth, ♭3 the minor third and so on. 📯 Horn again and ↻ Hear the key replay them, but the ship keeps sailing.',
+            'Answer before the ship reaches the rocks (the bar under the picture). A wrong or late answer wrecks it, and you hear the home note and then its note so you can hear the step between them.',
+            SHIPS + ' ships to a harbour. Each new harbour is a new key with less time (12 seconds a ship, then 1.5 fewer each harbour, down to 5), and from the third harbour on, one more degree than you have opened in Scale degrees.'],
+          scoring: ['10 to 15 points a ship, the most for a quick answer.', 'Ships are worth half as much again at each harbour: ×1.5 at the second, ×2 at the third and so on.'],
+          ends: 'when ' + WRECKS + ' ships are wrecked (⚓).' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Light the lamp'))),
       Leaderboard('lighthouse', { mark, detail }));
     }

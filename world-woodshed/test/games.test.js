@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { BOARD, addScore, rankFor, best, table, mergeGames, climb, TOWER, towerStage, towerPoints, gatePoints, updraftBpm,
-  matchTaps, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints, ROPE_BARS, drumPassed, drumRoundPoints, parrotCell, phraseNotes, echoPassed, echoPoints,
+import { BOARD, addScore, rankFor, best, table, mergeGames, climb, TOWER, towerStage, towerPoints,
+  matchTaps, delayTracker, matchShifted, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints, ROPE_BARS, drumPassed, drumRoundPoints, parrotCell, phraseNotes, echoPassed, echoPoints,
   SHIPS, harbourSecs, harbourTier, shipPoints, fireflyRound, fireflyPoints, formStarts, formLetters, formJudge, formPoints, sectionLetter,
   barSilent, barKept, crowdAfter, curtain, showNotePoints, CROWD_SILENT } from '../src/games.js';
 import { merge } from '../src/sync.js';
@@ -67,20 +67,23 @@ describe('The Tower', () => {
   });
 });
 
-describe('Updraft', () => {
-  it('scores perfect over good, more with a combo, double when alone', () => {
-    expect(gatePoints('perfect', 0, false)).toBe(100);
-    expect(gatePoints('good', 0, false)).toBe(50);
-    expect(gatePoints('perfect', 10, false)).toBe(200);
-    expect(gatePoints('perfect', 0, true)).toBe(200);
-    expect(gatePoints('perfect', 100, false)).toBe(300);
-    expect(gatePoints('miss', 5, true)).toBe(0);
+describe('your own steady delay', () => {
+  it('learns the median of the errors within range, once it has enough', () => {
+    const d = delayTracker(0.12);
+    d.add(0.05); d.add(0.06);
+    expect(d.get()).toBe(0);
+    d.add(0.04); d.add(0.5); d.add(null);
+    expect(d.size).toBe(3);
+    expect(d.get()).toBeCloseTo(0.05);
   });
-  it('picks up 4 bpm every four bars, up to 20 over the exercise top', () => {
-    expect(updraftBpm(60, 0, 100)).toBe(60);
-    expect(updraftBpm(60, 3, 100)).toBe(60);
-    expect(updraftBpm(60, 4, 100)).toBe(64);
-    expect(updraftBpm(60, 400, 100)).toBe(120);
+  it('a steady 60 ms late passes, an uneven hand still misses', () => {
+    const exp = [1, 2, 3, 4], win = 0.05;
+    expect(matchTaps(exp, exp.map(t => t + 0.06), win).hits).toBe(0);
+    const m = matchShifted(exp, exp.map(t => t + 0.06), win, delayTracker(0.12));
+    expect(m.hits).toBe(4);
+    expect(m.offset).toBeCloseTo(0.06);
+    const uneven = matchShifted(exp, [1.06, 2.06, 3.15, 4.06], win, delayTracker(0.12));
+    expect(uneven.hits).toBe(3);
   });
 });
 

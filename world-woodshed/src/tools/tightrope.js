@@ -6,8 +6,8 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, tool, hooks } from '../ui/core.js';
 import { TapPad, tapTime } from './rhythm.js';
-import { ROPE_STAGES, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { ROPE_STAGES, ROPE_BARS, ropeStage, ropeClick, leanAfter, ropeFell, ropePoints, delayTracker } from '../games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 const BPMS = [60, 80, 100, 120];
@@ -52,9 +52,15 @@ tool('tightrope', {
       holder.innerHTML = '';
       const chip = v => h('button', { class: 'chip', 'aria-pressed': bpmNow() === v ? 'true' : 'false', onclick: () => { E.setSetting('ropeBpm', v); menu(mark); } }, v + ' bpm');
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'Play every beat, with taps or on the guitar. Every 8 bars the click thins out: ' + ROPE_STAGES.join(', then ') + '. Your steady beat has to carry you across.' }),
+        HowTo({ game: 'tightrope',
+          goal: 'Walk the rope across the canyon by keeping a steady beat while the click fades away.',
+          steps: ['After four clicks of count-in, play every beat: tap the pad, press the space bar, or switch on the mic and play on the guitar.',
+            'Every ' + ROPE_BARS + ' bars the click plays less: ' + ROPE_STAGES.join(', then ') + '. Keep every beat going in between.',
+            'The walker leans the way your timing goes: forward (right) when you rush, back (left) when you drag. The bar under the picture shows it too, and how many milliseconds early or late your last note was. A beat with no note jolts them.',
+            'In the first ' + ROPE_BARS + ' bars the game learns your screen\'s or speaker\'s own delay, so a steady delay that isn\'t you doesn\'t count.'],
+          scoring: ['10 to 20 points a beat, the most for a note right on it.', 'Worth half as much again with each thinner click: ×1.5 on 2 and 4, ×2 on 1, and so on.'],
+          ends: 'when the walker leans too far and falls into the net.' }),
         h('div', { class: 'chips' }, h('span', { class: 'small muted', text: 'Tempo' }), BPMS.map(chip)),
-        h('p', { class: 'small muted', text: 'Leaning forward means you are rushing, back means dragging. A beat with no note jolts you.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Step out'))),
       Leaderboard('tightrope', { mark, detail }));
     }
@@ -66,20 +72,24 @@ tool('tightrope', {
       let lean = 0, score = 0, walked = 0, over = false, ended = false, raf = 0, stage = 0;
       const beats = new Map(); // beat number → { t, err }
       const errs = [];
+      // your screen's own steady delay, learned while the click plays every beat (in beats)
+      const delay = delayTracker(0.3, 3);
       const scene = Scene();
       const hud = h('div', { class: 'ud-hud mono' });
       const status = h('div', { class: 'phase', role: 'status' }, 'Count-in…');
       const meter = h('div', { class: 'tr-meter', 'aria-hidden': 'true' }, h('span', { class: 'tr-mid' }), h('span', { class: 'tr-dot' }));
-      const words = h('div', { class: 'small mono tr-words' }, h('span', { text: '← rushing' }), h('span', { class: 'tr-last' }), h('span', { text: 'dragging →' }));
+      const words = h('div', { class: 'small mono tr-words' }, h('span', { text: '← dragging' }), h('span', { class: 'tr-last' }), h('span', { text: 'rushing →' }));
       const stopBtn = h('button', { class: 'btn small' }, '■ Stop');
       const padHolder = h('div');
       holder.append(h('div', { class: 'card ud-card' }, h('div', { class: 'spread' }, h('b', { text: bpm + ' bpm' }), stopBtn), hud, h('div', { class: 'tr-wrap' }, scene.el), meter, words, status, padHolder));
       const drawHud = () => { hud.textContent = score.toLocaleString() + ' pts · ' + walked + ' steps · click on ' + ROPE_STAGES[stage]; };
-      const showLean = () => { meter.lastChild.style.left = (50 + Math.max(-1, Math.min(1, lean)) * 50) + '%'; meter.classList.toggle('warn', Math.abs(lean) > 0.6); };
+      const showLean = () => { meter.lastChild.style.left = (50 - Math.max(-1, Math.min(1, lean)) * 50) + '%'; meter.classList.toggle('warn', Math.abs(lean) > 0.6); };
       // a beat is settled once its note came, or half a beat went by without one
-      function settle(n, err) {
+      function settle(n, raw) {
         const b = beats.get(n); if (!b || b.done) return;
         b.done = true; walked = Math.max(walked, n + 1);
+        if (raw !== null && n < ROPE_BARS * 4) delay.add(raw);
+        const err = raw === null ? null : raw - delay.get();
         if (err === null && n < 4) return; // the first bar is for finding the beat: a late start doesn't jolt you
         lean = leanAfter(lean, err);
         if (err !== null) { score += ropePoints(err, stage); errs.push(err); words.children[1].textContent = Math.abs(err * bd * 1000) < 12 ? 'on it' : Math.round(Math.abs(err * bd * 1000)) + ' ms ' + (err < 0 ? 'early' : 'late'); }

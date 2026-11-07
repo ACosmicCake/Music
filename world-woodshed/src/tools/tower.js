@@ -8,7 +8,7 @@ import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, tool, rand } from '../ui/core.js';
 import { TOWER, TOWER_HEARTS, towerStage, climb, towerPoints } from '../games.js';
-import { Leaderboard, endCard } from '../ui/games.js';
+import { Leaderboard, endCard, HowTo } from '../ui/games.js';
 import './games.css';
 
 const ROOFS = ['--c-tech', '--c-ear', '--patina', '--c-fret', '--brass'];
@@ -110,7 +110,13 @@ tool('tower', {
       clear(); holder.innerHTML = ''; ctx.setActive(false);
       const chip = (v, label) => h('button', { class: 'chip', 'aria-pressed': sound() === v ? 'true' : 'false', onclick: () => { E.setSetting('towerSound', v); menu(mark); } }, label);
       holder.append(h('div', { class: 'card' },
-        h('p', { text: 'Each tower has ' + TOWER + ' steps. A right answer climbs one, a wrong one slips down one. Climb a tower and the next one opens: falling intervals, then both ways, then both notes at once, with less time to answer each tower.' }),
+        HowTo({ game: 'tower',
+          goal: 'Climb to the princess at the top of the tower by naming the intervals she sings.',
+          steps: ['She sings two notes. Tap the name of the interval between them (↻ Sing again to hear it once more).',
+            'Right: you climb a step. Wrong: you slip down a step, hear the right one again and tap Next.',
+            'Each tower has ' + TOWER + ' steps. Reach her window and the next tower opens: tower 1 rising intervals with no time limit, tower 2 falling (12 seconds each), tower 3 both ways (9 seconds), tower 4 both notes at once (9 seconds), then all of them with less time each tower.'],
+          scoring: ['10 points for each right answer, and up to 5 more for answering quickly.', '50 points for each tower climbed.'],
+          ends: 'after ' + TOWER_HEARTS + ' wrong answers (♥). A tower once climbed stays climbed: you never slip below its first step.' }),
         h('div', { class: 'chips' }, h('span', { class: 'small muted', text: 'She sings with' }), chip('voice', 'Her voice'), chip('guitar', 'A guitar')),
         h('p', { class: 'small muted', text: 'The intervals are the ones you have opened in the Intervals quiz, and every answer counts there too.' }),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => play() }, '▶ Start climbing'))),
@@ -167,18 +173,18 @@ tool('tower', {
         timeBar.hidden = !ttl;
         const bar = timeBar.firstChild; bar.style.transition = 'none'; bar.style.width = '100%';
         const qNow = q;
+        t0 = performance.now() + 1600;
         later(() => {
           t0 = performance.now();
           if (!ttl) return;
           requestAnimationFrame(() => { bar.style.transition = 'width ' + ttl + 's linear'; bar.style.width = '0%'; });
           later(() => { if (q === qNow && !answered) answer(null); }, ttl * 1000);
         }, 1600);
-        if (!t0) t0 = performance.now();
       }
       function answer(id) {
         if (answered || !q) return;
         answered = true; asked++;
-        const ok = id === q.iv, rt = (performance.now() - t0) / 1000, st = towerStage(Math.floor(step / TOWER));
+        const ok = id === q.iv, rt = Math.max(0, (performance.now() - t0) / 1000), st = towerStage(Math.floor(step / TOWER));
         E.record('intervals', q.item.id, ok, { confused: id ? id + ':' + q.dir : undefined, rt: rt * 1000 });
         ctx.tick(1);
         [...choices.children].forEach(b => { b.disabled = true; const bid = b.firstChild.textContent; if (bid === q.iv) b.classList.add('correct'); else if (bid === id) b.classList.add('wrong'); });
