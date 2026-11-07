@@ -8,7 +8,7 @@
 export const SCHEMA = 11;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
-export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder', 'readingClickVol'];
+export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder', 'readingClickVol', 'readingZoom'];
 
 import { mergeGames } from './games.js';
 

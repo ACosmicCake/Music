@@ -506,7 +506,7 @@ function scoresMode(root, lv, ctx, p) {
       const kind = pdf ? 'PDF' : photos.length > 1 ? 'photos' : 'photo';
       pageHint.hidden = false;
       if (!layout) { pageHint.textContent = 'Read the notes again in the Library (Read the notes again) to read from the ' + kind + ' itself in full screen: this reading is older than that.'; return null; }
-      pageHint.textContent = 'In full screen you read from the ' + kind + ' itself, page by page as printed, with the cursor over its notes (📄 The page there switches it).';
+      pageHint.textContent = 'In full screen you read from the ' + kind + ' itself, page by page as printed, with the cursor over its notes; zoom in with + or a pinch and the page scrolls along as you read (📄 The page there switches it).';
       return {
         layout, kind, row: PL.rowOf(layout, { part: mel.part, staff: mel.staff }),
         on: () => saved().pages !== false,
@@ -831,18 +831,25 @@ function melodyMode(root, lv, ctx, own) {
   const fsPrev = h('button', { class: 'btn small', 'aria-label': 'Previous page', onclick: () => { if (pv) pv.turn(-1); } }, '‹');
   const fsPage = h('span', { class: 'mono small sr-fspage' });
   const fsNextPage = h('button', { class: 'btn small', 'aria-label': 'Next page', onclick: () => { if (pv) pv.turn(1); } }, '›');
+  // zoom, as a word processor has it (src/ui/pageview.js): − and +, the size (a tap shows the whole page again)
+  // and fit to width; a pinch or Ctrl + the wheel too. Kept per device, settings.readingZoom
+  const fsZoomPct = h('button', { class: 'btn small sr-zpct', title: 'Show the whole page', onclick: () => { if (pv) pv.setZoom('page'); } });
+  const fsFitW = h('button', { class: 'btn small', title: 'Make the page as wide as the screen', onclick: () => { if (pv) pv.setZoom(pv.zoom() === 'width' ? 'page' : 'width'); } });
+  const fsZoom = h('span', { class: 'sr-fszoom', role: 'group', 'aria-label': 'Zoom' },
+    h('button', { class: 'btn small', 'aria-label': 'Zoom out', title: 'Zoom out', onclick: () => { if (pv) pv.zoomOut(); } }, '−'), fsZoomPct,
+    h('button', { class: 'btn small', 'aria-label': 'Zoom in', title: 'Zoom in', onclick: () => { if (pv) pv.zoomIn(); } }, '+'), fsFitW);
   const fsVol = h('button', { class: 'btn small', 'aria-label': 'Click volume', onclick: () => { nextClickVol(); paintFs(); } });
   const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsPrevSec, fsSecCount, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
     h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
-    fsVol, fsCursor, fsPages, fsPrev, fsPage, fsNextPage);
+    fsVol, fsCursor, fsPages, fsPrev, fsPage, fsNextPage, fsZoom);
   function paintFs() {
     fsBpm.textContent = bpm + ' bpm';
     fsVol.textContent = '🔊 ' + clickVol()[2];
     fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single); fsPrevSec.hidden = !!run || !sectioned;
     if (sectioned && cur.total) fsSecCount.textContent = cur.no + '/' + cur.total;
     fsCursor.textContent = (CURSORS.find(c => c[0] === cursorMode()) || CURSORS[0])[1];
-    if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = true; return; }
+    if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = fsZoom.hidden = true; return; }
     fsPages.textContent = paged.on() ? '♫ One line' : '📄 The page';
     fsPages.setAttribute('aria-label', paged.on() ? 'Read it on one line instead' : 'Read it from the ' + paged.kind + ' itself');
     const on = usePages();
@@ -850,13 +857,21 @@ function melodyMode(root, lv, ctx, own) {
     fsPage.hidden = !(on || (paged.on() && full));
     fsPage.textContent = on ? pv.label() : 'Opening the ' + paged.kind + '…';
     if (on) { fsPrev.disabled = !pv.canTurn(-1); fsNextPage.disabled = !pv.canTurn(1); }
+    fsZoom.hidden = !on;
+    if (on) {
+      const z = pv.zoom();
+      fsZoomPct.textContent = pv.zoomText();
+      fsZoomPct.setAttribute('aria-label', 'Zoom ' + pv.zoomText() + (z === 'page' ? ', the whole page' : '; tap to show the whole page'));
+      fsFitW.textContent = z === 'width' ? '▯ Page' : '↔ Width';
+      fsFitW.setAttribute('aria-pressed', z === 'width' ? 'true' : 'false');
+    }
   }
   function loadPages() {
     if (pv || pvLoading || !paged) return pvLoading;
     pvLoading = Promise.all([import('../ui/pageview.js'), paged.source()]).then(async ([PV, src]) => {
       const source = await PV.openSource(src);
       if (gone) { source.close(); return; }
-      pv = PV.PageView(source, paged.layout);
+      pv = PV.PageView(source, paged.layout, { zoom: E.state.settings.readingZoom, onZoom: z => { E.setSetting('readingZoom', z); paintFs(); } });
       pv.onTurn = () => paintFs();
       if (full && !run) draw();
       paintFs();
@@ -869,6 +884,10 @@ function melodyMode(root, lv, ctx, own) {
     if (!usePages() || (e.target && e.target.closest && e.target.closest('input, select, textarea'))) return;
     if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pv.turn(1); }
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); pv.turn(-1); }
+    else if (e.ctrlKey || e.metaKey || e.altKey) return;
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); pv.zoomIn(); }
+    else if (e.key === '-') { e.preventDefault(); pv.zoomOut(); }
+    else if (e.key === '0') { e.preventDefault(); pv.setZoom('page'); }
   };
   let resizeT = 0;
   const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (full && !run) draw(); }, 200); };
