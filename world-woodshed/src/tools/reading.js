@@ -230,7 +230,10 @@ function playRun(o) {
 function staffWidth(holder) { return Math.max(260, (holder.clientWidth || 320) - 4); }
 
 const paperOn = () => !!E.state.settings.readingPaper;
-const accOn = () => !!E.state.settings.readingAcc;
+/* Sharps and flats on any level (settings.readingAcc): off, both (true, as the old switch saved it), or one kind */
+const ACC_MODES = [[false, 'Off'], [true, '♯ and ♭'], ['sharps', '♯ only'], ['flats', '♭ only']];
+const accMode = () => { const v = E.state.settings.readingAcc; return v === 'sharps' || v === 'flats' ? v : !!v; };
+const accOnly = () => ({ sharps: '#', flats: 'b' })[accMode()];
 /* how many bars a rhythm or melody runs to, and whether the next one follows by itself */
 const LENGTHS = [4, 8, 16];
 const lenFor = kind => { const v = (E.state.settings.readingLen || {})[kind]; return LENGTHS.includes(v) ? v : 8; };
@@ -264,11 +267,15 @@ tool('sightread', {
     const how = h('details', { class: 'card sr-how' },
       h('summary', {}, h('b', { text: 'How to sight-read' })),
       h('ul', { class: 'sr-howlist' }, HOW_TO.map(([t, d]) => h('li', {}, h('b', { text: t + '. ' }), d))));
-    const accBox = h('label', { class: 'check small sr-acctoggle' }, h('input', { type: 'checkbox', checked: accOn() ? true : null, onchange: e => { E.setSetting('readingAcc', e.target.checked); renderLevel(); renderMode(); } }), 'Sharps and flats: add ♯ and ♭ beside the notes, at any level');
+    const accSeg = h('div', { class: 'seg sr-accseg', role: 'group', 'aria-label': 'Sharps and flats' });
+    const paintAcc = () => accSeg.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', ACC_MODES[i][0] === accMode() ? 'true' : 'false'));
+    ACC_MODES.forEach(([v, label]) => accSeg.append(h('button', { onclick: () => { if (accMode() === v) return; E.setSetting('readingAcc', v); paintAcc(); renderLevel(); renderMode(); } }, label)));
+    paintAcc();
+    const accBox = h('div', { class: 'sr-acctoggle' }, h('span', { class: 'small', text: 'Sharps and flats beside the notes, at any level' }), accSeg);
     wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, how);
     body.append(wrap);
 
-    const L = () => accOn() ? withAccidentals(LEVELS[level - 1]) : LEVELS[level - 1];
+    const L = () => accMode() ? withAccidentals(LEVELS[level - 1], accOnly()) : LEVELS[level - 1];
     const go = n => { level = clampLevel(n); renderLevel(); renderMode(); };
     function renderLevel() {
       const top = unlocked(), lv = L();
@@ -295,7 +302,7 @@ tool('sightread', {
           h('h2', { text: lv.name }),
           h('button', { class: 'btn small', 'aria-label': 'Next level', disabled: level >= LEVELS.length ? true : null, onclick: () => go(level + 1) }, '→')),
         h('p', { text: lv.goal }),
-        lv.acc ? h('p', { class: 'small muted sr-accnote', text: 'With sharps and flats: notes can carry a ♯ or ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' }) : '',
+        lv.acc ? h('p', { class: 'small muted sr-accnote', text: lv.accOnly === '#' ? 'With sharps only: notes can carry a ♯ (and a ♮ to cancel it), which lasts to the end of the bar.' : lv.accOnly === 'b' ? 'With flats only: notes can carry a ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' : 'With sharps and flats: notes can carry a ♯ or ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' }) : '',
         locked ? h('p', { class: 'small sr-preview', text: 'Preview: this level unlocks when you read level ' + top + ' reliably (notes, rhythm and melody). You can still try it.' }) : '',
         h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))),
         path);

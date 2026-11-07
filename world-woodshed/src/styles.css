@@ -697,6 +697,8 @@ html.compact .tn-note { font-size: 2.4rem; }
 .sr-stage { display: grid; gap: 4px; }
 .sr-opts { gap: 8px; }
 .sr-len button { min-width: 0; }
+.sr-acctoggle { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.sr-accseg button { min-width: 0; }
 .sr-run { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .sr-run li { font-size: 0.85rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--sunk); }
 .sr-run li.ok { border-color: var(--good); }

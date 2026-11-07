@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
-import { LEVELS, STAGES, withAccidentals, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
+import { LEVELS, STAGES, withAccidentals, wrongSign, noteCard, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
 import { parseChord } from '../src/theory.js';
 import { parseTime, keyScale, KEYS } from '../src/notation.js';
 import { loadDrills } from '../src/content/lazy.js';
@@ -107,6 +107,29 @@ describe('sight-reading generators', () => {
       }
     }
     expect(outsideKey).toBeGreaterThan(LEVELS.length * 3);
+  });
+  for (const [only, name] of [['#', 'sharps'], ['b', 'flats']]) it('with ' + name + ' only, writes no sign of the other kind beside a note and still shows ' + name, () => {
+    let shown = 0;
+    for (const L0 of LEVELS) {
+      const L = withAccidentals(L0, only);
+      expect(L.accOnly).toBe(only);
+      for (let i = 0; i < 12; i++) {
+        const m = genMelody(L, { bars: 8 });
+        expect(m.bars.length, 'level ' + L0.id).toBe(8);
+        if (L.chords) continue;
+        const sc = keyScale(m.key);
+        expect(m.bars.flat().some(n => n.midi != null && !sc.includes(n.midi % 12)), 'level ' + L0.id).toBe(true);
+        for (const n of m.bars.flat()) {
+          expect(wrongSign(n.midi, m.key, n.spell, only), 'level ' + L0.id + ' ' + m.key + ' ' + n.midi).toBe(false);
+          if (n.midi != null && !sc.includes(n.midi % 12)) shown++;
+        }
+      }
+      for (const midi of L.notes) {
+        const c = noteCard(L, midi);
+        expect(only === '#' ? c.alter >= 0 : c.alter <= 0, 'level ' + L0.id + ' card ' + c.name).toBe(true);
+      }
+    }
+    expect(shown).toBeGreaterThan(LEVELS.length * 3);
   });
   it('leaves the levels themselves alone', () => {
     const before = JSON.stringify(LEVELS[0]);
