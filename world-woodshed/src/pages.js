@@ -163,7 +163,7 @@ Object.assign(PAGES, {
         const m = Math.round(E.mastery(k)), tr = E.trend(k);
         const due = k !== 'technique' ? E.dueCount(k) : 0, lp = k !== 'technique' ? E.levelProgress(k) : null;
         sec.append(h('button', { class: 'tile', style: { gridTemplateColumns: '1fr' }, onclick: () => openTool(E.SKILLS[k].tool, { returnTab: 'today' }) },
-          h('div', { class: 'skillrow' }, h('span', {}, E.SKILLS[k].name + (k !== 'technique' ? ' · level ' + E.unlockedTier(k) : ''), due ? h('span', { class: 'badge brass', text: due + ' due' }) : ''), h('span', { class: 'mono', style: { textAlign: 'right' }, text: m + '%' }),
+          h('div', { class: 'skillrow progrow' }, h('span', { class: 'sk-name' }, h('span', { text: E.SKILLS[k].name }), k !== 'technique' || due ? h('span', { class: 'sk-sub' }, k !== 'technique' ? h('span', { class: 'small muted', text: 'Level ' + E.unlockedTier(k) }) : '', due ? h('span', { class: 'badge brass', text: due + ' due' }) : '') : ''), h('span', { class: 'mono', style: { textAlign: 'right' }, text: m + '%' }),
             h('span', { class: 'mono small ' + (tr > 0 ? 'trend-up' : tr < 0 ? 'trend-down' : 'muted'), style: { textAlign: 'right' }, text: tr === null ? '' : (tr > 0 ? '+' : '') + Math.round(tr) }), bar(m)),
           lp && E.skillState(k).last ? h('span', { class: 'small muted', text: lp.text }) : ''));
       });
