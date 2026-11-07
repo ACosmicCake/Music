@@ -986,6 +986,8 @@ html.compact .sr-lv { padding: 2px 6px; min-width: 44px; min-height: 44px; font-
 .bad-text { color: var(--bad); margin: 0; }
 .ghsync { border-top: 1px solid var(--line); padding-top: 10px; }
 .ghsync p { margin: 0; }
+.linkqr { background: #fff; border-radius: 8px; padding: 6px; width: min(100%, 260px); align-self: center; }
+.linkqr svg { display: block; width: 100%; height: auto; }
 
 /* Sight-reading full screen: one long line of music that slides along, under a single row of controls */
 .sr-fs { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; flex-direction: column;
