@@ -13,6 +13,7 @@ import { playerBoost } from './taste.js';
 import { favsOf } from './favlist.js';
 import { GYM } from './content/gym.js';
 import { BLOCKS } from './routines.js';
+import { ARP_ORDER, arpPositions } from './arpeggios.js';
 
 const DAY = 86400000, HOUR = 3600000;
 
@@ -21,8 +22,8 @@ export const PACE = {
   steady: { name: 'Steady', newPerDay: 2, desc: 'Two new things a day, plus reviews. The default.' },
   fast: { name: 'Fast', newPerDay: 3, desc: 'Up to three new things a day if you practise most days for an hour or more.' }
 };
-const MOTOR = new Set(['warm', 'tech', 'rhythm', 'tune', 'drill', 'piece']);
-const KIND_NAME = { warm: 'scale', tech: 'technique', rhythm: 'rhythm', tune: 'tune', lesson: 'lesson', drill: 'style drill', piece: 'Library piece' };
+const MOTOR = new Set(['warm', 'arp', 'tech', 'rhythm', 'tune', 'drill', 'piece']);
+const KIND_NAME = { warm: 'scale', arp: 'arpeggio', tech: 'technique', rhythm: 'rhythm', tune: 'tune', lesson: 'lesson', drill: 'style drill', piece: 'Library piece' };
 
 /* ---------- state ---------- */
 function cur() {
@@ -65,6 +66,11 @@ function baseCatalog() {
     const sc = D.SCALES.find(x => x.id === id);
     if (!sc || !sc.steps.every(Number.isInteger)) return;
     list.push({ id: 'warm:' + id, kind: 'warm', ref: id, name: sc.name, tier: sc.tier, order: i, styles: stylesOfScale(id) });
+  });
+  // arpeggios: every chord type, triads and the four jazz sevenths first (ARP_ORDER)
+  ARP_ORDER.forEach((id, i) => {
+    const c = D.CHORDS.find(x => x.id === id); if (!c) return;
+    list.push({ id: 'arp:' + id, kind: 'arp', ref: id, name: c.name + ' arpeggio', tier: c.tier, order: i, styles: c.tier >= 3 ? ['jazz'] : [] });
   });
   TECH_ORDER.forEach((id, i) => {
     const ex = D.EXERCISES.find(x => x.id === id); if (!ex) return;
@@ -324,6 +330,21 @@ export function warmDetails(item) {
   return { scale: item.ref, tonic: key, pattern, start, bpm, smart: true, autoPos: s >= 10 };
 }
 
+/* The same for an arpeggio: key, pattern, position and tempo rotate as it settles */
+export function arpDetails(item) {
+  const it = cur().items[item.id];
+  const s = it ? it.s : 0;
+  const allowed = KEY_ORDER.slice(0, Math.min(12, 3 + Math.floor(s / 3)));
+  const used = (it && it.keys) || {};
+  const key = allowed.slice().sort((a, b) => (used[a] || 0) - (used[b] || 0))[0];
+  const pats = s < 3 ? ['updown'] : s < 7 ? ['updown', 'downup'] : s < 14 ? ['inversions', 'thirds', 'downup'] : ['inversions', 'thirds', 'fours'];
+  const pattern = pats.filter(p => p !== (it && it.pattern))[0] || pats[0];
+  const starts = arpPositions(key, E.STRINGS.map(x => x.midi));
+  const start = s < 5 ? starts.find(x => x <= 7) ?? starts[0] : starts[Math.floor(Math.random() * starts.length)];
+  const bpm = Math.round((it && it.bpm) || 60);
+  return { chord: item.ref, root: key, pattern, start, bpm, smart: true, autoPos: s >= 10 };
+}
+
 /* ---------- planning a session ---------- */
 const EAR_TOOLS = ['intervals', 'chords', 'degrees', 'progressions', 'scales', 'dictation'];
 function earPick(ctx, exclude) {
@@ -341,7 +362,7 @@ export function planSession(minutes) {
   const used = new Set();
   let newTaken = false, starters = 0;
   // which kind gets this session's one new item: the one with the least introduced so far, relative to its size
-  const kinds = ['warm', 'tech', 'rhythm', 'tune'].concat((D.DRILLS || []).length ? ['drill'] : []);
+  const kinds = ['warm', 'arp', 'tech', 'rhythm', 'tune'].concat((D.DRILLS || []).length ? ['drill'] : []);
   const share = k => introduced(k).length / Math.max(1, catalog().filter(x => x.kind === k).length) + Math.random() * 0.02;
   const newKind = kinds.slice().sort((a, b) => share(a) - share(b))[0];
   // fewer, longer blocks for beginners; more variety (interleaving) as the player advances
@@ -363,8 +384,16 @@ export function planSession(minutes) {
   let rerun = ctx.evening && ctx.sessionNo > 1 && freshTech.length ? freshTech[0] : null;
 
   // 1. warm-up: a scale on the neck
-  const w = pickItem('warm');
-  if (w) add('warm', 0.13, w);
+  // and an arpeggio: a warm-up block of its own from 15 minutes; in a shorter session it takes the scale's
+  // place only when it is due for review and the scale isn't
+  const short = minutes < 15;
+  const isReview = kind => (choose(kind, ctx, used, { newTaken: true }) || {}).tag === 'review';
+  if (short && isReview('arp') && !isReview('warm')) { const a = pickItem('arp'); if (a) add('arp', 0.13, a); }
+  else {
+    const w = pickItem('warm');
+    if (w) add('warm', 0.13, w);
+    if (!short) { const a = pickItem('arp'); if (a) add('arp', 0.09, a); }
+  }
   // 2. the core, ranked by need
   const cands = [];
   const tech = pickItem('tech'); if (tech) cands.push(['tech', 0.17, tech]);
@@ -412,7 +441,7 @@ export function planSession(minutes) {
   if (rerun) add('rerun', 0.07, { item: rerun, why: 'Before sleep: a few minutes on today’s new ' + KIND_NAME[rerun.kind] + '. Sleep helps lock in what you practised today.' });
 
   // order: warm-up, then new material while fresh, then alternate kinds, study at the end
-  const pos = b => b.kind === 'warm' ? 0 : b.isNew ? 1 : b.kind === 'rerun' ? 9 : ['lesson', 'listen'].includes(b.kind) ? 8 : 2;
+  const pos = b => b.kind === 'warm' || b.kind === 'arp' ? 0 : b.isNew ? 1 : b.kind === 'rerun' ? 9 : ['lesson', 'listen'].includes(b.kind) ? 8 : 2;
   blocks.sort((a, b) => pos(a) - pos(b));
   for (let i = 2; i < blocks.length - 1; i++) {
     if (blocks[i].kind === blocks[i - 1].kind) { const j = blocks.findIndex((x, k) => k > i && x.kind !== blocks[i].kind && pos(x) === pos(blocks[i])); if (j > 0) [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; }
@@ -444,6 +473,7 @@ function toBlock(b) {
   const it = b.item;
   switch (b.kind) {
     case 'warm': Object.assign(out, { type: 'scalewarm', params: warmDetails(it), cur: it.id, reason: b.why }); break;
+    case 'arp': Object.assign(out, { type: 'arpwarm', params: arpDetails(it), cur: it.id, reason: b.why }); break;
     case 'tech': Object.assign(out, { type: 'technique', params: { exercise: it.ref }, cur: it.id, reason: b.why }); break;
     case 'rhythm': Object.assign(out, { type: 'rhythms', params: { rhythm: it.ref }, cur: it.id, reason: b.why }); break;
     case 'tune': Object.assign(out, { type: 'repertoire', params: { tune: it.ref }, cur: it.id, reason: b.why }); break;
@@ -451,8 +481,8 @@ function toBlock(b) {
     case 'drill': Object.assign(out, { type: 'drill', params: { drill: it.ref }, cur: it.id, reason: b.why }); break;
     case 'piece': Object.assign(out, { type: 'piece', params: { entry: it.ref }, cur: it.id, reason: b.why }); break;
     case 'rerun': {
-      const t = { warm: 'scalewarm', tech: 'technique', rhythm: 'rhythms', tune: 'repertoire', drill: 'drill', piece: 'piece' }[it.kind];
-      Object.assign(out, { type: t, params: it.kind === 'warm' ? warmDetails(it) : { exercise: it.ref, rhythm: it.ref, tune: it.ref, drill: it.ref, entry: it.ref }, cur: it.id, reason: b.why });
+      const t = { warm: 'scalewarm', arp: 'arpwarm', tech: 'technique', rhythm: 'rhythms', tune: 'repertoire', drill: 'drill', piece: 'piece' }[it.kind];
+      Object.assign(out, { type: t, params: it.kind === 'warm' ? warmDetails(it) : it.kind === 'arp' ? arpDetails(it) : { exercise: it.ref, rhythm: it.ref, tune: it.ref, drill: it.ref, entry: it.ref }, cur: it.id, reason: b.why });
       break;
     }
     case 'ear': Object.assign(out, { type: E.SKILLS[b.ear.k].tool, reason: 'Ear: ' + Math.round(b.ear.m) + '% mastered' + (b.ear.due >= 3 ? ', ' + b.ear.due + ' items due' : '') + '. Missed items come back sooner.' }); break;
@@ -496,7 +526,7 @@ export function migrate() {
 }
 
 /* ---------- swapping a block ---------- */
-const KIND_OF = { scalewarm: 'warm', technique: 'tech', rhythms: 'rhythm', repertoire: 'tune', lesson: 'lesson', drill: 'drill', piece: 'piece' };
+const KIND_OF = { scalewarm: 'warm', arpwarm: 'arp', technique: 'tech', rhythms: 'rhythm', repertoire: 'tune', lesson: 'lesson', drill: 'drill', piece: 'piece' };
 /* A block for a chosen type and (optionally) specific content, wired for grading */
 export function blockFor(type, ref, minutes) {
   const kind = KIND_OF[type];
@@ -563,7 +593,7 @@ export function stats() {
     learned: items.length,
     due: items.filter(o => overdue(o.it, now) >= 0.9 && MOTOR.has(o.x.kind)).length,
     strong: items.filter(o => o.it.s >= 21).length,
-    byKind: ['warm', 'tech', 'rhythm', 'tune', 'drill', 'piece', 'lesson'].filter(k => (k !== 'drill' || (D.DRILLS || []).length) && (k !== 'piece' || pieces().length)).map(k => ({ kind: k, name: KIND_NAME[k], n: items.filter(o => o.x.kind === k).length, total: catalog().filter(x => x.kind === k).length }))
+    byKind: ['warm', 'arp', 'tech', 'rhythm', 'tune', 'drill', 'piece', 'lesson'].filter(k => (k !== 'drill' || (D.DRILLS || []).length) && (k !== 'piece' || pieces().length)).map(k => ({ kind: k, name: KIND_NAME[k], n: items.filter(o => o.x.kind === k).length, total: catalog().filter(x => x.kind === k).length }))
   };
 }
 export function upcoming(n = 6) {
@@ -579,4 +609,4 @@ export function dueAt(t = Date.now()) {
     .sort((a, b) => b.overdue - a.overdue);
 }
 
-export default { alternatives, favourites, chooseFav, isFavItem, blockFor, migrate, PACE, prefs, setPrefs, catalog, pieces, itemState, dueInDays, review, gradeFromScore, choose, context, planSession, warmDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };
+export default { alternatives, favourites, chooseFav, isFavItem, blockFor, migrate, PACE, prefs, setPrefs, catalog, pieces, itemState, dueInDays, review, gradeFromScore, choose, context, planSession, warmDetails, arpDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };

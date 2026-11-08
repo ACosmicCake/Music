@@ -165,7 +165,7 @@ describe('planSession', () => {
   it('never plans more than one new item in a session once the starters are in', () => {
     // a player with one item of every kind already learned yesterday
     Cur.setPrefs({ pace: 'fast' });
-    ['warm', 'tech', 'rhythm', 'tune', 'drill'].forEach(k => { const x = Cur.catalog().find(c => c.kind === k); if (x) Cur.review(x.id, 'good'); });
+    ['warm', 'arp', 'tech', 'rhythm', 'tune', 'drill'].forEach(k => { const x = Cur.catalog().find(c => c.kind === k); if (x) Cur.review(x.id, 'good'); });
     E.state.cur.days = {};
     Object.values(E.state.cur.items).forEach(it => { it.last -= DAY; it.intro -= DAY; });
     const { blocks } = Cur.planSession(60);
@@ -224,6 +224,32 @@ describe('favourite players', () => {
     Cur.setPrefs({ styles: [], players: ['monk'] });
     expect(Cur.choose('tune', Cur.context()).item.players).toContain('monk');
   });
+
+describe('arpeggios in the plan', () => {
+  it('lists every arpeggio and plans one in a session of 15 minutes or more, with its key, pattern and tempo', () => {
+    expect(Cur.catalog().filter(x => x.kind === 'arp').length).toBe(18);
+    const { blocks } = Cur.planSession(30);
+    const b = blocks.find(x => x.type === 'arpwarm');
+    expect(b).toBeTruthy();
+    expect(b.cur).toMatch(/^arp:/);
+    expect(b.params).toMatchObject({ chord: b.cur.slice(4), smart: true });
+    expect(b.params.root).toBeGreaterThanOrEqual(0);
+    expect(b.params.bpm).toBeGreaterThan(0);
+    // the warm-ups come first: the scale, then the arpeggio
+    expect(blocks[0].type).toBe('scalewarm');
+    expect(blocks[1].type).toBe('arpwarm');
+  });
+  it('puts an arpeggio due for review in place of the scale in a short session', () => {
+    const a = Cur.catalog().find(x => x.kind === 'arp'), w = Cur.catalog().find(x => x.kind === 'warm');
+    Cur.review(a.id, 'good'); Cur.review(w.id, 'good');
+    E.state.cur.days = {};
+    item(a.id).last -= 10 * DAY;
+    const { blocks } = Cur.planSession(10);
+    expect(blocks.some(x => x.type === 'arpwarm' && x.cur === a.id)).toBe(true);
+    expect(blocks.some(x => x.type === 'scalewarm')).toBe(false);
+  });
+});
+
 });
 
 describe('favourites in the plan', () => {
