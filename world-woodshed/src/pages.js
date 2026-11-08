@@ -38,7 +38,7 @@ function toolTile(id, extra) {
   const tile = h('button', { class: 'tile' + (t.game ? ' game-tile' : ''), onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: meter }));
   return extra && extra.star ? withStar(tile, 'tool', id, t.title, extra.star) : tile;
 }
-/* Your favourites at the top of Train: tools, Rhythm gym and technique exercises, style drills (src/ui/favs.js) */
+/* A favourite's tile on Train → ★ Favourites: tools, Rhythm gym and technique exercises, style drills (src/ui/favs.js) */
 function favTile(f, redraw) {
   const go = (tool, params, title, desc) => withStar(h('button', { class: 'tile', onclick: () => openTool(tool, { params, returnTab: 'train' }) }, h('span', { class: 't-title', text: title }), h('span', { class: 't-desc', text: desc })), f.kind, f.id, title, redraw);
   if (f.kind === 'tool') return TOOLS[f.id] ? toolTile(f.id, { returnTab: 'train', star: redraw }) : null;
@@ -47,19 +47,32 @@ function favTile(f, redraw) {
   if (f.kind === 'drill') { const x = D.DRILLS.find(d => d.id === f.id); return x && TOOLS.drill ? go('drill', { drill: x.id }, x.name, 'Style drill · ' + (x.goal || '')) : null; }
   return null;
 }
-function favSection(changed) {
-  const sec = h('section', { class: 'stack tool-group fav-group' });
+/* Train → ★ Favourites: everything starred, grouped by kind. Unstarring a tile here takes it off the page. */
+const FAV_GROUPS = [
+  ['Tools', f => f.kind === 'tool' && !(TOOLS[f.id] || {}).game],
+  ['Games', f => f.kind === 'tool' && !!(TOOLS[f.id] || {}).game],
+  ['Rhythm gym', f => f.kind === 'gym'],
+  ['Technique', f => f.kind === 'tech'],
+  ['Style drills', f => f.kind === 'drill']
+];
+function favPage() {
+  const page = h('div', { class: 'stack fav-page' });
   const draw = () => {
-    sec.innerHTML = '';
-    const tiles = favList().map(f => favTile(f, changed || draw)).filter(Boolean);
-    sec.append(h('h2', { class: 'eyebrow', text: '★ Your favourites' }), tiles.length ? h('div', { class: 'tools' }, tiles)
-      : h('p', { class: 'small muted', text: 'Tap ☆ beside a tool, a Rhythm gym or technique exercise or a style drill to keep it here.' }));
+    page.innerHTML = '';
+    const all = favList();
+    FAV_GROUPS.forEach(([name, test]) => {
+      const tiles = all.filter(test).map(f => favTile(f, draw)).filter(Boolean);
+      if (tiles.length) page.append(h('section', { class: 'stack tool-group' }, h('h2', { class: 'eyebrow', text: name }), h('div', { class: 'tools' }, tiles)));
+    });
+    if (!page.childNodes.length) page.append(h('div', { class: 'card stack' }, h('h2', { text: 'Nothing starred yet' }),
+      h('p', { class: 'small', text: 'Tap ☆ beside any tool or game in Train, a Rhythm gym or technique exercise, or a style drill, and it comes here, so what you practise most is one tap away. Your favourites sync to your other devices with the rest of your progress.' }),
+      h('div', { class: 'row' }, Object.entries(TRAIN).filter(([k]) => k !== 'favs').map(([k, x]) => h('button', { class: 'btn small', onclick: () => go('train', k) }, x.name)))));
   };
   draw();
-  sec.redraw = draw;
-  return sec;
+  return page;
 }
 const TRAIN = {
+  favs: { name: '★', label: 'Favourites', title: 'Your favourites', favs: true, tools: [], tip: 'Stars are kept with your progress, so they follow you to every device you sync.' },
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
   play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['tuner', 'scalewarm', 'technique', 'drill', 'sightread', 'notenames', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'],
@@ -195,15 +208,15 @@ Object.assign(PAGES, {
     view.append(settingsLink('Your guitar, display, sounds, microphone, sync and backups'));
   },
   train() {
-    const sec = TRAIN[ui.section.train] ? ui.section.train : 'ear';
+    // with no section chosen yet, Train opens on your favourites if you have any
+    const sec = TRAIN[ui.section.train] ? ui.section.train : favList().length ? 'favs' : 'ear';
     const t = TRAIN[sec];
     view.append(h('div', { class: 'pagehead' }, h('span', { class: 'eyebrow', text: 'Train' }), h('h1', { text: t.title })));
-    view.append(h('div', { class: 'seg big' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', onclick: () => go('train', k) }, x.name))));
-    const redraw = () => { favs.redraw(); repaintStars(view); };
-    const favs = favSection(redraw);
-    view.append(favs);
+    view.append(h('div', { class: 'seg big train-seg' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', 'aria-label': x.label || null, title: x.label || null, onclick: () => go('train', k) }, x.name))));
+    const redraw = () => repaintStars(view);
+    if (t.favs) view.append(favPage());
     if (t.groups) t.groups.forEach(([name, ids]) => view.append(h('section', { class: 'stack tool-group' }, h('h2', { class: 'eyebrow', text: name }), h('div', { class: 'tools' }, ids.map(id => toolTile(id, { returnTab: 'train', star: redraw }))))));
-    else view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train', star: redraw }))));
+    else if (!t.favs) view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train', star: redraw }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
     view.append(settingsLink('Your guitar (tuning, capo, left-handed), display, sounds and microphone'));
   }

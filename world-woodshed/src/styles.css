@@ -328,6 +328,7 @@ html.compact .save-banner { margin: 6px 8px 0; font-size: 0.82rem; }
 input[type="search"].search { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 10px 16px; min-height: 44px; font: inherit; }
 .seg.big { display: flex; width: 100%; }
 .seg.big button { flex: 1; padding: 10px 8px; font-size: 0.95rem; }
+.seg.big.train-seg button[aria-label="Favourites"] { flex: 0 0 auto; padding-left: 16px; padding-right: 16px; }
 .formgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .field { gap: 4px; }
 .field select, .field input, .field textarea { width: 100%; }
