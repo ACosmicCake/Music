@@ -62,10 +62,10 @@ function autoGrade(b) {
 }
 function applyGrade(b, grade) {
   const g = b.signals || {}, info = {};
-  if (b.type === 'scalewarm' && b.params) {
+  if ((b.type === 'scalewarm' || b.type === 'arpwarm') && b.params) {
     const base = g.bpm || b.params.bpm || 66;
     info.bpm = g.clean || g.notClean ? base : base + ({ easy: 4, good: 2, hard: -4, again: -8 }[grade] || 0);
-    info.key = b.params.tonic; info.pattern = b.params.pattern;
+    info.key = b.params.tonic ?? b.params.root; info.pattern = b.params.pattern;
   }
   Cur.review(b.cur, grade, info);
   b.rated = grade; b.askRating = false;

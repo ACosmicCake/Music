@@ -5,11 +5,13 @@ import E from '../engine.js';
 import { h } from './core.js';
 import { BLOCKS, BLOCK_ORDER, CATS, blockTitle, describe, fmtMin, warmScales } from '../routines.js';
 import { GYM } from '../content/gym.js';
+import { ARP_ORDER } from '../arpeggios.js';
 
 /* What can be picked inside each block type */
 function contentFor(type) {
   switch (type) {
     case 'scalewarm': return warmScales().map(x => [x.id, x.name]);
+    case 'arpwarm': return ARP_ORDER.map(id => [id, (D.CHORDS.find(c => c.id === id) || {}).name]);
     case 'technique': return D.EXERCISES.map(x => [x.id, x.name]);
     case 'rhythms': return D.RHYTHMS.map(x => [x.id, x.name + ' · ' + ((D.REGIONS.find(r => r.id === x.region) || {}).name || '')]);
     case 'repertoire': return E.listTunes().map(x => [x.id, x.name + ' · your tune']).concat(D.TUNES.map(x => [x.id, x.name]));
