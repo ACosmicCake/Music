@@ -1,7 +1,7 @@
 /* World Woodshed — practice session runner: timer, session bar, time-up chime, finish screen */
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, bar } from './core.js';
+import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, bar, TOOLS } from './core.js';
 import { BLOCKS, CATS, paramsFor, blockTitle, describe, fmtClock, fmtMin, totalOf } from '../routines.js';
 import Cur from '../curriculum.js';
 import { openSwap } from './swap.js';
@@ -40,7 +40,8 @@ export function runCurrent() {
   ensureTicker();
   // resolve 'auto' choices once, so coming back to a block opens the same exercise or tune
   if (!b.resolved) { b.params = paramsFor(b, new Set(s.blocks.map(x => x.cur).filter(Boolean))); b.resolved = true; E.touchSession(); }
-  openTool(BLOCKS[b.type].tool, { session: true, params: b.params, returnTab: 'routine' });
+  // a favourite game runs in a block of the type whose skill it practises (src/curriculum.js), with its own tool
+  openTool(b.tool && TOOLS[b.tool] ? b.tool : BLOCKS[b.type].tool, { session: true, params: b.params, returnTab: 'routine' });
 }
 export function jump(i) {
   const s = E.session(); if (!s) return;

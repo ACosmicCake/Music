@@ -5,10 +5,14 @@
    depending on how it went and on how long it had been (gains are bigger after longer gaps; massed
    repetition on the same day adds little). New items come in slowly, in prerequisite order, from the styles
    the player ranks first, and only when reviews are under control. Sessions are planned for the time the
-   player has right now and take earlier sessions on the same day into account. */
+   player has right now and take earlier sessions on the same day into account. The player's starred favourites
+   (Train → ★ Favourites) are mixed in for variety: one in most sessions, after the reviews and new material. */
 import D from './data.js';
 import E from './engine.js';
 import { playerBoost } from './taste.js';
+import { favsOf } from './favlist.js';
+import { GYM } from './content/gym.js';
+import { BLOCKS } from './routines.js';
 import { ARP_ORDER, arpPositions } from './arpeggios.js';
 
 const DAY = 86400000, HOUR = 3600000;
@@ -100,8 +104,8 @@ export function review(id, grade, info = {}) {
   if (!it) {
     it = c.items[id] = { s: [0.3, 0.5, 1, 3][g], last: now, n: 1, lapses: 0, intro: now, g };
     const kind = (byId(id) || {}).kind;
-    // a Library piece is your own choice, so it doesn't use up the day's budget of new material
-    today().fresh.push({ id, t: now, motor: MOTOR.has(kind) && kind !== 'piece' });
+    // a Library piece or a starred favourite is your own choice, so it doesn't use up the day's budget of new material
+    today().fresh.push({ id, t: now, motor: MOTOR.has(kind) && kind !== 'piece' && !isFavItem(id) });
   } else {
     const elapsedDays = (now - it.last) / DAY;
     if (g === 0) { it.s = Math.max(0.5, it.s * 0.3); it.lapses++; }
@@ -141,6 +145,61 @@ export function focusStyle() {
   return order.length ? D.REGIONS.find(r => r.id === E.regionOfWeek().id) || null : null;
 }
 
+/* ---------- favourites ----------
+   What the player starred (src/favlist.js): technique exercises and style drills are catalogue items like any
+   other ('tech:<id>', 'drill:<id>'), so they keep their memory schedule; Rhythm gym exercises, Train tools and
+   games open as a block of their own. A favourite is never chosen ahead of a due review or new material: it gets
+   a nudge in those queues, first place among the items kept fresh, and a slot of its own in sessions of 10 minutes
+   or more (two from 45), rotating to the one played longest ago. */
+// games run in a block of the type whose skill they practise, so their time counts there
+const GAMES = { tower: ['intervals', 'The Tower'], lighthouse: ['degrees', 'Lighthouse Keeper'], firefly: ['fretboard', 'Firefly Hunt'], tightrope: ['gym', 'Tightrope'], twodrums: ['gym', 'Two Drums'], parrot: ['gym', 'Parrot'], formgame: ['repertoire', 'Lost in the Form'], opening: ['sightread', 'Opening Night'] };
+// tools that need something chosen elsewhere, or are the plan's own kinds, aren't offered as a bare favourite block
+const NO_FAV_BLOCK = new Set(['piece', 'transcribe', 'free', 'lesson', 'listening', 'away', 'break']);
+const FAV_ITEM_KINDS = { tech: 'tech', drill: 'drill' };
+export const favourites = () => favsOf(E.state.settings || {});
+export function isFavItem(id) {
+  const i = String(id).indexOf(':'), kind = String(id).slice(0, i), ref = String(id).slice(i + 1);
+  return !!FAV_ITEM_KINDS[kind] && favourites().some(f => f.kind === kind && f.id === ref);
+}
+/* A favourite as something the planner can schedule, or null when it no longer exists or can't be a block */
+function favSpec(f) {
+  const key = f.kind + ':' + f.id;
+  if (FAV_ITEM_KINDS[f.kind]) { const item = byId(key); return item ? { key, kind: f.kind, item, name: item.name } : null; }
+  if (f.kind === 'gym') { const x = GYM.find(g => g.id === f.id); return x ? { key, kind: 'fav', type: 'gym', params: { ex: x.id }, name: x.name, title: 'Rhythm gym: ' + x.name } : null; }
+  if (f.kind === 'tool') {
+    if (GAMES[f.id]) { const [type, name] = GAMES[f.id]; return { key, kind: 'fav', type, tool: f.id, params: {}, name, title: name }; }
+    const def = BLOCKS[f.id];
+    return def && def.tool === f.id && !NO_FAV_BLOCK.has(f.id) ? { key, kind: 'fav', type: f.id, params: {}, name: def.name } : null;
+  }
+  return null;
+}
+/* When each favourite was last practised: its memory item, or a session block it was played in */
+function favLastTimes() {
+  const out = {};
+  Object.values(cur().days).forEach(d => (d.sessions || []).forEach(s => (s.favs || []).forEach(k => { out[k] = Math.max(out[k] || 0, s.end || s.start || 0); })));
+  Object.entries(cur().items).forEach(([id, it]) => { if (it.last) out[id] = Math.max(out[id] || 0, it.last); });
+  return out;
+}
+/* The favourite for this session's favourite slot: one not in the session yet and not practised today, a due one
+   first, then the one played longest ago (a never-played one counts as two weeks), with a little chance. */
+export function chooseFav(ctx, used = new Set(), types = new Set()) {
+  const c = cur(), now = ctx.now, last = favLastTimes();
+  const all = favourites().map(favSpec).filter(Boolean).filter(f => !used.has(f.key) && !(f.kind === 'fav' && types.has(f.tool || f.type + ':' + (f.params.ex || ''))));
+  const scored = all.map(f => {
+    const it = c.items[f.key], t = last[f.key] || 0;
+    if (t && now - t < 12 * HOUR) return null;
+    if (f.item && ctx.practisedToday(f.key)) return null;
+    const days = t ? Math.min(14, (now - t) / DAY) : 14;
+    return { f, it, days, score: days + (it && overdue(it, now) >= 0.9 ? 10 : 0) + Math.random() * 1.5 };
+  }).filter(Boolean).sort((a, b) => b.score - a.score);
+  if (!scored.length) return null;
+  const { f, it, days } = scored[0];
+  const ago = !last[f.key] ? null : days < 1.5 ? 'yesterday' : Math.round(days) + ' days ago';
+  const why = '★ One of your favourites, mixed in for variety' + (it && overdue(it, now) >= 0.9 ? ', and due for review'
+    : f.item && !it ? '. You starred it and haven’t practised it yet; it gets its own review schedule from here' : ago ? ': last played ' + ago : '') + '.';
+  return { spec: f, why };
+}
+
 /* ---------- picking ---------- */
 function introduced(kind) { const c = cur(); return catalog().filter(x => x.kind === kind && c.items[x.id]); }
 function allowedTier(kind) {
@@ -154,7 +213,7 @@ function newCandidates(kind) {
   const cap = allowedTier(kind);
   // the styles you ranked first may reach one level further
   return catalog().filter(x => x.kind === kind && !c.items[x.id] && (x.tier <= cap || (x.tier <= cap + 1 && styleWeight(x) >= 0.8)))
-    .map(x => ({ x, score: styleWeight(x) * 2 - x.tier * 0.35 - x.order * 0.01 + Math.random() * 0.05 }))
+    .map(x => ({ x, score: styleWeight(x) * 2 - x.tier * 0.35 - x.order * 0.01 + (isFavItem(x.id) ? 0.6 : 0) + Math.random() * 0.05 }))
     .sort((a, b) => b.score - a.score).map(o => o.x);
 }
 
@@ -212,9 +271,10 @@ export function choose(kind, ctx, used = new Set(), opts = {}) {
     const x = sameDay[0];
     return { item: x, why: 'Same-day review: new ' + fmtAgo(ctx.firstToday(x.id)) + '. Coming back after a gap makes it stick.', tag: 'review' };
   }
-  // 2. due reviews, most overdue first (weighted a little toward your styles)
+  // 2. due reviews, most overdue first (weighted a little toward your styles and your favourites)
+  const dueScore = x => overdue(c.items[x.id], now) + styleWeight(x) * 0.3 + (isFavItem(x.id) ? 0.3 : 0);
   const due = mine.filter(x => overdue(c.items[x.id], now) >= 0.9 && !ctx.practisedToday(x.id))
-    .sort((a, b) => (overdue(c.items[b.id], now) + styleWeight(b) * 0.3) - (overdue(c.items[a.id], now) + styleWeight(a) * 0.3));
+    .sort((a, b) => dueScore(b) - dueScore(a));
   if (due.length) {
     const x = due[0], it = c.items[x.id];
     return { item: x, why: 'Review: last practised ' + fmtAgo(it.last) + ', predicted recall ' + Math.round(recall(it, now) * 100) + '%.', tag: 'review' };
@@ -240,11 +300,11 @@ export function choose(kind, ctx, used = new Set(), opts = {}) {
       return { item: x, isNew: true, why: 'New ' + KIND_NAME[kind] + (sn ? ', from your focus on ' + sn : '') + '. Practised on its own first, then mixed in later.', tag: 'new' };
     }
   }
-  // 4. keep things moving: the least recently practised item not done today
-  const keep = mine.filter(x => !ctx.practisedToday(x.id)).sort((a, b) => recall(c.items[a.id], now) - recall(c.items[b.id], now));
+  // 4. keep things moving: a favourite not done today, else the least recently practised item
+  const keep = mine.filter(x => !ctx.practisedToday(x.id)).sort((a, b) => (isFavItem(b.id) - isFavItem(a.id)) || recall(c.items[a.id], now) - recall(c.items[b.id], now));
   if (keep.length) {
     const x = keep[0];
-    return { item: x, why: 'Keep it fresh: practised ' + fmtAgo(c.items[x.id].last) + '.' + (block ? ' No new ' + KIND_NAME[kind] + ' now: ' + block + '.' : ''), tag: 'maintain' };
+    return { item: x, why: (isFavItem(x.id) ? '★ One of your favourites: practised ' : 'Keep it fresh: practised ') + fmtAgo(c.items[x.id].last) + '.' + (block ? ' No new ' + KIND_NAME[kind] + ' now: ' + block + '.' : ''), tag: 'maintain', fav: isFavItem(x.id) };
   }
   if (mine.length) return { item: mine[0], why: 'Another round today.' + (block ? ' No new ' + KIND_NAME[kind] + ' now: ' + block + '.' : ''), tag: 'maintain' };
   return null;
@@ -356,8 +416,24 @@ export function planSession(minutes) {
   if (minutes >= 40) cands.push(['fret', 0.07, {}]);
   if (minutes >= 50) { const sg = E.listSongs().find(x => x.lastOpened && Date.now() - x.lastOpened < 30 * DAY); if (sg) cands.push(['transcribe', 0.14, { song: sg }]); }
   if (minutes >= 60) cands.push(['listen', 0.08, {}]);
-  // new items and reviews first, then the rest; keep within the block count
-  const rank = c => (c[2] && c[2].isNew ? 2 : 0) + (c[2] && c[2].tag === 'review' ? 1 : 0) + c[1];
+  // your favourites, for variety: after the reviews and new material, ahead of the rest. A favourite the plan
+  // already picked for its own reasons counts; a favourite gym exercise or ear trainer takes that slot's place.
+  const favWant = minutes >= 45 ? 2 : minutes >= 10 ? 1 : 0;
+  let favHave = cands.filter(c => c[2] && c[2].item && isFavItem(c[2].item.id)).length;
+  const SLOT_TYPE = { reading: 'sightread:', fret: 'fretboard:', gym: 'gym:' };
+  for (let n = 0; favHave < favWant && n < 3; n++) {
+    const types = new Set(cands.flatMap(c => c[0] === 'fav' ? [c[2].spec.tool || c[2].spec.type + ':' + (c[2].spec.params.ex || '')] : c[0] === 'ear' ? [E.SKILLS[c[2].ear.k].tool + ':'] : SLOT_TYPE[c[0]] ? [SLOT_TYPE[c[0]]] : []));
+    const fv = chooseFav(ctx, used, types);
+    if (!fv) break;
+    const f = fv.spec;
+    used.add(f.key); favHave++;
+    if (f.item) { used.add(f.item.id); cands.push([f.kind, 0.16, { item: f.item, why: fv.why, tag: 'fav', fav: f.key }]); continue; }
+    // a favourite gym exercise replaces the plan's own gym block; an ear trainer, the same trainer picked for need
+    if (f.type === 'gym' && !f.tool) { const g = cands.findIndex(c => c[0] === 'gym'); if (g >= 0) cands.splice(g, 1); }
+    cands.push(['fav', 0.14, { spec: f, why: fv.why, tag: 'fav', fav: f.key }]);
+  }
+  // new items and reviews first, then favourites, then the rest; keep within the block count
+  const rank = c => (c[2] && c[2].isNew ? 2 : 0) + (c[2] && c[2].tag === 'review' ? 1 : 0) + (c[2] && (c[2].tag === 'fav' || c[2].fav) ? 0.5 : 0) + c[1];
   cands.sort((a, b) => rank(b) - rank(a));
   if (rerun && (used.has(rerun.id) || nBlocks - blocks.length < 2)) rerun = null; // the rerun only when a core block still fits
   const room = nBlocks - blocks.length - (rerun ? 1 : 0);
@@ -421,8 +497,17 @@ function toBlock(b) {
     case 'fret': Object.assign(out, { type: 'fretboard', reason: 'Fretboard notes, spaced by how well you know each one.' }); break;
     case 'listen': { const r = focusStyle() || E.regionOfWeek(); Object.assign(out, { type: 'listening', params: { region: r.id }, reason: 'Listening: the next record from ' + r.name + '.' }); break; }
     case 'transcribe': Object.assign(out, { type: 'transcribe', params: { song: b.song.id }, reason: 'Transcribe: keep going on “' + b.song.title + '”.' }); break;
+    case 'fav': {
+      const f = b.spec;
+      Object.assign(out, { type: f.type, params: Object.assign({}, f.params), reason: b.why });
+      if (f.tool) out.tool = f.tool;   // a game, opened in place of its block type's tool
+      if (f.title) out.title = f.title;
+      break;
+    }
   }
   if (b.isNew) out.isNew = true;
+  const favKey = b.fav || (b.item && isFavItem(b.item.id) ? b.item.id : null);
+  if (favKey) out.fav = favKey;
   return out;
 }
 
@@ -467,6 +552,11 @@ export function alternatives(b, usedIds = []) {
     const r = choose(kind, ctx, used);
     if (r) out.push({ title: 'Another ' + KIND_NAME[kind], block: toBlock({ kind, item: r.item, minutes, why: r.why, isNew: r.isNew }) });
   }
+  const fv = chooseFav(ctx, new Set([...used].concat(b.fav ? [b.fav] : [])));
+  if (fv) {
+    const f = fv.spec;
+    out.push({ title: '★ ' + f.name, block: f.item ? toBlock({ kind: f.kind, item: f.item, minutes, why: fv.why, fav: f.key }) : toBlock({ kind: 'fav', spec: f, minutes, why: fv.why, fav: f.key }) });
+  }
   if (b.type !== 'drill' && (D.DRILLS || []).length) {
     const r = choose('drill', ctx, used);
     if (r) out.push({ title: 'A style drill', block: toBlock({ kind: 'drill', item: r.item, minutes, why: r.why, isNew: r.isNew }) });
@@ -484,7 +574,9 @@ export function alternatives(b, usedIds = []) {
 /* Sessions in the day log (called when a session ends) */
 export function logSession(s, minutes) {
   const d = today();
-  d.sessions.push({ start: s.started, end: Date.now(), minutes, types: s.blocks.filter(b => b.done).map(b => b.type) });
+  const done = s.blocks.filter(b => b.done);
+  const favs = done.map(b => b.fav).filter(Boolean);
+  d.sessions.push(Object.assign({ start: s.started, end: Date.now(), minutes, types: done.map(b => b.type) }, favs.length ? { favs } : {}));
   E.touch();
 }
 
@@ -517,4 +609,4 @@ export function dueAt(t = Date.now()) {
     .sort((a, b) => b.overdue - a.overdue);
 }
 
-export default { alternatives, blockFor, migrate, PACE, prefs, setPrefs, catalog, pieces, itemState, dueInDays, review, gradeFromScore, choose, context, planSession, warmDetails, arpDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };
+export default { alternatives, favourites, chooseFav, isFavItem, blockFor, migrate, PACE, prefs, setPrefs, catalog, pieces, itemState, dueInDays, review, gradeFromScore, choose, context, planSession, warmDetails, arpDetails, logSession, describeItem, stats, upcoming, dueAt, recall, GRADE_LABEL, focusStyle };

@@ -72,7 +72,7 @@ function favPage() {
   return page;
 }
 const TRAIN = {
-  favs: { name: '★', label: 'Favourites', title: 'Your favourites', favs: true, tools: [], tip: 'Stars are kept with your progress, so they follow you to every device you sync.' },
+  favs: { name: '★', label: 'Favourites', title: 'Your favourites', favs: true, tools: [], tip: 'Stars are kept with your progress, so they follow you to every device you sync. Smart practice mixes one into most sessions, after what is due for review.' },
   ear: { name: 'Ear', title: 'Hear it before you play it', tools: ['intervals', 'degrees', 'dictation', 'chords', 'progressions', 'scales', 'drone'], tip: 'No sound on an iPhone? Turn off silent mode; it mutes web audio.' },
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
   play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['tuner', 'scalewarm', 'arpwarm', 'arpchanges', 'technique', 'drill', 'sightread', 'notenames', 'fretboard', 'callresp', 'repertoire', 'notate', 'explorer'],
