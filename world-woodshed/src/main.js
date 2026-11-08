@@ -20,6 +20,7 @@ import './tools/rhythm.js';
 import './tools/play.js';
 import './tools/atlas.js';
 import './tools/practice.js';
+import './tools/arpeggio.js';
 import './tools/reading.js';
 import './tools/notenames.js';
 import './tools/notate.js';

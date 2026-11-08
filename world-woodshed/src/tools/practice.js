@@ -18,7 +18,7 @@ import { statsPage } from '../ui/stats.js';
    ====================================================== */
 
 const scaleOf = id => D.SCALES.find(x => x.id === id) || D.SCALES[0];
-function selectEl(id, label, options, value, onchange) {
+export function selectEl(id, label, options, value, onchange) {
   const sel = h('select', { id, 'aria-label': label });
   options.forEach(o => {
     if (o.group) { const g = h('optgroup', { label: o.group }); o.items.forEach(it => g.append(h('option', { value: it.value, selected: it.value === value ? true : null, text: it.text }))); sel.append(g); }
@@ -27,7 +27,7 @@ function selectEl(id, label, options, value, onchange) {
   sel.onchange = () => onchange(sel.value);
   return h('label', { class: 'stack field', for: id }, h('span', { class: 'eyebrow', text: label }), sel);
 }
-function keyChips(value, onpick) {
+export function keyChips(value, onpick) {
   const wrap = h('div', { class: 'chips' });
   D.NOTE_NAMES.forEach((n, i) => wrap.append(h('button', { class: 'chip', 'aria-pressed': i === value ? 'true' : 'false', onclick: () => onpick(i) }, n)));
   return wrap;

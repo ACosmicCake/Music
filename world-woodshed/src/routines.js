@@ -19,6 +19,8 @@ export const CATS = {
    fields = settings the user can change (see FIELD below). */
 export const BLOCKS = {
   scalewarm: { name: 'Scale warm-up', cat: 'warm', tool: 'scalewarm', skill: 'technique', minutes: 8, fields: ['scale', 'tonic', 'pattern', 'bpm'], desc: 'A scale in one position with the metronome. The tempo climbs as you stay clean.' },
+  arpwarm: { name: 'Arpeggio warm-up', cat: 'warm', tool: 'arpwarm', skill: 'technique', minutes: 6, fields: [], desc: 'An arpeggio in one position with the metronome, from triads to 9ths. The smart plan rotates the arpeggio, key, pattern and tempo.' },
+  arpchanges: { name: 'Arpeggio changes', cat: 'tech', tool: 'arpchanges', skill: 'technique', minutes: 8, fields: [], desc: 'A new arpeggio every few bars through a progression or your own chords, in one position.' },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', skill: 'technique', minutes: 10, fields: ['exercise'], desc: 'A tempo ladder for one exercise: picking, legato, rasgueado, travis and more.' },
   callresp: { name: 'Call & response', cat: 'tech', tool: 'callresp', skill: 'callresp', minutes: 8, fields: [], desc: 'Hear a phrase, play it back on the fretboard.' },
   rhythms: { name: 'Rhythm & groove', cat: 'rhythm', tool: 'rhythms', skill: 'rhythmTap', minutes: 10, fields: ['rhythm'], desc: 'Loop a rhythm from anywhere in the world and take the tap-along test.' },
@@ -48,7 +50,7 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
-export const BLOCK_ORDER = ['scalewarm', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'arpwarm', 'arpchanges', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',
@@ -68,6 +70,8 @@ export const DRILLS = {
 /* Blocks that need the guitar in your hands, and what to do instead without it */
 const AWAY_SWAP = {
   scalewarm: b => ({ drill: 'visualise', scale: (b.settings || {}).scale, tonic: (b.settings || {}).tonic }),
+  arpwarm: () => ({ drill: 'visualise' }),
+  arpchanges: () => ({ drill: 'visualise' }),
   technique: () => ({ drill: 'fingers' }),
   free: () => ({ drill: 'visualise' })
 };
@@ -92,6 +96,12 @@ export function describe(b) {
       const src = b.params && b.params.scale ? b.params : st.scale && st.scale !== 'auto' ? st : null;
       if (!src) { parts.push('Smart choice: scale, key, pattern and tempo rotate for you'); break; }
       parts.push((D.NOTE_NAMES[src.tonic ?? 0]) + ' ' + (scale(src.scale) || ''), PATTERNS[src.pattern || 'updown'].toLowerCase(), (src.bpm || 72) + ' bpm');
+      break;
+    }
+    case 'arpwarm': {
+      const src = b.params && b.params.chord ? b.params : null;
+      if (!src) { parts.push('Smart choice: arpeggio, key, pattern and tempo rotate for you'); break; }
+      parts.push(D.NOTE_NAMES[src.root ?? 0] + ' ' + ((D.CHORDS.find(c => c.id === src.chord) || {}).name || '').toLowerCase(), (src.bpm || 72) + ' bpm');
       break;
     }
     case 'drone': parts.push(st.scale ? D.NOTE_NAMES[st.tonic ?? 2] + ' ' + scale(st.scale) : 'Pick on the day'); break;
@@ -134,6 +144,7 @@ export function paramsFor(b, used = new Set()) {
       Object.assign(out, { scale: out.scale || st.scale || 'major', tonic: out.tonic ?? st.tonic ?? 0, pattern: out.pattern || st.pattern || 'updown', bpm: out.bpm || st.bpm || 72 });
       break;
     }
+    case 'arpwarm': if (!out.chord) { const it = smart('arp'); if (it) Object.assign(out, Cur.arpDetails(it)); } break;
     case 'drone': if (st.scale) Object.assign(out, { scale: st.scale, tonic: st.tonic ?? 2 }); else if (!out.scale) out.scale = rw.scales.find(id => D.SCALES.find(x => x.id === id)) || 'dorian'; break;
     case 'technique': {
       if (!auto(st.exercise)) out.exercise = st.exercise;
