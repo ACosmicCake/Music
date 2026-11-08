@@ -28,16 +28,29 @@ add('tuplets', { id: 'q5over4', tier: 5, name: 'Quarter-note quintuplets: 5 over
 // --- feel changes: one steady beat, the feel underneath it changes every few bars. You mix your own: pick the feels,
 // their order (or shuffle) and 1, 2 or 4 bars per feel. The bar before a change shows the next feel and rings a bell on
 // its last beat; the first bar of each feel is guided. Choices are { seq, random, seg }, kept in settings.gymFeel.
+// a feel's notes in one bar: `pos`, the same every bar, or `at(b)` for one that runs across the bar line (dotted
+// quarters and dotted eighths), b counted from the bar its feel came in, so it always starts on 1
+const running = step => b => { const o = []; for (let i = 0; i < 16; i++) if ((b * 16 + i) % step === 0) o.push(i / 4); return o; };
+export const FEEL_GROUPS = { even: 'Even notes', across: 'Across the beat', groove: 'Grooves' };
 export const FEELS = {
-  q: { name: 'Quarters', short: 'Quarters', say: 'ta', pos: perBeat(1, 4) },
-  e: { name: 'Eighths', short: 'Eighths', say: 'ta-ka', pos: perBeat(2, 4) },
-  t: { name: 'Triplets', short: 'Triplets', say: 'ta-ki-ta', pos: perBeat(3, 4) },
-  s: { name: 'Sixteenths', short: '16ths', say: 'ta-ka-di-mi', pos: perBeat(4, 4) },
-  sw: { name: 'Swing eighths', short: 'Swing', say: 'ta – ta (the 1st and 3rd of each triplet)', pos: perBeat(3, 4).filter((_, i) => i % 3 !== 1) },
-  q3: { name: '3 against 2 (quarter-note triplets)', short: '3:2', say: '3 even notes across every 2 beats', pos: overSpan(3, 2, 4) },
-  h3: { name: '3 against 4 (half-note triplets)', short: '3:4', say: '3 even notes across the bar', pos: overSpan(3, 4, 4) },
-  d8: { name: 'Dotted eighths (3 + 3 + 3 …)', short: 'Dotted 8ths', say: 'every 3rd sixteenth', pos: sixteenths([0, 3, 6, 9, 12, 15]) }
+  hn: { group: 'even', name: 'Half notes', short: 'Halves', say: 'on 1 and 3', pos: [0, 2] },
+  q: { group: 'even', name: 'Quarters', short: 'Quarters', say: 'ta', pos: perBeat(1, 4) },
+  e: { group: 'even', name: 'Eighths', short: 'Eighths', say: 'ta-ka', pos: perBeat(2, 4) },
+  t: { group: 'even', name: 'Triplets', short: 'Triplets', say: 'ta-ki-ta', pos: perBeat(3, 4) },
+  s: { group: 'even', name: 'Sixteenths', short: '16ths', say: 'ta-ka-di-mi', pos: perBeat(4, 4) },
+  q5: { group: 'even', name: 'Quintuplets', short: '5s', say: 'ta-di-ki-na-tom', pos: perBeat(5, 4) },
+  x6: { group: 'even', name: 'Sextuplets', short: '6s', say: 'ta-ka-di-mi-ta-ka', pos: perBeat(6, 4) },
+  dq: { group: 'across', name: 'Dotted quarters', short: 'Dotted ¼s', say: 'every 3rd eighth, across the bar line; home on 1 every 3 bars', at: running(6) },
+  d8: { group: 'across', name: 'Dotted eighths', short: 'Dotted 8ths', say: 'every 3rd sixteenth, across the beat; home on 1 every 3 beats', at: running(3) },
+  q3: { group: 'across', name: '3 against 2 (quarter-note triplets)', short: '3:2', say: '3 even notes across every 2 beats', pos: overSpan(3, 2, 4) },
+  h3: { group: 'across', name: '3 against 4 (half-note triplets)', short: '3:4', say: '3 even notes across the bar', pos: overSpan(3, 4, 4) },
+  q54: { group: 'across', name: '5 against 4 (quarter-note quintuplets)', short: '5:4', say: '5 even notes across the bar', pos: overSpan(5, 4, 4) },
+  sw: { group: 'groove', name: 'Swing eighths', short: 'Swing', say: 'ta – ta (the 1st and 3rd of each triplet)', pos: perBeat(3, 4).filter((_, i) => i % 3 !== 1) },
+  off: { group: 'groove', name: 'Off-beat eighths', short: 'Off-beats', say: 'only the “&”: 1 & 2 & 3 & 4 &', pos: [0.5, 1.5, 2.5, 3.5] },
+  t332: { group: 'groove', name: '3 + 3 + 2 (tresillo)', short: '3+3+2', say: 'eighths grouped 3, 3, 2: on 1, the & of 2, and 4', pos: [0, 1.5, 3] },
+  gal: { group: 'groove', name: 'Gallop (8th and two 16ths)', short: 'Gallop', say: 'ta – ka-di on every beat', pos: sixteenths([0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15]) }
 };
+export const feelPos = (f, b) => (f.at ? f.at(b) : f.pos);
 export const SEGS = [1, 2, 4];
 export const FEEL_PRESETS = [
   { name: 'Up the gears', seq: ['q', 'e', 't', 's', 't', 'e'] },
@@ -47,7 +60,10 @@ export const FEEL_PRESETS = [
   { name: 'Straight ↔ swing', seq: ['e', 'sw'] },
   { name: '16ths ↔ dotted 8ths', seq: ['s', 'd8'] },
   { name: 'Over the bar', seq: ['q', 'q3', 'h3', 'q3'] },
-  { name: 'Surprise me', seq: Object.keys(FEELS), random: true }
+  { name: 'Quarters ↔ dotted ¼s', seq: ['q', 'dq'] },
+  { name: 'Halves to 6s', seq: ['hn', 'q', 'e', 't', 's', 'q5', 'x6'] },
+  { name: 'Grooves', seq: ['e', 'off', 't332', 'gal', 'sw'] },
+  { name: 'Surprise me', seq: ['q', 'e', 't', 's', 'sw', 'q3', 'h3', 'd8', 'dq', 'off'], random: true }
 ];
 // a saved or half-made choice made safe: known feels only, never empty, 1, 2 or 4 bars
 export const feelOpts = o => {
@@ -72,8 +88,8 @@ export const feelAt = (bar, run = 0, opts) => { const o = feelOpts(opts); return
 export const nextFeel = (bar, run = 0, opts) => { const o = feelOpts(opts); return bar % o.seg === o.seg - 1 ? FEELS[feelSeq(o, Math.floor(bar / o.seg) + 1, run)] : null; };
 add('feel', {
   id: 'feel-mix', tier: 1, name: 'Feel changes: mix your own', feels: true, bpm: [50, 90],
-  desc: 'Keep the beat steady while the feel underneath changes: quarters, eighths, triplets, sixteenths, swing, 3 against 2 and more. Pick the feels, their order and how many bars each lasts. The bar before each change shows the next feel and rings a bell on its last beat.',
-  pattern: (bar, run, o) => feelAt(bar, run, o).pos,
+  desc: 'Keep the beat steady while the feel underneath changes: half notes to sextuplets, dotted quarters and eighths, 3 against 2, swing, off-beats, tresillo and more. Pick the feels, their order and how many bars each lasts. The bar before each change shows the next feel and rings a bell on its last beat.',
+  pattern: (bar, run, o) => feelPos(feelAt(bar, run, o), bar % feelOpts(o).seg),
   label: (bar, run, o) => { const f = feelAt(bar, run, o), n = nextFeel(bar, run, o); return f.name + ': ' + f.say + (n && n !== f ? '  →  next: ' + n.name : ''); },
   cue: (bar, run, o) => { const n = nextFeel(bar, run, o); return !!n && n !== feelAt(bar, run, o); },
   // the first bar of each feel is guided; with one bar per feel, guided and alone take turns a whole pass at a time
