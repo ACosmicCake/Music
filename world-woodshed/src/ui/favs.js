@@ -1,10 +1,11 @@
 import E from '../engine.js';
 import { h, toast } from './core.js';
+import { FAV_KINDS, favsOf } from '../favlist.js';
 
 /* Favourites across the app: Train tools, Rhythm gym exercises, technique exercises and style drills, starred
    beside their tile or on their page and listed together at the top of Train (`favList`).
    Drills keep their own list (settings.favDrills, older than this); the rest are 'kind:id' in settings.favs. */
-export const FAV_KINDS = ['tool', 'gym', 'tech', 'drill'];
+export { FAV_KINDS };
 const own = () => (Array.isArray(E.state.settings.favs) ? E.state.settings.favs : []);
 const drills = () => (Array.isArray(E.state.settings.favDrills) ? E.state.settings.favDrills : []);
 
@@ -17,8 +18,7 @@ export function toggleFav(kind, id) {
   return !on;
 }
 /* [{ kind, id }] in the order starred, drills after the rest */
-export const favList = () => own().map(k => { const i = k.indexOf(':'); return { kind: k.slice(0, i), id: k.slice(i + 1) }; })
-  .filter(f => FAV_KINDS.includes(f.kind)).concat(drills().map(id => ({ kind: 'drill', id })));
+export const favList = () => favsOf(E.state.settings);
 
 /* A ☆/★ toggle for one item */
 export function favStar(kind, id, name, onChange) {

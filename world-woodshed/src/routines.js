@@ -112,6 +112,7 @@ export function describe(b) {
 }
 export function blockTitle(b) {
   if (b.type === 'free' && b.settings && b.settings.title) return b.settings.title;
+  if (b.title && typeof b.title === 'string') return b.title.slice(0, 80);
   return BLOCKS[b.type] ? BLOCKS[b.type].name : b.type;
 }
 
@@ -120,6 +121,7 @@ export function paramsFor(b, used = new Set()) {
   const st = b.settings || {}, out = Object.assign({}, b.params || {});
   const rw = E.regionOfWeek();
   const auto = v => v === undefined || v === null || v === '' || v === 'auto';
+  if (b.tool) return out; // a favourite game: its own tool, nothing to resolve
   // unpinned content comes from the smart plan, which also records how it went
   const smart = kind => {
     if (b.cur) return null;

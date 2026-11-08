@@ -225,3 +225,78 @@ describe('favourite players', () => {
     expect(Cur.choose('tune', Cur.context()).item.players).toContain('monk');
   });
 });
+
+describe('favourites in the plan', () => {
+  const favBlocks = blocks => blocks.filter(b => b.fav);
+  const drill = () => Cur.catalog().find(x => x.kind === 'drill');
+  it('mixes one favourite into a session of 10 minutes or more, two from 45, none without stars', () => {
+    expect(favBlocks(Cur.planSession(30).blocks)).toHaveLength(0);
+    E.setSetting('favs', ['gym:tup3', 'tool:intervals', 'tool:tower']);
+    E.setSetting('favDrills', [drill().ref]);
+    expect(favBlocks(Cur.planSession(5).blocks)).toHaveLength(0);
+    expect(favBlocks(Cur.planSession(15).blocks).length).toBeGreaterThanOrEqual(1);
+    expect(favBlocks(Cur.planSession(60).blocks).length).toBeGreaterThanOrEqual(2);
+  });
+  it('opens each kind of favourite as the right block', () => {
+    E.setSetting('favs', ['gym:tup3', 'tool:tower', 'tool:degrees']);
+    E.setSetting('favDrills', [drill().ref]);
+    const seen = {};
+    for (let i = 0; i < 40; i++) favBlocks(Cur.planSession(60).blocks).forEach(b => { seen[b.fav] = b; });
+    expect(seen['gym:tup3']).toMatchObject({ type: 'gym', params: { ex: 'tup3' } });
+    expect(seen['tool:tower']).toMatchObject({ type: 'intervals', tool: 'tower', title: 'The Tower' });
+    expect(seen['tool:degrees']).toMatchObject({ type: 'degrees' });
+    expect(seen['drill:' + drill().ref]).toMatchObject({ type: 'drill', cur: 'drill:' + drill().ref, params: { drill: drill().ref } });
+    Object.values(seen).forEach(b => expect(b.reason).toMatch(/favourite/));
+  });
+  it('keeps due reviews ahead of favourites in a short session', () => {
+    // two items of each core kind learned long ago, all well overdue
+    ['tech', 'rhythm', 'tune'].forEach(k => Cur.catalog().filter(c => c.kind === k).slice(0, 2).forEach(x => Cur.review(x.id, 'good')));
+    E.state.cur.days = {};
+    Object.values(E.state.cur.items).forEach(it => { it.last -= 10 * DAY; it.intro -= 10 * DAY; });
+    E.setSetting('favs', ['tool:fretboard']);
+    const blocks = Cur.planSession(15).blocks;
+    expect(blocks.some(b => b.fav)).toBe(false);
+    // the slots after the warm-up go to reviews and new material
+    blocks.slice(1).forEach(b => expect(b.reason).toMatch(/^(Review|New)/));
+    expect(blocks.some(b => b.reason.startsWith('Review'))).toBe(true);
+  });
+  it('rotates: the favourite played in the last session waits for the others', () => {
+    E.setSetting('favs', ['tool:intervals', 'tool:degrees']);
+    const first = Cur.planSession(20);
+    const f1 = favBlocks(first.blocks)[0].fav;
+    E.startSession({ name: 'Smart', blocks: first.blocks });
+    E.state.session.blocks.forEach(b => { b.done = true; });
+    Cur.logSession(E.state.session, 20);
+    E.endSession();
+    at(T0 + 3 * HOUR);
+    for (let i = 0; i < 10; i++) {
+      const f2 = favBlocks(Cur.planSession(20).blocks).map(b => b.fav);
+      expect(f2).not.toContain(f1);
+    }
+  });
+  it('a starred drill never practised does not use up the day’s new material', () => {
+    E.setSetting('favDrills', [drill().ref]);
+    Cur.review(drill().id, 'good');
+    expect(Cur.context().newMotorToday).toBe(0);
+  });
+  it('puts a favourite first among the items kept fresh', () => {
+    const techs = Cur.catalog().filter(c => c.kind === 'tech').slice(0, 3);
+    techs.forEach(x => Cur.review(x.id, 'easy'));   // stability 3 days: not due tomorrow
+    E.state.cur.days = {};
+    at(T0 + DAY);
+    E.setSetting('favs', ['tech:' + techs[2].ref]);
+    const r = Cur.choose('tech', Cur.context(), new Set(), { newTaken: true });
+    expect(r.item.id).toBe(techs[2].id);
+    expect(r.why).toMatch(/favourites/);
+  });
+  it('offers a favourite when swapping a block', () => {
+    E.setSetting('favs', ['gym:tup3']);
+    const alts = Cur.alternatives({ type: 'fretboard', minutes: 8 });
+    expect(alts.some(a => a.block.fav === 'gym:tup3' && a.title.includes('★'))).toBe(true);
+  });
+  it('skips favourites that no longer exist', () => {
+    E.setSetting('favs', ['gym:nope', 'tool:nope', 'tech:nope', 'bogus']);
+    E.setSetting('favDrills', ['nope']);
+    expect(favBlocks(Cur.planSession(60).blocks)).toHaveLength(0);
+  });
+});
