@@ -64,14 +64,15 @@ export const DRILLS = {
   fingers: 'Finger independence (tabletop)',
   konnakol: 'Konnakol: say and clap',
   visualise: 'See the neck in your head',
+  arps: 'See arpeggios in your head',
   sing: 'Sing the degrees'
 };
 
 /* Blocks that need the guitar in your hands, and what to do instead without it */
 const AWAY_SWAP = {
   scalewarm: b => ({ drill: 'visualise', scale: (b.settings || {}).scale, tonic: (b.settings || {}).tonic }),
-  arpwarm: () => ({ drill: 'visualise' }),
-  arpchanges: () => ({ drill: 'visualise' }),
+  arpwarm: b => ({ drill: 'arps', chord: (b.params || {}).chord, root: (b.params || {}).root }),
+  arpchanges: () => ({ drill: 'arps', mode: 'changes' }),
   technique: () => ({ drill: 'fingers' }),
   free: () => ({ drill: 'visualise' })
 };
