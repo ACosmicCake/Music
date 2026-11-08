@@ -333,13 +333,23 @@ export function genRhythm(L, o = {}) {
 }
 
 /* ---------- sharps and flats on any level ----------
-   The player's switch (settings.readingAcc) adds accidentals, sharps and flats written beside the notes, to
-   any level: every note between its lowest and highest (so Notes asks for sharps and flats too) and more
-   chromatic passing and neighbour notes in melodies. The level's own keys, rhythm and meter stay as they are. */
-export function withAccidentals(L) {
+   The player's choice (settings.readingAcc) adds accidentals written beside the notes to any level: every
+   note between its lowest and highest (so Notes asks for them too) and more chromatic passing and neighbour
+   notes in melodies. only = '#' (sharps only) or 'b' (flats only) keeps to one kind, as L.accOnly: Notes
+   spells every card that way and a melody's chromatic notes are only the ones written with it (a natural
+   that cancels one still can appear). The level's own keys, rhythm and meter stay as they are. */
+export function withAccidentals(L, only) {
   if (!L || !L.notes || !L.notes.length) return L;
   const notes = chrom(Math.min(...L.notes), Math.max(...L.notes));
-  return Object.assign({}, L, { notes, chromatic: Math.max(L.chromatic || 0, 0.3), acc: true });
+  const out = Object.assign({}, L, { notes, chromatic: Math.max(L.chromatic || 0, 0.3), acc: true });
+  if (only === '#' || only === 'b') out.accOnly = only;
+  return out;
+}
+/* a note outside the key written with the other kind of sign than only allows */
+export function wrongSign(midi, key, pref, only) {
+  if (!only || midi == null || keyScale(key).includes(((midi % 12) + 12) % 12)) return false;
+  const a = spell(midi, key, pref).alter;
+  return only === '#' ? a < 0 : a > 0;
 }
 
 /* ---------- melody generation ---------- */
@@ -358,6 +368,8 @@ export function genMelody(L, o = {}) {
     if (m && L.repeats) addRepeat(m, rng);
     // with the sharps and flats switch on, a melody shows at least one
     if (m && L.acc && !L.chords && attempt < 200 && !m.bars.flat().some(n => n.midi != null && !keyScale(m.key).includes(n.midi % 12))) continue;
+    // sharps only or flats only: no sign of the other kind beside a note (a minor key's raised 7th included)
+    if (m && L.accOnly && !L.chords && attempt < 200 && m.bars.flat().some(n => wrongSign(n.midi, m.key, n.spell, L.accOnly))) continue;
     if (m) return m;
   }
   // fall back to a plain scale fragment (should never be needed; the tests check this)
@@ -405,7 +417,7 @@ function tryMelody(L, key, rng, o) {
         const above = dia.find(x => x > T), below = [...dia].reverse().find(x => x < T);
         if (above !== undefined && above - T <= 2) opts.push([above, 3]);
         if (below !== undefined) {
-          if (lead !== null && L.notes.includes(T - 1) && L.lead) opts.push([T - 1, 3]);
+          if (lead !== null && L.notes.includes(T - 1) && L.lead && !wrongSign(T - 1, key, null, L.accOnly)) opts.push([T - 1, 3]);
           else opts.push([below, 2]);
         }
         if (L.maxLeap >= 5 && dia.includes(T + 7)) opts.push([T + 7, 0.6]);
@@ -421,8 +433,10 @@ function tryMelody(L, key, rng, o) {
       const dir = rng() < 0.5 ? 1 : -1, c = prev + dir;
       if (!scale.includes(c % 12) && L.notes.includes(c)) {
         const pass = prev + 2 * dir;
-        if (dia.includes(pass) && rng() < 0.6) { seq.push(c); spells.push(dir > 0 ? '#' : 'b'); forced = { m: pass, sp: null }; continue; }
-        seq.push(c); spells.push(dir > 0 ? 'b' : '#'); forced = { m: prev, sp: null }; continue; // neighbour: up = flat, down = sharp
+        // passing: up = sharp, down = flat; neighbour: up = flat, down = sharp (sharps or flats only keeps the one that fits)
+        const only = L.accOnly, passSp = dir > 0 ? '#' : 'b', nbSp = dir > 0 ? 'b' : '#';
+        if (dia.includes(pass) && (only ? passSp === only : rng() < 0.6)) { seq.push(c); spells.push(passSp); forced = { m: pass, sp: null }; continue; }
+        if (!only || nbSp === only) { seq.push(c); spells.push(nbSp); forced = { m: prev, sp: null }; continue; }
       }
     }
     // diatonic motion: mostly steps, some thirds, occasional leaps; recover after a leap
@@ -631,9 +645,12 @@ export function rhythmPiece(L, o = {}) {
 
 /* A flash card: one written note, the key it is shown in and its spelled name */
 export function noteCard(L, midi, rng = Math.random) {
-  const keys = L.keys.filter(k => keyScale(k).includes(midi % 12));
+  const only = L.accOnly, signOk = (k, p) => !only || (only === '#' ? spell(midi, k, p).alter >= 0 : spell(midi, k, p).alter <= 0);
+  // sharps or flats only: a key whose signature names the note that way, else one where it is written so beside it
+  let keys = L.keys.filter(k => keyScale(k).includes(midi % 12) && signOk(k));
+  if (!keys.length && only) keys = L.keys.filter(k => signOk(k, only));
   const key = keys.length ? keys[Math.floor(rng() * keys.length)] : 'C';
-  const pref = rng() < 0.5 ? '#' : 'b';
+  const pref = only || (rng() < 0.5 ? '#' : 'b');
   const sp = spell(midi, key, pref);
   return { key, note: { midi, dur: 'w', spell: pref }, letter: sp.letter, alter: sp.alter, name: sp.name };
 }
