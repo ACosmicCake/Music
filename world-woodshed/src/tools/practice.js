@@ -2,7 +2,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, toast, tool, openTool, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
-import { degreeLabel, diatonicChords, spell, keyPrefersFlats, prettySym, flatName } from '../theory.js';
+import { degreeLabel, diatonicChords, spell, keyPrefersFlats, prettySym, flatName, QUAL } from '../theory.js';
 import { PATTERNS, DRILLS, warmScales } from '../routines.js';
 import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
@@ -12,6 +12,7 @@ import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote,
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
 import { statsPage } from '../ui/stats.js';
+import { ARP_ORDER, arpOf, toneLabel, windowNotes, arpPositions, PROGRESSIONS, progOf, progChords, bestPosition } from '../arpeggios.js';
 
 /* ======================================================
    PRACTICE TOOLS: scale warm-up, explorer, circle of fifths, tuner, free practice, break
@@ -666,7 +667,7 @@ const FINGER_PATTERNS = { '1234': [1, 2, 3, 4], '4321': [4, 3, 2, 1], '1324': [1
 const KONNAKOL = { 3: ['ta', 'ki', 'ta'], 4: ['ta', 'ka', 'di', 'mi'], 5: ['ta', 'di', 'ki', 'na', 'tom'], 7: ['ta', 'ki', 'ta', 'ta', 'ka', 'di', 'mi'] };
 tool('away', {
   tab: 'train', skill: null, title: 'No-guitar drills', eyebrow: 'Practice away from the instrument',
-  desc: 'Finger independence on a tabletop, konnakol, seeing the neck in your head and singing scale degrees. All you need is the phone.',
+  desc: 'Finger independence on a tabletop, konnakol, seeing scales and arpeggios on the neck in your head and singing scale degrees. All you need is the phone.',
   render(body, ctx) {
     let drill = (ctx.params || {}).drill || 'fingers';
     let loop = null, drone = null, cleanupExtra = null;
@@ -781,6 +782,95 @@ tool('away', {
             h('button', { class: 'btn ghost', onclick: surprise }, 'Surprise me')),
           fbWrap,
           h('p', { class: 'small muted', text: 'Mental practice works: players who rehearse in their heads keep much of their progress. Do the same with a piece you are learning.' }));
+      } else if (drill === 'arps') {
+        // an arpeggio in one position, or a progression's chords one after another, pictured on the neck
+        const p = ctx.params || {}, saved = E.state.settings.visArp || {};
+        const S = () => E.STRINGS.map(x => x.midi);
+        const ivOf = type => (QUAL.find(([k]) => k === type) || QUAL[QUAL.length - 1])[1];
+        const known = id => ARP_ORDER.includes(id);
+        const st = {
+          mode: p.mode === 'changes' || (!p.chord && saved.mode === 'changes') ? 'changes' : 'one',
+          chord: known(p.chord) ? p.chord : known(saved.chord) ? saved.chord : 'maj7',
+          root: Number.isInteger(p.root) ? p.root : Number.isInteger(saved.root) ? saved.root : 7,
+          prog: progOf(saved.prog || 'iiVI').id, key: Number.isInteger(saved.key) ? saved.key : 0, bars: saved.bars || 2,
+          start: null, bpm: 60, click: saved.click !== false
+        };
+        const persist = () => E.setSetting('visArp', { mode: st.mode, chord: st.chord, root: st.root, prog: st.prog, key: st.key, bars: st.bars, click: st.click });
+        const prompt = h('div', { class: 'prompt' }), nextLbl = h('p', { class: 'small muted' });
+        const fb = Fretboard({});
+        const fbWrap = h('div', { hidden: true }, fb.el);
+        const setup = h('div', { class: 'stack' });
+        let chords = [], at = 0;
+        const flatsOf = (root, minor) => keyPrefersFlats(root, minor);
+        const symOf = c => prettySym(spell(c.root, flatsOf(st.key, !!progOf(st.prog).minor)) + c.type);
+        const tones = (iv, root, flats, id) => iv.map(x => spell(root + x, flats) + ' (' + toneLabel(x, id) + ')').join(', ');
+        const markWin = (W, id) => fb.mark(W.map(n => ({ s: n.s, f: n.f, kind: n.iv === 0 ? 'root' : 'tone', label: toneLabel(n.iv, id) })));
+        const answer = h('p', { class: 'small muted', hidden: true });
+        function showChord(i) {
+          const c = chords[i]; if (!c) return;
+          at = i;
+          const iv = ivOf(c.type), flats = flatsOf(st.key, !!progOf(st.prog).minor);
+          prompt.textContent = symOf(c) + ', frets ' + st.start + '–' + (st.start + 4);
+          nextLbl.textContent = 'Next: ' + symOf(chords[(i + 1) % chords.length]);
+          answer.textContent = tones(iv, c.root, flats, c.type === 'dim7' ? 'dim7' : '');
+          markWin(windowNotes(iv, c.root, st.start, S(), false), c.type === 'dim7' ? 'dim7' : '');
+        }
+        const draw = () => {
+          setup.innerHTML = ''; fbWrap.hidden = true; answer.hidden = true;
+          const modeSeg = h('div', { class: 'seg' }, [['one', 'One arpeggio'], ['changes', 'Through the changes']].map(([k, t]) => h('button', { 'aria-pressed': st.mode === k ? 'true' : 'false', onclick: () => { st.mode = k; st.start = null; persist(); draw(); } }, t)));
+          setup.append(modeSeg);
+          if (st.mode === 'one') {
+            const c = arpOf(st.chord), ps = arpPositions(st.root, S());
+            if (st.start === null || !ps.includes(st.start)) { const f = ((st.root - S()[0]) % 12 + 12) % 12; st.start = ps.includes(Math.max(0, f - 1)) ? Math.max(0, f - 1) : ps[0]; }
+            const flats = flatsOf(st.root, c.iv[1] === 3);
+            prompt.textContent = spell(st.root, flats) + ' ' + c.name.toLowerCase() + ', frets ' + st.start + '–' + (st.start + 4);
+            nextLbl.textContent = '';
+            answer.textContent = tones(c.iv, st.root, flats, c.id);
+            markWin(windowNotes(c.iv, st.root, st.start, S()), c.id);
+            setup.append(
+              h('div', { class: 'formgrid' },
+                selectEl('visarp-chord', 'Arpeggio', ARP_ORDER.map(id => ({ value: id, text: arpOf(id).name })), st.chord, v => { st.chord = v; persist(); draw(); }),
+                selectEl('visarp-pos', 'Position', ps.map((f, i) => ({ value: String(f), text: (i + 1) + ' · frets ' + f + '–' + (f + 4) })), String(st.start), v => { st.start = +v; draw(); })),
+              h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Root' }), keyChips(st.root, i => { st.root = i; st.start = null; persist(); draw(); })));
+          } else {
+            chords = progChords(progOf(st.prog), st.key);
+            st.start = bestPosition(chords, ivOf, st.key, S());
+            showChord(0);
+            setup.append(
+              h('div', { class: 'formgrid' },
+                selectEl('visarp-prog', 'Progression', PROGRESSIONS.map(x => ({ value: x.id, text: x.name })), st.prog, v => { st.prog = v; persist(); draw(); }),
+                selectEl('visarp-bars', 'New chord every', [1, 2, 4].map(v => ({ value: String(v), text: v === 1 ? 'bar' : v + ' bars' })), String(st.bars), v => { st.bars = +v; persist(); })),
+              h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.key, i => { st.key = i; persist(); draw(); })));
+          }
+        };
+        const surprise = () => {
+          if (st.mode === 'one') { const easy = ARP_ORDER.filter(id => arpOf(id).tier <= 4); st.chord = easy[Math.floor(Math.random() * easy.length)]; st.root = Math.floor(Math.random() * 12); const ps = arpPositions(st.root, S()); draw(); st.start = ps[Math.floor(Math.random() * ps.length)]; }
+          else { st.prog = PROGRESSIONS[Math.floor(Math.random() * PROGRESSIONS.length)].id; st.key = Math.floor(Math.random() * 12); }
+          draw();
+        };
+        draw();
+        card.append(h('h2', { text: 'See arpeggios in your head' }), prompt, nextLbl, setup,
+          h('p', { text: 'Close your eyes. Picture the neck and "play" the arpeggio in this position, one note per click, up and down from the lowest root. Say each chord tone under your breath (root, 3rd, 5th, 7th). Through the changes, the chord moves on every few bars: find its nearest note without moving your hand. Then reveal it and check.' }),
+          clickRow(st, () => {
+            A.ensure();
+            const per = () => st.bars * 4;
+            loop = A.Loop({ steps: 4, stepDur: () => 60 / st.bpm,
+              onStep: (i, t) => { if (st.click) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8); },
+              onVisual: (() => { let beat = 0; return () => {
+                if (st.mode === 'changes' && chords.length) {
+                  if (beat && beat % per() === 0) { showChord((at + 1) % chords.length); fbWrap.hidden = true; answer.hidden = true; }
+                  if (beat % per() === per() - 1) nextLbl.textContent = 'Next: ' + symOf(chords[(at + 1) % chords.length]) + ' →';
+                }
+                beat++;
+              }; })() });
+            loop.start(); ctx.setActive(true);
+          }),
+          h('div', { class: 'row' },
+            h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.click ? true : null, onchange: e => { st.click = e.target.checked; persist(); } }), 'Click sound')),
+          h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: () => { fbWrap.hidden = !fbWrap.hidden; answer.hidden = fbWrap.hidden; } }, 'Reveal / hide'),
+            h('button', { class: 'btn ghost', onclick: surprise }, 'Surprise me')),
+          answer, fbWrap,
+          h('p', { class: 'small muted', text: 'Spell each chord before you picture it: knowing that G7 is G B D F makes finding it on the neck much faster.' }));
       } else {
         // sing the degrees over a drone
         const pool = D.DEGREES.filter(x => x.tier <= 3);
