@@ -533,6 +533,8 @@ html.compact .tablewrap th { letter-spacing: 0; }
 .stringbtn.on .muted { color: #fff; }
 html.compact .strings { grid-template-columns: repeat(3, 1fr); } /* six across leaves no room for "1 (high)" on a 3-inch screen */
 .warm-note { min-width: 3ch; color: var(--brass); }
+.warm-ramp { margin: 0; color: var(--muted, inherit); }
+.warm-ramp.soon { color: var(--brass); font-weight: 700; font-size: 1.15em; }
 .rest-card { justify-items: center; text-align: center; padding: 28px 18px; }
 .rest-card .list { text-align: left; max-width: 520px; }
 .breathe { width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, var(--patina-soft), color-mix(in srgb, var(--patina) 40%, var(--surface))); }

@@ -132,8 +132,11 @@ tool('scalewarm', {
     const st = {
       scale: p.scale || saved.scale || 'major', tonic: p.tonic ?? saved.tonic ?? 7, pattern: p.pattern || saved.pattern || 'updown',
       sub: saved.sub || 2, guide: saved.guide !== false, climb: saved.climb !== false, start: null,
-      autoPos: p.autoPos ?? saved.autoPos ?? false, posEvery: saved.posEvery || 2
+      autoPos: p.autoPos ?? saved.autoPos ?? false, posEvery: saved.posEvery || 2,
+      // on a timer: up rampStep bpm every rampMin minutes, with a countdown (replaces the climb by rounds)
+      ramp: !!saved.ramp, rampStep: saved.rampStep || 4, rampMin: saved.rampMin || 1
     };
+    if (st.ramp) st.climb = false;
     const bpmKey = () => st.scale + ':' + st.pattern;
     const bpms = E.state.settings.warmBpm || {};
     // the smart plan sets the tempo and position itself
@@ -155,10 +158,11 @@ tool('scalewarm', {
     const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.2) });
     const playBtn = h('button', { class: 'btn primary' }, '▶ Start');
     const roundLbl = h('span', { class: 'small muted mono' });
+    const rampLbl = h('p', { class: 'small mono warm-ramp', hidden: true });
     card.append(
       h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '0' } }, h('span', { class: 'eyebrow', text: 'Now' }), now),
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), h('div', { class: 'stack', style: { gap: '0', justifyItems: 'center' } }, h('span', { class: 'eyebrow', text: 'bpm' }), bpmLbl), h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'))),
-      fb.el, info, timeLbl,
+      rampLbl, fb.el, info, timeLbl,
       h('div', { class: 'row' }, playBtn,
         h('button', { class: 'btn brass', onclick: () => { saveBest(); setBpm(bpm + 4); sig.clean++; report(); toast('Clean. Up to ' + bpm + ' bpm'); } }, 'Clean ✓ +4'),
         h('button', { class: 'btn', onclick: () => { setBpm(bpm - 6); sig.notClean++; report(); toast('Back to ' + bpm + ' bpm. Rebuild it clean.'); } }, 'Not clean'), roundLbl));
@@ -189,10 +193,10 @@ tool('scalewarm', {
     card.append(mic.el, listenBox);
 
     const posSel = h('div');
-    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery }); }
+    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, ramp: st.ramp, rampStep: st.rampStep, rampMin: st.rampMin }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));
-      bpmLbl.textContent = bpm;
+      bpmLbl.textContent = bpm; rampFrom = null;
       const all = Object.assign({}, E.state.settings.warmBpm || {}); all[bpmKey()] = bpm; E.setSetting('warmBpm', all);
       if (loop) { stop(); start(); }
     }
@@ -211,7 +215,8 @@ tool('scalewarm', {
       fb.mark(notes.map(n => ({ s: n.s, f: n.f, kind: n.deg === 0 ? 'root' : 'tone', label: degreeLabel(n.deg) })));
       const ps = rootPositions(st.tonic), pi = ps.indexOf(st.start);
       info.textContent = spell(st.tonic, flats) + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4) + (pi >= 0 ? ' (position ' + (pi + 1) + ' of ' + ps.length + ')' : '') + ' · ' + PATTERNS[st.pattern].toLowerCase() + ' · ' + seq.length + ' notes per round, root to root. ' +
-        'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.' + (st.autoPos ? ' The position moves every ' + st.posEvery + ' round' + (st.posEvery > 1 ? 's' : '') + '.' : '');
+        'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.' + (st.autoPos ? ' The position moves every ' + st.posEvery + ' round' + (st.posEvery > 1 ? 's' : '') + '.' : '') +
+        (st.ramp ? ' The tempo goes up ' + st.rampStep + ' bpm every ' + (st.rampMin === 1 ? 'minute' : st.rampMin + ' minutes') + ', on a beat; Stop goes back to where you started.' : '');
       const best = (E.state.settings.warmBest || {})[bpmKey()];
       roundLbl.textContent = best ? 'Best clean: ' + best + ' bpm' : '';
       paintTime();
@@ -223,11 +228,34 @@ tool('scalewarm', {
       now.textContent = spell(n.p, keyPrefersFlats(st.tonic, scaleOf(st.scale).steps[2] === 3));
     }
     let countTimers = [], loops = [], posDir = 1;
+    // The timed speed-up: rampAt is the audio time of the next step up, taken on the first beat at or after
+    // it; rampFrom is the tempo Start began at, which the Stop button goes back to.
+    let rampAt = 0, rampFrom = null, rampTimer = null;
+    const rampSecs = () => st.rampMin * 60;
+    function paintRamp() {
+      if (!st.ramp || !loop) { rampLbl.hidden = true; return; }
+      const left = Math.max(0, Math.ceil(rampAt - A.heard()));
+      rampLbl.hidden = false;
+      if (bpm >= 260) { rampLbl.textContent = 'Top speed: 260 bpm'; rampLbl.classList.remove('soon'); return; }
+      const soon = left <= 5;
+      rampLbl.classList.toggle('soon', soon);
+      rampLbl.textContent = soon ? 'Faster in ' + Math.max(1, left) + '… ' + Math.min(260, bpm + st.rampStep) + ' bpm'
+        : '↑ ' + Math.min(260, bpm + st.rampStep) + ' bpm in ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+    }
+    function startRamp(at) {
+      clearInterval(rampTimer); rampTimer = null;
+      if (!st.ramp) { rampLbl.hidden = true; return; }
+      if (rampFrom === null) rampFrom = bpm;
+      rampAt = at + rampSecs();
+      rampTimer = setInterval(paintRamp, 250);
+      paintRamp();
+    }
     function start() {
       A.ensure(); rounds = 0; steps.length = 0; lastStep = null; posDir = 1;
       const beat = 60 / bpm;
       // one bar of count-in, then rounds of the pattern
       const t0 = A.now() + 0.1;
+      startRamp(t0 + 4 * beat);
       for (let k = 0; k < 4; k++) {
         A.hit(k === 0 ? 'clickHi' : 'click', t0 + k * beat, 1);
         countTimers.push(setTimeout(() => { now.textContent = (k + 1) + '…'; }, Math.max(0, (t0 + k * beat - A.now() + A.latency()) * 1000)));
@@ -239,11 +267,18 @@ tool('scalewarm', {
     // One round of the pattern. Its last step schedules the next round exactly on time, so the tempo
     // and the position can change between rounds without a gap.
     function playRound(at) {
-      const rs = seq, rn = notes, len = rs.length, n = Math.ceil(len / st.sub) * st.sub, sd = 60 / bpm / st.sub;
+      const rs = seq, rn = notes, len = rs.length, n = Math.ceil(len / st.sub) * st.sub;
+      let sd = 60 / bpm / st.sub;
       const round = rounds, label = st.autoPos ? 'frets ' + st.start + '–' + (st.start + 4) : '';
+      const bumps = {}; // steps where the timed speed-up came in: the tempo to show when they are heard
       const lp = A.Loop({
         steps: n, maxSteps: n, stepDur: () => sd,
         onStep: (i, t) => {
+          // the timer's step up lands on a beat, even in the middle of a round
+          if (st.ramp && i % st.sub === 0 && rampAt && t >= rampAt - 0.01) {
+            rampAt += rampSecs();
+            if (bpm < 260) { bpm = Math.min(260, bpm + st.rampStep); sd = 60 / bpm / st.sub; bumps[i] = bpm; }
+          }
           if (i % st.sub === 0) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8);
           // guide notes would confuse the mic, so they stay off while it listens
           if (i < len && st.guide && !mic.on) A.note(rs[i].m, t, 0.32, 0.25);
@@ -252,7 +287,9 @@ tool('scalewarm', {
         },
         onVisual: i => {
           if (i < len) highlight(i, rs, rn);
-          if (i === 0) { bpmLbl.textContent = Math.round(60 / sd / st.sub); roundLbl.textContent = 'Round ' + (round + 1) + (label ? ' · ' + label : ''); }
+          if (bumps[i]) { bpmLbl.textContent = bumps[i]; toast('Faster: ' + bumps[i] + ' bpm'); }
+          else if (i === 0) bpmLbl.textContent = Math.round(60 / sd / st.sub);
+          if (i === 0) { roundLbl.textContent = 'Round ' + (round + 1) + (label ? ' · ' + label : ''); }
         }
       });
       loop = lp; loops.push(lp); if (loops.length > 3) loops.shift();
@@ -272,8 +309,10 @@ tool('scalewarm', {
       }
       playRound(at);
     }
-    function stop() { clock.stop(); countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
-    playBtn.onclick = () => (loop ? stop() : start());
+    function stop() { clearInterval(rampTimer); rampTimer = null; rampLbl.hidden = true; clock.stop(); countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
+    // Stop goes back to the tempo the timed speed-up started from (a tempo you set while it ran starts it over)
+    function halt() { stop(); if (rampFrom !== null) { bpm = rampFrom; bpmLbl.textContent = bpm; } rampFrom = null; }
+    playBtn.onclick = () => (loop ? halt() : start());
 
     function renderCtl() {
       ctl.innerHTML = '';
@@ -287,14 +326,19 @@ tool('scalewarm', {
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.tonic, i => { st.tonic = i; restart(); })),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.guide ? true : null, onchange: e => { st.guide = e.target.checked; persist(); } }), 'Play the notes with me'),
-          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; persist(); } }), 'Speed up 2 bpm every 2 rounds')),
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; if (st.climb) st.ramp = false; persist(); renderCtl(); if (loop) startRamp(A.now()); } }), 'Speed up 2 bpm every 2 rounds')),
+        h('div', { class: 'row' },
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.ramp ? true : null, onchange: e => { st.ramp = e.target.checked; if (st.ramp) st.climb = false; persist(); build(); if (loop) startRamp(A.now()); } }), 'Speed up on a timer:'),
+          (() => { const sel = h('select', { 'aria-label': 'bpm per step' }); [1, 2, 4, 5, 8, 10].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.rampStep ? true : null, text: '+' + v + ' bpm' }))); sel.onchange = () => { st.rampStep = +sel.value; persist(); build(); paintRamp(); }; return sel; })(),
+          h('span', { text: 'every' }),
+          (() => { const sel = h('select', { 'aria-label': 'Minutes per step' }); [1, 2, 3, 5].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.rampMin ? true : null, text: v + ' min' }))); sel.onchange = () => { st.rampMin = +sel.value; persist(); build(); if (loop) startRamp(A.now()); }; return sel; })()),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.autoPos ? true : null, onchange: e => { st.autoPos = e.target.checked; persist(); build(); } }), 'Move up the neck to a new position every'),
           (() => { const sel = h('select', { 'aria-label': 'Rounds per position' }); [1, 2, 4].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.posEvery ? true : null, text: v + (v === 1 ? ' round' : ' rounds') }))); sel.onchange = () => { st.posEvery = +sel.value; persist(); build(); }; return sel; })()),
         h('p', { class: 'small muted', text: 'Positions follow the root on the 6th, 5th and 4th strings, so you cover the neck in a few rounds. Each round starts and ends on the root.' }));
     }
     build();
-    return () => { clock.stop(); countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
+    return () => { clearInterval(rampTimer); clock.stop(); countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
   }
 });
 
