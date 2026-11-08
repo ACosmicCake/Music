@@ -82,3 +82,6 @@ export const loadTuneNotes = once(() => Promise.all([import('./tunes-harmony.js'
   });
   D.HARMONY_WORDS = m.WORDS;
 }));
+
+/* The lives of the favourite players: timeline, how they learned and wrote, stories, sources (D.BIOS, by player id) */
+export const loadBios = once(() => import('./players-bio.js').then(m => { D.BIOS = m.default; }));
