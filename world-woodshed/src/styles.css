@@ -1038,6 +1038,18 @@ html.compact .sr-lv { padding: 2px 6px; min-width: 44px; min-height: 44px; font-
 .sr-fs .sr-fsresult:empty { display: none; }
 /* full screen from the printed page (src/ui/pageview.js): the PDF or photo as it is, one page or two side by side */
 .sr-fs .sr-staff.sr-pagebox { overflow: hidden; justify-content: center; padding: 6px; background: var(--bg); }
+.sr-keys-back { z-index: 90; align-items: center; padding: 12px; }
+.sr-keys { max-width: 460px; border-radius: 18px; padding: 16px; gap: 12px; }
+.sr-keys h3 { margin: 0; }
+.sr-keys > .spread { flex-wrap: nowrap; }
+.sr-keylist { display: grid; grid-template-columns: 7.5em 1fr; gap: 6px 12px; margin: 0; align-items: baseline; }
+.sr-keylist dt { white-space: nowrap; }
+.sr-keylist dd { margin: 0; }
+kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; background: var(--surface); font: 600 0.8rem/1.4 var(--font-mono); text-align: center; color: var(--ink); }
+/* keyboard shortcuts only where there is a mouse or trackpad (a laptop), not on a phone or tablet alone */
+@media (hover: none) { .sr-keyhint, .sr-keybtn { display: none; } }
+html.compact .sr-keylist { grid-template-columns: 1fr; gap: 2px; }
+html.compact .sr-keylist dd { margin-bottom: 6px; }
 /* the scroller, and the pages in it: centred while they fit, one under the other once zoomed in past that */
 .sr-pages { width: 100%; height: 100%; overflow: auto; position: relative; touch-action: pan-x pan-y; overscroll-behavior: contain; }
 .sr-pinner { display: flex; gap: 16px; justify-content: center; align-items: center; min-height: 100%; }
@@ -1076,3 +1088,10 @@ html.compact .open-string b { font-size: 1.1rem; }
 .fav-star { min-width: 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0 8px; }
 .fav-star[aria-pressed="true"] { color: var(--brass, #b8860b); }
 .row > .fav-star { min-height: 36px; }
+.bio-fold .bio { padding: 4px 2px 0; }
+.bio-fold .bio h3 { margin-top: 4px; }
+.bio-sources li { overflow-wrap: anywhere; }
+html.compact .bio .timeline li { grid-template-columns: 1fr; gap: 2px; padding-bottom: 10px; }
+html.compact .bio .timeline li::before { display: none; }
+html.compact .bio .timeline p { padding-left: 0; }
+html.compact .bio .timeline p::before { display: none; }

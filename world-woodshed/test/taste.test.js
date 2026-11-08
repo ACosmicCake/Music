@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
-import { loadDrills } from '../src/content/lazy.js';
+import { loadDrills, loadBios } from '../src/content/lazy.js';
 import { PLAYERS, GENRES, playersOf, tasteFrom, rankedStyles, playerBoost, artistIndex } from '../src/taste.js';
 
 describe('favourite players', () => {
@@ -47,6 +47,24 @@ describe('favourite players', () => {
       expect((p.records || []).length, p.id).toBeGreaterThanOrEqual(3);
       p.records.forEach(r => { expect(typeof r[0], p.id).toBe('string'); expect(r[1], p.id).toBeTruthy(); });
     }
+  });
+  it('every player has a life: a timeline, how they learned, wrote and the stories, what to practise and sources', async () => {
+    await loadBios();
+    expect(Object.keys(D.BIOS).sort()).toEqual(PLAYERS.map(p => p.id).sort());
+    PLAYERS.forEach(pl => {
+      const b = D.BIOS[pl.id];
+      expect(b.lede.length, pl.id).toBeGreaterThan(80);
+      expect(b.life.length, pl.id).toBeGreaterThanOrEqual(5);
+      b.life.forEach(([when, what]) => { expect(typeof when).toBe('string'); expect(what.length).toBeGreaterThan(10); });
+      expect(b.parts.length, pl.id).toBeGreaterThanOrEqual(3);
+      b.parts.forEach(x => { expect(x.h).toBeTruthy(); expect(x.p.length, pl.id + ' ' + x.h).toBeGreaterThanOrEqual(3); });
+      expect(b.parts.some(x => /learn|practi/i.test(x.h)), pl.id).toBe(true);
+      expect(b.parts.some(x => /stor/i.test(x.h)), pl.id).toBe(true);
+      expect(b.take.length, pl.id).toBeGreaterThanOrEqual(3);
+      expect(b.sources.length, pl.id).toBeGreaterThanOrEqual(2);
+      b.sources.forEach(([title, url]) => { expect(title).toBeTruthy(); if (url) expect(url).toMatch(/^https:\/\//); });
+      expect(b.sources.some(s => !s[1]), pl.id + ' cites a book or film').toBe(true);
+    });
   });
   it('the index the planner sees before the drills load knows their players', () => {
     const d = D.DRILLS.find(x => x.id === 'jazz-monk-wholetone');

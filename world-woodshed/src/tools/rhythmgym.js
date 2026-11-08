@@ -3,7 +3,7 @@ import E from '../engine.js';
 import { h, s, toast, tool, hooks, pickFor, openTool, TOOLS } from '../ui/core.js';
 import { TapPad, tapTime, scoreTaps, OffsetChart, describeOffset, feel16On } from './rhythm.js';
 import { withStar, favStar } from '../ui/favs.js';
-import { GYM, CATS, SEGS, FEELS, FEEL_PRESETS, feelOpts, feelAt, beatsClick } from '../content/gym.js';
+import { GYM, CATS, SEGS, FEELS, FEEL_GROUPS, FEEL_PRESETS, feelOpts, feelAt, beatsClick } from '../content/gym.js';
 
 /* ======================================================
    RHYTHM GYM: tuplets, polyrhythms, the 16th-note grid, displaced clicks and rhythmic echo.
@@ -44,8 +44,9 @@ function FeelBuilder(opts, changed) {
         set(() => { opts.seq = p.seq.slice(); opts.random = !!p.random; })))),
       h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Your feels' }), opts.seq.map((k, i) => chip((opts.random ? '' : (i + 1) + '. ') + FEELS[k].short + (opts.seq.length > 1 ? ' ✕' : ''), true,
         set(() => { if (opts.seq.length > 1) opts.seq.splice(i, 1); }), { 'aria-label': 'Take out ' + FEELS[k].name }))),
-      h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Add' }), Object.keys(FEELS).map(k => chip('+ ' + FEELS[k].short, false,
-        set(() => { if (opts.seq.length < 16) opts.seq.push(k); }), { 'aria-label': 'Add ' + FEELS[k].name, title: FEELS[k].name }))),
+      ...Object.entries(FEEL_GROUPS).map(([g, gname]) => h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Add · ' + gname.toLowerCase() }),
+        Object.keys(FEELS).filter(k => FEELS[k].group === g).map(k => chip('+ ' + FEELS[k].short, false,
+          set(() => { if (opts.seq.length < 16) opts.seq.push(k); }), { 'aria-label': 'Add ' + FEELS[k].name, title: FEELS[k].name + ': ' + FEELS[k].say })))),
       h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Order' }), chip('In order', !opts.random, set(() => { opts.random = false; })), chip('Shuffle', opts.random, set(() => { opts.random = true; }))),
       h('div', { class: 'chips gym-row' }, h('span', { class: 'small muted', text: 'Bars per feel' }), SEGS.map(n => chip(String(n), n === opts.seg, set(() => { opts.seg = n; })))));
   }

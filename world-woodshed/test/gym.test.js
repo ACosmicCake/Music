@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GYM, FEELS, SEGS, FEEL_PRESETS, feelOpts, feelAt, nextFeel } from '../src/content/gym.js';
+import { GYM, FEELS, FEEL_GROUPS, SEGS, FEEL_PRESETS, feelOpts, feelAt, feelPos, nextFeel } from '../src/content/gym.js';
 
 describe('rhythm gym', () => {
   it('has unique ids and patterns inside the bar', () => {
@@ -14,8 +14,21 @@ describe('rhythm gym', () => {
   it('feels are even and 3 against 2 splits two beats in three', () => {
     expect(FEELS.q3.pos).toEqual([0, 2 / 3, 4 / 3, 2, 2 + 2 / 3, 2 + 4 / 3]);
     expect(FEELS.sw.pos.slice(0, 2)).toEqual([0, 2 / 3]);
-    expect(FEELS.d8.pos).toEqual([0, 0.75, 1.5, 2.25, 3, 3.75]);
-    Object.values(FEELS).forEach(f => expect(f.pos.every((x, i, a) => !i || x > a[i - 1])).toBe(true));
+    expect(feelPos(FEELS.d8, 0)).toEqual([0, 0.75, 1.5, 2.25, 3, 3.75]);
+    Object.values(FEELS).forEach(f => [0, 1, 2].forEach(b => {
+      const p = feelPos(f, b);
+      expect(p.length).toBeGreaterThan(0);
+      expect(p.every((x, i, a) => x >= 0 && x < 4 && (!i || x > a[i - 1]))).toBe(true);
+    }));
+    Object.values(FEELS).forEach(f => expect(Object.keys(FEEL_GROUPS)).toContain(f.group));
+  });
+
+  it('dotted quarters run across the bar line and come home on 1 every 3 bars', () => {
+    expect([0, 1, 2, 3].map(b => feelPos(FEELS.dq, b))).toEqual([[0, 1.5, 3], [0.5, 2, 3.5], [1, 2.5], [0, 1.5, 3]]);
+    const ex = GYM.find(x => x.id === 'feel-mix');
+    // each feel starts on 1 when it comes in: bar 2 of a quarters ↔ dotted quarters mix is dotted quarters from the top
+    expect(ex.pattern(2, 0, { seq: ['q', 'dq'], seg: 2 })).toEqual([0, 1.5, 3]);
+    expect(ex.pattern(3, 0, { seq: ['q', 'dq'], seg: 2 })).toEqual([0.5, 2, 3.5]);
   });
 
   it('feel changes hold each feel for the chosen bars and cue the bar before a change', () => {
