@@ -49,6 +49,7 @@ export function commuteBlocks(blocks) {
       case 'scalewarm': return as('away', Object.assign({ drill: 'visualise' }, p.scale ? { scale: p.scale } : {}, Number.isInteger(p.tonic) ? { tonic: p.tonic } : {}), 'See the scale on the neck in your head');
       case 'arpwarm': return as('away', Object.assign({ drill: 'arps' }, p.chord ? { chord: p.chord } : {}, Number.isInteger(p.root) ? { root: p.root } : {}), 'See the arpeggio on the neck in your head');
       case 'arpchanges': return as('away', { drill: 'arps', mode: 'changes' }, 'See the chord tones through the changes in your head');
+      case 'constraint': return as('away', { drill: 'sing' }, 'Sing the degrees');
       case 'technique': return as('away', { drill: 'fingers' }, 'Finger independence, tapping on your leg');
       case 'free': return as('away', { drill: 'visualise' });
       case 'callresp': return as('dictation', {}, 'Hear it and write it back, instead of playing it back');

@@ -21,6 +21,7 @@ export const BLOCKS = {
   scalewarm: { name: 'Scale warm-up', cat: 'warm', tool: 'scalewarm', skill: 'technique', minutes: 8, fields: ['scale', 'tonic', 'pattern', 'bpm'], desc: 'A scale in one position with the metronome. The tempo climbs as you stay clean.' },
   arpwarm: { name: 'Arpeggio warm-up', cat: 'warm', tool: 'arpwarm', skill: 'technique', minutes: 6, fields: [], desc: 'An arpeggio in one position with the metronome, from triads to 9ths. The smart plan rotates the arpeggio, key, pattern and tempo.' },
   arpchanges: { name: 'Arpeggio changes', cat: 'tech', tool: 'arpchanges', skill: 'technique', minutes: 8, fields: [], desc: 'A new arpeggio every few bars through a progression or your own chords, in one position.' },
+  constraint: { name: 'Constraint roll', cat: 'music', tool: 'constraint', skill: 'improv', minutes: 10, fields: [], desc: 'Improvise over a vamp with one rule at a time (three notes, one string, off the beat…), a new one every few minutes.' },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', skill: 'technique', minutes: 10, fields: ['exercise'], desc: 'A tempo ladder for one exercise: picking, legato, rasgueado, travis and more.' },
   callresp: { name: 'Call & response', cat: 'tech', tool: 'callresp', skill: 'callresp', minutes: 8, fields: [], desc: 'Hear a phrase, play it back on the fretboard.' },
   rhythms: { name: 'Rhythm & groove', cat: 'rhythm', tool: 'rhythms', skill: 'rhythmTap', minutes: 10, fields: ['rhythm'], desc: 'Loop a rhythm from anywhere in the world and take the tap-along test.' },
@@ -50,7 +51,7 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
-export const BLOCK_ORDER = ['scalewarm', 'arpwarm', 'arpchanges', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'arpwarm', 'arpchanges', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'constraint', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',
@@ -73,6 +74,7 @@ const AWAY_SWAP = {
   scalewarm: b => ({ drill: 'visualise', scale: (b.settings || {}).scale, tonic: (b.settings || {}).tonic }),
   arpwarm: b => ({ drill: 'arps', chord: (b.params || {}).chord, root: (b.params || {}).root }),
   arpchanges: () => ({ drill: 'arps', mode: 'changes' }),
+  constraint: () => ({ drill: 'sing' }),
   technique: () => ({ drill: 'fingers' }),
   free: () => ({ drill: 'visualise' })
 };

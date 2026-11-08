@@ -9,7 +9,7 @@ import { view, h, s, ui, go, renderTabs, teardown, focusView } from './core.js';
 import { fmtMin } from '../routines.js';
 import { spell, keyPrefersFlats } from '../theory.js';
 
-const OTHER_NAMES = { transcribe: 'Transcribe', pieces: 'Library pieces' };
+const OTHER_NAMES = { transcribe: 'Transcribe', pieces: 'Library pieces', improv: 'Improvising' };
 const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
 const weekLabel = w => w.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const pct = x => Math.round(x * 100) + '%';
