@@ -533,6 +533,19 @@ html.compact .tablewrap th { letter-spacing: 0; }
 .stringbtn.on .muted { color: #fff; }
 html.compact .strings { grid-template-columns: repeat(3, 1fr); } /* six across leaves no room for "1 (high)" on a 3-inch screen */
 .warm-note { min-width: 3ch; color: var(--brass); }
+.cr-rules { gap: 10px; }
+.cr-rule { gap: 4px; }
+.cr-rule.cr-second { border-top: 1px solid var(--line); padding-top: 10px; }
+.cr-name { margin: 0; }
+.cr-text { margin: 0; font-size: 1.08rem; }
+.cr-badge { color: var(--muted); }
+.cr-badge.on { color: var(--good); }
+.cr-time { min-width: 4ch; text-align: right; }
+.cr-rest { justify-self: start; margin-top: 4px; }
+.cr-rest.on { background: var(--good-soft); color: var(--good); }
+.cr-heard.bad { color: var(--bad); }
+.cr-kept { display: inline-flex; align-items: center; gap: 0; padding: 0; }
+.cr-kept .btn { min-height: 0; padding: 4px 8px; }
 .warm-ramp { margin: 0; color: var(--muted, inherit); }
 .warm-ramp.soon { color: var(--brass); font-weight: 700; font-size: 1.15em; }
 .rest-card { justify-items: center; text-align: center; padding: 28px 18px; }
