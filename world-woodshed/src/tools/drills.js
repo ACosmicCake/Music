@@ -15,6 +15,7 @@ import { SoloTips } from '../ui/solo.js';
 import { phraseGrid, patternGrid, backingRows, offBeat } from '../countgrid.js';
 import { PLAYERS } from '../taste.js';
 import { spotifyWeb, openSpotify } from '../spotify.js';
+import { BioFold } from '../ui/bio.js';
 
 /* ======================================================
    STYLE DRILLS: the exercises a teacher of each tradition would give, with a backing loop,
@@ -139,6 +140,7 @@ tool('drill', {
           h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: regionName(pl.style) }), star),
           h('h2', { text: pl.name }),
           h('p', { class: 'small muted', text: pl.blurb }),
+          BioFold(pl.id, pl.name),
           ds.length ? h('div', { class: 'tools' }, ds.map(drillTile)) : h('p', { class: 'small muted', text: 'No ' + FOCUS[filter].toLowerCase() + ' drills for ' + pl.name + ' yet.' }),
           ts.length ? h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Tunes for the band' }),
             h('div', { class: 'chips' }, ts.map(t => h('button', { class: 'chip', onclick: () => openTool('repertoire', { params: { tune: t.id } }) }, t.name)))) : '',

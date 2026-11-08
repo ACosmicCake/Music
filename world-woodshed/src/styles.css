@@ -1070,3 +1070,10 @@ html.compact .open-string b { font-size: 1.1rem; }
 .fav-star { min-width: 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: 1.2rem; cursor: pointer; padding: 0 8px; }
 .fav-star[aria-pressed="true"] { color: var(--brass, #b8860b); }
 .row > .fav-star { min-height: 36px; }
+.bio-fold .bio { padding: 4px 2px 0; }
+.bio-fold .bio h3 { margin-top: 4px; }
+.bio-sources li { overflow-wrap: anywhere; }
+html.compact .bio .timeline li { grid-template-columns: 1fr; gap: 2px; padding-bottom: 10px; }
+html.compact .bio .timeline li::before { display: none; }
+html.compact .bio .timeline p { padding-left: 0; }
+html.compact .bio .timeline p::before { display: none; }
