@@ -443,6 +443,13 @@ function fileRow(entry, f, local, redraw, fetch) {
     // a PDF or the photos of a page: Sight-read the notes the app read from it, reading them first if it hasn't
     if (TOOLS.sightread && (f.kind === 'pdf' || (f.kind === 'image' && i <= 0))) acts.append(h('button', { class: 'btn small', onclick: ev => sightReadPage(entry, f, ev.currentTarget) }, 'Sight-read it'));
     if (L.READABLE_MELODY.test(f.name) && TOOLS.sightread) acts.append(h('button', { class: 'btn small', onclick: () => openTool('sightread', { returnTab: 'library', params: { mode: 'scores', entry: entry.id, file: f.id } }) }, 'Sight-read it'));
+    if (f.kind === 'audio') acts.append(h('button', { class: 'btn small brass', 'aria-expanded': 'false', onclick: withFile(got => {
+      // listen here: a player under the file, opened and closed by the same button
+      const was = row.querySelector('.lib-audio'), btn = acts.firstChild;
+      if (was) { was.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
+      row.append(h('audio', { class: 'lib-audio', controls: true, autoplay: true, src: urlFor(typed(got)) }));
+      btn.setAttribute('aria-expanded', 'true');
+    }) }, 'Listen'));
     if (f.kind === 'audio' && TOOLS.transcribe) acts.append(h('button', { class: 'btn small', onclick: withFile(got => openTool('transcribe', { returnTab: 'library', params: { file: got.blob instanceof File ? got.blob : new File([got.blob], got.name, { type: got.type }) } })) }, 'Transcribe'));
     acts.append(h('button', { class: 'btn small', onclick: withFile(got => share(got, '')) }, isNative() ? 'Share' : 'Share or save'));
   }
