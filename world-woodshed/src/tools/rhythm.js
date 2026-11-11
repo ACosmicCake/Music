@@ -2,7 +2,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import { kitFor, prepare } from '../drumkit.js';
 import E from '../engine.js';
-import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz, hooks } from '../ui/core.js';
+import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks, tapButton } from '../ui/core.js';
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
 
@@ -30,7 +30,6 @@ export function RhythmGrid(r) {
   const cols = `56px repeat(${r.steps}, minmax(12px, 1fr))`;
   const gstarts = new Set(); if (r.groups) { let a = 0; r.groups.forEach(g => { if (a) gstarts.add(a); a += g; }); } else for (let i = r.spb; i < r.steps; i += r.spb) gstarts.add(i);
   const cells = [];
-  const tgt = new Set(targetSteps(r));
   Object.entries(r.tracks).forEach(([name, pat]) => {
     const row = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
     row.append(h('span', { class: 'rname', text: name === 'low' ? 'dum/low' : name === 'high' ? 'tek/high' : name }));
@@ -47,7 +46,7 @@ export function RhythmGrid(r) {
   labRow.append(h('span', { class: 'rname', text: r.labels ? 'say' : 'count' }));
   for (let i = 0; i < r.steps; i++) {
     let t = r.labels ? r.labels[i] : r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
-    if (r.groups && !r.labels) { let a = 0, gi = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; gi++; } }
+    if (r.groups && !r.labels) { let a = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; } }
     const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: t, title: t });
     labs.push(l); labRow.append(l);
   }
@@ -103,7 +102,7 @@ export function scoreTaps(expected, taps, win) {
   const score = Math.max(0, Math.min(1, hitRate * 0.6 + precision * 0.4 - Math.min(0.3, extra * 0.04)));
   return { errs, hitRate, meanAbs, mean, sd, extra, score };
 }
-export function OffsetChart(errs, win, groupFn) {
+export function OffsetChart(errs, win) {
   const W = 640, Hh = 150, pad = 30;
   const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chart', role: 'img', 'aria-label': 'Tap timing: points above the line are late, below are early' });
   const lim = Math.ceil(win * 1000 / 20) * 20;
@@ -495,7 +494,11 @@ tool('metronome', {
     // the click reads the tempo on every step, so it changes on the next beat without starting over
     const setBpm = (v, keep = true) => { st.bpm = Math.max(30, Math.min(260, Math.round(v))); bpmIn.value = st.bpm; big.textContent = st.bpm; if (keep) E.setSetting('metBpm', st.bpm); };
     const nudge = (d, label) => h('button', { class: 'btn small', 'aria-label': (d < 0 ? 'Slower by ' : 'Faster by ') + Math.abs(d), onclick: () => setBpm(st.bpm + d) }, label);
-    card.append(h('div', { class: 'spread' }, h('div', { class: 'row' }, nudge(-1, '−1'), big, nudge(1, '+1')), dots), bpmIn,
+    const tap = tapButton(v => setBpm(v), { min: 30, max: 260 });
+    // T taps too, so a laptop player can tap with a free hand (not while typing)
+    const onKey = e => { if ((e.key === 't' || e.key === 'T') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) tap.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); };
+    document.addEventListener('keydown', onKey);
+    card.append(h('div', { class: 'spread' }, h('div', { class: 'row' }, nudge(-1, '−1'), big, nudge(1, '+1'), tap), dots), bpmIn,
       h('div', { class: 'row' }, seg('Beats', 'beats', [2, 3, 4, 5, 7]), seg('Subdivision', 'sub', [1, 2, 3, 4], v => ['♩', '♫', '3', '4'][v - 1])),
       h('div', { class: 'row' }, seg('Play bars', 'play', [1, 2, 4]), seg('Then mute bars', 'mute', [0, 1, 2, 4], v => v === 0 ? 'off' : String(v))), btn);
     function renderDots(active) { dots.innerHTML = ''; for (let i = 0; i < st.beats; i++) dots.append(h('span', { style: { width: '14px', height: '14px', borderRadius: '50%', display: 'inline-block', background: i === active ? 'var(--brass)' : 'var(--sunk)' } })); }
@@ -542,6 +545,6 @@ tool('metronome', {
       } });
       calLoop.start();
     };
-    return () => { stopMet(); if (calLoop) calLoop.stop(); if (calPad) calPad.cleanup(); };
+    return () => { document.removeEventListener('keydown', onKey); stopMet(); if (calLoop) calLoop.stop(); if (calPad) calPad.cleanup(); };
   }
 });

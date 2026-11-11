@@ -7,10 +7,11 @@ import Cur from '../curriculum.js';
 import St from '../stats.js';
 import { view, h, s, ui, go, renderTabs, teardown, focusView } from './core.js';
 import { fmtMin } from '../routines.js';
+import { weekReviewCard } from './weekreview.js';
 import { spell, keyPrefersFlats } from '../theory.js';
 
 const OTHER_NAMES = { transcribe: 'Transcribe', pieces: 'Library pieces', improv: 'Improvising' };
-const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
+export const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
 const weekLabel = w => w.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const pct = x => Math.round(x * 100) + '%';
 const hm = m => { m = Math.round(m); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + m % 60 + 'm' : ''); }; // short, for the narrow column
@@ -36,6 +37,8 @@ function draw(body) {
   const ws = St.weeks(st.hdev, span, now), skills = St.skillsIn(ws);
   const min = ws.reduce((a, w) => a + w.min, 0), q = ws.reduce((a, w) => a + w.q, 0), c = ws.reduce((a, w) => a + w.c, 0);
 
+  const review = weekReviewCard();
+  if (review) body.append(review);
   body.append(h('div', { class: 'seg', role: 'group', 'aria-label': 'Weeks shown' }, [4, 8, 12].map(n =>
     h('button', { 'aria-pressed': n === span ? 'true' : 'false', onclick: () => { span = n; draw(body); } }, n + ' weeks'))));
 

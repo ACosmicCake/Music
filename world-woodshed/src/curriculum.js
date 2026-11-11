@@ -88,7 +88,14 @@ function baseCatalog() {
   catCache = list;
   return list;
 }
-const byId = id => catalog().find(x => x.id === id);
+/* An item by id: the fixed catalogue through an index (the planner looks items up many times per plan) */
+let idIndex = null, indexOf = null;
+const byId = id => {
+  if (String(id).startsWith('piece:')) return pieces().find(x => x.id === id);
+  const base = baseCatalog();
+  if (indexOf !== base) { idIndex = new Map(base.map(x => [x.id, x])); indexOf = base; }
+  return idIndex.get(id);
+};
 
 /* ---------- memory model ---------- */
 export const recall = (it, now = Date.now()) => (it && it.last ? Math.pow(1 + (now - it.last) / DAY / (9 * it.s), -1) : 0);
@@ -281,8 +288,10 @@ export function choose(kind, ctx, used = new Set(), opts = {}) {
   }
   // 3. something new, if the budget, the backlog and the clock allow
   const isMotor = MOTOR.has(kind);
-  // the first item of each kind is free (there is nothing to review yet), up to two per session
-  const starter = !mine.length && !introduced(kind).length && (opts.starters || 0) < 2 && ctx.newMotorToday + (opts.starters || 0) < 3;
+  // the first item of each kind is free (there is nothing to review yet): two per session, three from 25 minutes
+  // and four from 45, so a new player's long first sessions are full rather than all ear training and reading
+  const most = opts.maxStarters || 2;
+  const starter = !mine.length && !introduced(kind).length && (opts.starters || 0) < most && ctx.newMotorToday + (opts.starters || 0) < most + 1;
   let block = null;
   if (starter) { if (opts.onStarter) opts.onStarter(); }
   else {
@@ -323,7 +332,8 @@ export function warmDetails(item) {
   // positions: where the root sits on the 6th, 5th or 4th string, rotating once the scale is settled
   // (starting no higher than fret 8: the neck drawn is frets 0–12)
   const starts = [];
-  [4, 9, 2].forEach(open => { let f = ((key - open) % 12 + 12) % 12; [f, f + 12].forEach(ff => { const st = Math.max(0, ff - 1); if (st <= 8 && !starts.includes(st)) starts.push(st); }); });
+  // (on the strings as they are tuned now: drop D or a capo moves the root)
+  E.STRINGS.slice(0, 3).map(x => x.midi).forEach(open => { let f = ((key - open) % 12 + 12) % 12; [f, f + 12].forEach(ff => { const st = Math.max(0, ff - 1); if (st <= 8 && !starts.includes(st)) starts.push(st); }); });
   starts.sort((a, b) => a - b);
   const start = s < 5 ? starts.find(x => x >= 0 && x <= 7) ?? starts[0] : starts[Math.floor(Math.random() * starts.length)];
   const bpm = Math.round((it && it.bpm) || (pattern === 'updown' ? 66 : 60));
@@ -361,6 +371,7 @@ export function planSession(minutes) {
   const ctx = context();
   const used = new Set();
   let newTaken = false, starters = 0;
+  const maxStarters = minutes >= 45 ? 4 : minutes >= 25 ? 3 : 2;
   // which kind gets this session's one new item: the one with the least introduced so far, relative to its size
   const kinds = ['warm', 'arp', 'tech', 'rhythm', 'tune'].concat((D.DRILLS || []).length ? ['drill'] : []);
   const share = k => introduced(k).length / Math.max(1, catalog().filter(x => x.kind === k).length) + Math.random() * 0.02;
@@ -374,7 +385,7 @@ export function planSession(minutes) {
   const add = (kind, weight, extra) => blocks.push(Object.assign({ kind, weight }, extra || {}));
   const pickItem = (kind, opts) => {
     const motorBlocked = MOTOR.has(kind) && kind !== newKind;
-    const r = choose(kind, ctx, used, Object.assign({ newTaken: newTaken || motorBlocked, starters, onStarter: () => { starters++; } }, opts || {}));
+    const r = choose(kind, ctx, used, Object.assign({ newTaken: newTaken || motorBlocked, starters, maxStarters, onStarter: () => { starters++; } }, opts || {}));
     if (r) { used.add(r.item.id); if (r.isNew) newTaken = true; }
     return r;
   };

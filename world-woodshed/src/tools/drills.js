@@ -5,7 +5,6 @@ import { h, toast, tool, openTool, Fretboard, hooks } from '../ui/core.js';
 import { playRhythmStep, RhythmGrid } from './rhythm.js';
 import { parseChord, prettySym } from '../theory.js';
 import { renderStaff } from '../notation.js';
-import Mic from '../listen.js';
 import { MicToggle, TimingMeter } from '../ui/mic.js';
 import Cur from '../curriculum.js';
 import { favStar, favList } from '../ui/favs.js';
@@ -157,7 +156,7 @@ tool('drill', {
       stopAll(); holder.innerHTML = '';
       const vars = d.variations || [];
       const saved = E.state.settings.drillBpm || {};
-      let bpm = saved[d.id] || d.tempo[0], vi = 0, rounds = 0, rotateEvery = E.state.settings.drillRotate ?? 2;
+      let bpm = saved[d.id] || d.tempo[0], vi = 0, rotateEvery = E.state.settings.drillRotate ?? 2;
       const sig = { clean: 0, notClean: 0 };
       const report = () => { if (hooks.signal) hooks.signal('drill:' + d.id, sig); };
       const card = h('div', { class: 'card' });
@@ -169,7 +168,6 @@ tool('drill', {
       const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.1) });
       const chordLbl = h('div', { class: 'prompt' });
       back = Backing(d, () => bpm, cycle => {
-        rounds = cycle;
         roundLbl.textContent = 'Round ' + (cycle + 1);
         if (cycle > 0 && rotateEvery && cycle % rotateEvery === 0 && vars.length > 1) setVar(vi + 1);
       });

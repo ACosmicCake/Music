@@ -1,6 +1,5 @@
 /* World Woodshed — microphone UI: the Listen toggle, the settings card and the timing meter */
 import D from '../data.js';
-import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
 import { h, s } from './core.js';

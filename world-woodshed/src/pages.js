@@ -5,7 +5,7 @@ import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
 import { startSession, runCurrent, discardSession } from './ui/session.js';
-import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
+import { blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
@@ -15,6 +15,7 @@ import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow,
 import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendByCode, receiveByCode, CODE_MINUTES } from './linkcode.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
+import { weekReviewCard } from './ui/weekreview.js';
 import Samples from './samples.js';
 import A from './audio.js';
 import { VOICES } from './guitars.js';
@@ -128,6 +129,9 @@ Object.assign(PAGES, {
     // the daily goal and the streaks (the goal grows first, if it is time)
     applyRamp();
     view.append(goalCard());
+    // last week, from Monday until you put it away
+    const review = ses ? null : weekReviewCard({ today: true });
+    if (review) view.append(review);
     // drills, tunes and styles that match your favourite players and what you listen to on Spotify
     const because = becauseCard();
     if (because) view.append(because);
@@ -222,6 +226,31 @@ Object.assign(PAGES, {
   }
 });
 
+/* Erase the progress: on this device only, or on every device when it syncs. With sync on, this device only
+   also stops syncing, or the next sync would bring everything back. */
+function resetConfirm() {
+  const synced = ghStatus().on, account = !synced && E.cloudOn(); // account: the claude.ai copy, shared by every device signed in
+  let where = 'here';
+  const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }));
+  if (synced) {
+    const opt = (v, label, note) => h('label', { class: 'reset-opt' },
+      h('input', { type: 'radio', name: 'reset-where', value: v, checked: v === where ? true : null, onchange: () => { where = v; } }),
+      h('span', {}, h('b', { text: label }), h('span', { class: 'small muted', text: ' ' + note })));
+    c.append(h('span', { class: 'small', text: 'Your progress syncs with other devices. What should be erased?' }),
+      opt('here', 'This device only.', 'Sync is turned off here, and your other devices and the synced copy keep everything. Connecting sync again later brings it back.'),
+      opt('all', 'Every device.', 'The synced copy and each device are cleared when they next sync. Only a backup file can bring it back.'));
+  } else c.append(h('span', { class: 'small', text: account ? 'This clears every score, routine and setting on every device signed in to your account. It cannot be undone.' : 'This clears every score, routine and setting. It cannot be undone.' }));
+  c.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'),
+    h('button', { class: 'btn small danger', onclick: () => {
+      if (synced && where === 'here' && ghStatus().on) ghDisconnect();
+      E.resetAll(account || (synced && where === 'all'));
+      if (synced && where === 'all' && ghStatus().on) ghSyncNow('reset');
+      toast(synced && where === 'all' ? 'Progress erased on every device' : 'Progress erased on this device');
+      c.remove();
+    } }, 'Erase everything')));
+  return c;
+}
+
 /* A way to Settings at the foot of a page (the gear in the top bar is the other) */
 function settingsLink(what) {
   return h('button', { class: 'tile settings-link', onclick: () => settingsPage() }, h('span', { class: 't-title', text: 'Settings' }), h('span', { class: 't-desc', text: what }), h('span', { class: 't-meter', 'aria-hidden': 'true', text: '→' }));
@@ -240,11 +269,7 @@ export function settingsPage() {
     h('h1', { text: 'Settings' })));
   const danger = h('div', { class: 'card' });
   danger.append(h('h3', { text: 'Reset progress' }), h('div', { class: 'spread' }, h('span', { class: 'small muted', text: E.storageNote() + '. Timing correction: ' + (st.settings.latencyMs || 0) + ' ms.' }),
-    h('button', { class: 'btn small ghost', onclick: () => {
-      const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }), h('span', { class: 'small', text: 'This clears every score, routine and setting. It cannot be undone.' }),
-        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
-      danger.append(c);
-    } }, 'Reset progress')));
+    h('button', { class: 'btn small ghost', onclick: () => { if (!danger.querySelector('.confirm')) danger.append(resetConfirm()); } }, 'Reset progress')));
   view.append(h('div', { class: 'stack settings' },
     fold(guitarCard(), 'Your guitar'), fold(tasteSettingsCard(), 'Your music taste'), fold(displayCard(), 'Display and sounds'), fold(micSettingsCard(), 'Microphone'),
     fold(backupCard(), 'Your progress on every device'), fold(h('div', { class: 'card' }, updateBox()), 'App updates'), fold(danger, 'Reset progress')));
@@ -558,8 +583,22 @@ function backupCard() {
         h('li', { text: 'Later, sync the other way the same way. Each load merges, so nothing is lost; mic and audio latency stay set per device.' }))),
     h('details', { class: 'small' }, h('summary', { text: 'Restore a backup exactly' }),
       h('p', { class: 'small muted', text: 'Replaces this device’s progress with the file as it was saved, instead of merging.' }),
-      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')));
+      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')),
+    storageBox());
   return card;
+}
+
+/* How much of this device's room for saved progress is used (the browser keeps about 5 MB of text for it).
+   The Library's files and Transcribe's audio are stored apart and don't count here. */
+const PART_NAMES = { readLib: 'Pieces you read (reading library)', skills: 'Answers and skills', hdev: 'Practice history', cur: 'The smart plan', library: 'Library details', songs: 'Transcribe setups', journal: 'Practice journal', tunes: 'Your tunes', melodies: 'Melodies', scaleTime: 'Time on each scale', settings: 'Settings', routines: 'Routines', games: 'Game scores', history: 'Daily totals', tech: 'Technique tempos', session: 'The running session' };
+const mb = n => (n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB');
+function storageBox() {
+  const u = E.storageUse(), pct = Math.round(u.share * 100);
+  const top = Object.entries(u.parts).filter(([, n]) => n > 2048).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  return h('details', { class: 'small storage-use' }, h('summary', { text: 'Room used on this device: ' + mb(u.bytes) + ' of about ' + mb(u.limit) + ' (' + pct + '%)' }),
+    bar(Math.min(100, pct), pct >= 80 ? 'bad' : 'brass'),
+    h('p', { class: 'small muted', text: pct >= 80 ? 'Nearly full. A save that doesn’t fit still goes to the second copy, but send a backup file to be safe, and consider deleting old pieces in the reading library.' : 'Your progress is kept as text in the browser. Library files and recordings are stored apart and don’t count here.' }),
+    top.length ? h('ul', { class: 'list small' }, top.map(([k, n]) => h('li', { text: (PART_NAMES[k] || k) + ': ' + mb(n) }))) : null);
 }
 
 /* Check for updates: the web app reloads into a new version; the Android app opens the newest release's page */

@@ -5,7 +5,7 @@
    No DOM, so it can be tested (test/commuteplan.test.js). */
 import D from './data.js';
 import Cur from './curriculum.js';
-import { BLOCKS, DRILLS, newBlock, fitTo, totalOf } from './routines.js';
+import { BLOCKS, DRILLS, newBlock, fitTo, totalOf, blockDef } from './routines.js';
 
 /* What a ride can hold, grouped for "What to include". 'away:<drill>' is a no-guitar drill. */
 export const GO_GROUPS = {
@@ -25,7 +25,7 @@ export function keyTitle(key) {
   if (drill) return DRILLS[drill].split(' (')[0];
   return type === 'repertoire' ? 'Follow a tune by ear' : BLOCKS[type].name;
 }
-export const goTitle = b => (GO_KEYS.includes(keyOf(b)) ? keyTitle(keyOf(b)) : BLOCKS[b.type] ? BLOCKS[b.type].name : b.type);
+export const goTitle = b => (GO_KEYS.includes(keyOf(b)) ? keyTitle(keyOf(b)) : blockDef(b.type) ? blockDef(b.type).name : b.type);
 
 /* A new block of one kind, set up for the phone */
 export function goBlock(key, minutes) {

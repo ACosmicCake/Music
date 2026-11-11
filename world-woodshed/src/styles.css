@@ -136,6 +136,7 @@ input[type="range"] { accent-color: var(--brass); width: 100%; }
 .bar { height: 8px; background: var(--sunk); border-radius: 99px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--patina); border-radius: 99px; }
 .bar.brass > i { background: var(--brass); }
+.bar.bad > i { background: var(--bad); }
 
 /* quiz */
 .prompt { font-family: var(--font-display); font-size: 1.45rem; font-weight: 700; }
@@ -257,6 +258,8 @@ input[type="range"] { accent-color: var(--brass); width: 100%; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 0.92rem; }
 .big-number { font-family: var(--font-display); font-size: 3rem; font-weight: 800; line-height: 1; }
 .confirm { background: var(--bad-soft); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+.reset-opt { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.reset-opt input { margin-top: 3px; flex: none; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 0.9rem; z-index: 20; max-width: calc(100% - 32px); }
 /* transcribe */
 .wave-wrap { width: 100%; border-radius: 8px; overflow: hidden; }
@@ -1113,3 +1116,15 @@ html.compact .bio .timeline li { grid-template-columns: 1fr; gap: 2px; padding-b
 html.compact .bio .timeline li::before { display: none; }
 html.compact .bio .timeline p { padding-left: 0; }
 html.compact .bio .timeline p::before { display: none; }
+/* tap tempo (tapButton in src/ui/core.js): a short flash on each tap */
+.tap-btn.tapped { animation: tapflash 0.18s ease-out; }
+@keyframes tapflash { from { background: var(--brass); color: var(--bg); } }
+/* the weekly review (src/ui/weekreview.js) */
+.week-review h2 { margin: 4px 0 6px; }
+.wr-days { display: flex; gap: 6px; margin: 4px 0; }
+.wr-day { flex: 1; max-width: 36px; height: 10px; border-radius: 99px; background: var(--sunk); }
+.wr-day.some { background: var(--patina); opacity: 0.55; }
+.wr-day.met { background: var(--brass); }
+.wr-up::marker { content: '▲ '; color: var(--good); }
+.wr-down::marker { content: '▼ '; color: var(--bad); }
+.wr-focus { background: var(--sunk); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }

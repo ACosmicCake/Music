@@ -193,7 +193,6 @@ tool('scalewarm', {
       onOff: () => { listenBox.hidden = true; meter.stop(); if (micNoteOff) micNoteOff(); micNoteOff = null; } });
     card.append(mic.el, listenBox);
 
-    const posSel = h('div');
     function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, ramp: st.ramp, rampStep: st.rampStep, rampMin: st.rampMin }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));
@@ -205,7 +204,8 @@ tool('scalewarm', {
       const best = Object.assign({}, E.state.settings.warmBest || {});
       best[bpmKey()] = Math.max(best[bpmKey()] || 0, bpm); E.setSetting('warmBest', best);
     }
-    function defaultStart() { const f = ((st.tonic - 4) % 12 + 12) % 12; return Math.max(0, f === 0 ? 0 : f - 1); }
+    // the root under the first finger on the 6th string, as it is tuned now (drop D, a capo)
+    function defaultStart() { const f = ((st.tonic - E.STRINGS[0].midi) % 12 + 12) % 12; return Math.max(0, f === 0 ? 0 : f - 1); }
     function build() {
       clock.flush();
       const sc = scaleOf(st.scale);

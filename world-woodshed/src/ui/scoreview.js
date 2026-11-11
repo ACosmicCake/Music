@@ -4,7 +4,7 @@
    the first time a score is opened. A MIDI file is read into a draft (src/midiread.js) and written out as
    MusicXML (src/notate.js) first, since alphaTab reads scores, not performances. */
 import * as alphaTab from '@coderline/alphatab';
-import { h } from './core.js';
+import { h, tapButton } from './core.js';
 import { parseMidi, midiToDraft } from '../midiread.js';
 import { toMusicXML } from '../notate.js';
 import { editBeat, toggleTie, beatInfo, pitchName, barsToCheck, LENGTHS, setKey, settings as xmlSettings } from '../scoreedit.js';
@@ -380,7 +380,7 @@ export async function openScore(blob, { title, kind, tempos, edit, sightread, fi
   const box = h('div', { class: 'lib-viewer', role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Score' },
     h('div', { class: 'lib-vbar' }, closeBtn, playBtn, stopBtn, followBtn, tapBtn, soundBtn, fixBtn, readBtn, note),
     h('div', { class: 'lib-vtools' },
-      h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Tempo' }, slower, bpmOut, faster, clickBtn),
+      h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Tempo' }, slower, bpmOut, faster, tapButton(v => setBpm(v), { min: BPM_MIN, max: BPM_MAX }), clickBtn),
       h('span', { class: 'lib-vgroup', role: 'group', 'aria-label': 'Section' }, h('span', { class: 'small', text: 'Bars' }), fromIn, h('span', { class: 'small', text: 'to' }), toIn, loopBtn, rampBtn, onlyBtn, cleanBtn),
       h('span', { class: 'lib-vgroup' }, viewSel, zoomSel, trackWrap)),
     h('div', { class: 'lib-vinfo' }, fixTools, followLine, followBars, recLine, recList, checkNote), pane);

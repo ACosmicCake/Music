@@ -160,3 +160,21 @@ describe('technique tempo', () => {
     expect(t.bpm).toBe(120);
   });
 });
+
+describe('the last days', () => {
+  // Steps of 24 hours from "now" skipped the short day of a clock change (and doubled the long one) when
+  // looked at just after midnight: the 14-day chart and the weekly minutes then missed a day's practice.
+  it('lists each calendar day once across a daylight-saving change', () => {
+    const tz = process.env.TZ;
+    process.env.TZ = 'Europe/Berlin'; // clocks went forward on 29 March 2026: that day has 23 hours
+    try {
+      vi.setSystemTime(new Date('2026-03-29T12:00:00').getTime());
+      E.addTime(600, 'intervals');
+      vi.setSystemTime(new Date('2026-03-30T00:30:00').getTime());
+      const days = E.lastNDays(3);
+      expect(days.map(d => d.key)).toEqual(['2026-03-28', '2026-03-29', '2026-03-30']);
+      expect(days.map(d => d.min)).toEqual([0, 10, 0]);
+      expect(days.map(d => d.date.getDate())).toEqual([28, 29, 30]);
+    } finally { if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz; }
+  });
+});
