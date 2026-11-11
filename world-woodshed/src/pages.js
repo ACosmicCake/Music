@@ -5,7 +5,7 @@ import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
 import { ribbon, awayButton } from './ui/routine.js';
 import { startSession, runCurrent, discardSession } from './ui/session.js';
-import { BLOCKS, blockTitle, totalOf, fmtMin } from './routines.js';
+import { blockTitle, totalOf, fmtMin } from './routines.js';
 import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
@@ -579,8 +579,22 @@ function backupCard() {
         h('li', { text: 'Later, sync the other way the same way. Each load merges, so nothing is lost; mic and audio latency stay set per device.' }))),
     h('details', { class: 'small' }, h('summary', { text: 'Restore a backup exactly' }),
       h('p', { class: 'small muted', text: 'Replaces this device’s progress with the file as it was saved, instead of merging.' }),
-      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')));
+      h('button', { class: 'btn small ghost', onclick: () => replaceIn.click() }, 'Restore from a file…')),
+    storageBox());
   return card;
+}
+
+/* How much of this device's room for saved progress is used (the browser keeps about 5 MB of text for it).
+   The Library's files and Transcribe's audio are stored apart and don't count here. */
+const PART_NAMES = { readLib: 'Pieces you read (reading library)', skills: 'Answers and skills', hdev: 'Practice history', cur: 'The smart plan', library: 'Library details', songs: 'Transcribe setups', journal: 'Practice journal', tunes: 'Your tunes', melodies: 'Melodies', scaleTime: 'Time on each scale', settings: 'Settings', routines: 'Routines', games: 'Game scores', history: 'Daily totals', tech: 'Technique tempos', session: 'The running session' };
+const mb = n => (n / 1048576).toFixed(n < 104858 ? 2 : 1) + ' MB';
+function storageBox() {
+  const u = E.storageUse(), pct = Math.round(u.share * 100);
+  const top = Object.entries(u.parts).filter(([, n]) => n > 2048).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  return h('details', { class: 'small storage-use' }, h('summary', { text: 'Room used on this device: ' + mb(u.bytes) + ' of about ' + mb(u.limit) + ' (' + pct + '%)' }),
+    bar(Math.min(100, pct), pct >= 80 ? 'bad' : 'brass'),
+    h('p', { class: 'small muted', text: pct >= 80 ? 'Nearly full. A save that doesn’t fit still goes to the second copy, but send a backup file to be safe, and consider deleting old pieces in the reading library.' : 'Your progress is kept as text in the browser. Library files and recordings are stored apart and don’t count here.' }),
+    top.length ? h('ul', { class: 'list small' }, top.map(([k, n]) => h('li', { text: (PART_NAMES[k] || k) + ': ' + mb(n) }))) : null);
 }
 
 /* Check for updates: the web app reloads into a new version; the Android app opens the newest release's page */

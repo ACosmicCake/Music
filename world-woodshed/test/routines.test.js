@@ -133,3 +133,15 @@ describe('paramsFor', () => {
     expect([...seen].sort()).toEqual(Object.keys(AWAY_DRILLS).sort());
   });
 });
+
+describe('a block from a newer app', () => {
+  it('is described, titled and fitted without throwing, and kept as it is', async () => {
+    const R = await import('../src/routines.js');
+    const b = { id: 'x', type: 'hologram', minutes: 7, settings: { a: 1 } };
+    expect(R.blockTitle(b)).toBe('A block from a newer version');
+    expect(() => R.describe(b)).not.toThrow();
+    const r = { blocks: [b, { id: 'y', type: 'free', minutes: 10, settings: {} }] };
+    expect(() => R.setTotal(r, 30)).not.toThrow();
+    expect(r.blocks.find(x => x.id === 'x').type).toBe('hologram');
+  });
+});

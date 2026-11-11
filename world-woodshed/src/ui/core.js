@@ -231,8 +231,9 @@ export function openTool(id, opts = {}) {
 
   let lastAct = Date.now(), active = false, finished = false;
   const markAct = () => { lastAct = Date.now(); };
-  document.addEventListener('pointerdown', markAct, true);
-  document.addEventListener('keydown', markAct, true);
+  // reading a score or page by scrolling it (wheel, trackpad, a swipe) counts as being there, as taps and keys do
+  const ACT_EVENTS = ['pointerdown', 'keydown', 'wheel', 'scroll'];
+  ACT_EVENTS.forEach(ev => document.addEventListener(ev, markAct, { capture: true, passive: true }));
   const unitIsTime = block && !block.questions;
   function renderBlockBar() {
     if (!block) return;
@@ -295,8 +296,7 @@ export function openTool(id, opts = {}) {
   try { toolCleanup = t.render(body, ctx); focusView(); } catch (e) { failure(body, e, t.title || 'This tool'); }
   ui.cleanup = () => {
     clearInterval(timer);
-    document.removeEventListener('pointerdown', markAct, true);
-    document.removeEventListener('keydown', markAct, true);
+    ACT_EVENTS.forEach(ev => document.removeEventListener(ev, markAct, { capture: true }));
     if (typeof toolCleanup === 'function') toolCleanup();
     if (block && ui.plan && ui.plan.kind === 'routine') E.blockProgress(block.id, block.progress || 0, block.done);
   };
@@ -375,7 +375,7 @@ export function Quiz(container, ctx, gen, opts = {}) {
     }
     card.append(ctrl, hintBox);
     const grid = h('div', { class: 'choices' + (q.wide ? ' wide' : '') });
-    q.choices.forEach((c, i) => {
+    q.choices.forEach(c => {
       const b = h('button', { class: 'choice' + (q.wide ? ' wide' : ''), 'data-id': c.id, onclick: () => answer(c.id, b) }, h('b', { text: c.label }), c.sub ? h('span', { text: c.sub }) : null);
       grid.append(b);
     });

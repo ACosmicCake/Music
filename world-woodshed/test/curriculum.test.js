@@ -162,6 +162,12 @@ describe('planSession', () => {
     expect(ctx.minutesToday).toBe(20);
     expect(ctx.sinceLast).toBeCloseTo(3, 0);
   });
+  it('gives a new player more first items in a longer session', () => {
+    const fresh = m => { E.resetAll(); return Cur.planSession(m).blocks.filter(b => b.isNew && b.type !== 'lesson').length; };
+    expect(fresh(10)).toBeLessThanOrEqual(2);
+    expect(fresh(30)).toBe(3);
+    expect(fresh(60)).toBe(4);
+  });
   it('never plans more than one new item in a session once the starters are in', () => {
     // a player with one item of every kind already learned yesterday
     Cur.setPrefs({ pace: 'fast' });

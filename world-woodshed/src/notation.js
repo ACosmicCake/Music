@@ -197,7 +197,7 @@ export function renderStaff(opts) {
     const state = {};
     let onset = 0;
     const full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
-    const list = bar.map((n, j) => {
+    const list = bar.map(n => {
       const q = full ? tsOf(bi).barQ : durQ(n);
       const it = { i: items.length, bar: bi, onset, q, n, rest: n.midi == null, full };
       onset += q;
@@ -355,7 +355,6 @@ export function renderStaff(opts) {
   const svg = el('svg', { class: 'ww-staff' + (opts.cls ? ' ' + opts.cls : ''), role: 'img', 'aria-label': opts.label || 'Music notation' });
   const noteEls = new Array(items.length), barBands = [];
   const sysGroups = [];
-  const ties = [];
   systems.forEach((sy, si) => {
     const g = el('g', { class: 'st-sys' }, svg);
     sysGroups.push(g);

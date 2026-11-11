@@ -51,6 +51,10 @@ export const BLOCKS = {
   away: { name: 'No-guitar drill', cat: 'tech', tool: 'away', skill: null, minutes: 8, fields: ['drill'], desc: 'Practice without the instrument: finger independence on a table, konnakol, seeing the neck in your head, singing degrees.' },
   break: { name: 'Break', cat: 'rest', tool: 'rest', skill: null, minutes: 5, fields: [], fixed: true, desc: 'Rest your hands, stretch, drink water.' }
 };
+/* A block's definition. A routine synced from a newer app on another device can hold a block type this app
+   doesn't know yet: it is kept as it is (so it syncs back unchanged), shown as such and opened as free practice. */
+export const UNKNOWN_BLOCK = { name: 'A block from a newer version', cat: 'study', tool: 'free', skill: null, minutes: 5, fields: [], desc: 'Update the app on this device to use this block.', unknown: true };
+export const blockDef = type => BLOCKS[type] || UNKNOWN_BLOCK;
 export const BLOCK_ORDER = ['scalewarm', 'arpwarm', 'arpchanges', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'constraint', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
@@ -91,7 +95,7 @@ export const warmScales = () => D.SCALES.filter(x => x.steps.every(Number.isInte
 
 /* Human summary of a block's settings */
 export function describe(b) {
-  const st = b.settings || {}, def = BLOCKS[b.type];
+  const st = b.settings || {}, def = blockDef(b.type);
   const scale = id => (D.SCALES.find(x => x.id === id) || {}).name;
   const parts = [];
   switch (b.type) {
@@ -126,7 +130,7 @@ export function describe(b) {
 export function blockTitle(b) {
   if (b.type === 'free' && b.settings && b.settings.title) return b.settings.title;
   if (b.title && typeof b.title === 'string') return b.title.slice(0, 80);
-  return BLOCKS[b.type] ? BLOCKS[b.type].name : b.type;
+  return blockDef(b.type).name;
 }
 
 /* Tool params for a block, resolving 'auto' choices at start time */
@@ -247,7 +251,7 @@ export function setTotal(r, total) {
   }
   const diff = total - totalOf(placed);
   if (diff) {
-    const flex = placed.filter(b => !BLOCKS[b.type].fixed).sort((a, b) => b.minutes - a.minutes);
+    const flex = placed.filter(b => !blockDef(b.type).fixed).sort((a, b) => b.minutes - a.minutes);
     if (flex.length) flex[0].minutes = Math.max(1, flex[0].minutes + diff);
   }
   r.blocks = placed;

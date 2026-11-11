@@ -2,8 +2,8 @@
 import D from '../data.js';
 import E from '../engine.js';
 import Cur from '../curriculum.js';
-import { view, h, toast, go, PAGES, hooks, ui } from './core.js';
-import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks } from '../routines.js';
+import { view, h, toast, go, PAGES, hooks } from './core.js';
+import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks, blockDef } from '../routines.js';
 import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause, autoAdvanceToggle } from './session.js';
 import { smartPlanner, learningPrefsCard } from './smart.js';
 
@@ -16,7 +16,7 @@ export function ribbon(blocks, opts = {}) {
   const wrap = h('div', { class: 'ribbon-wrap' });
   const rb = h('div', { class: 'ribbon' + (opts.small ? ' small' : ''), role: 'img', 'aria-label': blocks.map(b => blockTitle(b) + ' ' + b.minutes + ' minutes').join(', ') });
   blocks.forEach((b, i) => {
-    const seg = h('span', { class: 'rseg cat-' + BLOCKS[b.type].cat + (opts.state ? ' ' + opts.state(b, i) : ''), style: { flexGrow: String(b.minutes) }, title: blockTitle(b) + ' · ' + fmtMin(b.minutes) });
+    const seg = h('span', { class: 'rseg cat-' + blockDef(b.type).cat + (opts.state ? ' ' + opts.state(b, i) : ''), style: { flexGrow: String(b.minutes) }, title: blockTitle(b) + ' · ' + fmtMin(b.minutes) });
     if (opts.onClick) seg.addEventListener('click', () => opts.onClick(b, i));
     rb.append(seg);
   });
@@ -29,9 +29,9 @@ export function ribbon(blocks, opts = {}) {
   return wrap;
 }
 function legend(blocks) {
-  const cats = [...new Set(blocks.map(b => BLOCKS[b.type].cat))];
+  const cats = [...new Set(blocks.map(b => blockDef(b.type).cat))];
   return h('div', { class: 'legend' }, cats.map(c => {
-    const m = totalOf(blocks.filter(b => BLOCKS[b.type].cat === c));
+    const m = totalOf(blocks.filter(b => blockDef(b.type).cat === c));
     return h('span', { class: 'lg cat-' + c }, h('i'), CATS[c].name + ' ' + fmtMin(m));
   }));
 }
@@ -73,7 +73,7 @@ function sessionCard() {
       row.querySelector('.t').textContent = b.done ? '✓ ' + fmtClock(b.elapsed / 1000) : b.swapped ? 'swapped' : b.skipped ? 'skipped' : +row.dataset.i === st.idx ? fmtClock(Math.max(0, b.minutes * 60 - b.elapsed / 1000)) + ' left' : fmtMin(b.minutes);
     });
   }
-  s.blocks.forEach((b, i) => list.append(h('button', { class: 'srow cat-' + BLOCKS[b.type].cat + (i === s.idx ? ' now' : '') + (b.done ? ' done' : ''), 'data-i': i, onclick: () => jump(i) },
+  s.blocks.forEach((b, i) => list.append(h('button', { class: 'srow cat-' + blockDef(b.type).cat + (i === s.idx ? ' now' : '') + (b.done ? ' done' : ''), 'data-i': i, onclick: () => jump(i) },
     h('span', { class: 'dot' }), h('span', { class: 'n', text: blockTitle(b) }), h('span', { class: 't mono small' }))));
   card.append(
     h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: 'Session in progress' }), h('h2', { text: s.name })), status),
@@ -153,7 +153,7 @@ function editor(stored) {
   }
 
   function blockRow(b, i) {
-    const def = BLOCKS[b.type];
+    const def = blockDef(b.type);
     const isOpen = openId === b.id;
     const handle = h('span', { class: 'handle', 'aria-hidden': 'true', title: 'Drag to reorder' }, '⋮⋮');
     const mins = h('div', { class: 'mins' },
@@ -172,7 +172,7 @@ function editor(stored) {
   }
 
   function settingsPanel(b, i) {
-    const def = BLOCKS[b.type];
+    const def = blockDef(b.type);
     const set = (k, v) => { b.settings = b.settings || {}; if (v === '' || v === 'auto') delete b.settings[k]; else b.settings[k] = v; commit(); };
     const redraw = () => draw();
     const smartScale = b.type === 'scalewarm' && (!b.settings || !b.settings.scale || b.settings.scale === 'auto');

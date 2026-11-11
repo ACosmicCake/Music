@@ -193,7 +193,6 @@ tool('scalewarm', {
       onOff: () => { listenBox.hidden = true; meter.stop(); if (micNoteOff) micNoteOff(); micNoteOff = null; } });
     card.append(mic.el, listenBox);
 
-    const posSel = h('div');
     function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, ramp: st.ramp, rampStep: st.rampStep, rampMin: st.rampMin }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));

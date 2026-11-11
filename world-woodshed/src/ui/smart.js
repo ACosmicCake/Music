@@ -3,7 +3,7 @@ import D from '../data.js';
 import E from '../engine.js';
 import Cur from '../curriculum.js';
 import { view, h, toast, go, ui, renderTabs, teardown } from './core.js';
-import { BLOCKS, blockTitle, describe, totalOf, fmtMin, syncWeights } from '../routines.js';
+import { blockTitle, describe, totalOf, fmtMin, syncWeights, blockDef } from '../routines.js';
 import { startSession, autoAdvanceToggle } from './session.js';
 import { ribbon } from './routine.js';
 import { openSwap } from './swap.js';
@@ -57,7 +57,7 @@ export function smartPlanner(opts = {}) {
     const nNew = plan.blocks.filter(b => b.isNew).length;
     card.append(ribbon(plan.blocks),
       h('p', { class: 'small muted', text: plan.blocks.length + ' blocks · ' + (nNew ? nNew + ' new item' + (nNew > 1 ? 's' : '') : 'no new items: reviews and practice') + (ctx.dueNow ? ' · ' + ctx.dueNow + ' due for review' : '') }),
-      h('ol', { class: 'blocks static smartlist' }, plan.blocks.map((b, i) => h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
+      h('ol', { class: 'blocks static smartlist' }, plan.blocks.map((b, i) => h('li', { class: 'brow cat-' + blockDef(b.type).cat },
         h('div', { class: 'bmain' }, h('span', { class: 'bicon' }),
           h('div', { class: 'btext' }, h('b', {}, blockTitle(b), b.isNew ? h('span', { class: 'badge brass', text: 'new' }) : null),
             h('span', { class: 'small', text: describe(b) !== b.reason ? describe(b) : '' }), h('span', { class: 'small muted', text: b.reason || '' })),

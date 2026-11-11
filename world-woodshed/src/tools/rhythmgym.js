@@ -1,6 +1,6 @@
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, s, toast, tool, hooks, pickFor, openTool, TOOLS } from '../ui/core.js';
+import { h, s, tool, hooks, pickFor, openTool, TOOLS } from '../ui/core.js';
 import { TapPad, tapTime, scoreTaps, OffsetChart, describeOffset, feel16On } from './rhythm.js';
 import { withStar, favStar } from '../ui/favs.js';
 import { GYM, CATS, SEGS, FEELS, FEEL_GROUPS, FEEL_PRESETS, feelOpts, feelAt, beatsClick } from '../content/gym.js';
@@ -115,7 +115,7 @@ tool('gym', {
         const nBars = mode === 'test' ? testPlan.length + 1 : Infinity;
         const expected = [], taps = [];
         const lat = (E.state.settings.latencyMs || 0) / 1000;
-        let barStart = 0, barIdx = -1, curBar = null, rafId = 0;
+        let barStart = 0, curBar = null, rafId = 0;
         const barPlan = b => {
           const k = b - 1; // bar 0 is a count-in
           const guided = k < 0 ? false : mode === 'test' ? testPlan[k] : ex.guided ? ex.guided(k, opts) : ex.plan[k % ex.plan.length];
@@ -149,7 +149,7 @@ tool('gym', {
           onVisual: (i, cycle) => {
             if (i === 0) {
               const bar = barPlan(cycle);
-              curBar = bar; barIdx = cycle;
+              curBar = bar;
               barStart = A.heard();
               tl.draw(bar); label.textContent = bar.label; label.classList.toggle('cue', !!bar.cue);
               status.textContent = bar.k < 0 ? 'Count-in' : (bar.guided ? 'With the guide' : 'On your own') + (mode === 'test' ? ' · bar ' + (bar.k + 1) + ' of ' + testPlan.length : ' · bar ' + (bar.k + 1));

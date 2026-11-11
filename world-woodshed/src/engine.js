@@ -93,7 +93,7 @@ function universe(skill) {
   let list = [];
   switch (skill) {
     case 'intervals': {
-      const t1 = ['P5', 'P4', 'P8', 'M3'], t2 = ['m3', 'M2', 'M6'], t3 = ['m6', 'm7', 'M7', 'm2', 'TT'];
+      const t1 = ['P5', 'P4', 'P8', 'M3'], t2 = ['m3', 'M2', 'M6']; // the rest are tier 3
       D.INTERVALS.forEach(iv => {
         const up = t1.includes(iv.id) ? 1 : t2.includes(iv.id) ? 2 : 3;
         const down = t1.includes(iv.id) ? 2 : t2.includes(iv.id) ? 3 : 4;
@@ -814,7 +814,6 @@ function resetAll(everywhere) {
   applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo);
   scheduleSave(100); saveLocal(); emit();
 }
-const cloudOn = () => !!docRef;
 
 function init() {
   loadLocal();
@@ -974,6 +973,6 @@ export default {
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, streaks, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
-  gameScores, addGameScore, gameRank, techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, cloudOn, saveNow, storageUse, exportBackup, importBackup,
+  gameScores, addGameScore, gameRank, techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, saveNow, storageUse, exportBackup, importBackup,
   storageNote: () => (saveHealth().level === 'failing' ? 'Not saving on this device' : storageNote), saveHealth, onSaveHealth, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };

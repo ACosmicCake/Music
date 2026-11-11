@@ -3,7 +3,7 @@ import D from '../data.js';
 import Cur from '../curriculum.js';
 import E from '../engine.js';
 import { h } from './core.js';
-import { BLOCKS, BLOCK_ORDER, CATS, blockTitle, describe, fmtMin, warmScales } from '../routines.js';
+import { BLOCKS, BLOCK_ORDER, CATS, blockTitle, describe, fmtMin, warmScales, blockDef } from '../routines.js';
 import { GYM } from '../content/gym.js';
 import { ARP_ORDER } from '../arpeggios.js';
 
@@ -53,7 +53,7 @@ export function openSwap({ block, used = [], onPick, title }) {
       h('div', { class: 'spread' }, h('h2', { text: title || 'Swap this block' }), h('button', { class: 'btn small ghost', onclick: close }, 'Close')),
       h('p', { class: 'small muted', text: 'Now: ' + blockTitle(block) + ' · ' + describe(block) + '. The time stays the same; the plan records what you actually practise, so reviews still come back at the right time.' }),
       h('span', { class: 'eyebrow', text: 'Let the plan choose' }),
-      alts.length ? h('div', { class: 'swapgrid' }, alts.map(a => h('button', { class: 'swapcard cat-' + BLOCKS[a.block.type].cat, onclick: () => pick(Object.assign(a.block, { minutes: block.minutes })) },
+      alts.length ? h('div', { class: 'swapgrid' }, alts.map(a => h('button', { class: 'swapcard cat-' + blockDef(a.block.type).cat, onclick: () => pick(Object.assign(a.block, { minutes: block.minutes })) },
         h('span', { class: 'bicon', 'aria-hidden': 'true' }),
         h('span', { class: 'swaptext' }, h('b', {}, a.title, a.block.isNew ? h('span', { class: 'badge brass', text: 'new' }) : ''),
           describe(a.block) !== a.block.reason ? h('span', { class: 'small', text: describe(a.block) }) : '', h('span', { class: 'small muted', text: a.block.reason || '' }))))) : h('p', { class: 'small muted', text: 'Nothing else is due right now. Choose something yourself below.' }),

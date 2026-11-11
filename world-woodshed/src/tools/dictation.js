@@ -177,7 +177,7 @@ tool('dictation', {
     function renderPad() {
       pad.innerHTML = '';
       if (!item) return;
-      padFor(item).forEach((semi, i) => {
+      padFor(item).forEach(semi => {
         const main = lab(semi);
         pad.append(h('button', { class: 'choice' + (semi === 0 ? ' home' : ''), type: 'button', 'data-semi': semi, 'aria-label': 'Degree ' + NUM[semi] + (pref.labels !== 'num' ? ' (' + main + ')' : ''), onclick: () => addDegree(semi) },
           h('b', { text: main }), h('span', { text: pref.labels === 'num' ? (degInfo(semi).solf || '') : NUM[semi] })));

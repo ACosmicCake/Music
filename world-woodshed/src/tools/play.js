@@ -2,7 +2,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { guitarMidis } from '../voicings.js';
-import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
+import { h, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
 import { withStar, favStar } from '../ui/favs.js';
 import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
@@ -335,7 +335,7 @@ tool('repertoire', {
         chartEl.innerHTML = ''; barEls.length = 0;
         const B = barsFor(shownCh);
         let bi = 0;
-        form.forEach(([lbl, len], fi) => {
+        form.forEach(([lbl, len]) => {
           const grid = h('div', { class: 'cchart' });
           const first = bi;
           for (let k = 0; k < len && bi < B.length; k++, bi++) {

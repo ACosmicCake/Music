@@ -16,7 +16,6 @@ const P = s => s.trim().split('|').map(bar => bar.trim().split(/\s+/).map(tok =>
 }));
 
 /* Chord shapes as '+'-joined sounding pitches; frets from the 6th string (x = not played) */
-const C6 = '48+55+57+64';      // C6: x 3 5 2 5 x
 const BB7 = '46+56+62';        // B♭7 shell: x 1 x 1 3 x (B♭, A♭, D)
 const EB7 = '51+55+61';        // E♭7 shell: x 6 5 6 x x (E♭, G, D♭)
 const CM = '48+52+55+60+64';   // open C

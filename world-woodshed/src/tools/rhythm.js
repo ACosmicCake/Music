@@ -2,7 +2,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import { kitFor, prepare } from '../drumkit.js';
 import E from '../engine.js';
-import { h, s, shuffle, bar, regionName, TOOLS, tool, pickFor, Quiz, hooks } from '../ui/core.js';
+import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks } from '../ui/core.js';
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
 
@@ -30,7 +30,6 @@ export function RhythmGrid(r) {
   const cols = `56px repeat(${r.steps}, minmax(12px, 1fr))`;
   const gstarts = new Set(); if (r.groups) { let a = 0; r.groups.forEach(g => { if (a) gstarts.add(a); a += g; }); } else for (let i = r.spb; i < r.steps; i += r.spb) gstarts.add(i);
   const cells = [];
-  const tgt = new Set(targetSteps(r));
   Object.entries(r.tracks).forEach(([name, pat]) => {
     const row = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
     row.append(h('span', { class: 'rname', text: name === 'low' ? 'dum/low' : name === 'high' ? 'tek/high' : name }));
@@ -47,7 +46,7 @@ export function RhythmGrid(r) {
   labRow.append(h('span', { class: 'rname', text: r.labels ? 'say' : 'count' }));
   for (let i = 0; i < r.steps; i++) {
     let t = r.labels ? r.labels[i] : r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
-    if (r.groups && !r.labels) { let a = 0, gi = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; gi++; } }
+    if (r.groups && !r.labels) { let a = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; } }
     const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: t, title: t });
     labs.push(l); labRow.append(l);
   }
@@ -103,7 +102,7 @@ export function scoreTaps(expected, taps, win) {
   const score = Math.max(0, Math.min(1, hitRate * 0.6 + precision * 0.4 - Math.min(0.3, extra * 0.04)));
   return { errs, hitRate, meanAbs, mean, sd, extra, score };
 }
-export function OffsetChart(errs, win, groupFn) {
+export function OffsetChart(errs, win) {
   const W = 640, Hh = 150, pad = 30;
   const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chart', role: 'img', 'aria-label': 'Tap timing: points above the line are late, below are early' });
   const lim = Math.ceil(win * 1000 / 20) * 20;

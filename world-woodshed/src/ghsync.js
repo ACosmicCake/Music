@@ -84,7 +84,7 @@ async function push(sha) {
 }
 
 /* One round: pull, merge, push if this device has news. Retries once when another device saved first. */
-export function syncNow(reason) {
+export function syncNow() {
   if (!cfg || !cfg.token) return Promise.resolve(false);
   if (busy) return busy;
   busy = (async () => {
