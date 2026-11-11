@@ -2,7 +2,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import { kitFor, prepare } from '../drumkit.js';
 import E from '../engine.js';
-import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks } from '../ui/core.js';
+import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks, tapButton } from '../ui/core.js';
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
 
@@ -494,7 +494,11 @@ tool('metronome', {
     // the click reads the tempo on every step, so it changes on the next beat without starting over
     const setBpm = (v, keep = true) => { st.bpm = Math.max(30, Math.min(260, Math.round(v))); bpmIn.value = st.bpm; big.textContent = st.bpm; if (keep) E.setSetting('metBpm', st.bpm); };
     const nudge = (d, label) => h('button', { class: 'btn small', 'aria-label': (d < 0 ? 'Slower by ' : 'Faster by ') + Math.abs(d), onclick: () => setBpm(st.bpm + d) }, label);
-    card.append(h('div', { class: 'spread' }, h('div', { class: 'row' }, nudge(-1, '−1'), big, nudge(1, '+1')), dots), bpmIn,
+    const tap = tapButton(v => setBpm(v), { min: 30, max: 260 });
+    // T taps too, so a laptop player can tap with a free hand (not while typing)
+    const onKey = e => { if ((e.key === 't' || e.key === 'T') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) tap.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); };
+    document.addEventListener('keydown', onKey);
+    card.append(h('div', { class: 'spread' }, h('div', { class: 'row' }, nudge(-1, '−1'), big, nudge(1, '+1'), tap), dots), bpmIn,
       h('div', { class: 'row' }, seg('Beats', 'beats', [2, 3, 4, 5, 7]), seg('Subdivision', 'sub', [1, 2, 3, 4], v => ['♩', '♫', '3', '4'][v - 1])),
       h('div', { class: 'row' }, seg('Play bars', 'play', [1, 2, 4]), seg('Then mute bars', 'mute', [0, 1, 2, 4], v => v === 0 ? 'off' : String(v))), btn);
     function renderDots(active) { dots.innerHTML = ''; for (let i = 0; i < st.beats; i++) dots.append(h('span', { style: { width: '14px', height: '14px', borderRadius: '50%', display: 'inline-block', background: i === active ? 'var(--brass)' : 'var(--sunk)' } })); }
@@ -541,6 +545,6 @@ tool('metronome', {
       } });
       calLoop.start();
     };
-    return () => { stopMet(); if (calLoop) calLoop.stop(); if (calPad) calPad.cleanup(); };
+    return () => { document.removeEventListener('keydown', onKey); stopMet(); if (calLoop) calLoop.stop(); if (calPad) calPad.cleanup(); };
   }
 });

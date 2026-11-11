@@ -15,6 +15,7 @@ import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow,
 import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendByCode, receiveByCode, CODE_MINUTES } from './linkcode.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
+import { weekReviewCard } from './ui/weekreview.js';
 import Samples from './samples.js';
 import A from './audio.js';
 import { VOICES } from './guitars.js';
@@ -128,6 +129,9 @@ Object.assign(PAGES, {
     // the daily goal and the streaks (the goal grows first, if it is time)
     applyRamp();
     view.append(goalCard());
+    // last week, from Monday until you put it away
+    const review = ses ? null : weekReviewCard({ today: true });
+    if (review) view.append(review);
     // drills, tunes and styles that match your favourite players and what you listen to on Spotify
     const because = becauseCard();
     if (because) view.append(because);
@@ -587,7 +591,7 @@ function backupCard() {
 /* How much of this device's room for saved progress is used (the browser keeps about 5 MB of text for it).
    The Library's files and Transcribe's audio are stored apart and don't count here. */
 const PART_NAMES = { readLib: 'Pieces you read (reading library)', skills: 'Answers and skills', hdev: 'Practice history', cur: 'The smart plan', library: 'Library details', songs: 'Transcribe setups', journal: 'Practice journal', tunes: 'Your tunes', melodies: 'Melodies', scaleTime: 'Time on each scale', settings: 'Settings', routines: 'Routines', games: 'Game scores', history: 'Daily totals', tech: 'Technique tempos', session: 'The running session' };
-const mb = n => (n / 1048576).toFixed(n < 104858 ? 2 : 1) + ' MB';
+const mb = n => (n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB');
 function storageBox() {
   const u = E.storageUse(), pct = Math.round(u.share * 100);
   const top = Object.entries(u.parts).filter(([, n]) => n > 2048).sort((a, b) => b[1] - a[1]).slice(0, 5);

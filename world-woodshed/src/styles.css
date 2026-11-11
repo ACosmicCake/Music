@@ -1116,3 +1116,15 @@ html.compact .bio .timeline li { grid-template-columns: 1fr; gap: 2px; padding-b
 html.compact .bio .timeline li::before { display: none; }
 html.compact .bio .timeline p { padding-left: 0; }
 html.compact .bio .timeline p::before { display: none; }
+/* tap tempo (tapButton in src/ui/core.js): a short flash on each tap */
+.tap-btn.tapped { animation: tapflash 0.18s ease-out; }
+@keyframes tapflash { from { background: var(--brass); color: var(--bg); } }
+/* the weekly review (src/ui/weekreview.js) */
+.week-review h2 { margin: 4px 0 6px; }
+.wr-days { display: flex; gap: 6px; margin: 4px 0; }
+.wr-day { flex: 1; max-width: 36px; height: 10px; border-radius: 99px; background: var(--sunk); }
+.wr-day.some { background: var(--patina); opacity: 0.55; }
+.wr-day.met { background: var(--brass); }
+.wr-up::marker { content: '▲ '; color: var(--good); }
+.wr-down::marker { content: '▼ '; color: var(--bad); }
+.wr-focus { background: var(--sunk); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }

@@ -2,7 +2,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { guitarMidis } from '../voicings.js';
-import { h, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
+import { h, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks, tapButton } from '../ui/core.js';
 import { withStar, favStar } from '../ui/favs.js';
 import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
@@ -408,7 +408,7 @@ tool('repertoire', {
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
         h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => editTune(t) }, t.mine ? 'Edit this tune' : 'Make your own version'),
           t.song && E.getSong(t.song) ? h('button', { class: 'btn small ghost', onclick: () => openTool('transcribe', { params: { song: t.song }, returnTab: 'library' }) }, 'Open the song in Transcribe') : null),
-        h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
+        h('div', { class: 'stack' }, h('span', { class: 'spread' }, h('label', { class: 'eyebrow', for: 'tune-tempo', text: 'Tempo' }), h('span', { class: 'row' }, tempoLbl, tapButton(v => { bpm = Math.max(+tempo.min, Math.min(+tempo.max, v)); tempo.value = bpm; tempoLbl.textContent = bpm + ' bpm'; }, { min: 40, max: 300 }))), tempo),
         band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl, melBox);
       const notesHolder = h('div');
@@ -721,7 +721,7 @@ tool('technique', {
       function setVar(i) { vi = ((i % vars.length) + vars.length) % vars.length; const o = Object.assign({}, E.state.settings.techVar || {}); o[ex.id] = vi; E.setSetting('techVar', o); drawVar(); }
       const cueEl = VX.cue ? h('p', { class: 'small cue', text: '🎧 ' + VX.cue }) : '';
       const burstBtn = h('button', { class: 'btn small', title: VX.burst || 'One bar at +20% tempo, then back to normal' }, '⚡ Burst');
-      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus), playBtn), varBox, cueEl, h('div', { class: 'row' }, cleanBtn, sloppyBtn, burstBtn), mic.el, meterBox, note,
+      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus, tapButton(v => { E.setTechBpm(ex.id, v); big.textContent = t.bpm; })), playBtn), varBox, cueEl, h('div', { class: 'row' }, cleanBtn, sloppyBtn, burstBtn), mic.el, meterBox, note,
         VX.burst ? h('p', { class: 'small muted', text: 'Burst: ' + VX.burst }) : '');
       drawVar();
       let burstNext = false, burstOn = false; // a burst starts on the next downbeat and lasts one bar

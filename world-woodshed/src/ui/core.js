@@ -2,6 +2,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
+import { tapper } from '../taptempo.js';
 
 export const PAGES = {};
 // filled in by other modules (session.js) to avoid import cycles
@@ -80,6 +81,16 @@ export function watchErrors() {
     note(e.error && e.error.message || e.message);
   });
   window.addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
+}
+/* Tap tempo: a button to tap on the beat a few times; onBpm gets the tempo from the second tap on. It reacts on
+   pointerdown, not click, so the time is the moment the finger lands. Keyboard: Enter or Space on it. */
+export function tapButton(onBpm, o = {}) {
+  const tp = tapper(o);
+  const b = h('button', { class: 'btn small tap-btn', type: 'button', title: 'Tap on the beat a few times to set the tempo', 'aria-label': 'Tap tempo' }, o.label || 'Tap');
+  const hit = () => { const bpm = tp.tap(performance.now()); b.classList.remove('tapped'); void b.offsetWidth; b.classList.add('tapped'); if (bpm) onBpm(bpm); };
+  b.addEventListener('pointerdown', e => { if (e.button === 0 || e.pointerType !== 'mouse') hit(); });
+  b.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); hit(); } });
+  return b;
 }
 export function bar(pct, cls) { return h('div', { class: 'bar ' + (cls || '') }, h('i', { style: { width: Math.max(0, Math.min(100, pct)) + '%' } })); }
 export function regionName(id) { const r = D.REGIONS.find(x => x.id === id); return r ? r.name : id; }
