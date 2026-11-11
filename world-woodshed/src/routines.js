@@ -187,7 +187,7 @@ export function paramsFor(b, used = new Set()) {
     case 'free': Object.assign(out, { title: st.title || 'Free practice', notes: st.notes || '', bpm: st.bpm || 0 }); break;
     case 'metronome': if (st.bpm) out.bpm = st.bpm; break;
     case 'gym': if (!out.ex) out.auto = true; break;
-    case 'away': Object.assign(out, { drill: st.drill || Object.keys(DRILLS)[Math.floor(Math.random() * 4)] }); if (st.scale) out.scale = st.scale; if (st.tonic !== undefined) out.tonic = st.tonic; break;
+    case 'away': Object.assign(out, { drill: st.drill || Object.keys(DRILLS)[Math.floor(Math.random() * Object.keys(DRILLS).length)] }); if (st.scale) out.scale = st.scale; if (st.tonic !== undefined) out.tonic = st.tonic; break;
   }
   return out;
 }

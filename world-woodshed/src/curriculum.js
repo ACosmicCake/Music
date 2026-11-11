@@ -323,7 +323,8 @@ export function warmDetails(item) {
   // positions: where the root sits on the 6th, 5th or 4th string, rotating once the scale is settled
   // (starting no higher than fret 8: the neck drawn is frets 0–12)
   const starts = [];
-  [4, 9, 2].forEach(open => { let f = ((key - open) % 12 + 12) % 12; [f, f + 12].forEach(ff => { const st = Math.max(0, ff - 1); if (st <= 8 && !starts.includes(st)) starts.push(st); }); });
+  // (on the strings as they are tuned now: drop D or a capo moves the root)
+  E.STRINGS.slice(0, 3).map(x => x.midi).forEach(open => { let f = ((key - open) % 12 + 12) % 12; [f, f + 12].forEach(ff => { const st = Math.max(0, ff - 1); if (st <= 8 && !starts.includes(st)) starts.push(st); }); });
   starts.sort((a, b) => a - b);
   const start = s < 5 ? starts.find(x => x >= 0 && x <= 7) ?? starts[0] : starts[Math.floor(Math.random() * starts.length)];
   const bpm = Math.round((it && it.bpm) || (pattern === 'updown' ? 66 : 60));

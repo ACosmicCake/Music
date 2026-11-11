@@ -89,7 +89,8 @@ export function syncNow(reason) {
   if (busy) return busy;
   busy = (async () => {
     try {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      let settled = false;
+      for (let attempt = 0; attempt < 3 && !settled; attempt++) {
         const remote = await pull();
         let remoteState = null;
         if (remote.data) {
@@ -98,12 +99,14 @@ export function syncNow(reason) {
         }
         const mine = syncDigest(E.state);
         const theirs = remoteState ? syncDigest(remoteState) : null;
-        if (theirs === mine) { lastPushedDigest = mine; break; }
+        if (theirs === mine) { lastPushedDigest = mine; settled = true; break; }
         const r = await push(remote.sha);
         if (r.clash) continue; // someone saved in between: pull their version, merge, try again
         lastPushedDigest = mine;
-        break;
+        settled = true;
       }
+      // another device saved first every time: this device's news is not in the repository yet
+      if (!settled) throw new Error('Another device was syncing at the same moment. It will try again shortly.');
       cfg.lastSync = Date.now(); cfg.lastError = null; save();
       syncedListeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
       return true;
@@ -144,7 +147,8 @@ function wire() {
   document.addEventListener('visibilitychange', () => { if (cfg && document.visibilityState === 'visible') syncNow('resume'); });
   window.addEventListener('online', () => { if (cfg) syncNow('online'); });
   E.onChange(() => {
-    if (!cfg || busy) return;
+    // (a change made while a round is running still sets the timer: the round may have pushed before it)
+    if (!cfg) return;
     clearTimeout(changeTimer);
     changeTimer = setTimeout(() => { if (syncDigest(E.state) !== lastPushedDigest) syncNow('change'); }, AFTER_CHANGE_MS);
   });

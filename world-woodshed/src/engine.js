@@ -515,9 +515,10 @@ function topConfusion(skill) { return confusions(50).find(c => c.skill === skill
 function lastNDays(n) {
   const out = [];
   for (let i = n - 1; i >= 0; i--) {
-    const k = dayKey(Date.now() - i * DAY);
+    // by the calendar: steps of 24 hours skip or repeat a day around a daylight-saving change
+    const k = Goals.dayBefore(Date.now(), i);
     const h = state.history[k] || { sec: 0, q: 0, c: 0 };
-    out.push({ key: k, min: Math.round(h.sec / 60), q: h.q, c: h.c, acc: h.q ? h.c / h.q : null, date: new Date(Date.now() - i * DAY) });
+    out.push({ key: k, min: Math.round(h.sec / 60), q: h.q, c: h.c, acc: h.q ? h.c / h.q : null, date: new Date(k + 'T12:00:00') });
   }
   return out;
 }
@@ -549,7 +550,7 @@ const gameRank = (id, score) => rankFor((state.games || {})[id], score);
 function trend(skill) {
   const nowM = mastery(skill);
   for (let i = 7; i <= 14; i++) {
-    const h = state.history[dayKey(Date.now() - i * DAY)];
+    const h = state.history[Goals.dayBefore(Date.now(), i)];
     if (h && h.mastery && typeof h.mastery[skill] === 'number') return nowM - h.mastery[skill];
   }
   return null;

@@ -279,7 +279,9 @@ export function openTool(id, opts = {}) {
     if (document.visibilityState !== 'visible') return;
     if (!active && Date.now() - lastAct > 45000) return;
     const skill = (ctx.timeSkill) || t.skill;
-    if (!opts.session) E.addTime(5, skill); // a session counts its own wall-clock time
+    // a session counts its own wall-clock time, in its tools and in any other tool opened while it runs
+    const ses = E.session(), sessionCounts = opts.session || !!(ses && !ses.paused && ses.blocks[ses.idx]);
+    if (!sessionCounts) E.addTime(5, skill);
     if (block && unitIsTime) {
       block.progress = (block.progress || 0) + 5;
       if (ui.plan && ui.plan.kind === 'routine' && block.progress % 30 === 0) E.blockProgress(block.id, block.progress, false);
@@ -423,6 +425,8 @@ export function Quiz(container, ctx, gen, opts = {}) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
     // Enter and Space on a focused button (an answer, Next, Hear yours) belong to that button
     if (e.target && e.target.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
+    // with Ctrl, Cmd or Alt held the key is the browser's (Ctrl+1 switches tab, Cmd+R reloads), not an answer
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const n = parseInt(e.key, 10);
     if (!answered && n >= 1 && q && n <= q.choices.length) answer(q.choices[n - 1].id);
     else if (answered && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); }
