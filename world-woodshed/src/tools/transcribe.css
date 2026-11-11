@@ -31,7 +31,7 @@ canvas.wave-ov { display: block; width: 100%; height: 28px; border-radius: 6px; 
 /* The deck: play, loop and speed, fixed at the bottom of the screen above the tab bar */
 .tr-deck { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 46; width: min(744px, calc(100% - 16px)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px 16px 0 0; border-bottom: 0; box-shadow: 0 -4px 18px rgb(0 0 0 / 0.12); padding: 8px 10px; display: grid; gap: 8px; }
 .tr-deck.at-edge { padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
-.tr-deck-row { display: flex; align-items: center; gap: 6px; }
+.tr-deck-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .tr-deck .btn { min-height: 40px; }
 .tr-deck .tr-play { width: 48px; height: 48px; padding: 0; justify-content: center; font-size: 1.1rem; border-radius: 50%; flex: none; }
 .tr-deck .tr-loop { flex: 0 1 auto; min-width: 0; white-space: nowrap; padding: 6px 12px; overflow: hidden; text-overflow: ellipsis; }
@@ -77,6 +77,13 @@ body.tr-deck-on .toast { bottom: calc(var(--tr-deck, 140px) + 14px); }
 .tr-player.tr-fs .tr-ws-jump { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); padding-top: 6px; }
 .tr-ws-jump .chip { flex: none; white-space: nowrap; }
 .tr-ws-jump .chip[aria-pressed="true"] { border-color: var(--patina); color: var(--ink); background: var(--sunk); }
+.tr-ws-jump .chip[hidden] { display: none; }
+.tr-ws-jump .tr-hide-btn { border-style: dashed; }
+/* panels hidden in full screen (settings.transcribeHide); the page outside full screen shows them all */
+.section.tr-ws > .tr-ui.tr-pane-off { display: none; }
+.tr-ws-hide { display: none; }
+.tr-player.tr-fs .tr-ws-hide:not([hidden]) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tr-ws-hide .chip[aria-pressed="false"] { opacity: 0.55; text-decoration: line-through; }
 @media (max-width: 599px) { .tr-fs-exit-l { display: none; } }
 @media (max-width: 519px) { .tr-player.tr-fs .tr-head .tr-times > :last-child { display: none; } }
 @media (min-width: 760px) {
@@ -103,8 +110,19 @@ html.compact .tr-compact-steps { display: flex; gap: 6px; }
 html.compact .tr-deck { width: 100%; border-radius: 12px 12px 0 0; padding: 6px 8px; gap: 6px; }
 html.compact .tr-deck .tr-play { width: 44px; height: 44px; font-size: 1rem; }
 html.compact .tr-deck .tr-loop { padding: 4px 10px; }
+html.compact .tr-deck .tr-loop-w { display: none; }
 html.compact .tr-deck-row .tr-step, html.compact .tr-deck-fs { display: none; }
 html.compact .tr-speedval { min-width: 4.4em; padding: 3px 8px; }
 html.compact .tr-ws > .card.tr-player.tr-fs { gap: 5px; }
 html.compact .tr-fs-exit-l { display: none; }
 html.compact .tr-ws-jump .chip { padding: 3px 9px; }
+
+/* back to the loop start, beside Play; the keyboard list is hidden on a touch screen */
+.tr-deck .tr-toa { flex: none; width: 40px; padding: 0; justify-content: center; }
+html.compact .tr-deck .tr-toa { width: 36px; }
+/* a phone: the speed's − and + move into the panel the speed opens, so the row keeps ⏮ beside Play */
+@media (max-width: 459px) {
+  .tr-deck-row .tr-step { display: none; }
+  .tr-compact-steps { display: flex; gap: 6px; }
+}
+@media (hover: none) and (pointer: coarse) { .tr-keys-btn, .tr-ws-grp[aria-label="Keys"] { display: none; } }

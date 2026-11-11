@@ -832,7 +832,7 @@ export default function transcribe(UI) {
       function restartIfPlaying() { if (P.wantPlay) play(curPos()); else prefetch(); }
 
       /* ----- UI ----- */
-      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, fsExit, wsJump, timesEl, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
+      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, fsExit, wsJump, wsHide, hideBtn, timesEl, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
       let hlFret;
       function setStatus(msg, prog) {
         if (!statusEl) return;
@@ -859,6 +859,8 @@ export default function transcribe(UI) {
         ovCanvas = h('canvas', { class: 'wave-ov', 'aria-label': 'The whole song. Tap or drag to move the zoomed view.' });
         ovCtx = ovCanvas.getContext('2d');
         timeLbl = h('span', { class: 'mono' }); loopLbl = h('span', { class: 'mono small muted' });
+        const toA = () => h('button', { class: 'btn small', 'aria-label': 'Back to the loop start (the song start without a loop)', title: 'Back to the loop start (R)', onclick: toLoopStart }, '⏮ To A');
+        const keysBtn = () => h('button', { class: 'btn small ghost tr-keys-btn', 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts (?)', onclick: showKeys }, '⌨');
         const back = () => h('button', { class: 'btn small', 'aria-label': 'Back 5 seconds', onclick: () => seek(curPos() - 5) }, '−5 s');
         const fwd = () => h('button', { class: 'btn small', 'aria-label': 'Forward 5 seconds', onclick: () => seek(curPos() + 5) }, '+5 s');
         const setA = () => h('button', { class: 'btn small', onclick: ev => markA(ev.shiftKey) }, 'Set A');
@@ -876,32 +878,33 @@ export default function transcribe(UI) {
           h('button', { class: 'btn small ghost', onclick: zoomToLoop }, 'Zoom to loop'),
           h('button', { class: 'btn small ghost', 'aria-label': 'Zoom out', onclick: () => zoom(2) }, '−'),
           h('button', { class: 'btn small ghost', 'aria-label': 'Zoom in', onclick: () => zoom(0.5) }, '+')];
-        const zoomRow = h('div', { class: 'row tr-zoomrow' }, ...zoomBtns(), fsBtn);
+        const zoomRow = h('div', { class: 'row tr-zoomrow' }, ...zoomBtns(), fsBtn, keysBtn());
         // full screen: one toolbar with the loop, the nudges, the skips and the zoom, under the waveform
         const grp = (label, ...kids) => h('div', { class: 'tr-ws-grp', role: 'group', 'aria-label': label }, ...kids);
         const wsBar = h('div', { class: 'tr-ws-bar', role: 'toolbar', 'aria-label': 'Loop and view' },
-          grp('Loop', setA(), setB(), clearL()),
+          grp('Loop', toA(), setA(), setB(), clearL()),
           grp('Move A and B', nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
           grp('Skip', back(), fwd()),
-          grp('Zoom', ...zoomBtns()));
+          grp('Zoom', ...zoomBtns()), grp('Keys', keysBtn()));
         fsExit = h('button', { class: 'btn small tr-fs-exit', 'aria-label': 'Exit full screen', onclick: () => setFull(false) }, '✕', h('span', { class: 'tr-fs-exit-l', text: ' Exit full screen' }));
         // full screen: a strip of the panels under the waveform; a tap scrolls to one
         wsJump = h('div', { class: 'tr-ws-jump', role: 'navigation', 'aria-label': 'Panels' });
+        wsHide = h('div', { class: 'tr-ws-hide', id: 'tr-ws-hide', role: 'group', 'aria-label': 'Panels to show in full screen', hidden: true });
         statusEl = h('div', { class: 'small', hidden: true });
         statusBar = bar(0, 'brass'); statusBar.hidden = true;
         repsLbl = h('span', { class: 'small muted mono', text: '' });
         timesEl = h('div', { class: 'spread tr-times' }, timeLbl, loopLbl);
         player.append(h('div', { class: 'tr-head' }, titleH, fsExit), ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, timesEl, wsBar, zoomRow,
-          h('div', { class: 'row tr-looprow' }, setA(), setB(), back(), fwd(), clearL()),
+          h('div', { class: 'row tr-looprow' }, toA(), setA(), setB(), back(), fwd(), clearL()),
           h('div', { class: 'row tr-nudges' }, nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
-          wsJump, statusEl, statusBar, repsLbl,
-          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Full screen keeps the waveform and its buttons at the top with every panel under them. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s, - and + speed, F full screen. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
+          wsJump, wsHide, statusEl, statusBar, repsLbl,
+          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Full screen keeps the waveform and its buttons at the top with every panel under them; 👁 Hide panels there hides the ones you choose, such as the note at the playhead when you want to find it by ear. ⏮ To A goes back to the loop\'s start. On a keyboard, press ? for every shortcut (space play, R back to A, [ and ] set A and B, L loop, arrows ±2 s). With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
         root.append(player);
 
         /* The deck: play, loop and speed, always in reach at the bottom of the screen */
         const deck = deckEl = h('div', { class: 'tr-deck tr-ui', role: 'group', 'aria-label': 'Playback controls' });
         playBtn = h('button', { class: 'btn primary tr-play', 'aria-label': 'Play', onclick: () => (P.wantPlay ? stop() : play()) }, '▶');
-        loopBtn = h('button', { class: 'btn tr-loop', 'aria-pressed': 'false', onclick: toggleLoop }, 'Loop off');
+        loopBtn = h('button', { class: 'btn tr-loop', 'aria-label': 'Loop', 'aria-pressed': 'false', onclick: toggleLoop }, 'Loop off');
         deckSpeed = h('button', { class: 'btn small tr-speedval mono', 'aria-expanded': 'false', 'aria-label': 'Speed and transpose', onclick: () => showMore(moreEl.hidden) });
         const step = d => h('button', { class: 'btn small tr-step', 'aria-label': d < 0 ? 'Slower' : 'Faster', onclick: () => setSpeed(Math.round(P.speed * 100 + d) / 100, true) }, d < 0 ? '−' : '+');
         deckFs = h('button', { class: 'btn small ghost tr-deck-fs', 'aria-label': 'Full screen waveform', onclick: () => setFull(!P.full) }, '⛶');
@@ -917,7 +920,8 @@ export default function transcribe(UI) {
           moreEl.hidden = !on; deckSpeed.setAttribute('aria-expanded', String(on));
           placeDeck();
         }
-        deck.append(moreEl, h('div', { class: 'tr-deck-row' }, playBtn, loopBtn, h('div', { class: 'tr-speedbox' }, step(-5), deckSpeed, step(5)), deckFs));
+        const deckToA = h('button', { class: 'btn tr-toa', 'aria-label': 'Back to the loop start (the song start without a loop)', title: 'Back to the loop start (R)', onclick: toLoopStart }, '⏮');
+        deck.append(moreEl, h('div', { class: 'tr-deck-row' }, playBtn, deckToA, loopBtn, h('div', { class: 'tr-speedbox' }, step(-5), deckSpeed, step(5)), deckFs));
         root.append(deck);
         document.body.classList.add('tr-deck-on');
 
@@ -1390,6 +1394,8 @@ export default function transcribe(UI) {
         // the Android back button leaves full screen first
         if (on) fsExit.setAttribute('data-back-close', ''); else fsExit.removeAttribute('data-back-close');
         root.scrollTop = 0;
+        if (!on && hideBtn) showHide(false);
+        if (keySheet) keySheet.close();
         // the time and the loop go up beside the title, so the waveform's buttons sit closer to it
         if (on) fsExit.before(timesEl); else playerEl.querySelector('.wave-wrap').after(ovCanvas, timesEl);
         markJump();
@@ -1409,9 +1415,39 @@ export default function transcribe(UI) {
       const stickyH = () => (playerEl && getComputedStyle(playerEl).position === 'sticky' ? playerEl.offsetHeight + 10 : 0);
       function buildJump() {
         wsJump.innerHTML = '';
-        panes().forEach(c => wsJump.append(h('button', { class: 'chip', 'aria-pressed': 'false', onclick: () => {
+        panes().forEach(c => wsJump.append(h('button', { class: 'chip', 'aria-pressed': 'false', 'data-pane': c.dataset.pane, onclick: () => {
           root.scrollTo({ top: Math.max(0, c.offsetTop - stickyH()), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
         } }, c.dataset.pane)));
+        hideBtn = h('button', { class: 'chip tr-hide-btn', 'aria-expanded': 'false', 'aria-controls': 'tr-ws-hide', onclick: () => showHide(wsHide.hidden) });
+        wsJump.prepend(hideBtn); // first, so a phone's strip doesn't hide it off the edge
+        applyHide();
+      }
+      /* full screen hides the panels you choose (the note at the playhead, say, to find the notes by ear);
+         kept in settings.transcribeHide by panel name, and only in full screen: the page below shows them all */
+      const hiddenPanes = () => new Set(Array.isArray(E.state.settings.transcribeHide) ? E.state.settings.transcribeHide : []);
+      function applyHide() {
+        const off = hiddenPanes();
+        panes().forEach(c => c.classList.toggle('tr-pane-off', off.has(c.dataset.pane)));
+        [...wsJump.querySelectorAll('[data-pane]')].forEach(b => { b.hidden = off.has(b.dataset.pane); });
+        const n = panes().filter(c => off.has(c.dataset.pane)).length;
+        hideBtn.textContent = n ? '👁 ' + n + ' hidden' : '👁 Hide panels';
+        hideBtn.setAttribute('aria-label', n ? 'Show or hide panels, ' + n + ' hidden' : 'Show or hide panels');
+        wsHide.innerHTML = '';
+        wsHide.append(h('span', { class: 'small muted', text: 'Show in full screen:' }),
+          ...panes().map(c => h('button', { class: 'chip', 'aria-pressed': String(!off.has(c.dataset.pane)), onclick: () => {
+            toggleHidden(c.dataset.pane);
+          } }, c.dataset.pane)),
+          h('button', { class: 'btn small ghost', onclick: () => showHide(false) }, 'Done'));
+      }
+      function toggleHidden(name) {
+        const s = hiddenPanes();
+        if (s.has(name)) s.delete(name); else s.add(name);
+        E.setSetting('transcribeHide', [...s]);
+        applyHide(); markJump();
+      }
+      function showHide(on) {
+        wsHide.hidden = !on; hideBtn.setAttribute('aria-expanded', String(on));
+        if (on) applyHide();
       }
       // the chip of the panel at the top of the view is lit (with columns, the first one in view)
       function markJump() {
@@ -1419,7 +1455,7 @@ export default function transcribe(UI) {
         const top = root.scrollTop + stickyH() + 24, list = panes();
         let at = -1;
         if (P.full && root.scrollTop > 4) list.forEach((c, i) => { if (c.offsetTop <= top && (at < 0 || c.offsetTop > list[at].offsetTop)) at = i; });
-        [...wsJump.children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === at)));
+        [...wsJump.querySelectorAll('[data-pane]')].forEach((b, i) => b.setAttribute('aria-pressed', String(i === at)));
       }
       root.addEventListener('scroll', () => { if (P.full) markJump(); }, { passive: true });
       const onFsChange = () => { if (!document.fullscreenElement && P.fsApi) { P.fsApi = false; setFull(false); } };
@@ -1734,7 +1770,7 @@ export default function transcribe(UI) {
         playBtn.textContent = P.wantPlay ? '❚❚' : '▶';
         playBtn.setAttribute('aria-label', P.wantPlay ? 'Pause' : 'Play');
         loopBtn.setAttribute('aria-pressed', String(P.loopOn));
-        loopBtn.textContent = P.loopOn ? '⟲ Loop on' : '⟲ Loop off';
+        loopBtn.replaceChildren('⟲ ', h('span', { class: 'tr-loop-w', text: 'Loop ' }), P.loopOn ? 'on' : 'off'); // a 3-inch phone drops the word Loop
         loopBtn.classList.toggle('tr-noloop', P.a === null);
         loopLbl.textContent = P.a !== null ? (P.loopOn ? '' : 'Loop off · ') + 'A ' + fmt(P.a) + ' · B ' + fmt(P.b) + ' · ' + (P.b - P.a).toFixed(1) + ' s' : 'No loop';
         timeLbl.textContent = fmt(curPos()) + ' / ' + fmt(P.dur);
@@ -1758,22 +1794,74 @@ export default function transcribe(UI) {
         P.raf = requestAnimationFrame(tick);
       }
 
-      /* ----- keyboard ----- */
+      /* ----- keyboard: one list answers the keys and makes the list that ? or the ⌨ button shows ----- */
+      // back to A (playing on from there if it was playing); with no loop, the start of the song
+      function toLoopStart() { if (!P.buffer) return; P.reps = 0; seek(P.a !== null ? P.a : 0); }
+      const beatSec = () => (P.bpm ? 60 / P.bpm : 0.25);
+      const KEYS = [
+        ['Playing', [
+          { on: [' '], keys: ['Space'], label: 'Play or pause', run: () => (P.wantPlay ? stop() : play()) },
+          { on: ['r', 'Home'], keys: ['R', 'Home'], label: 'Back to the loop start (the song start without a loop)', run: toLoopStart },
+          { on: ['Home'], shift: true, keys: ['Shift + Home'], label: 'Back to the start of the song', run: () => seek(0) },
+          { on: ['ArrowLeft'], keys: ['←', '→'], label: 'Back or forward 2 seconds', run: () => seek(curPos() - 2) },
+          { on: ['ArrowRight'], hide: true, run: () => seek(curPos() + 2) },
+          { on: ['ArrowLeft'], shift: true, keys: ['Shift + ←', '→'], label: 'Back or forward 5 seconds', run: () => seek(curPos() - 5) },
+          { on: ['ArrowRight'], shift: true, hide: true, run: () => seek(curPos() + 5) },
+          { on: [','], keys: [',', '.'], label: 'Back or forward a beat (a quarter second with no tempo)', run: () => seek(curPos() - beatSec()) },
+          { on: ['.'], hide: true, run: () => seek(curPos() + beatSec()) }]],
+        ['Loop', [
+          { on: ['['], keys: ['['], label: 'Set A here (Shift: to the nearest bar)', run: e => markA(e.shiftKey) },
+          { on: ['{'], hide: true, run: () => markA(true) },
+          { on: [']'], keys: [']'], label: 'Set B here (Shift: to the nearest bar)', run: e => markB(e.shiftKey, true) },
+          { on: ['}'], hide: true, run: () => markB(true, true) },
+          { on: ['l'], keys: ['L'], label: 'Loop on or off', run: toggleLoop },
+          { on: ['c'], keys: ['C'], label: 'Clear the loop', run: () => { if (P.a === null) return; P.a = P.b = null; P.loopOn = false; drawStatic(); persist(); refreshTransport(); restartIfPlaying(); } }]],
+        ['Speed and pitch', [
+          { on: ['-', '_'], keys: ['−', '+'], label: 'Slower or faster by 5%', run: () => setSpeed(Math.round(P.speed * 100 - 5) / 100, true) },
+          { on: ['+', '='], hide: true, run: () => setSpeed(Math.round(P.speed * 100 + 5) / 100, true) },
+          { on: ['0'], keys: ['0'], label: 'Back to full speed', run: () => setSpeed(1) },
+          { on: ['ArrowDown'], shift: true, keys: ['Shift + ↓', '↑'], label: 'Transpose down or up a semitone', run: () => setSemis(P.semis - 1) },
+          { on: ['ArrowUp'], shift: true, hide: true, run: () => setSemis(P.semis + 1) }]],
+        ['View', [
+          { on: ['z'], keys: ['Z'], label: 'Zoom to the loop', run: zoomToLoop },
+          { on: ['w'], keys: ['W'], label: 'Show the whole song', run: () => { P.view = [0, P.dur]; drawStatic(); } },
+          { on: ['f'], keys: ['F'], label: 'Full screen on or off', run: () => setFull(!P.full) },
+          { on: ['n'], keys: ['N'], label: 'Hide or show the note at the playhead in full screen', run: () => {
+            toggleHidden('Note'); toast(hiddenPanes().has('Note') ? 'Note at the playhead hidden in full screen' : 'Note at the playhead shown');
+          } },
+          { on: ['h'], keys: ['H'], label: 'Choose the panels to hide (full screen)', when: () => P.full, run: () => showHide(wsHide.hidden) },
+          { on: ['?'], keys: ['?'], label: 'This list', run: () => showKeys() },
+          { keys: ['Esc'], label: 'Leave full screen' }]]];
+      let keySheet = null;
+      function showKeys() {
+        if (keySheet) { keySheet.close(); return; }
+        const close = () => { back.remove(); keySheet = null; };
+        const closeBtn = h('button', { class: 'btn small ghost', 'aria-label': 'Close', onclick: close }, '✕');
+        const row = x => [h('dt', {}, x.keys.map((k, i) => [i ? ' ' : '', h('kbd', { text: k })])), h('dd', { text: x.label })];
+        const back = h('div', { class: 'sheet-back sr-keys-back', onclick: e => { if (e.target === back) close(); } },
+          h('div', { class: 'sheet sr-keys', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Keyboard shortcuts' },
+            h('div', { class: 'spread' }, h('h3', { text: 'Keyboard shortcuts' }), closeBtn),
+            KEYS.map(([title, list]) => h('section', { class: 'stack' }, h('span', { class: 'eyebrow', text: title }),
+              h('dl', { class: 'sr-keylist' }, list.filter(x => !x.hide).map(row)))),
+            h('p', { class: 'small muted', text: 'Not while typing in a box. Press ? or Esc to close this.' })));
+        document.body.append(back);
+        keySheet = { close };
+        closeBtn.focus({ preventScroll: true });
+      }
       function onKey(ev) {
         if (!P.buffer || !playBtn) return;
         const tg = ev.target && ev.target.tagName;
-        if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
+        if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || (ev.target && ev.target.isContentEditable)) return;
+        if (keySheet) { if (ev.key === 'Escape' || ev.key === '?') { ev.preventDefault(); ev.stopPropagation(); keySheet.close(); } return; }
+        if (document.querySelector('.sheet-back')) return; // another dialog is open
         if (ev.key === 'Escape' && P.full) { ev.preventDefault(); setFull(false); return; } // before the app's own Escape closes the tool
         if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-        if (ev.code === 'Space') { ev.preventDefault(); if (tg === 'BUTTON') ev.target.blur(); P.wantPlay ? stop() : play(); }
-        else if (ev.key === '[' || ev.key === '{') markA(ev.shiftKey);
-        else if (ev.key === ']' || ev.key === '}') markB(ev.shiftKey, true);
-        else if (ev.key === 'l' || ev.key === 'L') toggleLoop();
-        else if (ev.key === 'f' || ev.key === 'F') setFull(!P.full);
-        else if (ev.key === '-' || ev.key === '_') setSpeed(Math.round(P.speed * 100 - 5) / 100, true);
-        else if (ev.key === '+' || ev.key === '=') setSpeed(Math.round(P.speed * 100 + 5) / 100, true);
-        else if (ev.key === 'ArrowLeft') { ev.preventDefault(); seek(curPos() - 2); }
-        else if (ev.key === 'ArrowRight') { ev.preventDefault(); seek(curPos() + 2); }
+        const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+        const x = KEYS.flatMap(g => g[1]).find(a => a.on && a.on.includes(k) && (k.length === 1 || !!a.shift === ev.shiftKey) && (!a.when || a.when()));
+        if (!x) return;
+        if (k === ' ' && tg === 'BUTTON') ev.target.blur();
+        ev.preventDefault();
+        x.run(ev);
       }
       window.addEventListener('keydown', onKey, true);
       const cleanups = [() => window.removeEventListener('keydown', onKey, true), () => document.removeEventListener('fullscreenchange', onFsChange), () => { setFull(false); document.body.classList.remove('tr-fs-on', 'tr-deck-on'); document.body.style.removeProperty('--tr-deck'); }];
