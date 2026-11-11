@@ -464,6 +464,6 @@ function drawTechniquePage(t, back) {
 
 /* ---------- Reference ---------- */
 function refIndex() {
-  view.append(h('div', { class: 'tools' }, ['explorer', 'circle', 'tuner', 'drone', 'metronome'].map(id => tile(id))));
+  view.append(h('div', { class: 'tools' }, ['explorer', 'whatchord', 'whatscale', 'circle', 'tuner', 'drone', 'metronome'].map(id => tile(id))));
   view.append(h('p', { class: 'small muted', text: 'The explorer maps any scale or chord across the neck and shows the chords inside a scale. Reference tones help you tune by ear in eight tunings.' }));
 }
