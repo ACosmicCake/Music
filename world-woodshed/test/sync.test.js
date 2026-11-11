@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { migrate, merge, rebuildHistory, digest, SCHEMA } from '../src/sync.js';
+import { migrate, merge, rebuildHistory, digest, SCHEMA, stampKeys, keyCache } from '../src/sync.js';
 
 const DAY = '2026-10-20';
 function base(extra = {}) {
@@ -305,5 +305,59 @@ describe('the Library', () => {
     expect(merge(base(), base()).library).toEqual({});
     expect(Object.keys(merge(base(), base({ library: { e1: entry('e1', 1) } })).library)).toEqual(['e1']);
     expect(digest(base({ library: { e1: entry('e1', 1) } }))).not.toBe(digest(base()));
+  });
+});
+
+describe('settings merge one by one', () => {
+  const copy = (updatedAt, settings, prefs, keyT) => ({ v: 1, schema: SCHEMA, updatedAt, skills: {}, settings, cur: { prefs }, keyT });
+  it('keeps a setting changed on one device when the other saved later', () => {
+    const laptop = copy(100, { guitarSound: 'steel', minutes: 30 }, { pace: 'fast' }, { settings: { guitarSound: 90 }, prefs: {} });
+    const phone = copy(200, { guitarSound: 'nylon', minutes: 45 }, { pace: 'slow' }, { settings: { minutes: 150 }, prefs: { pace: 160 } });
+    const m = merge(laptop, phone);
+    expect(m.settings).toMatchObject({ guitarSound: 'steel', minutes: 45 });
+    expect(m.cur.prefs.pace).toBe('slow');
+    expect(m.keyT.settings).toEqual({ guitarSound: 90, minutes: 150 });
+    expect(merge(phone, laptop).settings).toMatchObject({ guitarSound: 'steel', minutes: 45 });
+  });
+  it('without times, the newer copy wins as before, and a key only the older copy has is kept', () => {
+    const a = copy(100, { x: 1, only: 'a' }, {}, {});
+    const b = copy(200, { x: 2 }, {}, {});
+    expect(merge(a, b).settings).toEqual({ x: 2, only: 'a' });
+  });
+  it('stampKeys dates only what changed since the last look', () => {
+    const s = copy(0, { a: 1, b: { c: 2 } }, { pace: 'x' });
+    const cache = keyCache(s);
+    s.settings.b.c = 3; s.cur.prefs.pace = 'y'; delete s.settings.a;
+    stampKeys(s, cache, 500);
+    expect(s.keyT).toEqual({ settings: { b: 500, a: 500 }, prefs: { pace: 500 } });
+    stampKeys(s, cache, 900);
+    expect(s.keyT.settings.b).toBe(500);
+    s.settings.fresh = 1; // a default filled in: not dated
+    stampKeys(s, cache, 1000);
+    expect(s.keyT.settings.fresh).toBeUndefined();
+  });
+});
+
+describe('erase every device', () => {
+  const st = (o) => Object.assign({ v: 1, schema: SCHEMA, skills: {}, settings: {}, hdev: {}, cur: {} }, o);
+  it('drops the copy from before the erase, keeping this device\'s own settings', () => {
+    const old = st({ updatedAt: 500, skills: { chords: { items: { maj: { n: 4 } }, conf: {}, last: 1 } }, hdev: { d1: { '2026-01-01': { sec: 60 } } }, settings: { latencyMs: 40, guitarSound: 'steel' }, session: { blocks: [] } });
+    const erased = st({ updatedAt: 100, resetAt: 1000 });
+    const m = merge(old, erased);
+    expect(m.skills).toEqual({});
+    expect(m.hdev).toEqual({});
+    expect(m.session).toBe(null);
+    expect(m.settings).toEqual({ latencyMs: 40 });
+    expect(m.resetAt).toBe(1000);
+    expect(merge(erased, old).skills).toEqual({});
+  });
+  it('keeps what was practised after the erase', () => {
+    const a = st({ updatedAt: 2000, resetAt: 1000, skills: { chords: { items: { maj: { n: 1 } }, conf: {}, last: 1 } } });
+    const b = st({ updatedAt: 1500, resetAt: 1000, skills: { intervals: { items: { P5: { n: 1 } }, conf: {}, last: 1 } } });
+    const m = merge(a, b);
+    expect(Object.keys(m.skills).sort()).toEqual(['chords', 'intervals']);
+  });
+  it('an erase is part of what syncs', () => {
+    expect(digest(st({ resetAt: 5 }))).not.toBe(digest(st({})));
   });
 });

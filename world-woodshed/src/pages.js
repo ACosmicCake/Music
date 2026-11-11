@@ -222,6 +222,31 @@ Object.assign(PAGES, {
   }
 });
 
+/* Erase the progress: on this device only, or on every device when it syncs. With sync on, this device only
+   also stops syncing, or the next sync would bring everything back. */
+function resetConfirm() {
+  const synced = ghStatus().on, account = !synced && E.cloudOn(); // account: the claude.ai copy, shared by every device signed in
+  let where = 'here';
+  const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }));
+  if (synced) {
+    const opt = (v, label, note) => h('label', { class: 'reset-opt' },
+      h('input', { type: 'radio', name: 'reset-where', value: v, checked: v === where ? true : null, onchange: () => { where = v; } }),
+      h('span', {}, h('b', { text: label }), h('span', { class: 'small muted', text: ' ' + note })));
+    c.append(h('span', { class: 'small', text: 'Your progress syncs with other devices. What should be erased?' }),
+      opt('here', 'This device only.', 'Sync is turned off here, and your other devices and the synced copy keep everything. Connecting sync again later brings it back.'),
+      opt('all', 'Every device.', 'The synced copy and each device are cleared when they next sync. Only a backup file can bring it back.'));
+  } else c.append(h('span', { class: 'small', text: account ? 'This clears every score, routine and setting on every device signed in to your account. It cannot be undone.' : 'This clears every score, routine and setting. It cannot be undone.' }));
+  c.append(h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'),
+    h('button', { class: 'btn small danger', onclick: () => {
+      if (synced && where === 'here' && ghStatus().on) ghDisconnect();
+      E.resetAll(account || (synced && where === 'all'));
+      if (synced && where === 'all' && ghStatus().on) ghSyncNow('reset');
+      toast(synced && where === 'all' ? 'Progress erased on every device' : 'Progress erased on this device');
+      c.remove();
+    } }, 'Erase everything')));
+  return c;
+}
+
 /* A way to Settings at the foot of a page (the gear in the top bar is the other) */
 function settingsLink(what) {
   return h('button', { class: 'tile settings-link', onclick: () => settingsPage() }, h('span', { class: 't-title', text: 'Settings' }), h('span', { class: 't-desc', text: what }), h('span', { class: 't-meter', 'aria-hidden': 'true', text: '→' }));
@@ -240,11 +265,7 @@ export function settingsPage() {
     h('h1', { text: 'Settings' })));
   const danger = h('div', { class: 'card' });
   danger.append(h('h3', { text: 'Reset progress' }), h('div', { class: 'spread' }, h('span', { class: 'small muted', text: E.storageNote() + '. Timing correction: ' + (st.settings.latencyMs || 0) + ' ms.' }),
-    h('button', { class: 'btn small ghost', onclick: () => {
-      const c = h('div', { class: 'confirm' }, h('b', { text: 'Erase all progress?' }), h('span', { class: 'small', text: 'This clears every score, routine and setting. It cannot be undone.' }),
-        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep my progress'), h('button', { class: 'btn small danger', onclick: () => { E.resetAll(); toast('Progress erased'); } }, 'Erase everything')));
-      danger.append(c);
-    } }, 'Reset progress')));
+    h('button', { class: 'btn small ghost', onclick: () => { if (!danger.querySelector('.confirm')) danger.append(resetConfirm()); } }, 'Reset progress')));
   view.append(h('div', { class: 'stack settings' },
     fold(guitarCard(), 'Your guitar'), fold(tasteSettingsCard(), 'Your music taste'), fold(displayCard(), 'Display and sounds'), fold(micSettingsCard(), 'Microphone'),
     fold(backupCard(), 'Your progress on every device'), fold(h('div', { class: 'card' }, updateBox()), 'App updates'), fold(danger, 'Reset progress')));

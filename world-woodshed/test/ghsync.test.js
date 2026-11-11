@@ -86,4 +86,25 @@ describe('GitHub sync', () => {
     expect(gh.puts).toBe(1);
     expect(G.status().lastError).toBe(null);
   });
+  it('erasing every device clears the synced copy and the other devices', async () => {
+    const a = await device('d-one');
+    a.E.record('intervals', 'P5:up', true);
+    await a.G.syncNow();
+    const b = await device('d-two');
+    await b.G.syncNow();
+    expect(b.E.state.skills.intervals.items['P5:up'].n).toBe(1);
+    const old = JSON.parse(JSON.stringify(b.E.state)); // a device that still holds the progress
+    b.E.resetAll(true);
+    await b.G.syncNow();
+    expect(JSON.parse(gh.text).state.skills).toEqual({});
+    // the first device, still holding its old progress, syncs and is cleared too
+    localStorage.setItem('world-woodshed-v1', JSON.stringify(old));
+    localStorage.setItem('ww-device', 'd-one');
+    vi.resetModules();
+    const E = (await import('../src/engine.js')).default, G = await import('../src/ghsync.js');
+    E.init();
+    expect(E.state.skills.intervals.items['P5:up'].n).toBe(1);
+    await G.syncNow();
+    expect(E.state.skills).toEqual({});
+  });
 });
