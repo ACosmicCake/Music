@@ -832,7 +832,7 @@ export default function transcribe(UI) {
       function restartIfPlaying() { if (P.wantPlay) play(curPos()); else prefetch(); }
 
       /* ----- UI ----- */
-      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, fsExit, wsJump, timesEl, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
+      let canvas, wctx, waveCache, ovCanvas, ovCtx, ovCache, playerEl, titleH, fsBtn, fsExit, wsJump, wsHide, hideBtn, timesEl, deckEl, deckSpeed, deckFs, deckSemis, vid = null, timeLbl, loopLbl, playBtn, loopBtn, statusEl, statusBar, repsLbl, speedLbl, speedIn, semisLbl, renderSpeed = () => {}, sectionsList, analysisOut, modeNote;
       let hlFret;
       function setStatus(msg, prog) {
         if (!statusEl) return;
@@ -887,6 +887,7 @@ export default function transcribe(UI) {
         fsExit = h('button', { class: 'btn small tr-fs-exit', 'aria-label': 'Exit full screen', onclick: () => setFull(false) }, '✕', h('span', { class: 'tr-fs-exit-l', text: ' Exit full screen' }));
         // full screen: a strip of the panels under the waveform; a tap scrolls to one
         wsJump = h('div', { class: 'tr-ws-jump', role: 'navigation', 'aria-label': 'Panels' });
+        wsHide = h('div', { class: 'tr-ws-hide', id: 'tr-ws-hide', role: 'group', 'aria-label': 'Panels to show in full screen', hidden: true });
         statusEl = h('div', { class: 'small', hidden: true });
         statusBar = bar(0, 'brass'); statusBar.hidden = true;
         repsLbl = h('span', { class: 'small muted mono', text: '' });
@@ -894,8 +895,8 @@ export default function transcribe(UI) {
         player.append(h('div', { class: 'tr-head' }, titleH, fsExit), ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, timesEl, wsBar, zoomRow,
           h('div', { class: 'row tr-looprow' }, setA(), setB(), back(), fwd(), clearL()),
           h('div', { class: 'row tr-nudges' }, nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
-          wsJump, statusEl, statusBar, repsLbl,
-          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Full screen keeps the waveform and its buttons at the top with every panel under them. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s, - and + speed, F full screen. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
+          wsJump, wsHide, statusEl, statusBar, repsLbl,
+          h('p', { class: 'small muted tr-help', text: 'Tap the waveform to jump, drag across it to make a loop, drag the A or B line to adjust. Pinch (or Ctrl + scroll) to zoom; the strip under it shows the whole song, drag it to move around. Full screen keeps the waveform and its buttons at the top with every panel under them; 👁 Hide panels there hides the ones you choose, such as the note at the playhead when you want to find it by ear. Keys: space play, [ and ] set A and B, L loop, arrows ±2 s, - and + speed, F full screen. With "Snap loops to beats" on, loops snap to the nearest beat; hold Shift for whole bars.' }));
         root.append(player);
 
         /* The deck: play, loop and speed, always in reach at the bottom of the screen */
@@ -1390,6 +1391,7 @@ export default function transcribe(UI) {
         // the Android back button leaves full screen first
         if (on) fsExit.setAttribute('data-back-close', ''); else fsExit.removeAttribute('data-back-close');
         root.scrollTop = 0;
+        if (!on && hideBtn) showHide(false);
         // the time and the loop go up beside the title, so the waveform's buttons sit closer to it
         if (on) fsExit.before(timesEl); else playerEl.querySelector('.wave-wrap').after(ovCanvas, timesEl);
         markJump();
@@ -1409,9 +1411,36 @@ export default function transcribe(UI) {
       const stickyH = () => (playerEl && getComputedStyle(playerEl).position === 'sticky' ? playerEl.offsetHeight + 10 : 0);
       function buildJump() {
         wsJump.innerHTML = '';
-        panes().forEach(c => wsJump.append(h('button', { class: 'chip', 'aria-pressed': 'false', onclick: () => {
+        panes().forEach(c => wsJump.append(h('button', { class: 'chip', 'aria-pressed': 'false', 'data-pane': c.dataset.pane, onclick: () => {
           root.scrollTo({ top: Math.max(0, c.offsetTop - stickyH()), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
         } }, c.dataset.pane)));
+        hideBtn = h('button', { class: 'chip tr-hide-btn', 'aria-expanded': 'false', 'aria-controls': 'tr-ws-hide', onclick: () => showHide(wsHide.hidden) });
+        wsJump.prepend(hideBtn); // first, so a phone's strip doesn't hide it off the edge
+        applyHide();
+      }
+      /* full screen hides the panels you choose (the note at the playhead, say, to find the notes by ear);
+         kept in settings.transcribeHide by panel name, and only in full screen: the page below shows them all */
+      const hiddenPanes = () => new Set(Array.isArray(E.state.settings.transcribeHide) ? E.state.settings.transcribeHide : []);
+      function applyHide() {
+        const off = hiddenPanes();
+        panes().forEach(c => c.classList.toggle('tr-pane-off', off.has(c.dataset.pane)));
+        [...wsJump.querySelectorAll('[data-pane]')].forEach(b => { b.hidden = off.has(b.dataset.pane); });
+        const n = panes().filter(c => off.has(c.dataset.pane)).length;
+        hideBtn.textContent = n ? '👁 ' + n + ' hidden' : '👁 Hide panels';
+        hideBtn.setAttribute('aria-label', n ? 'Show or hide panels, ' + n + ' hidden' : 'Show or hide panels');
+        wsHide.innerHTML = '';
+        wsHide.append(h('span', { class: 'small muted', text: 'Show in full screen:' }),
+          ...panes().map(c => h('button', { class: 'chip', 'aria-pressed': String(!off.has(c.dataset.pane)), onclick: () => {
+            const s = hiddenPanes();
+            if (s.has(c.dataset.pane)) s.delete(c.dataset.pane); else s.add(c.dataset.pane);
+            E.setSetting('transcribeHide', [...s]);
+            applyHide(); markJump();
+          } }, c.dataset.pane)),
+          h('button', { class: 'btn small ghost', onclick: () => showHide(false) }, 'Done'));
+      }
+      function showHide(on) {
+        wsHide.hidden = !on; hideBtn.setAttribute('aria-expanded', String(on));
+        if (on) applyHide();
       }
       // the chip of the panel at the top of the view is lit (with columns, the first one in view)
       function markJump() {
@@ -1419,7 +1448,7 @@ export default function transcribe(UI) {
         const top = root.scrollTop + stickyH() + 24, list = panes();
         let at = -1;
         if (P.full && root.scrollTop > 4) list.forEach((c, i) => { if (c.offsetTop <= top && (at < 0 || c.offsetTop > list[at].offsetTop)) at = i; });
-        [...wsJump.children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === at)));
+        [...wsJump.querySelectorAll('[data-pane]')].forEach((b, i) => b.setAttribute('aria-pressed', String(i === at)));
       }
       root.addEventListener('scroll', () => { if (P.full) markJump(); }, { passive: true });
       const onFsChange = () => { if (!document.fullscreenElement && P.fsApi) { P.fsApi = false; setFull(false); } };
