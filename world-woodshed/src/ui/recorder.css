@@ -1,0 +1,21 @@
+/* Recording yourself: the top bar's ⏺ and its panel (laptops), and the Record a take page */
+.rec-btn .rec-core { fill: none; stroke: none; }
+.rec-btn.live { color: var(--bad); }
+.rec-btn.live .rec-core { fill: currentColor; animation: rec-pulse 2.4s ease-in-out infinite; }
+.rec-btn.waiting .rec-core { fill: var(--muted); opacity: 0.5; }
+@keyframes rec-pulse { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .rec-btn.live .rec-core { animation: none; } }
+.rec-pop { position: fixed; z-index: 60; top: calc(56px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); width: min(360px, calc(100vw - 24px)); display: grid; gap: 10px; box-shadow: var(--shadow); }
+.rec-roll { gap: 8px; }
+.rec-roll .rec-status { margin: 0; }
+.rec-roll.on .rec-status::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 50%; background: var(--bad); vertical-align: 1px; }
+.rec-roll p { margin: 0; }
+.rec-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; background: currentColor; flex: none; }
+.rec-go .rec-dot { background: #fff; }
+.rec-live { display: inline-flex; align-items: center; gap: 7px; color: var(--bad); font-weight: 700; }
+.rec-live .rec-dot { animation: rec-pulse 1.6s ease-in-out infinite; }
+.rec-time { font-size: 1.6rem; }
+.rec-meter { height: 8px; border-radius: 4px; background: var(--sunk); overflow: hidden; }
+.rec-fill { display: block; height: 100%; width: 0; background: var(--patina); transition: width 0.1s linear; }
+.rec-audio { width: 100%; }
+.rec-take p { margin: 0; }

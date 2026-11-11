@@ -1,5 +1,6 @@
 /* World Woodshed — listening to your guitar through the microphone.
-   Everything runs on the device; no audio is stored or sent anywhere.
+   Everything runs on the device and nothing is sent anywhere. The only audio kept is what the recorder
+   (src/recorder.js, src/ui/recorder.js) holds in memory through 'block' until you save it to the Library.
    The analyzer (src/analyzer.js) is pure signal code: note onsets with millisecond timing, the pitch of what
    you play (McLeod pitch method) and level. Mic: opens the input, feeds the analyzer from an AudioWorklet and fans events out
    to whichever tools are listening; it closes the mic when the last one stops. */
@@ -39,8 +40,18 @@ function dispatch(ev) {
   subs[ev.type].forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
 }
 function listenerCount() { return subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size + subs.block.size; }
+// the analyzer runs only while a tool wants its events: the recorder alone (a 'block' listener) doesn't need it,
+// and when a tool starts listening again it starts afresh, as with a newly opened mic
+const analysing = () => subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size > 0;
+let makeAnalyzer = null, idle = false;
 function feed(buf, t0) {
-  if (analyzer) analyzer.push(buf, t0);
+  if (analyzer) {
+    if (!analysing()) idle = true;
+    else {
+      if (idle && makeAnalyzer) { analyzer = makeAnalyzer(); idle = false; }
+      analyzer.push(buf, t0);
+    }
+  }
   subs.block.forEach(fn => { try { fn(buf, t0); } catch (e) { console.error(e); } });
 }
 
@@ -54,7 +65,8 @@ async function start() {
       const ctx = A.ensure();
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
       srcNode = ctx.createMediaStreamSource(stream);
-      analyzer = Analyzer(ctx.sampleRate, { emit: dispatch, sensitivity: E.state.settings.micSensitivity ?? 0.5 });
+      makeAnalyzer = () => Analyzer(ctx.sampleRate, { emit: dispatch, sensitivity: E.state.settings.micSensitivity ?? 0.5 });
+      analyzer = makeAnalyzer(); idle = false;
       sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
       if (ctx.audioWorklet) {
         const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
