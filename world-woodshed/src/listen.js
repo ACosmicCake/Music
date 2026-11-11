@@ -25,7 +25,8 @@ class WWMic extends AudioWorkletProcessor {
 }
 registerProcessor('ww-mic', WWMic);`;
 
-const subs = { onset: new Set(), pitch: new Set(), note: new Set(), level: new Set() };
+// block: the raw samples (Float32Array, audio time of the first) for tools that look at the spectrum themselves
+const subs = { onset: new Set(), pitch: new Set(), note: new Set(), level: new Set(), block: new Set() };
 let stream = null, srcNode = null, node = null, sink = null, analyzer = null, starting = null, stopTimer = null;
 let state = 'off'; // off | starting | on | denied | unsupported
 const stateSubs = new Set();
@@ -37,7 +38,11 @@ function dispatch(ev) {
   if (ev.type === 'onset' || ev.type === 'note') lastHeard = Date.now();
   subs[ev.type].forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
 }
-function listenerCount() { return subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size; }
+function listenerCount() { return subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size + subs.block.size; }
+function feed(buf, t0) {
+  if (analyzer) analyzer.push(buf, t0);
+  subs.block.forEach(fn => { try { fn(buf, t0); } catch (e) { console.error(e); } });
+}
 
 async function start() {
   if (state === 'on') return true;
@@ -56,10 +61,10 @@ async function start() {
         await ctx.audioWorklet.addModule(url);
         URL.revokeObjectURL(url);
         node = new AudioWorkletNode(ctx, 'ww-mic');
-        node.port.onmessage = e => { if (analyzer) analyzer.push(e.data.buf, e.data.t0); }; // a block can still arrive after stopNow()
+        node.port.onmessage = e => { if (analyzer) feed(e.data.buf, e.data.t0); }; // a block can still arrive after stopNow()
       } else {
         node = ctx.createScriptProcessor(1024, 1, 1);
-        node.onaudioprocess = e => { if (analyzer) analyzer.push(e.inputBuffer.getChannelData(0).slice(), ctx.currentTime - 1024 / ctx.sampleRate); };
+        node.onaudioprocess = e => { if (analyzer) feed(e.inputBuffer.getChannelData(0).slice(), ctx.currentTime - 1024 / ctx.sampleRate); };
       }
       srcNode.connect(node); node.connect(sink);
       setState('on');
@@ -121,6 +126,8 @@ async function restart() { if (state !== 'on') return; stopNow(); await start();
 
 export const Mic = {
   start, stop: stopNow, restart, on, latencyMs, calibrate,
+  // the input's sample rate, for 'block' listeners
+  get sampleRate() { return srcNode ? srcNode.context.sampleRate : 0; },
   get state() { return state; },
   // wall-clock time (ms) the mic last heard the player play a note: the session runner waits for a pause
   get lastHeard() { return lastHeard; },
