@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+  # TEMPORARY: one test run from the PR branch before it is merged (removed again before merge)
+  push:
+    branches: [claude/project-thread-n0ewwb]
+    paths: ['.github/workflows/impact.yml']
 
 permissions:
   contents: read
