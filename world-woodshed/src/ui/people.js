@@ -89,9 +89,12 @@ export function Sim(seed, o = {}) {
   const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.006, 6, 12, Math.PI), smooth(0x7a2e2e)); mouth.position.set(0, -0.05, 0.116); mouth.rotation.z = Math.PI;
   const cheek = x => { const c = sphere(0.02, 0xef8fa0, x, -0.025, 0.105); c.scale.set(1, 0.6, 0.3); c.material = mat(0xef8fa0, { flatShading: false, transparent: true, opacity: 0.55 }); return c; };
   const ear = x => sphere(0.025, skin, x, 0, 0);
-  const headG = joint(0, 0.1, 0, head, eL, sL, eR, sR, brow(0.045), brow(-0.045), nose, mouth, cheek(0.07), cheek(-0.07), ear(0.12), ear(-0.12), hairFor(style, hairC));
-  if (r() < 0.15) { const gl = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.005, 6, 14), smooth(0x2b2238)); const g2 = gl.clone(); gl.position.set(0.045, 0.015, 0.125); g2.position.set(-0.045, 0.015, 0.125); headG.add(gl, g2); }
-  if (r() < 0.12) { const hat = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat(pick(CLOTHES))); hat.position.y = 0.04; hat.scale.set(1.02, 0.8, 1.04); headG.add(hat); }
+  // o.animal: an island animal's folk (src/ui/folk.js adds its ears, snout or beak), so no human hair, nose or ears
+  const human = !o.animal;
+  const headG = human ? joint(0, 0.1, 0, head, eL, sL, eR, sR, brow(0.045), brow(-0.045), nose, mouth, cheek(0.07), cheek(-0.07), ear(0.12), ear(-0.12), hairFor(style, hairC))
+    : joint(0, 0.1, 0, head, eL, sL, eR, sR, mouth);
+  if (r() < 0.15 && human) { const gl = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.005, 6, 14), smooth(0x2b2238)); const g2 = gl.clone(); gl.position.set(0.045, 0.015, 0.125); g2.position.set(-0.045, 0.015, 0.125); headG.add(gl, g2); }
+  if (r() < 0.12 && human) { const hat = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), mat(pick(CLOTHES))); hat.position.y = 0.04; hat.scale.set(1.02, 0.8, 1.04); headG.add(hat); }
   const neck = joint(0, 0.48, 0, capsule(0.04, 0.03, skin, false), headG);
   neck.children[0].position.y = 0.06;
   spine.add(neck);
@@ -106,7 +109,7 @@ export function Sim(seed, o = {}) {
   root.userData = {
     sim: true, phase: r() * 6.28, blinkAt: 0, dance: Math.floor(r() * 4),
     j: { hips, spine, neck: headG, armL: AL.sh, armR: AR.sh, elbowL: AL.elbow, elbowR: AR.elbow, hipL: L.hip, hipR: R.hip, kneeL: L.knee, kneeR: R.knee },
-    eyes: [eL, eR, sL, sR], mouth, cup, pose: 'idle'
+    eyes: [eL, eR, sL, sR], mouth, cup, head, pose: 'idle'
   };
   return shadows(root);
 }

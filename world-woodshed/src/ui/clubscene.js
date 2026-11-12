@@ -1,10 +1,13 @@
-/* World Woodshed — the Club drawn in code: an evening street with the building cut open, each room you've built
-   lit and furnished, plants everywhere, the band on the stage and tonight's guests. All original art.
+/* World Woodshed — the Club drawn in code: an evening on the island with the building cut open, each room you've built
+   lit and furnished, plants everywhere, the band on the stage and tonight's guests, the island's animals (the
+   same ones the 3D club shows, src/folklook.js). All original art.
    Scene(opts) → { el, draw(model), show(night, o) }, where model = { club, band, plants, guests } and show plays
    the evening: the view moves in to the stage, the lights come up, the guests walk in and the tips jar fills.
    Used full size by the Club page (src/tools/club.js) and small on the Today card. */
 import { s } from './core.js';
 import { owns } from '../club.js';
+import Eco from '../ecosystem.js';
+import { LOOK, pickGuest } from '../folklook.js';
 
 const W = 400, H = 300, GROUND = 270;
 /* where each room sits: x, y, w, h */
@@ -14,16 +17,30 @@ export const ROOM_BOX = {
 };
 const WALL = { cafe: '#c9915c', kitchen: '#b8755a', hall: '#8f6f9e', jazzbar: '#4a3f6b', studio: '#3f5f6b', school: '#7a8f5c', roof: '#9fc7b4' };
 const HUES = ['#e07a5f', '#3d85c6', '#81b29a', '#f2cc8f', '#c77dff', '#e9c46a', '#6c9a8b', '#d4a5a5', '#f4a261', '#90be6d', '#a8dadc', '#ef8fa0'];
-const SKIN = ['#f1c9a5', '#e0ac7e', '#c68642', '#a0663e', '#7a4a2a', '#f6d7b8'];
+/* the band are island animals too, as in the 3D club (src/ui/club3d.js) */
+const BAND_FOLK = { guitar: 'fox', drums: 'bear', bass: 'heron', piano: 'owl', keys: 'owl', vocals: 'songbird', saxophone: 'otter', sax: 'otter', congas: 'macaque' };
 const rnd = seed => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 
 /* ---------- small drawings ---------- */
-function person(x, y, { shirt, skin, hair = '#3b2a1e', sc = 1, sit = false } = {}) {
+/* one of the island's animals, dressed (animal: an id of LOOK in src/folklook.js) */
+function person(x, y, { shirt, animal = 'rabbit', sc = 1, sit = false } = {}) {
+  const [fur, top] = LOOK[animal] || LOOK.rabbit;
   const g = s('g', { transform: `translate(${x} ${y}) scale(${sc})`, class: 'cl-person' });
   if (!sit) g.append(s('path', { d: 'M-2 -6 L-2.5 0 M2 -6 L2.5 0', class: 'cl-legs' }));
-  g.append(s('rect', { x: -4, y: sit ? -13 : -15, width: 8, height: sit ? 9 : 10, rx: 3, fill: shirt }),
-    s('circle', { cx: 0, cy: sit ? -16.5 : -18.5, r: 3.6, fill: skin }),
-    s('path', { d: sit ? 'M-3.6 -17 Q0 -22 3.6 -17' : 'M-3.6 -19 Q0 -24 3.6 -19', fill: hair }));
+  const hy = sit ? -16.5 : -18.5;
+  g.append(s('rect', { x: -4, y: sit ? -13 : -15, width: 8, height: sit ? 9 : 10, rx: 3, fill: shirt }));
+  // what sits on the head, behind or over it
+  const ear = d => s('path', { d, fill: fur, class: 'cl-ear' });
+  if (top === 'long') g.append(ear(`M-2.4 ${hy - 2} q-1.6 -7 0.4 -8 q1.6 1 0.6 8 Z M2.4 ${hy - 2} q1.6 -7 -0.4 -8 q-1.6 1 -0.6 8 Z`));
+  else if (top === 'point') g.append(ear(`M-3.6 ${hy - 1} l0.4 -4.6 l2.8 2.6 Z M3.6 ${hy - 1} l-0.4 -4.6 l-2.8 2.6 Z`));
+  else if (top === 'round') g.append(s('circle', { cx: -2.8, cy: hy - 2.8, r: 1.6, fill: fur }), s('circle', { cx: 2.8, cy: hy - 2.8, r: 1.6, fill: fur }));
+  else if (top === 'antennae' || top === 'stalks') g.append(s('path', { d: `M-1.2 ${hy - 3} l-1.6 -4 M1.2 ${hy - 3} l1.6 -4`, class: 'cl-antenna' }), s('circle', { cx: -2.8, cy: hy - 7, r: top === 'stalks' ? 1.2 : 0.9, class: 'cl-antenna-tip' }), s('circle', { cx: 2.8, cy: hy - 7, r: top === 'stalks' ? 1.2 : 0.9, class: 'cl-antenna-tip' }));
+  else if (top === 'antlers') g.append(s('path', { d: `M-2 ${hy - 3} l-1.5 -4 m0.8 2 l-2 -0.8 M2 ${hy - 3} l1.5 -4 m-0.8 2 l2 -0.8`, class: 'cl-antler' }));
+  else if (top === 'fin') g.append(ear(`M-1.5 ${hy - 3} l1.5 -3.4 l1.5 3.4 Z`));
+  g.append(s('circle', { cx: 0, cy: hy, r: 3.6, fill: fur }));
+  if (top === 'beak') g.append(s('path', { d: `M2.8 ${hy} l3.2 0.8 l-3.2 0.8 Z`, class: 'cl-beak' }));
+  else if (top === 'eyes') g.append(s('circle', { cx: -1.7, cy: hy - 3, r: 1.3, fill: fur }), s('circle', { cx: 1.7, cy: hy - 3, r: 1.3, fill: fur }));
+  g.append(s('circle', { cx: -1.2, cy: hy - 0.4, r: 0.45, class: 'cl-eye' }), s('circle', { cx: 1.2, cy: hy - 0.4, r: 0.45, class: 'cl-eye' }));
   return g;
 }
 function pot(x, y, kind = 'leafy', sc = 1) {
@@ -70,7 +87,7 @@ function instrument(role) {
 }
 function player(x, y, role, i, level = 1) {
   const g = s('g', { transform: `translate(${x} ${y})`, class: 'cl-player', style: `--d:${(0.36 + (i % 3) * 0.07).toFixed(2)}s` });
-  const p = person(0, 0, { shirt: HUES[(i * 5 + 2) % HUES.length], skin: SKIN[(i * 3 + 1) % SKIN.length], hair: ['#2b1d14', '#6b3d1e', '#111', '#a0522d', '#d8c8a8'][i % 5] });
+  const p = person(0, 0, { shirt: HUES[(i * 5 + 2) % HUES.length], animal: BAND_FOLK[role] || 'fox' });
   if (role === 'piano' || role === 'drums') g.append(instrument(role), p); else g.append(p, instrument(role));
   // a star over the head for each level past the first
   for (let k = 1; k < level; k++) g.append(s('circle', { cx: -4 + k * 2, cy: -26, r: 0.8, class: 'cl-lvl' }));
@@ -170,9 +187,9 @@ export function Scene({ small = false, onRoom } = {}) {
     sky.append(s('rect', { x: 0, y: 0, width: W, height: H, class: 'cl-sky' }), s('circle', { cx: 352, cy: 34, r: 11, class: 'cl-moon' }));
     const r = rnd(7);
     for (let i = 0; i < 22; i++) sky.append(s('circle', { cx: Math.round(r() * W), cy: Math.round(r() * 80), r: r() > 0.8 ? 1 : 0.6, class: 'cl-star', style: `--i:${i % 7}` }));
-    sky.append(s('path', { d: 'M0 150 h30 v-30 h18 v20 h22 v-44 h24 v60 H0 Z M300 150 v-20 h20 v-36 h26 v26 h22 v-14 h18 v44 Z', class: 'cl-city' }));
-    // the street
-    back.append(s('rect', { x: 0, y: GROUND, width: W, height: H - GROUND, class: 'cl-street' }), s('path', { d: `M0 ${GROUND + 1} H${W}`, class: 'cl-kerb' }));
+    // the island's hills and woods far off, then the lawn the club stands on
+    sky.append(s('path', { d: 'M0 150 Q40 104 90 128 Q120 112 150 150 Z M250 150 Q300 100 350 122 Q380 110 400 128 V150 Z', class: 'cl-hills' }));
+    back.append(s('rect', { x: 0, y: GROUND, width: W, height: H - GROUND, class: 'cl-lawn' }), s('path', { d: `M0 ${GROUND + 1} H${W}`, class: 'cl-lawnedge' }));
     // the building's outline behind the rooms, with a sign over the café door
     Object.keys(ROOM_BOX).forEach(id => rooms.append(roomShell(id, owns(club, id), onRoom)));
     if (owns(club, 'jazzbar') || owns(club, 'studio')) rooms.append(s('path', { d: 'M96 90 L304 90', class: 'cl-roofline' }));
@@ -198,7 +215,7 @@ export function Scene({ small = false, onRoom } = {}) {
   }
 
   /* real trees, kelp and bottles (src/ui/garden.js plantings()) and the plant amenities: in the courtyard once
-     it's built, along the pavement before then */
+     it's built, along the front before then */
   function plants(list, club) {
     const yard = owns(club, 'courtyard');
     const shown = list.slice(0, yard ? 14 : 8);
@@ -221,8 +238,10 @@ export function Scene({ small = false, onRoom } = {}) {
     const bandWidth = 10 + ((model.band || []).filter(b => b.level > 0).length + 1) * (stageId === 'jazzbar' ? 14 : 6.4);
     order.forEach(id => { if (spots.length < drawn) spots.push(...spotsIn(id, drawn - spots.length, id === stageId ? bandWidth : id === 'cafe' && stageId === 'cafe' ? bandWidth : 0)); });
     const r = rnd(11), els = [];
+    let pool = [];
+    try { pool = Eco.residents(Eco.counts(model.plants || [])); } catch (e) { /* no island yet */ }
     spots.slice(0, drawn).forEach(([x, y, sc], i) => {
-      const g = person(x, y, { shirt: HUES[Math.floor(r() * HUES.length)], skin: SKIN[Math.floor(r() * SKIN.length)], hair: ['#2b1d14', '#6b3d1e', '#111', '#a0522d', '#d8c8a8', '#888'][Math.floor(r() * 6)], sc: sc * 0.9 });
+      const g = person(x, y, { shirt: HUES[Math.floor(r() * HUES.length)], animal: pickGuest(pool, i * 13 + 5), sc: sc * 0.9 });
       const wrap = s('g', { class: 'cl-guest' + (animate ? ' in' : ''), style: `--dx:${Math.round(-x - 20)}px;--t:${(i * (2.2 / drawn)).toFixed(2)}s` }, g);
       guestsG.append(wrap); els.push(wrap);
     });

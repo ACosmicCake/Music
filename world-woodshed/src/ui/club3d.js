@@ -1,5 +1,5 @@
 /* World Woodshed — the Club in 3D: a lot on the garden island seen from high above at an angle, as in a life-sim
-   game, with low-poly rooms, furniture, plants, the band on stage and guests who walk in from the street, sit,
+   game, with low-poly rooms, furniture, plants, the band on stage and guests (the island's animals, src/ui/folk.js) who walk in, sit,
    dance and wander out to the garden. Built from the shared kit in src/ui/lowpoly.js (original art in code). The
    island around the lot (terrain, the real trees, kelp and bottles, the animals) is the garden's, from
    src/ui/garden3d.js when it is there; a plain lawn stands in otherwise. Its own chunk, loaded by
@@ -9,7 +9,9 @@
    shape as the flat Scene in src/ui/clubscene.js (the fallback without WebGL). model = { club, band, plants,
    guests }. Drag turns the view, a pinch or the wheel zooms, a tap on a room (or an empty plot) calls onRoom. */
 import { THREE, Stage, mat, glow, box, cyl, ball, group, at, shadows, label, webglOK, HUES } from './lowpoly.js';
-import { Sim, act } from './people.js';
+import { act } from './people.js';
+import { Folk, pickGuest } from './folk.js';
+import Eco from '../ecosystem.js';
 import { owns, live, footprint, fits, itemOf, CELL, ROOMS, BUILT_IN } from '../club.js';
 import { pieceModel, tree, counter, instrument } from './clubpieces.js';
 
@@ -17,7 +19,7 @@ export { webglOK };
 // the garden's island, if this build has it (src/ui/garden3d.js, the garden thread's)
 const ISLAND = import.meta.glob('./garden3d.js');
 
-/* the lot, in metres: x to the right, z away from the street (the island leaves x -10..22, z -7..21 for it) */
+/* the lot, in metres: x to the right, z away from the front (the island leaves x -10..22, z -7..21 for it) */
 export const ROOMS3D = Object.fromEntries(ROOMS.map(r => [r.id, r.rect]));
 const FLOOR = { cafe: 0xb88a5a, kitchen: 0xd9d2c3, hall: 0xa77b52, jazzbar: 0x4b3326, studio: 0x55606b, school: 0x7f9a62, roof: 0xc98b62, courtyard: 0x5d9a4f };
 const WALL = { cafe: 0xe8c9a0, kitchen: 0xe7d6c4, hall: 0xb7a0c9, jazzbar: 0x5a4b7a, studio: 0x5b7a87, school: 0xc9d7a8, roof: 0x9fd0bd, courtyard: 0xa6845a };
@@ -65,7 +67,7 @@ export function Club3D({ onRoom, onBuild } = {}) {
   const world = new THREE.Group(), people = new THREE.Group(), ground = new THREE.Group();
   scene.add(ground, world, people);
 
-  // the island from the garden, or a lawn; the street and pavement in front of the club are the club's
+  // the island from the garden, or a lawn (no street: the guests are the island's animals and walk in from it)
   let island = null;
   function lawn() { ground.add(at(box(60, 0.02, 50, 0x5f8f4a, 0, -0.03, 0), 6, 8, 0, -0.03)); }
   const islandReady = (ISLAND['./garden3d.js'] ? ISLAND['./garden3d.js']() : Promise.resolve(null)).then(mod => {
@@ -80,8 +82,6 @@ export function Club3D({ onRoom, onBuild } = {}) {
     if (island.frame) stage.onFrame(island.frame);
     if (model) draw(model);
   }).catch(e => { console.error(e); lawn(); });
-  ground.add(at(box(34, 0.03, 3, 0x7a7466), 6, -5));
-  ground.add(at(box(34, 0.05, 1.6, 0xb9b2a0), 6, -2.6));
   let home = { yaw: -0.35, pitch: 0.95, dist: 26, cx: 4, cz: 4 };
   function frameOwned(club) {
     const ids = Object.keys(ROOMS3D).filter(id => owns(club, id));
@@ -207,7 +207,7 @@ export function Club3D({ onRoom, onBuild } = {}) {
   }
   function collect(g) { g.traverse(o => { const u = o.userData || {}; if (u.twinkle !== undefined) twinkles.push(o); if (u.fire) fires.push(o); if (u.sway !== undefined) sway.push(o); }); return g; }
 
-  /* real trees, kelp and bottles (plantings() from the garden) along the pavement, when the island isn't there */
+  /* real trees, kelp and bottles (plantings() from the garden) along the front, when the island isn't there */
   function plantReal(list) {
     const yard = false, spots = [[-6.6, -1.4], [-4.8, -1.4], [-3, -1.4], [-0.6, -1.4], [1.2, -1.4], [6.8, -1.4], [8.6, -1.4], [10.4, -1.4], [12.2, -1.4], [14, -1.4]];
     let ponds = 0;
@@ -248,7 +248,7 @@ export function Club3D({ onRoom, onBuild } = {}) {
     const piano = world.children.find(c => c.userData.item === 'grand') || world.children.find(c => c.userData.item === 'upright');
     players.forEach((b, i) => {
       const n = players.length, x = stageAt.x - stageAt.w / 2 + 0.4 + (stageAt.w - 0.8) * (n === 1 ? 0.5 : i / (n - 1));
-      const p = lighten(Sim(500 + i, { shirt: [0x2b2238, 0xc94c4c, 0x3d85c6, 0x6c9a8b, 0xe9c46a, 0xc77dff, 0xf4a261][i % 7], pants: 0x1a1a22 }));
+      const p = lighten(Folk(BAND_FOLK[b.role] || 'fox', 500 + i, { shirt: [0x2b2238, 0xc94c4c, 0x3d85c6, 0x6c9a8b, 0xe9c46a, 0xc77dff, 0xf4a261][i % 7], pants: 0x1a1a22 }));
       p.userData.role = b.role;
       at(p, x, stageAt.z + (i % 2 ? 0.3 : -0.2), stageAt.dir, stageAt.y);
       if (b.role === 'piano' && piano) { const f = piano.rotation.y; at(p, piano.position.x - Math.sin(f) * 0.9, piano.position.z - Math.cos(f) * 0.9, f, 0); } // at the piano, wherever it stands
@@ -258,11 +258,19 @@ export function Club3D({ onRoom, onBuild } = {}) {
     frameOwned(m.club);
     if (building) { drawGrid(); if (ghostOf) { const g = ghostOf; ghost = null; ghostAt(g.k, g.x, g.z, g.r, g.uid); } pick(picked); }
     if (!stage.flying && !building) Object.assign(view, home);
+    pool = residentsOf(m);
     spawnCrowd(m.guests || 0, false);
   }
 
-  /* ---------- the guests: walk in from the street, sit or stand, dance, wander, leave ---------- */
+  /* ---------- the guests: the island's animals walk in, sit or stand, dance, wander, leave ---------- */
   const DOOR = { x: 4, z: -0.6 };
+  /* the band: animals of the island too, each in the part that suits them (you are the fox on guitar) */
+  const BAND_FOLK = { guitar: 'fox', drums: 'bear', bass: 'heron', piano: 'owl', vocals: 'songbird', saxophone: 'otter', congas: 'macaque' };
+  /* who lives on the island now: the guests come from them (src/ui/folk.js pickGuest) */
+  let pool = [], spawned = 0;
+  function residentsOf(m) {
+    try { return island && island.residents ? island.residents() : Eco.residents(Eco.counts((m && m.plants) || [])); } catch (e) { return []; }
+  }
   /* how high each kind of seat is, for the sitting pose (m) */
   const SEAT_H = { stool: 0.74, beanbag: 0.3, armchair: 0.48, sofa: 0.48, hammocks: 0.85 };
   /* the small bits of a face cast no shadow: fewer draw calls with a full room */
@@ -295,7 +303,8 @@ export function Club3D({ onRoom, onBuild } = {}) {
     return free.length ? free[Math.floor(Math.random() * free.length)] : null;
   }
   function addGuest(i, placed) {
-    const p = lighten(Sim(guests.length * 13 + i + (placed ? 0 : 777)));
+    const seed = guests.length * 13 + i + (placed ? 0 : 777) + (spawned++) * 31;
+    const p = lighten(Folk(pickGuest(pool, seed), seed));
     const spot = freeSpot(Math.random() < 0.35 ? 'stand' : 'any');
     if (!spot) return null;
     const now = performance.now();
