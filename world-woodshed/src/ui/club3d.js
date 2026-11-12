@@ -106,6 +106,11 @@ export function Club3D({ onRoom } = {}) {
   const islandReady = (ISLAND['./garden3d.js'] ? ISLAND['./garden3d.js']() : Promise.resolve(null)).then(mod => {
     if (!mod || !mod.Island) { lawn(); return; }
     island = mod.Island(stage, { planted: (model && model.plants) || [] });
+    // the island's golden hour, the same as the garden page's, so the two read as one world
+    scene.background = new THREE.Color(0xf3d6b4);
+    scene.fog = new THREE.Fog(0xf3d6b4, 70, 140);
+    stage.hemi.color.set(0xfff0dc); stage.hemi.groundColor.set(0x52603a); stage.hemi.intensity = 1.8;
+    stage.sun.color.set(0xffd9a8); stage.sun.intensity = 1.9;
     ground.add(island.group);
     if (island.frame) stage.onFrame(island.frame);
     if (model) draw(model);
