@@ -204,7 +204,7 @@ export function Stage({ onTap, onHover, light = 'evening', home: home0 } = {}) {
     if (!ptrs.has(e.pointerId)) { if (onHover && e.pointerType === 'mouse') { const p = groundAt(e.clientX, e.clientY); if (p) onHover(p, e); } return; }
     const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
     target = null; idleAt = performance.now();
-    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch0 && d) view.dist = Math.max(8, Math.min(55, dist0 * pinch0 / d)); moved = 99; return; }
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch0 && d) view.dist = Math.max(8, Math.min(80, dist0 * pinch0 / d)); moved = 99; return; }
     const dx = e.clientX - prev[0], dy = e.clientY - prev[1];
     moved += Math.abs(dx) + Math.abs(dy);
     view.yaw += dx * 0.008;
@@ -212,7 +212,7 @@ export function Stage({ onTap, onHover, light = 'evening', home: home0 } = {}) {
   });
   const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; if (downAt && moved < 8 && e.type === 'pointerup') tap(e); downAt = null; };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); target = null; idleAt = performance.now(); view.dist = Math.max(8, Math.min(55, view.dist * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); target = null; idleAt = performance.now(); view.dist = Math.max(8, Math.min(80, view.dist * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive: false });
   canvas.addEventListener('dblclick', () => flyTo(home, 700));
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   /* the raycaster through a point of the screen, and the point on the ground there */

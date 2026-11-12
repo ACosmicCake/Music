@@ -12,6 +12,7 @@
    Units are metres, y = 0 is the lawn, +z is away from the club's front. All the art is drawn here, original. */
 import { THREE, mat, group, shadows, Stage, reduced } from './lowpoly.js';
 import Eco from '../ecosystem.js';
+import { LOT, C, RX, RZ, WILD, POND, coast, inside, inLot, nearPond, landOK, BOUNDS, treeAt, kelpAt, litterAt, crateAt, LITTER } from '../islandmap.js';
 
 export const PALETTE = {
   leaf: 0x5f9e4f, leaf2: 0x4a8a46, leaf3: 0x7aab4a, leafDry: 0xb59a4a, trunk: 0x8a6440, kelp: 0x8f7a2a, float: 0xb08d30,
@@ -195,22 +196,7 @@ export function animate(obj, t) {
 }
 
 /* ---------- the island ---------- */
-const LOT = { x0: -10, x1: 22, z0: -7, z1: 21 };            // the Club's flat ground; z0 is its front
-const C = { x: 4, z: 6 }, RX = 40, RZ = 32;                   // the land's centre and radii
-const WILD = { x: -22, z: 9 };                                // where the wood starts and spreads from
-const POND = { x: -25, z: 22, r: 3.4 };                       // appears with ten trees
 const SEA_Y = -0.35;
-const shapeR = (a, s = 1) => { // the coast, a little ragged, the same every time
-  const j = 1 + 0.05 * Math.sin(a * 3 + 1) + 0.035 * Math.sin(a * 7 + 2) + 0.02 * Math.sin(a * 13);
-  return s * j;
-};
-const coast = (a, s) => ({ x: C.x + Math.cos(a) * RX * shapeR(a, s), z: C.z + Math.sin(a) * RZ * shapeR(a, s) });
-const inside = (x, z, s = 1) => { const a = Math.atan2((z - C.z) / RZ, (x - C.x) / RX); const d = Math.hypot((x - C.x) / RX, (z - C.z) / RZ); return d < shapeR(a, s); };
-const inLot = (x, z, m = 0) => x > LOT.x0 - m && x < LOT.x1 + m && z > LOT.z0 - m && z < LOT.z1 + m;
-const nearPond = (x, z, m = 0) => Math.hypot(x - POND.x, z - POND.z) < POND.r + m;
-const landOK = (x, z) => inside(x, z, 0.86) && !inLot(x, z, 2) && !nearPond(x, z, 2);
-const shallow = (x, z) => inside(x, z, 1.32) && !inside(x, z, 1.14);
-const BOUNDS = [C.x - RX, C.x + RX, C.z - RZ, C.z + RZ];
 const TREE_SCALE = 3.4, KELP_SCALE = 3.2;
 const HOME = { cx: WILD.x + 4, cz: WILD.z - 3, dist: 50, pitch: 0.95, yaw: -0.55 }; // the wild side, with the sea beyond
 
@@ -268,14 +254,7 @@ export function Island(stage, o = {}) {
   }
 
   // where things go: trees spread out from the wild corner, kelp along the west shallows, litter on the beach
-  const treeAt = n => Eco.spots(n, { bounds: BOUNDS, ok: landOK, gap: 2.6, cx: WILD.x, cz: WILD.z, seed: 11 });
-  // the shore beside the pond, which the first view looks across: kelp grows off it and the crates stand on it
-  const aShore = Math.atan2((POND.z - C.z) / RZ, (POND.x - C.x) / RX), kelpFrom = coast(aShore + 0.15, 1.22), crateFrom = coast(aShore - 0.2, 0.99);
-  const kelpAt = n => Eco.spots(n, { bounds: [C.x - RX * 1.4, C.x + RX * 1.4, C.z - RZ * 1.4, C.z + RZ * 1.4], ok: shallow, gap: 1.8, cx: kelpFrom.x, cz: kelpFrom.z, seed: 23 });
-  const LITTER = 16;
-  const litterAt = (() => { const rr = Eco.rng(5), out = []; while (out.length < LITTER) { const a = rr() * Math.PI * 2, p = coast(a, 1.0 + rr() * 0.06); if (!inLot(p.x, p.z, 3)) out.push({ x: p.x, z: p.z, rot: rr() * 6 }); } return out; })();
-  const crateAt = i => ({ x: crateFrom.x + (i % 4) * 0.7, z: crateFrom.z - 1.5 + Math.floor((i % 8) / 4) * 0.55, y: Math.floor(i / 8) * 0.3 });
-
+  // where things go (src/islandmap.js): trees spread out from the wild corner, kelp along the west shallows, litter on the beach
   let trees = [], sapling = null;
   function buildPlants(popFrom) {
     stage.clear(plants);
@@ -427,6 +406,39 @@ export function Island(stage, o = {}) {
   return { group: root, update, frame, lot: Object.assign({}, LOT), focus, residents: () => Eco.residents(Eco.counts(planted), { wilted }) };
 }
 
+/* The Club seen from outside, for the island's own view (the Today card and the island page): one block per room
+   built ([{ id, rect: [x0, z0, x1, z1] }] on the lot), cream walls with warm windows and a coloured roof, the
+   courtyard open with parasols, the glasshouse in glass. The Club page draws the inside (src/ui/club3d.js). */
+const ROOF = { cafe: 0xd0704f, kitchen: 0xb85c45, jazzbar: 0x5a4a7a, school: 0x6c9a8b, hall: 0xc98a3a, roof: 0xbfe3ea, studio: 0x3d5a80 };
+const HIGH = { cafe: 2.8, kitchen: 2.8, jazzbar: 3.4, school: 2.8, hall: 4, roof: 3, studio: 3.2 };
+export function clubHouse(rooms) {
+  const g = new THREE.Group();
+  (rooms || []).forEach(({ id, rect }) => {
+    const [x0, z0, x1, z1] = rect, w = x1 - x0, d = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    if (id === 'courtyard') {
+      g.add(P(box(w, 0.08, d, 0xd8c59a), cx, 0.04, cz));
+      g.add(P(box(w, 0.7, 0.08, 0xa6845a), cx, 0.35, z0 + 0.05));
+      [0.3, 0.7].forEach((f, i) => { const x = x0 + w * f, z = z0 + d * (0.45 + i * 0.1); g.add(P(cyl(0.04, 0.04, 2, 0x7a5233, 5), x, 1, z), P(cone(1.1, 0.6, i ? 0xe07a5f : 0xf2cc8f, 8), x, 2.1, z)); });
+      return;
+    }
+    const H = HIGH[id] || 3, glass = id === 'roof';
+    const walls = box(w - 0.1, H, d - 0.1, glass ? mat(0xd6eef2, { transparent: true, opacity: 0.6 }) : 0xf3e6cf);
+    g.add(P(walls, cx, H / 2, cz));
+    const roofM = box(w + 0.4, 0.35, d + 0.4, ROOF[id] || 0xc0704f); g.add(P(roofM, cx, H + 0.17, cz));
+    if (!glass) {
+      const lit = mat(0xffd98a, { emissive: 0xffc860, emissiveIntensity: 0.6 });
+      const n = Math.max(1, Math.floor(w / 2.2));
+      for (let i = 0; i < n; i++) {
+        const x = x0 + w * (i + 0.5) / n;
+        if (id === 'cafe' && i === Math.floor(n / 2)) { g.add(P(box(1, 1.9, 0.08, 0x7a5233), x, 0.95, z0 + 0.02)); g.add(P(box(1.8, 0.5, 0.08, 0x2f6f5e), x, H - 0.45, z0 + 0.01)); continue; }
+        g.add(P(box(0.9, H * 0.38, 0.06, lit), x, H * 0.55, z0 + 0.02));
+      }
+      if (id === 'kitchen') g.add(P(box(0.5, 1.2, 0.5, 0x8a6d5b), x1 - 1, H + 0.7, z1 - 1));
+    }
+  });
+  return shadows(g);
+}
+
 /* A Stage with the island alone (the garden card and the island page). Returns { el, island, stage, dispose }. */
 export function mountIsland(host, o = {}) {
   // a young island is seen close up; the view draws back as the wood spreads
@@ -439,8 +451,19 @@ export function mountIsland(host, o = {}) {
   stage.sun.color.set(0xffd9a8); stage.sun.intensity = 1.9;
   const island = Island(stage, o);
   stage.onFrame(island.frame);
+  // the Club on its lot, when the caller gives its rooms (setClub again when they change)
+  let house = null, houseSig = '';
+  island.setClub = rooms => {
+    const sig = JSON.stringify(rooms || []);
+    if (sig === houseSig) return;
+    houseSig = sig;
+    if (house) { stage.scene.remove(house); stage.clear(house); }
+    house = clubHouse(rooms);
+    stage.scene.add(house);
+  };
+  if (o.rooms) island.setClub(o.rooms);
   host.append(stage.el);
   return { el: stage.el, island, stage, dispose: () => stage.dispose() };
 }
 
-export default { PALETTE, plantModel, animalModel, animate, Island, mountIsland };
+export default { PALETTE, plantModel, animalModel, animate, Island, mountIsland, clubHouse };
