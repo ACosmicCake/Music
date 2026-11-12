@@ -12,7 +12,7 @@
      IMPACT_TRY    'true' with a test key: also place one test order now, whatever the hours, to check the
                    key and the connection (not written to the ledger, so it never shows in the garden)
    Prints counts only, never your practice details. */
-import { run, LEDGER_FILE, DEFAULT_CAP, amount } from '../../src/impact.js';
+import { run, progress, LEDGER_FILE, DEFAULT_CAP, amount } from '../../src/impact.js';
 
 const env = process.env;
 const need = k => { if (!env[k]) { console.error('Missing ' + k + '. See the impact section of README.md.'); process.exit(1); } return env[k]; };
@@ -90,5 +90,8 @@ const s = await sha(LEDGER);
 const put = await gh('PUT', LEDGER, s ? { ...body, sha: s } : body);
 if (!put.ok) { console.error('Could not write the ledger: GitHub answered ' + put.status); process.exit(1); }
 
-console.log(r.started ? 'Started counting today. Hours from now on count.' : 'Ordered ' + r.made.length + (TEST ? ' in test mode' : '') + '. ' + (r.waiting > 0 ? r.waiting + ' more earned, waiting for next month\'s cap.' : ''));
+const toNext = Math.ceil(progress(r.ledger).toNext), hm = Math.floor(toNext / 60) + ' h ' + (toNext % 60) + ' min';
+console.log(r.started ? 'Started counting today. Hours from now on count.'
+  : (r.made.length ? 'Ordered ' + r.made.map(m => amount(m.kind, 1)).join(', ') + (TEST ? ' in test mode' : '') + '. ' : 'Nothing new to order. ')
+    + (r.waiting > 0 ? r.waiting + ' more earned, waiting for next month\'s cap.' : hm + ' of practice to the next one.'));
 if (r.error) { console.error(r.error); process.exit(1); }

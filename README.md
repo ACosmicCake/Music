@@ -44,7 +44,7 @@ Every 10 hours you practise, on any device, can plant a real tree (Kilifi, Kenya
 3. In this repository, **Settings → Secrets and variables → Actions**:
    - Secrets: `GOODAPI_KEY` (the GoodAPI key) and `SYNC_TOKEN` (a fine-grained token with **Contents: Read and write** on your sync repository; the one the app uses will do).
    - Variables: `SYNC_REPO` (for example `you/woodshed-sync`), and if you changed it, `SYNC_PATH` (default `world-woodshed-progress.json`). Optional: `IMPACT_CAP`, the most a month (default 10, so at most about $5); hours past it carry over to the next month.
-4. **Actions → Plant for practice → Run workflow** once. The first run starts counting; after that it runs every morning (03:17 UTC).
+4. **Actions → Plant for practice → Run workflow** once. The first run starts counting; after that it runs every morning (03:17 UTC). Its log says whether GoodAPI accepted the key; tick **place one test order now** (test key only) to check an order goes through without waiting 10 hours.
 5. When it looks right, replace `GOODAPI_KEY` with your **live** key. The test orders are dropped and the hours since the first run are planted for real.
 
 Pick what the hours become (trees, kelp, bottles, or taking turns) in **Settings → Real impact for your practice**. Each order carries a fixed idempotency key, so a run that is retried or runs twice never pays twice.
