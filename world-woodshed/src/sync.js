@@ -5,12 +5,13 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 12;
+export const SCHEMA = 13;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder', 'readingClickVol', 'readingZoom'];
 
 import { mergeGames } from './games.js';
+import { mergeClub } from './club.js';
 
 const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -104,7 +105,10 @@ const MIGRATIONS = {
   12(s) {
     if (!isObj(s.keyT)) s.keyT = { settings: {}, prefs: {} };
     return s;
-  }
+  },
+  // 12 → 13: the Club (src/club.js), opened by the app when it starts (initClub), so nothing to add here:
+  // practice from before it opens never counts
+  13(s) { return s; }
 };
 /* Sight-reading levels renumbered: each level's progress (skill items L<n>:rhythm|melody), tempos
    (settings.readingBpm r<n>/m<n>) and kept pieces (readLib) move by map (old → new; levels not in it keep
@@ -330,6 +334,8 @@ export function merge(local, remote) {
     session: a.session || null,
     cur: mergeCur(a.cur || {}, b.cur || {}, bNewer ? 'b' : 'a', (a.keyT || {}).prefs, (b.keyT || {}).prefs)
   });
+  const club = mergeClub(a.club, b.club);
+  if (club) out.club = club; else delete out.club;
   if (ra || rb) out.resetAt = Math.max(ra, rb); else delete out.resetAt;
   if (a.readLib || b.readLib) {
     const la = a.readLib || {}, lb = b.readLib || {};
@@ -355,7 +361,7 @@ const stable = x => {
 };
 export function digest(s) {
   const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, melodies: s.melodies, songs: s.songs, library: s.library, journal: (s.journal || []).length,
-    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, games: s.games, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone, resetAt: s.resetAt || 0 };
+    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, games: s.games, club: s.club, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone, resetAt: s.resetAt || 0 };
   const str = stable(pick);
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }

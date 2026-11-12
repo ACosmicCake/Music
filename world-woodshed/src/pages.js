@@ -17,6 +17,7 @@ import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
 import { weekReviewCard } from './ui/weekreview.js';
 import { gardenCard, impactSettingsCard } from './ui/garden.js';
+import { clubCard } from './tools/club.js';
 import Samples from './samples.js';
 import A from './audio.js';
 import { VOICES } from './guitars.js';
@@ -36,7 +37,7 @@ function toolTile(id, extra) {
   let m = t.skill && E.SKILLS[t.skill] ? Math.round(E.mastery(t.skill)) : null;
   if (m === 0 && !(E.state.skills[t.skill] || {}).last) m = null; // not tried yet: no score, rather than a 0% that reads as failing
   // a game shows your high score instead
-  const meter = t.game ? bestLine(t.game) : m !== null ? m + '%' : '';
+  const meter = t.meter ? t.meter() : t.game ? bestLine(t.game) : m !== null ? m + '%' : '';
   const tile = h('button', { class: 'tile' + (t.game ? ' game-tile' : ''), onclick: () => openTool(id, extra || {}) }, h('span', { class: 't-title', text: t.title }), h('span', { class: 't-desc', text: t.desc }), h('span', { class: 't-meter', text: meter }));
   return extra && extra.star ? withStar(tile, 'tool', id, t.title, extra.star) : tile;
 }
@@ -79,7 +80,7 @@ const TRAIN = {
   rhythm: { name: 'Rhythm', title: 'Time, feel and the world\'s cycles', tools: ['rhythms', 'gym', 'rhythmid', 'clock', 'metronome'], tip: 'Run the tap calibration in Metronome once per device, especially with Bluetooth headphones. Timing tests use taps on the screen or the space bar.' },
   play: { name: 'Guitar', title: 'From the ear to the hands', tools: ['tuner', 'scalewarm', 'arpwarm', 'arpchanges', 'technique', 'drill', 'sightread', 'notenames', 'fretboard', 'callresp', 'constraint', 'repertoire', 'notate', 'recorder', 'explorer', 'whatchord', 'whatscale'],
     groups: [['Hands and the neck', ['tuner', 'scalewarm', 'arpwarm', 'arpchanges', 'technique', 'fretboard', 'explorer']], ['Name it', ['whatchord', 'whatscale']], ['Styles and tunes', ['drill', 'repertoire', 'callresp', 'constraint']], ['Reading and writing', ['sightread', 'notenames', 'notate']], ['Record yourself', ['recorder']]], tip: 'Scale warm-up and Technique ladders raise the tempo only when you play clean. Be honest with yourself.' },
-  games: { name: 'Games', title: 'Practice as a game', tools: ['tower', 'lighthouse', 'firefly', 'opening', 'formgame', 'tightrope', 'twodrums', 'parrot'], tip: 'Every game counts as practice: its time goes to the skill it trains and its answers into your progress there. High scores are your own, synced to your other devices with the rest of your progress.' },
+  games: { name: 'Games', title: 'Practice as a game', tools: ['tower', 'lighthouse', 'firefly', 'opening', 'formgame', 'tightrope', 'twodrums', 'parrot'], tip: 'Every game counts as practice: its time goes to the skill it trains and its answers into your progress there. High scores are your own, synced to your other devices with the rest of your progress. Your club grows with every kind of practice.' },
   away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['commute', 'away', 'dictation', 'sightread', 'notenames', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
 };
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
@@ -132,6 +133,8 @@ Object.assign(PAGES, {
     view.append(goalCard());
     // every 10 hours a real tree, kelp plant or bottles collected (once the daily Action has started counting)
     view.append(gardenCard());
+    // your club: guests and tips from today's practice
+    view.append(clubCard());
     // last week, from Monday until you put it away
     const review = ses ? null : weekReviewCard({ today: true });
     if (review) view.append(review);
@@ -222,6 +225,7 @@ Object.assign(PAGES, {
     view.append(h('div', { class: 'seg big train-seg' }, Object.entries(TRAIN).map(([k, x]) => h('button', { 'aria-pressed': k === sec ? 'true' : 'false', 'aria-label': x.label || null, title: x.label || null, onclick: () => go('train', k) }, x.name))));
     const redraw = () => repaintStars(view);
     if (t.favs) view.append(favPage());
+    if (sec === 'games' && TOOLS.club) view.append(clubCard({ where: 'games' }));
     if (t.groups) t.groups.forEach(([name, ids]) => view.append(h('section', { class: 'stack tool-group' }, h('h2', { class: 'eyebrow', text: name }), h('div', { class: 'tools' }, ids.map(id => toolTile(id, { returnTab: 'train', star: redraw }))))));
     else if (!t.favs) view.append(h('div', { class: 'tools' }, t.tools.map(id => toolTile(id, { returnTab: 'train', star: redraw }))));
     view.append(h('p', { class: 'small muted', text: t.tip }));
@@ -593,7 +597,7 @@ function backupCard() {
 
 /* How much of this device's room for saved progress is used (the browser keeps about 5 MB of text for it).
    The Library's files and Transcribe's audio are stored apart and don't count here. */
-const PART_NAMES = { readLib: 'Pieces you read (reading library)', skills: 'Answers and skills', hdev: 'Practice history', cur: 'The smart plan', library: 'Library details', songs: 'Transcribe setups', journal: 'Practice journal', tunes: 'Your tunes', melodies: 'Melodies', scaleTime: 'Time on each scale', settings: 'Settings', routines: 'Routines', games: 'Game scores', history: 'Daily totals', tech: 'Technique tempos', session: 'The running session' };
+const PART_NAMES = { readLib: 'Pieces you read (reading library)', skills: 'Answers and skills', hdev: 'Practice history', cur: 'The smart plan', library: 'Library details', songs: 'Transcribe setups', journal: 'Practice journal', tunes: 'Your tunes', melodies: 'Melodies', scaleTime: 'Time on each scale', settings: 'Settings', routines: 'Routines', games: 'Game scores', club: 'Your club', history: 'Daily totals', tech: 'Technique tempos', session: 'The running session' };
 const mb = n => (n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1) + ' MB');
 function storageBox() {
   const u = E.storageUse(), pct = Math.round(u.share * 100);

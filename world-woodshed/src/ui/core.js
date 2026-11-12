@@ -293,7 +293,8 @@ export function openTool(id, opts = {}) {
     const skill = (ctx.timeSkill) || t.skill;
     // a session counts its own wall-clock time, in its tools and in any other tool opened while it runs
     const ses = E.session(), sessionCounts = opts.session || !!(ses && !ses.paused && ses.blocks[ses.idx]);
-    if (!sessionCounts) E.addTime(5, skill);
+    // a tool that isn't practice (the Club) counts no time of its own
+    if (!sessionCounts && !t.noTime) E.addTime(5, skill);
     if (block && unitIsTime) {
       block.progress = (block.progress || 0) + 5;
       if (ui.plan && ui.plan.kind === 'routine' && block.progress % 30 === 0) E.blockProgress(block.id, block.progress, false);
