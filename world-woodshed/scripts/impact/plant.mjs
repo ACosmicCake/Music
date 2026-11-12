@@ -9,8 +9,10 @@
      SYNC_PATH     the progress file's path there (default world-woodshed-progress.json)
      IMPACT_CAP    most units a month (default 10)
      IMPACT_TEST   'true' to order in test mode even with a live key
+     IMPACT_TRY    'true' with a test key: also place one test order now, whatever the hours, to check the
+                   key and the connection (not written to the ledger, so it never shows in the garden)
    Prints counts only, never your practice details. */
-import { run, LEDGER_FILE, DEFAULT_CAP, amount } from '../../src/impact.js';
+import { run, progress, LEDGER_FILE, DEFAULT_CAP, amount } from '../../src/impact.js';
 
 const env = process.env;
 const need = k => { if (!env[k]) { console.error('Missing ' + k + '. See the impact section of README.md.'); process.exit(1); } return env[k]; };
@@ -53,11 +55,31 @@ async function dashboard() {
   } catch (e) { return null; }
 }
 
+/* Is the key one GoodAPI accepts? (lists past orders, which costs nothing) */
+async function keyCheck() {
+  try {
+    const res = await fetch(GOOD + '/plant/trees', { headers: { Authorization: KEY.trim() } });
+    return res.ok ? 'accepted' : 'refused (' + res.status + ')';
+  } catch (e) { return 'unreachable (' + (e.message || e) + ')'; }
+}
+const check = await keyCheck();
+console.log('GoodAPI ' + (TEST ? 'test' : 'live') + ' key: ' + check + '.');
+if (!check.startsWith('accepted')) { console.error('Check GOODAPI_KEY in the repository secrets.'); process.exit(1); }
+
 const progressFile = await readJSON(PATH);
 if (!progressFile) { console.error('No progress file at ' + PATH + ' in ' + REPO + '. Is GitHub sync on in the app?'); process.exit(1); }
 const state = progressFile.app === 'world-woodshed' ? progressFile.state : progressFile;
 const ledger = await readJSON(LEDGER);
 const choice = (state.settings && state.settings.impact && state.settings.impact.kind) || 'tree';
+if (env.IMPACT_TRY === 'true') {
+  if (!TEST) console.log('Skipped the trial order: it is only placed with a test key.');
+  else {
+    const kind = choice === 'turns' ? 'tree' : choice;
+    const k = { tree: 1, kelp: 1, bottles: 10 }[kind] || 1;
+    try { const t = await plant(kind, k, 'test-try-' + Date.now()); console.log('Trial ' + amount(kind, 1) + ' ordered in test mode' + (t.project ? ' (' + t.project + ')' : '') + '.'); }
+    catch (e) { console.error('Trial order failed: ' + e.message); process.exit(1); }
+  }
+}
 const r = await run({ ledger, hdev: state.hdev, choice, cap: CAP, test: TEST, plant });
 const url = await dashboard();
 if (url && /^https:\/\//.test(url)) r.ledger.dashboard = url;
@@ -68,5 +90,8 @@ const s = await sha(LEDGER);
 const put = await gh('PUT', LEDGER, s ? { ...body, sha: s } : body);
 if (!put.ok) { console.error('Could not write the ledger: GitHub answered ' + put.status); process.exit(1); }
 
-console.log(r.started ? 'Started counting today. Hours from now on count.' : 'Ordered ' + r.made.length + (TEST ? ' in test mode' : '') + '. ' + (r.waiting > 0 ? r.waiting + ' more earned, waiting for next month\'s cap.' : ''));
+const toNext = Math.ceil(progress(r.ledger).toNext), hm = Math.floor(toNext / 60) + ' h ' + (toNext % 60) + ' min';
+console.log(r.started ? 'Started counting today. Hours from now on count.'
+  : (r.made.length ? 'Ordered ' + r.made.map(m => amount(m.kind, 1)).join(', ') + (TEST ? ' in test mode' : '') + '. ' : 'Nothing new to order. ')
+    + (r.waiting > 0 ? r.waiting + ' more earned, waiting for next month\'s cap.' : hm + ' of practice to the next one.'));
 if (r.error) { console.error(r.error); process.exit(1); }

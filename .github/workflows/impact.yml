@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      try_one:
+        description: 'With a test key: place one test order now to check everything works'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,3 +39,4 @@ jobs:
           SYNC_REPO: ${{ vars.SYNC_REPO }}
           SYNC_PATH: ${{ vars.SYNC_PATH }}
           IMPACT_CAP: ${{ vars.IMPACT_CAP }}
+          IMPACT_TRY: ${{ inputs.try_one }}
