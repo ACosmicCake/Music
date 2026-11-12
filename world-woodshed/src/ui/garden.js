@@ -43,6 +43,9 @@ export function refreshLedger(force) {
   return reading;
 }
 export const currentLedger = () => ledger;
+/* The real orders so far ({ n, kind: 'tree' | 'kelp' | 'bottles', count, project, at }), test ones while the
+   Action still runs on a test key; [] before the ledger exists. For other pages that show them (the club). */
+export const plantings = () => (ledger ? Imp.live(ledger).map(p => Object.assign({}, p)) : []);
 export function onLedger(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 let wired = false;
 export function initGarden() {
