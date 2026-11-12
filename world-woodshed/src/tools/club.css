@@ -1,0 +1,186 @@
+/* The Club (src/tools/club.js, src/ui/clubscene.js): an evening street, the building cut open */
+.cl-wrap { border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #1d2340; }
+.cl-scene { width: 100%; display: block; aspect-ratio: 4 / 3; max-height: 62vh; }
+.cl-sky { fill: #1d2340; }
+.cl-moon { fill: #f4ecd0; }
+.cl-star { fill: #fff8dc; animation: cl-twinkle 3s ease-in-out infinite; animation-delay: calc(var(--i) * -0.43s); }
+@keyframes cl-twinkle { 50% { opacity: 0.25; } }
+.cl-city { fill: #2a3156; }
+.cl-street { fill: #3a3f4f; }
+.cl-kerb { stroke: #6b7080; stroke-width: 1.5; }
+.cl-plot { fill: rgb(255 255 255 / 0.03); stroke: rgb(255 255 255 / 0.32); stroke-width: 1; stroke-dasharray: 3 3; }
+.cl-plus-c { fill: rgb(255 255 255 / 0.08); stroke: rgb(255 255 255 / 0.4); }
+.cl-plus { stroke: rgb(255 255 255 / 0.7); stroke-width: 1.6; stroke-linecap: round; }
+.cl-room.empty:hover .cl-plot, .cl-room.empty:focus .cl-plot { stroke: #f2cc8f; }
+.cl-wall { stroke: rgb(0 0 0 / 0.35); stroke-width: 1; }
+.cl-shade { fill: rgb(0 0 0 / 0.12); pointer-events: none; transition: fill 0.8s; }
+.cl-lit .cl-shade { fill: rgb(255 214 140 / 0.07); }
+.cl-floor { fill: #6b4a2e; }
+.cl-roofline { stroke: #2b2238; stroke-width: 3; }
+.cl-grass { fill: #4f8a4a; }
+.cl-fence { stroke: #a6845a; stroke-width: 1.4; fill: none; }
+.cl-glass { fill: rgb(170 230 210 / 0.22); stroke: #bfe8d8; stroke-width: 1.2; }
+.cl-mullion { stroke: rgb(191 232 216 / 0.6); stroke-width: 0.8; fill: none; }
+.cl-sign { fill: #2b2238; stroke: #f2cc8f; stroke-width: 0.8; }
+.cl-signbulb { fill: #f6d743; animation: cl-chase 1.6s steps(1) infinite; animation-delay: calc(var(--i) * 0.2s); }
+@keyframes cl-chase { 50% { fill: #8a6d1f; } }
+.cl-window { fill: #ffd98a; opacity: 0.85; }
+.cl-rug { fill: #a63d40; }
+.cl-counter, .cl-tabletop, .cl-desk { fill: #5a3d26; }
+.cl-chair, .cl-bench { stroke: #5a3d26; stroke-width: 1.5; fill: none; }
+.cl-pan { stroke: #cfd4dc; stroke-width: 1.2; fill: none; }
+.cl-stage { fill: #6b4a2e; }
+.cl-shelf { fill: #3b2b1e; stroke: #6b4a2e; }
+.cl-chalk { fill: #26302b; stroke: #8a6d4b; stroke-width: 1; }
+.cl-chalkline { stroke: #e8e8e8; stroke-width: 0.8; opacity: 0.85; }
+.cl-oven { fill: #a9573c; stroke: #6a3523; }
+.cl-fire { fill: #f4a261; animation: cl-flicker 0.6s ease-in-out infinite alternate; }
+@keyframes cl-flicker { to { fill: #e76f51; } }
+.cl-wire { stroke: #2b2238; stroke-width: 0.6; fill: none; }
+.cl-bulb { fill: #ffe9a8; animation: cl-twinkle 2.4s ease-in-out infinite; animation-delay: calc(var(--i) * -0.3s); }
+.cl-basin { fill: #7d8597; }
+.cl-water { stroke: #9fd8f0; stroke-width: 1.2; fill: none; }
+.cl-beam { fill: rgb(255 236 170 / 0.08); transition: fill 0.8s; }
+.cl-lit .cl-beam { fill: rgb(255 236 170 / 0.22); }
+.cl-can, .cl-speaker, .cl-amp { fill: #1f1b24; }
+.cl-cone, .cl-reel { fill: #555; stroke: #888; stroke-width: 0.6; }
+.cl-fern { stroke: #5f9e55; stroke-width: 1.6; fill: none; stroke-linecap: round; }
+.cl-tile { fill: #d4a5a5; } .cl-tile.b2 { fill: #f2cc8f; }
+.cl-lit .cl-tile { animation: cl-twinkle 0.9s steps(2) infinite; animation-delay: calc(var(--i) * 0.11s); }
+.cl-coat { stroke: #8a6d4b; stroke-width: 1.4; fill: none; }
+.cl-scope { fill: #c9b27c; }
+.cl-hammock { stroke: #e9c46a; stroke-width: 1.6; fill: none; }
+.cl-booth { fill: #2c3e4a; stroke: #7aa6b8; }
+.cl-record { fill: #e6b422; }
+.cl-label { fill: #8a4c14; }
+/* plants */
+.cl-pot { fill: #c0673f; }
+.cl-leaf { fill: #4caf50; }
+.cl-leaf2 { fill: #2e7d32; }
+.cl-stem, .cl-trunk { stroke: #6d4c33; stroke-width: 1.4; fill: none; stroke-linecap: round; }
+.cl-olive .cl-leaf { fill: #8aa36a; } .cl-olive .cl-leaf2 { fill: #6b8550; }
+.cl-kelpstem { stroke: #6aa84f; stroke-width: 2.2; fill: none; stroke-linecap: round; }
+.cl-kelp { animation: cl-sway 3s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: bottom; }
+@keyframes cl-sway { to { rotate: 6deg; } }
+.cl-bottle { stroke: #9ad1e8; stroke-width: 1; fill: none; } .cl-bottle.b2 { stroke: #a8e6a0; }
+.cl-test { opacity: 0.45; }
+.cl-more { fill: #81b29a; }
+/* people and instruments */
+.cl-legs { stroke: #22202a; stroke-width: 1.5; fill: none; }
+.cl-wood { fill: #b5703a; stroke: #6d4021; stroke-width: 0.5; }
+.cl-neck { stroke: #3b2b1e; stroke-width: 1.2; fill: none; }
+.cl-drum { fill: #c94c4c; stroke: #eee; stroke-width: 0.5; }
+.cl-cymbal { fill: #e6b422; }
+.cl-piano { fill: #1f1b24; }
+.cl-keys { fill: #f4f1ea; stroke: #888; stroke-width: 0.3; }
+.cl-mic { fill: #999; }
+.cl-sax { stroke: #e6b422; stroke-width: 2; fill: none; stroke-linecap: round; }
+.cl-lvl { fill: #f6d743; }
+.cl-player { animation: cl-bob var(--d, 0.4s) ease-in-out infinite alternate paused; }
+.cl-lit .cl-player, .cl-scene.small .cl-player { animation-play-state: running; }
+@keyframes cl-bob { to { translate: 0 -1.2px; } }
+.cl-guest.in { animation: cl-walkin 0.9s cubic-bezier(.2,.8,.3,1) both; animation-delay: var(--t); }
+@keyframes cl-walkin { from { translate: var(--dx) 0; opacity: 0; } 30% { opacity: 1; } }
+.cl-lit .cl-guest { animation: cl-walkin 0.9s cubic-bezier(.2,.8,.3,1) both, cl-sway2 0.8s ease-in-out infinite alternate; animation-delay: var(--t), calc(var(--t) + 1s); }
+@keyframes cl-sway2 { to { rotate: 3deg; } }
+.cl-guest { transform-box: fill-box; transform-origin: bottom; }
+.cl-note { fill: #f6d743; animation: cl-rise 2.4s ease-out both; }
+.cl-notestem { stroke: #f6d743; stroke-width: 0.9; fill: none; }
+@keyframes cl-rise { from { opacity: 0; translate: 0 0; } 15% { opacity: 1; } to { opacity: 0; translate: 14px -44px; } }
+.cl-jar { fill: rgb(200 230 255 / 0.35); stroke: #cfe6f5; stroke-width: 0.7; }
+.cl-coins { fill: #e6b422; }
+.cl-coin { fill: #f6d743; stroke: #9a6a14; stroke-width: 0.5; animation: cl-coin 0.9s cubic-bezier(.4,-0.4,.6,1) both; }
+@keyframes cl-coin { to { translate: var(--tx) var(--ty); opacity: 0.4; } }
+.cl-flyleaf, .cl-spark { animation: cl-burst 1.4s ease-out both; }
+.cl-flyleaf { fill: #6abf69; } .cl-spark { fill: #f6d743; }
+@keyframes cl-burst { from { opacity: 1; translate: 0 0; rotate: 0deg; } to { opacity: 0; translate: var(--fx) var(--fy); rotate: var(--r); } }
+.cl-new { animation: cl-pop 0.7s cubic-bezier(.3,1.6,.5,1) both; transform-box: fill-box; transform-origin: center bottom; }
+@keyframes cl-pop { from { scale: 0.2; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .cl-star, .cl-bulb, .cl-signbulb, .cl-fire, .cl-kelp, .cl-player, .cl-guest, .cl-tile, .cl-new { animation: none !important; }
+}
+/* the page */
+.cl-namerow { align-items: center; gap: 6px; }
+.cl-namerow input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.cl-name { margin: 0; }
+.cl-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; }
+.cl-chip { display: grid; justify-items: center; gap: 0; padding: 6px 4px; border-radius: 10px; background: var(--sunk); text-align: center; }
+.cl-chip b { font-size: 1.05rem; white-space: nowrap; }
+.cl-chip-i { font-size: 0.95rem; line-height: 1; }
+.cl-tonight { margin: 0; }
+.cl-goal { display: grid; gap: 4px; }
+.cl-goal:empty { display: none; }
+.cl-room-card summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.cl-room-card summary::-webkit-details-marker { display: none; }
+.cl-room-card.own { border-left: 3px solid var(--good); }
+.cl-badge { color: var(--good); font-weight: 700; }
+.cl-buy { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); }
+.cl-buy .btn { flex: 0 0 auto; white-space: nowrap; }
+.cl-buy.own { opacity: 0.8; }
+.cl-member.joined { border-left: 3px solid var(--brass); }
+.cl-stars { color: var(--brass); letter-spacing: 1px; white-space: nowrap; }
+.cl-set { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
+.cl-set li { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cl-set li.off { opacity: 0.6; }
+.cl-rep { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.cl-rep li { display: flex; justify-content: space-between; gap: 8px; }
+/* the Today card and the Games banner */
+.cl-card { display: grid; grid-template-columns: minmax(96px, 38%) 1fr; gap: 12px; align-items: center; text-align: left; cursor: pointer; color: inherit; font: inherit; width: 100%; }
+.cl-card-scene { border-radius: 10px; overflow: hidden; background: #1d2340; }
+.cl-card .cl-scene { aspect-ratio: 4 / 3; }
+.cl-card-text { gap: 2px; min-width: 0; }
+.cl-card-name { font-family: var(--font-display); font-size: 1.1rem; }
+.cl-banner { margin-bottom: 12px; }
+html.compact .cl-card { grid-template-columns: 1fr; }
+@media (max-width: 300px) { .cl-card { grid-template-columns: 1fr; } .cl-chips { grid-template-columns: repeat(2, 1fr); } }
+/* the 3D club */
+.cl-wrap.is3d { background: #f3d6b4; }
+.cl3-wrap { width: 100%; }
+.cl3-canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; max-height: 70vh; cursor: grab; touch-action: none; }
+.cl3-canvas:active { cursor: grabbing; }
+.cl-hint { margin: -4px 0 0; }
+.cl-shot { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+
+/* build mode */
+.cl-stagebox { position: relative; }
+.cl-stagebtns { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.cl-build-btn { background: rgba(255, 250, 240, 0.92); color: #3b2b1e; border: 1px solid rgba(59, 43, 30, 0.25); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); }
+.cl-build-btn[aria-pressed="true"] { background: #f6d743; }
+.cl-wrap.building { outline: 3px solid #f6d743; outline-offset: -3px; }
+.cl-page > * { min-width: 0; }
+.cl-bb { min-width: 0; max-width: 100%; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.cl-bb-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.cl-bb p { margin: 0; }
+.cl-bb-btns { flex-wrap: wrap; gap: 6px; }
+.cl-ok { color: #2e7d32; font-weight: 600; }
+.cl-no { color: #c0392b; font-weight: 600; }
+.cl-bb-cats { display: flex; max-width: 100%; align-self: flex-start; gap: 4px; flex-wrap: nowrap; overflow-x: auto; border-radius: 14px; scrollbar-width: none; }
+.cl-bb-cats button { flex: 0 0 auto; font-size: 0.85rem; padding: 4px 10px; white-space: nowrap; }
+.cl-bb-strip { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.cl-bb-card { flex: 0 0 132px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--sunk, #f2efe6); color: inherit; font: inherit; cursor: pointer; }
+.cl-bb-card:hover { border-color: #c9a227; }
+.cl-bb-card.off { opacity: 0.55; }
+.cl-bb-card[disabled] { cursor: not-allowed; }
+.cl-bb-ico { font-size: 1.4rem; line-height: 1; }
+html.compact .cl-bb-card { flex-basis: 108px; padding: 6px; }
+html.compact .cl-stagebtns { top: 4px; right: 4px; }
+html.compact .cl-build-btn { font-size: 0.75rem; padding: 3px 8px; }
+.cl-building > :not(.cl-stage-area) { display: none; }
+html.compact .seg.cl-bb-cats { flex-wrap: nowrap; }
+html.compact .seg.cl-bb-cats button { flex: 0 0 auto; }
+
+/* full screen */
+.cl-stage-area { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cl-stage-area.cl-full { position: fixed; inset: 0; z-index: 1000; gap: 0; background: #f3d6b4; }
+.cl-full .cl-stagebox { flex: 1 1 auto; min-height: 0; }
+.cl-full .cl-wrap { height: 100%; border: 0; border-radius: 0; }
+.cl-full .cl-wrap.building { outline-offset: -3px; }
+.cl-full .lp-wrap { height: 100%; }
+.cl-full .cl3-canvas { aspect-ratio: auto; height: 100%; max-height: none; }
+.cl-full .cl-bb { flex: 0 0 auto; border-radius: 0; border-width: 1px 0 0; max-height: 42vh; overflow-y: auto; }
+.cl-full .cl-stagebtns { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+html.cl-fs-open, html.cl-fs-open body { overflow: hidden; }
+@media (min-aspect-ratio: 4/3) {
+  .cl-stage-area.cl-full { flex-direction: row; }
+  .cl-full .cl-bb { width: min(340px, 40vw); max-height: none; border-width: 0 0 0 1px; }
+}

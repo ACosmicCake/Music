@@ -8,7 +8,7 @@
      finger (or the mouse) turns it, a pinch or the wheel zooms, a double-tap goes back home, a tap calls
      onTap(point on the ground, event), and a mouse moving over it onHover(point, event). It holds the renderer, the camera, a golden-hour light (warm sky, a low
      sun that casts long shadows) and a loop that sleeps while the canvas is off screen or the page hidden. Returns
-     { el, canvas, scene, camera, view, hemi, sun (the moon or the sun: change them to set your own light), flyTo(v, ms), setHome(v), goHome(ms), onFrame(fn(dt, t, now)),
+     { el (add the class lp-fill to fill its box's height instead of 4:3), canvas, scene, camera, view, hemi, sun (the moon or the sun: change them to set your own light), flyTo(v, ms), setHome(v), goHome(ms), onFrame(fn(dt, t, now)),
        busy(), particle(mesh, life, step), burst(x, y, z, n), pop(obj), snapshot(w), clear(group), dispose(), rayAt(x, y), groundAt(x, y) }. */
 import * as THREE from 'three';
 
@@ -254,7 +254,7 @@ export function Stage({ onTap, onHover, light = 'evening', home: home0 } = {}) {
   const io = typeof IntersectionObserver === 'function' ? new IntersectionObserver(es => { visible = es.some(e => e.isIntersecting); wake(); }) : null;
   if (io) io.observe(el);
   function fit() {
-    const w = el.clientWidth || 360, h = Math.round(w * 0.75), key = w + 'x' + h;
+    const w = el.clientWidth || 360, h = el.classList.contains('lp-fill') && el.clientHeight ? el.clientHeight : Math.round(w * 0.75), key = w + 'x' + h;
     if (key === fitted) return;
     fitted = key; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     if (ink) ink.size(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
