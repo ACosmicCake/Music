@@ -1,0 +1,55 @@
+/* the island drawn flat (src/ui/islandflat.js) */
+.if-svg { display: block; width: 100%; height: auto; aspect-ratio: 104 / 60; border-radius: 10px; background: #3a8fae; }
+.if-svg.if-big { max-width: 900px; margin: 0 auto; }
+.if-tap { cursor: pointer; }
+.if-club.if-tap:hover .if-room { filter: brightness(1.06); }
+.if-shadow { fill: #2c3a1c; opacity: 0.18; }
+.if-trunk { stroke-width: 0.22; fill: none; stroke-linecap: round; }
+.if-frond { stroke-width: 0.2; fill: none; stroke-linecap: round; }
+.if-leaf { stroke: #3b4a2a; stroke-width: 0.06; }
+.if-test { opacity: 0.5; }
+.if-ripple { fill: none; stroke: #e9f7f2; stroke-width: 0.08; opacity: 0.7; }
+.if-wave { fill: none; stroke: #e9f7f2; stroke-width: 0.18; stroke-linecap: round; opacity: 0.45; }
+.if-patch { fill: #9fd06e; opacity: 0.35; }
+.if-patch.dark { fill: #4f8a3c; opacity: 0.18; }
+.if-patch.dry { fill: #d8c27a; }
+.if-tuft { fill: none; stroke: #4f8a3c; stroke-width: 0.14; stroke-linejoin: round; opacity: 0.8; }
+.if-tuft.dry { stroke: #8f8442; }
+.if-reed { stroke: #7c9a3c; stroke-width: 0.16; stroke-linecap: round; }
+.if-stem { stroke: #4a8a46; stroke-width: 0.16; fill: none; stroke-linecap: round; }
+.if-sprout { stroke: #5f9e4f; stroke-width: 0.18; fill: none; stroke-linecap: round; }
+.if-thirsty .if-stem, .if-thirsty .if-sprout { stroke: #b59a4a; }
+.if-line { fill: none; stroke-width: 0.1; stroke-linecap: round; }
+.if-tail { fill: none; stroke-width: 0.22; stroke-linecap: round; }
+.if-spout { fill: none; stroke: #e9f7f2; stroke-width: 0.12; stroke-linecap: round; }
+.if-gull { fill: none; stroke: #f8f4ea; stroke-width: 0.22; stroke-linecap: round; stroke-linejoin: round; }
+.if-tiles { stroke: rgba(0, 0, 0, 0.14); stroke-width: 0.08; }
+.if-mullion { stroke: #ffffff; stroke-width: 0.1; opacity: 0.9; }
+.if-glass { opacity: 0.85; }
+.if-window { stroke: #a0773f; stroke-width: 0.08; }
+.if-room > * { stroke-linejoin: round; }
+
+/* gentle motion: trees and kelp sway, animals amble, flyers hover, swimmers bob, the waves drift */
+.if-sway, .if-walk, .if-fly, .if-bob, .if-waves { transform-box: fill-box; }
+.if-sway { transform-origin: 50% 100%; animation: if-sway 5s ease-in-out infinite; }
+.if-walk { animation: if-walk 9s ease-in-out infinite; }
+.if-fly { animation: if-fly 4s ease-in-out infinite; }
+.if-bob { animation: if-bob 3.4s ease-in-out infinite; }
+.if-waves { animation: if-waves 12s ease-in-out infinite; }
+.if-window { animation: if-glow 6s ease-in-out infinite; }
+@keyframes if-sway { 0%, 100% { transform: rotate(-1.5deg); } 50% { transform: rotate(1.5deg); } }
+@keyframes if-walk { 0%, 100% { transform: translateX(0); } 40% { transform: translateX(1.6px); } 60% { transform: translateX(1.6px); } }
+@keyframes if-fly { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(0.6px, -0.8px); } }
+@keyframes if-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(0.35px); } }
+@keyframes if-waves { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(1.2px); } }
+@keyframes if-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.82; } }
+@media (prefers-reduced-motion: reduce) { .if-sway, .if-walk, .if-fly, .if-bob, .if-waves, .if-window { animation: none; } }
+
+/* the island card on Today */
+.isl-card { display: grid; gap: 8px; }
+.isl-card p { margin: 0; }
+.isl-pic { border-radius: 10px; overflow: hidden; background: var(--sunk); }
+.isl-pic .lp-wrap, .isl-pic .lp-canvas { display: block; width: 100%; }
+.isl-pic .lp-canvas { height: auto; aspect-ratio: 4 / 3; }
+.isl-club { display: grid; gap: 2px; }
+.isl-name { font-size: 1.05rem; }

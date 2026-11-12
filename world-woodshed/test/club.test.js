@@ -27,7 +27,7 @@ describe('opening the club', () => {
   it('keeps the doors shut under five minutes, but still pays the tips', () => {
     const club = C.openClub({}, {}, T0);
     C.settle(club, { '2026-11-12': rec(4) }, {}, T0);
-    expect(club.nights['2026-11-12']).toMatchObject({ m: 4, crowd: 0, t: 4 });
+    expect(club.nights['2026-11-12']).toMatchObject({ m: 4, crowd: 0, t: Math.round(4 / C.PACE) });
   });
 });
 
@@ -54,12 +54,29 @@ describe('nights', () => {
   });
 });
 
+describe('pace and guests', () => {
+  it('tips come PACE times slower: the Kitchen takes hours of practice', () => {
+    const club = C.openClub({}, {}, T0);
+    C.settle(club, { '2026-11-12': rec(60) }, {}, T0);
+    const perHour = C.balance(club), kitchen = C.ROOMS.find(r => r.id === 'kitchen').cost;
+    expect(kitchen / perHour).toBeGreaterThan(8);
+  });
+  it('the guests are the animals on the island, at least a few visitors, never more than the seats', () => {
+    const night = animals => { const club = C.openClub({}, {}, T0); C.settle(club, { '2026-11-12': rec(120) }, { animals }, T0); return club.nights['2026-11-12'].crowd; };
+    expect(night(0)).toBe(C.VISITORS);
+    expect(night(2)).toBe(C.VISITORS);
+    expect(night(5)).toBe(5);
+    expect(night(500)).toBe(C.stats(C.openClub({}, {}, T0)).seats);
+    expect(night(undefined)).toBe(C.stats(C.openClub({}, {}, T0)).seats);
+  });
+});
+
 describe('tips and building', () => {
   it('a purchase is paid from the tips, and needs its room and reputation', () => {
     const club = C.openClub({}, {}, T0);
     C.settle(club, { '2026-11-12': rec(120, {}, 50) }, {}, T0);
     const money = C.balance(club);
-    expect(money).toBeGreaterThan(120);
+    expect(money).toBeGreaterThan(120 / C.PACE);
     expect(C.canBuy(club, 'oven', 99).why).toMatch(/Kitchen/);
     expect(C.canBuy(club, 'kitchen', 0).why).toMatch(/★/);
     expect(C.buy(club, 'lights', 0).ok).toBe(true);

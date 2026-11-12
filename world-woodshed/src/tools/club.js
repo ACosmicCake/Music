@@ -6,6 +6,7 @@ import E from '../engine.js';
 import { h, tool, openTool, toast, bar, TOOLS, ui } from '../ui/core.js';
 import { show3D, isPhone, webgl } from '../ui/scenes3d.js';
 import C from '../club.js';
+import Eco from '../ecosystem.js';
 import { Scene } from '../ui/clubscene.js';
 import { plantings, onLedger } from '../ui/garden.js';
 import { fullScreen } from '../native.js';
@@ -51,7 +52,8 @@ function context() {
   Object.keys(E.SKILLS).forEach(k => { try { tiers[k] = E.unlockedTier(k); } catch (e) { /* a skill with no items yet */ } });
   let plants = [];
   try { plants = plantings(); } catch (e) { /* no ledger */ }
-  return { tunes, pieces, tiers, lessons: E.state.lessons || {}, games: E.state.games || {}, plants: plants.filter(p => !p.test).length, plantList: plants };
+  const animals = Eco.residents(Eco.counts(plants)).reduce((a, r) => a + r.n, 0);
+  return { tunes, pieces, tiers, lessons: E.state.lessons || {}, games: E.state.games || {}, plants: plants.filter(p => !p.test).length, plantList: plants, animals };
 }
 
 /* Everything one screen shows, with the nights brought up to date */
@@ -75,7 +77,19 @@ function counter(el, from, to, ms = 1400) {
   requestAnimationFrame(step);
 }
 
-/* ---------- the Today card and the Games banner ---------- */
+/* What the island card on Today says about the club (src/ui/islandcard.js) */
+export function clubInfo() {
+  const m = model(), n = m.today;
+  const line = n && n.crowd > 0 ? n.crowd + ' guest' + (n.crowd === 1 ? '' : 's') + ' in tonight and ' + fmt(n.t) + ' tips.'
+    : n && n.m > 0 ? 'The doors open at ' + C.OPEN_MIN + ' minutes; you\'re at ' + Math.floor(n.m) + '.'
+      : 'The animals are out on the island. Practise ' + C.OPEN_MIN + ' minutes and the first come in.';
+  const goal = C.nextGoal(m.club, m.rep.total);
+  const goalLine = goal ? (goal.ready ? 'You can build ' + goal.item.name.replace(/^The /, 'the ') + ' now.' : 'Next: ' + goal.item.name.replace(/^The /, 'the ') + ', ' + (goal.item.need > m.rep.total ? (goal.item.need - m.rep.total) + ' ★ to go' : fmt(goal.item.cost - m.money) + ' tips to go') + '.') : '';
+  return { name: nameOf(), line, stats: '🪙 ' + fmt(m.money) + ' · ★ ' + m.rep.total + (goalLine ? ' · ' + goalLine : ''), crowd: n ? n.crowd || 0 : 0 };
+}
+export const openClub = returnTab => openTool('club', { returnTab });
+
+/* ---------- the Games banner ---------- */
 export function clubCard({ where = 'today' } = {}) {
   let m;
   try { m = model(); } catch (e) { console.error(e); return ''; }
@@ -400,8 +414,8 @@ tool('club', {
     function how() {
       const li = t => h('li', { text: t });
       panel.append(h('div', { class: 'card' }, h('h3', { text: 'How the club works' }), h('ul', { class: 'game-how-list' },
-        li('Every minute you practise anywhere in the app is a tip, plus one for every five right answers. The kitchen, the studio and a few amenities raise it.'),
-        li('After ' + C.OPEN_MIN + ' minutes in a day the doors open. Guests come with every minute, more with each band member, each tune on the set and each amenity, as many as the seats allow; each leaves half a tip.'),
+        li('Every ' + C.PACE + ' minutes you practise anywhere in the app is a tip, plus one for every ' + (5 * C.PACE) + ' right answers. The kitchen, the studio and a few amenities raise it. Rooms are big projects: the Kitchen is about 10 hours of practice, the Jazz Bar about 40, the Recording Studio nearly 300.'),
+        li('The guests are the animals living on your island, out roaming until you practise. After ' + C.OPEN_MIN + ' minutes in a day the doors open and they walk in from the wood, more with every minute, each band member, each tune on the set and each amenity, as many as live there (at least ' + C.VISITORS + ' visitors) and the seats allow. Plant more and more animals move in. Each guest leaves a little in the tip jar.'),
         li('Reputation (★) comes from progress, never from spending: it opens the bigger rooms.'),
         li('Band members join after an hour of the practice that trains their part and grow up to five levels.'),
         li('A tune you know well from the Repertoire gym, or a Library piece marked Learned, goes on the set list.'),

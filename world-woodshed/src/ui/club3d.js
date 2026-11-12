@@ -264,6 +264,8 @@ export function Club3D({ onRoom, onBuild } = {}) {
 
   /* ---------- the guests: the island's animals walk in, sit or stand, dance, wander, leave ---------- */
   const DOOR = { x: 4, z: -0.6 };
+  /* where the guests come from and go back to: the wood west of the club (src/islandmap.js WILD) */
+  const WOODS = [{ x: -15, z: -3 }, { x: -17, z: 3 }, { x: -14, z: 8 }];
   /* the band: animals of the island too, each in the part that suits them (you are the fox on guitar) */
   const BAND_FOLK = { guitar: 'fox', drums: 'bear', bass: 'heron', piano: 'owl', vocals: 'songbird', saxophone: 'otter', congas: 'macaque' };
   /* who lives on the island now: the guests come from them (src/ui/folk.js pickGuest) */
@@ -311,7 +313,12 @@ export function Club3D({ onRoom, onBuild } = {}) {
     const g = { p, spot, state: placed ? 'stay' : 'walk', path: [], until: now + 20000 + Math.random() * 40000, dance: Math.random() < 0.4, act: 'idle', actUntil: 0, hello: 0, turnTo: null };
     spot.taken = g;
     if (placed) { at(p, spot.x, spot.z, spot.face ?? Math.random() * 6.28); if (seats.includes(spot)) sit(g); }
-    else { p.position.set(DOOR.x + (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * (showing ? 4 : 12)), 0, -2.4 - Math.random() * 1.6); g.path = [{ x: DOOR.x - 0.5 + Math.random(), z: -1.6 }, { x: DOOR.x, z: 0.8 }, { x: spot.x, z: spot.z }]; }
+    else { // out of the wood, where the island's animals roam until you practise, along the front and in at the door
+      const from = WOODS[Math.floor(Math.random() * WOODS.length)];
+      p.position.set(from.x + (Math.random() - 0.5) * 3, 0, from.z + (Math.random() - 0.5) * 3);
+      g.path = [{ x: -9, z: -2.6 + Math.random() }, { x: DOOR.x - 0.5 + Math.random(), z: -1.6 }, { x: DOOR.x, z: 0.8 }, { x: spot.x, z: spot.z }];
+      if (showing) p.position.set(DOOR.x - 6 - Math.random() * 4, 0, -2.4 - Math.random() * 1.6);
+    }
     act(p, g.state === 'walk' ? 'walk' : g.sat ? 'sit' : 'idle', 0, 1, { seat: spot.h });
     people.add(p); guests.push(g);
     return g;
@@ -321,7 +328,8 @@ export function Club3D({ onRoom, onBuild } = {}) {
   function leave(g) {
     if (g.spot) g.spot.taken = null;
     standUp(g); g.state = 'leave'; g.hello = performance.now() + 900; // a wave goodbye first
-    g.path = [{ x: DOOR.x, z: 0.8 }, { x: DOOR.x, z: -1.6 }, { x: 26, z: -3.5 + Math.random() }];
+    const to = WOODS[Math.floor(Math.random() * WOODS.length)];
+    g.path = [{ x: DOOR.x, z: 0.8 }, { x: DOOR.x, z: -1.6 }, { x: -9, z: -2.6 + Math.random() }, { x: to.x, z: to.z }]; // home to the wood
   }
   const pick1 = a => a[Math.floor(Math.random() * a.length)];
   /* what a guest does next where they are: eat and talk at a table, chat with whoever stands near, dance, listen,

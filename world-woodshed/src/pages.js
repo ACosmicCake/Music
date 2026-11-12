@@ -17,7 +17,8 @@ import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendBy
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
 import { weekReviewCard } from './ui/weekreview.js';
-import { gardenCard, impactSettingsCard } from './ui/garden.js';
+import { impactSettingsCard } from './ui/garden.js';
+import { islandCard } from './ui/islandcard.js';
 import { clubCard } from './tools/club.js';
 import Samples from './samples.js';
 import A from './audio.js';
@@ -132,10 +133,9 @@ Object.assign(PAGES, {
     // the daily goal and the streaks (the goal grows first, if it is time)
     applyRamp();
     view.append(goalCard());
-    // every 10 hours a real tree, kelp plant or bottles collected (once the daily Action has started counting)
-    view.append(gardenCard());
-    // your club: guests and tips from today's practice
-    view.append(clubCard());
+    // your island: the club on it (guests and tips from today's practice) and, once the daily Action has started
+    // counting, a real tree, kelp plant or bottles collected for every 10 hours
+    view.append(islandCard());
     // last week, from Monday until you put it away
     const review = ses ? null : weekReviewCard({ today: true });
     if (review) view.append(review);

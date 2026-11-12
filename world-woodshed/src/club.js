@@ -19,12 +19,17 @@
 
    Two kinds of progress:
    - Tips: every minute practised (1, more with the kitchen and the studio), half a tip a guest, and one for
-     every five right answers. Spent on rooms and amenities.
+     every five right answers, all divided by PACE (4: the Kitchen is about 10 hours of practice, every room about
+     700). Spent on rooms and amenities.
+   - Guests: the island's animals (ctx.animals, every one living there; at least VISITORS) come in as you
+     practise, draw a minute, up to the seats.
    - Reputation (★): real progress since the club opened (band members joining and growing, tunes and pieces
      learned, lessons finished, skill levels opened, game scores set, nights open, regulars, real trees). Never
      spent; a room needs enough of it before it can be built. */
 
 export const OPEN_MIN = 5;           // minutes in a day before the doors open
+export const PACE = 4;               // tips come this many times slower than the prices: a room is a real project
+export const VISITORS = 4;           // guests who come from the islands nearby, before any animal lives on yours
 const round1 = x => Math.round(x * 10) / 10;
 const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 const num = x => (Number.isFinite(x) ? x : 0);
@@ -338,7 +343,7 @@ export function stats(club, ctx = {}) {
   const slots = fx.slots, onStage = Math.min(list.length, slots);
   const levels = members.reduce((a, m) => a + m.level, 0);
   const draw = round1((0.45 + fx.draw + 0.06 * levels + 0.03 * onStage) * 100) / 100;
-  return { seats: fx.seats, tip: round1(fx.tip * 100) / 100, draw, slots, regRate: 1 + fx.regulars, members, setList: list, onStage, levels };
+  return { seats: fx.seats, tip: round1(fx.tip * 100) / 100, draw, slots, regRate: 1 + fx.regulars, members, setList: list, onStage, levels, animals: ctx.animals };
 }
 
 /* One night from a day's practice record (less the opening day's base) under the club as it is */
@@ -347,8 +352,11 @@ export function nightOf(rec, base, st) {
   const sec = Math.max(0, num(rec && rec.sec) - num(b.sec)), c = Math.max(0, num(rec && rec.c) - num(b.c));
   const m = round1(sec / 60), g = {};
   Object.entries(by).forEach(([k, v]) => { const id = groupOf(k); if (!id) return; const x = Math.max(0, v - num(bBy[k])) / 60; if (x > 0) g[id] = round1((g[id] || 0) + x); });
-  const crowd = m >= OPEN_MIN ? Math.min(st.seats, Math.round(m * st.draw)) : 0;
-  const t = Math.round(m * (1 + st.tip) + crowd * 0.5 + c / 5);
+  // the island's animals roam until you practise, then come in as the minutes add up, up to the seats and up to
+  // how many live there (st.animals; no cap where it isn't known)
+  const room = Number.isFinite(st.animals) ? Math.min(st.seats, Math.max(VISITORS, st.animals)) : st.seats;
+  const crowd = m >= OPEN_MIN ? Math.min(room, Math.round(m * st.draw)) : 0;
+  const t = Math.round((m * (1 + st.tip) + crowd * 0.5 + c / 5) / PACE);
   return { m, c, crowd, t, g };
 }
 const maxNight = (a, b) => {
@@ -461,4 +469,4 @@ export function mergeClub(a, b) {
   return { start: first.start, t0: first.t0, base: first.base, tiers: first.tiers, nights, bought, placed };
 }
 
-export default { OPEN_MIN, MEMBERS, MEMBER_LEVELS, ROOMS, AMENITIES, CATALOG, CATS, CELL, BUILT_IN, STARTERS, itemOf, isRoom, isPiece, live, footprint, roomAt, fits, canPlace, place, move, sell, freeSpot, groupOf, dayKey, openClub, clean, owns, spent, effects, band, levelFor, memberMinutes, setList, stats, nightOf, settle, totals, balance, regulars, reputation, canBuy, buy, nextGoal, mergeClub };
+export default { OPEN_MIN, PACE, VISITORS, MEMBERS, MEMBER_LEVELS, ROOMS, AMENITIES, CATALOG, CATS, CELL, BUILT_IN, STARTERS, itemOf, isRoom, isPiece, live, footprint, roomAt, fits, canPlace, place, move, sell, freeSpot, groupOf, dayKey, openClub, clean, owns, spent, effects, band, levelFor, memberMinutes, setList, stats, nightOf, settle, totals, balance, regulars, reputation, canBuy, buy, nextGoal, mergeClub };
