@@ -1,7 +1,7 @@
 /* World Woodshed — the Club's furniture, plants and decor in 3D (src/club.js CATALOG), drawn in code from the
    shared kit in src/ui/lowpoly.js: original art. Each model is centred on its footprint (w × d cells of
    CELL m, width along x, depth along z), faces −z (the street side) and stands on y 0. userData.seats lists
-   where a guest sits ({ x, z, face } in the model's own frame); meshes with userData.twinkle, fire or sway
+   where a guest sits ({ x, z, face, eat } in the model's own frame; eat: at a table); meshes with userData.twinkle, fire or sway
    are animated by src/ui/club3d.js. Part of the club3d chunk. */
 import { THREE, mat, glow, box, cyl, ball, group, at, shadows, potPlant, HUES } from './lowpoly.js';
 
@@ -20,7 +20,7 @@ export function table(chairs = 4, color = 0x6b4a2e, rad = 0.72, top = 0.45, chai
     const a = (i / chairs) * Math.PI * 2 + (chairs === 2 ? Math.PI / 2 : Math.PI / 4), cx = Math.cos(a) * rad, cz = Math.sin(a) * rad;
     const face = Math.atan2(-cx, -cz);
     g.add(at(chairModel(chair), cx, cz, face + Math.PI));
-    seats.push({ x: cx, z: cz, face });
+    seats.push({ x: cx, z: cz, face, eat: 1 });
   }
   g.add(cyl(0.05, 0.05, 0.12, 0xf6d743, 0.1, 0.75, 0.05, 8), ball(0.035, 0xffe9a8, 0.1, 0.9, 0.05, 0, glow(0xffd28a))); // a candle
   g.userData.seats = seats;
@@ -75,7 +75,7 @@ const MODELS = {
     const g = group(box(3.0, 0.06, 0.9, 0x6b4a2e, 0, 0.72, 0), box(0.1, 0.72, 0.8, DARK, -1.3), box(0.1, 0.72, 0.8, DARK, 1.3),
       box(3.0, 0.06, 0.35, WOOD, 0, 0.42, -0.75), box(3.0, 0.06, 0.35, WOOD, 0, 0.42, 0.75), box(0.08, 0.42, 0.3, DARK, -1.3, 0, -0.75), box(0.08, 0.42, 0.3, DARK, 1.3, 0, -0.75), box(0.08, 0.42, 0.3, DARK, -1.3, 0, 0.75), box(0.08, 0.42, 0.3, DARK, 1.3, 0, 0.75));
     [-0.9, 0, 0.9].forEach(x => g.add(cyl(0.12, 0.1, 0.08, CREAM, x, 0.75, 0, 12)));
-    return seat(g, [-1.1, -0.37, 0.37, 1.1].flatMap(x => [{ x, z: -0.75, face: 0 }, { x, z: 0.75, face: Math.PI }]));
+    return seat(g, [-1.1, -0.37, 0.37, 1.1].flatMap(x => [{ x, z: -0.75, face: 0, eat: 1 }, { x, z: 0.75, face: Math.PI, eat: 1 }]));
   },
   snake: () => { const g = group(cyl(0.16, 0.12, 0.26, 0xd9d2c3)); for (let i = 0; i < 6; i++) { const l = box(0.06, 0.6 + (i % 3) * 0.12, 0.02, i % 2 ? 0x4f7a3a : 0x6b9a4a, Math.cos(i * 2.1) * 0.06, 0.2, Math.sin(i * 2.1) * 0.06); l.rotation.set(Math.sin(i) * 0.2, i * 1.1, Math.cos(i) * 0.2); g.add(l); } return g; },
   cactus: () => group(cyl(0.15, 0.11, 0.22, 0xc0673f), cyl(0.1, 0.11, 0.55, 0x5a9e5a, 0, 0.2, 0, 8), cyl(0.05, 0.05, 0.22, 0x5a9e5a, 0.13, 0.42, 0, 6), ball(0.06, 0xef8fa0, 0, 0.78, 0)),

@@ -8,7 +8,8 @@
    Club3D({ onRoom }) → { el, draw(model), show(n, o), stop(), celebrate(id), snapshot(), dispose() }, the same
    shape as the flat Scene in src/ui/clubscene.js (the fallback without WebGL). model = { club, band, plants,
    guests }. Drag turns the view, a pinch or the wheel zooms, a tap on a room (or an empty plot) calls onRoom. */
-import { THREE, Stage, mat, glow, box, cyl, ball, group, at, shadows, label, person, webglOK, HUES } from './lowpoly.js';
+import { THREE, Stage, mat, glow, box, cyl, ball, group, at, shadows, label, webglOK, HUES } from './lowpoly.js';
+import { Sim, act } from './people.js';
 import { owns, live, footprint, fits, itemOf, CELL, ROOMS, BUILT_IN } from '../club.js';
 import { pieceModel, tree, counter, instrument } from './clubpieces.js';
 
@@ -153,10 +154,10 @@ export function Club3D({ onRoom, onBuild } = {}) {
   }
 
   // where each room's basic furniture and each amenity go; seats and standing spots for guests
-  function addSeats(g, x, z, rot) {
-    (g.userData.seats || []).forEach(s => { const c = Math.cos(rot), sn = Math.sin(rot); seats.push({ x: x + s.x * c + s.z * sn, z: z - s.x * sn + s.z * c, face: s.face + rot, taken: null }); });
+  function addSeats(g, x, z, rot, y, id) {
+    (g.userData.seats || []).forEach(s => { const c = Math.cos(rot), sn = Math.sin(rot); seats.push({ x: x + s.x * c + s.z * sn, z: z - s.x * sn + s.z * c, face: s.face + rot, y, h: s.h ?? SEAT_H[id] ?? 0.45, eat: !!s.eat, taken: null }); });
   }
-  function put(g, x, z, rot = 0, y = 0, id) { at(g, x, z, rot, y); shadows(g); if (id) g.userData.item = id; world.add(g); addSeats(g, x, z, rot); return g; }
+  function put(g, x, z, rot = 0, y = 0, id) { at(g, x, z, rot, y); shadows(g); if (id) g.userData.item = id; world.add(g); addSeats(g, x, z, rot, y, id); return g; }
   function furnish(club) {
     const has = id => owns(club, id);
     // the café's built-ins: a rug for a stage, the counter with the tips jar
@@ -247,11 +248,11 @@ export function Club3D({ onRoom, onBuild } = {}) {
     const piano = world.children.find(c => c.userData.item === 'grand') || world.children.find(c => c.userData.item === 'upright');
     players.forEach((b, i) => {
       const n = players.length, x = stageAt.x - stageAt.w / 2 + 0.4 + (stageAt.w - 0.8) * (n === 1 ? 0.5 : i / (n - 1));
-      const p = person(500 + i, { shirt: [0x2b2238, 0xc94c4c, 0x3d85c6, 0x6c9a8b, 0xe9c46a, 0xc77dff, 0xf4a261][i % 7], pants: 0x1a1a22 });
+      const p = lighten(Sim(500 + i, { shirt: [0x2b2238, 0xc94c4c, 0x3d85c6, 0x6c9a8b, 0xe9c46a, 0xc77dff, 0xf4a261][i % 7], pants: 0x1a1a22 }));
       p.userData.role = b.role;
       at(p, x, stageAt.z + (i % 2 ? 0.3 : -0.2), stageAt.dir, stageAt.y);
       if (b.role === 'piano' && piano) { const f = piano.rotation.y; at(p, piano.position.x - Math.sin(f) * 0.9, piano.position.z - Math.cos(f) * 0.9, f, 0); } // at the piano, wherever it stands
-      else p.add(instrument(b.role));
+      else { const w = group(instrument(b.role)); w.scale.z = -1; p.add(w); } // the instruments were drawn for a player facing −z; a person faces +z
       bandG.add(p);
     });
     frameOwned(m.club);
@@ -262,10 +263,27 @@ export function Club3D({ onRoom, onBuild } = {}) {
 
   /* ---------- the guests: walk in from the street, sit or stand, dance, wander, leave ---------- */
   const DOOR = { x: 4, z: -0.6 };
+  /* how high each kind of seat is, for the sitting pose (m) */
+  const SEAT_H = { stool: 0.74, beanbag: 0.3, armchair: 0.48, sofa: 0.48, hammocks: 0.85 };
+  /* the small bits of a face cast no shadow: fewer draw calls with a full room */
+  /* only a person's body and limbs cast shadows, and the small bits of a face (eyes, brows, nose, mouth, cheeks,
+     ears) are drawn only when the camera is close enough to see them: far fewer draw calls with a full room */
+  let near = true;
+  const NEAR = 15;
+  function lighten(p) {
+    p.traverse(o => {
+      if (!o.isMesh) return;
+      o.geometry.computeBoundingSphere();
+      const r = o.geometry.boundingSphere.radius * Math.max(o.scale.x, o.scale.y, o.scale.z);
+      if (r < 0.1) o.castShadow = false;
+      if (r < 0.035) { (p.userData.details ||= []).push(o); o.visible = near; }
+    });
+    return p;
+  }
   let guests = [], want = 0, nextSpawn = 0;
   function spawnCrowd(n, burst) {
     clear(people); guests = []; seats.forEach(s => { s.taken = null; }); stands.forEach(s => { s.taken = null; });
-    want = Math.min(n, 40);
+    want = Math.min(n, 30);
     // settle most of tonight's guests where they are already, so the club is lively at once
     const already = burst ? 0 : Math.max(0, want - 4);
     for (let i = 0; i < already; i++) addGuest(i, true);
@@ -277,44 +295,71 @@ export function Club3D({ onRoom, onBuild } = {}) {
     return free.length ? free[Math.floor(Math.random() * free.length)] : null;
   }
   function addGuest(i, placed) {
-    const p = person(guests.length * 13 + i + (placed ? 0 : 777));
+    const p = lighten(Sim(guests.length * 13 + i + (placed ? 0 : 777)));
     const spot = freeSpot(Math.random() < 0.35 ? 'stand' : 'any');
     if (!spot) return null;
-    const g = { p, spot, state: placed ? 'stay' : 'walk', path: [], until: performance.now() + 20000 + Math.random() * 40000, dance: Math.random() < 0.4 };
+    const now = performance.now();
+    const g = { p, spot, state: placed ? 'stay' : 'walk', path: [], until: now + 20000 + Math.random() * 40000, dance: Math.random() < 0.4, act: 'idle', actUntil: 0, hello: 0, turnTo: null };
     spot.taken = g;
     if (placed) { at(p, spot.x, spot.z, spot.face ?? Math.random() * 6.28); if (seats.includes(spot)) sit(g); }
     else { p.position.set(DOOR.x + (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * (showing ? 4 : 12)), 0, -2.4 - Math.random() * 1.6); g.path = [{ x: DOOR.x - 0.5 + Math.random(), z: -1.6 }, { x: DOOR.x, z: 0.8 }, { x: spot.x, z: spot.z }]; }
+    act(p, g.state === 'walk' ? 'walk' : g.sat ? 'sit' : 'idle', 0, 1, { seat: spot.h });
     people.add(p); guests.push(g);
     return g;
   }
-  function sit(g) { g.sat = true; g.p.position.y = -0.06; g.p.userData.legs.forEach(l => { l.rotation.x = -1.4; }); g.p.rotation.y = g.spot.face ?? g.p.rotation.y; }
-  function standUp(g) { g.sat = false; g.p.position.y = 0; g.p.userData.legs.forEach(l => { l.rotation.x = 0; }); }
+  function sit(g) { g.sat = true; g.p.position.y = g.spot.y || 0; g.turnTo = g.spot.face ?? g.p.rotation.y; g.p.rotation.y = g.turnTo; }
+  function standUp(g) { g.sat = false; g.p.position.y = 0; }
   function leave(g) {
     if (g.spot) g.spot.taken = null;
-    standUp(g); g.state = 'leave';
+    standUp(g); g.state = 'leave'; g.hello = performance.now() + 900; // a wave goodbye first
     g.path = [{ x: DOOR.x, z: 0.8 }, { x: DOOR.x, z: -1.6 }, { x: 26, z: -3.5 + Math.random() }];
   }
-  function stepGuest(g, dt, t) {
-    const u = g.p.userData;
+  const pick1 = a => a[Math.floor(Math.random() * a.length)];
+  /* what a guest does next where they are: eat and talk at a table, chat with whoever stands near, dance, listen,
+     and clap and cheer when the band plays the show */
+  function choose(g) {
+    g.turnTo = null;
+    if (g.sat) {
+      if (showing) return pick1(['sitClap', 'sitClap', 'sit']);
+      return g.spot.eat ? pick1(['eat', 'eat', 'sitChat']) : pick1(['sitChat', 'sitChat', 'sit']);
+    }
+    if (showing) return pick1(g.dance ? ['dance', 'dance', 'cheer'] : ['clap', 'cheer', 'listen', 'clap']);
+    if (g.dance && want > 0 && Math.random() < 0.7) return 'dance';
+    const me = g.p.position, near = guests.find(o => o !== g && o.state === 'stay' && !o.sat && Math.hypot(o.p.position.x - me.x, o.p.position.z - me.z) < 1.6);
+    if (near && Math.random() < 0.75) { // turn to each other and talk
+      g.turnTo = Math.atan2(near.p.position.x - me.x, near.p.position.z - me.z);
+      if (near.act !== 'chat' && near.act !== 'dance') { near.act = 'chat'; near.turnTo = g.turnTo + Math.PI; near.actUntil = performance.now() + 6000 + Math.random() * 5000; }
+      return 'chat';
+    }
+    if (stageAt) g.turnTo = Math.atan2(stageAt.x - me.x, stageAt.z - me.z);
+    return pick1(['listen', 'listen', 'idle']);
+  }
+  function turnToward(o, goal, k) { let d = goal - o.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); o.rotation.y += d * k; }
+  function stepGuest(g, dt, t, beat) {
+    const now = performance.now();
     if (g.state === 'walk' || g.state === 'leave') {
+      if (now < g.hello) { act(g.p, 'wave', t, dt); return; }
       const to = g.path[0];
-      if (!to) { if (g.state === 'leave') { people.remove(g.p); guests.splice(guests.indexOf(g), 1); return; } g.state = 'stay'; if (seats.includes(g.spot)) sit(g); else g.p.rotation.y = stageAt ? Math.atan2(stageAt.x - g.p.position.x, stageAt.z - g.p.position.z) : 0; return; }
-      const dx = to.x - g.p.position.x, dz = to.z - g.p.position.z, d = Math.hypot(dx, dz), sp = (showing ? 3.6 : 1.8) * dt;
+      if (!to) {
+        if (g.state === 'leave') { people.remove(g.p); guests.splice(guests.indexOf(g), 1); return; }
+        g.state = 'stay'; g.actUntil = 0;
+        if (seats.includes(g.spot)) sit(g);
+        else if (Math.random() < 0.5) g.hello = now + 1400; // waves hello to the room
+        return;
+      }
+      const dx = to.x - g.p.position.x, dz = to.z - g.p.position.z, d = Math.hypot(dx, dz), sp = (showing ? 3 : 1.3) * dt;
       if (d < sp) { g.p.position.x = to.x; g.p.position.z = to.z; g.path.shift(); }
-      else { g.p.position.x += dx / d * sp; g.p.position.z += dz / d * sp; g.p.rotation.y = Math.atan2(dx, dz); }
-      const sw = Math.sin(t * 9 + u.phase) * 0.6;
-      u.legs[0].rotation.x = sw; u.legs[1].rotation.x = -sw; u.arms[0].rotation.x = -sw * 0.7; u.arms[1].rotation.x = sw * 0.7;
+      else { g.p.position.x += dx / d * sp; g.p.position.z += dz / d * sp; turnToward(g.p, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
+      act(g.p, 'walk', t, dt, { speed: showing ? 1.9 : 1 });
       return;
     }
-    // staying: listen, nod, dance; later wander to another spot or go home
-    u.arms[0].rotation.x = 0; u.arms[1].rotation.x = 0;
-    if (!g.sat) { u.legs[0].rotation.x = 0; u.legs[1].rotation.x = 0; }
-    const lit = showing || want > 0;
-    if (g.dance && !g.sat && lit) { g.p.position.y = Math.abs(Math.sin(t * 4.2 + u.phase)) * 0.12; u.arms[0].rotation.z = Math.sin(t * 4.2 + u.phase) * 0.6; u.arms[1].rotation.z = -Math.sin(t * 4.2 + u.phase) * 0.6; }
-    else u.head.rotation.x = Math.sin(t * 3 + u.phase) * 0.12;
-    if (!showing && performance.now() > g.until) {
+    // staying: a while at one thing, then the next
+    if (now > g.actUntil) { g.act = choose(g); g.actUntil = now + 5000 + Math.random() * 7000; }
+    if (g.turnTo != null && !g.sat) turnToward(g.p, g.turnTo, Math.min(1, dt * 4));
+    act(g.p, now < g.hello && !g.sat ? 'wave' : g.act, t, dt, { seat: g.spot.h, beat: beat + g.p.userData.phase * 0.05 });
+    if (!showing && now > g.until) {
       if (guests.length > want || Math.random() < 0.3) leave(g);
-      else { const next = freeSpot('any'); if (next) { g.spot.taken = null; standUp(g); g.spot = next; next.taken = g; g.state = 'walk'; g.path = [{ x: next.x, z: next.z }]; } g.until = performance.now() + 20000 + Math.random() * 40000; }
+      else { const next = freeSpot('any'); if (next) { g.spot.taken = null; standUp(g); g.spot = next; next.taken = g; g.state = 'walk'; g.path = [{ x: next.x, z: next.z }]; } g.until = now + 20000 + Math.random() * 40000; }
     }
   }
 
@@ -409,7 +454,7 @@ export function Club3D({ onRoom, onBuild } = {}) {
   }
 
   /* ---------- the loop ---------- */
-  let showing = false;
+  let showing = false, beatT = 0;
   const camDir = new THREE.Vector3();
   stage.onFrame((dt, t, now) => {
     // walls between the camera and the room come down, as in a life-sim's cutaway view
@@ -417,12 +462,11 @@ export function Club3D({ onRoom, onBuild } = {}) {
     walls.forEach(w => { const [nx, nz] = w.userData.out, facing = nx * camDir.x + nz * camDir.z < -0.2; const goal = facing ? LOW / WALL_H : 1; w.scale.y += (goal - w.scale.y) * Math.min(1, dt * 8); });
     // life
     if (guests.length < want && now > nextSpawn) { addGuest(guests.length, false); nextSpawn = now + (showing ? 140 : 1800 + Math.random() * 2500); }
-    for (let i = guests.length - 1; i >= 0; i--) stepGuest(guests[i], dt, t);
-    bandG.children.forEach((p, i) => {
-      const u = p.userData, beat = t * (showing ? 4.4 : 3.2) + i;
-      p.position.y = (stageAt ? stageAt.y : 0) + (want > 0 || showing ? Math.abs(Math.sin(beat)) * 0.05 : 0);
-      if (want > 0 || showing) { u.arms[0].rotation.x = -0.9 + Math.sin(beat * 2) * 0.3; u.arms[1].rotation.x = -0.7 + Math.cos(beat * 2) * 0.3; u.head.rotation.x = Math.sin(beat) * 0.15; }
-    });
+    // one beat for the room, so the band plays and the dancers dance to the same time (faster for the show)
+    if ((view.dist < NEAR) !== near) { near = !near; guests.map(g => g.p).concat(bandG.children).forEach(p => (p.userData.details || []).forEach(o => { o.visible = near; })); }
+    beatT += dt * (showing ? 2.2 : want > 0 ? 1.8 : 1.1);
+    for (let i = guests.length - 1; i >= 0; i--) stepGuest(guests[i], dt, t, beatT);
+    bandG.children.forEach(p => act(p, p.userData.role, t, dt, { beat: beatT }));
     twinkles.forEach(b => { b.material = b.userData.mat || (b.userData.mat = b.material.clone()); b.material.emissiveIntensity = 0.6 + 0.4 * Math.sin(t * 2 + b.userData.twinkle * 1.7); });
     sway.forEach(k => { k.rotation.z = Math.sin(t * 1.3 + k.userData.sway) * 0.15; });
     fires.forEach(f => { f.scale.setScalar(0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 7) * 0.07); });
@@ -449,7 +493,7 @@ export function Club3D({ onRoom, onBuild } = {}) {
   /* Showtime: the camera flies to the stage, the lights come up, tonight's guests come in, tips fly to the jar */
   async function show(n, o = {}) {
     if (!model) return;
-    showing = true;
+    showing = true; guests.forEach(g => { g.actUntil = 0; }); // everyone turns to the stage
     const token = {}; show.token = token;
     const alive = () => show.token === token && el.isConnected;
     await flyTo({ cx: stageAt.x, cz: stageAt.z - 2.5, dist: 13, pitch: 0.75, yaw: view.yaw + 0.25 }, 1200);
@@ -474,7 +518,7 @@ export function Club3D({ onRoom, onBuild } = {}) {
     if (!alive()) return;
     if (jar) burst(jar.position.x, 1.6, jar.position.z, 30);
     await flyTo(home, 1100);
-    showing = false;
+    showing = false; guests.forEach(g => { g.actUntil = 0; });
   }
   function stop() { show.token = null; showing = false; }
   function celebrate(id) {
