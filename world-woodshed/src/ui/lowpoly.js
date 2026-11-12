@@ -6,10 +6,10 @@
      the palette (HUES, SKIN, HAIR).
    - Stage({ onTap, light, home }) (light: 'evening', golden hour and the default, or 'day'): a canvas seen from high above at an angle, as in a life-sim game. One
      finger (or the mouse) turns it, a pinch or the wheel zooms, a double-tap goes back home, a tap calls
-     onTap(point on the ground). It holds the renderer, the camera, a golden-hour light (warm sky, a low
+     onTap(point on the ground, event), and a mouse moving over it onHover(point, event). It holds the renderer, the camera, a golden-hour light (warm sky, a low
      sun that casts long shadows) and a loop that sleeps while the canvas is off screen or the page hidden. Returns
      { el, canvas, scene, camera, view, hemi, sun (the moon or the sun: change them to set your own light), flyTo(v, ms), setHome(v), goHome(ms), onFrame(fn(dt, t, now)),
-       busy(), particle(mesh, life, step), burst(x, y, z, n), pop(obj), snapshot(w), clear(group), dispose() }. */
+       busy(), particle(mesh, life, step), burst(x, y, z, n), pop(obj), snapshot(w), clear(group), dispose(), rayAt(x, y), groundAt(x, y) }. */
 import * as THREE from 'three';
 
 export const HUES = [0xe07a5f, 0x3d85c6, 0x81b29a, 0xf2cc8f, 0xc77dff, 0xe9c46a, 0x6c9a8b, 0xd4a5a5, 0xf4a261, 0x90be6d, 0x7fb7d9, 0xef8fa0];
@@ -22,15 +22,35 @@ export function webglOK() {
   try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return false; }
 }
 
+/* ---------- the look: a warm storybook ----------
+   Colours are softened toward warm paper (pastel), lit in a few painted bands (toon shading) and drawn with an
+   ink line round every shape (the Stage's ink pass, from the depth of the scene). */
+const PAPER = new THREE.Color(0xfff1dc);
+let bands = null;
+function toonBands() {
+  if (bands) return bands;
+  const d = new Uint8Array([96, 92, 104, 255, 160, 154, 156, 255, 218, 212, 206, 255, 255, 250, 240, 255]);
+  bands = new THREE.DataTexture(d, 4, 1, THREE.RGBAFormat);
+  bands.minFilter = bands.magFilter = THREE.NearestFilter;
+  bands.generateMipmaps = false; bands.needsUpdate = true;
+  return bands;
+}
+/* a colour as the storybook paints it: a little toward the paper */
+export const pastel = color => new THREE.Color(color).lerp(PAPER, 0.08);
+
 /* ---------- pieces ---------- */
 const mats = new Map();
-/* a shared flat-shaded material per colour and options (don't change it in place: clone it first) */
+/* a shared painted material per colour and options (don't change it in place: clone it first) */
 export const mat = (color, o = {}) => {
   const k = color + JSON.stringify(o);
-  if (!mats.has(k)) mats.set(k, new THREE.MeshLambertMaterial(Object.assign({ color, flatShading: true }, o)));
+  if (!mats.has(k)) {
+    const opts = Object.assign({ flatShading: true, gradientMap: toonBands() }, o, { color: pastel(color) });
+    if (o.emissive !== undefined) opts.emissive = new THREE.Color(o.emissive);
+    mats.set(k, new THREE.MeshToonMaterial(opts));
+  }
   return mats.get(k);
 };
-export const glow = color => mat(color, { emissive: color, emissiveIntensity: 1 });
+export const glow = color => mat(color, { emissive: color, emissiveIntensity: 0.9 });
 const pick = (o, color) => (o && o.isMaterial ? o : mat(color, o));
 /* a box standing on y (its base at y), a cylinder standing on y, a ball centred on y */
 export function box(w, h, d, color, x = 0, y = 0, z = 0, o) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), pick(o, color)); m.position.set(x, y + h / 2, z); return m; }
@@ -76,14 +96,70 @@ export function potPlant(kind = 'leafy', s = 1) {
   return shadows(g);
 }
 
+/* ---------- the ink pass ----------
+   The scene is drawn into a texture with its depth; a full-screen pass then lays it down with a dark warm line
+   wherever the depth jumps (the outline of every shape), a soft paper grain and a warm vignette. One extra
+   cheap pass, no second drawing of the scene. null where depth textures aren't there (plain drawing then). */
+function inkPass(renderer) {
+  const gl2 = renderer.capabilities.isWebGL2;
+  if (!gl2 && !renderer.extensions.has('WEBGL_depth_texture')) return null;
+  const target = new THREE.WebGLRenderTarget(4, 4, { samples: 0, type: THREE.UnsignedByteType });
+  target.depthTexture = new THREE.DepthTexture(4, 4);
+  target.texture.colorSpace = THREE.SRGBColorSpace;
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    uniforms: { tColor: { value: target.texture }, tDepth: { value: target.depthTexture }, px: { value: new THREE.Vector2(1 / 4, 1 / 4) }, near: { value: 0.5 }, far: { value: 200 }, inkColor: { value: new THREE.Color(0x3a2a2e) }, width: { value: 1 } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D tColor; uniform sampler2D tDepth; uniform vec2 px; uniform float near; uniform float far; uniform vec3 inkColor; uniform float width;
+      varying vec2 vUv;
+      float lin(vec2 uv) { float z = texture2D(tDepth, uv).x * 2.0 - 1.0; return 2.0 * near * far / (far + near - z * (far - near)); }
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main() {
+        vec4 c = texture2D(tColor, vUv);
+        float d = lin(vUv), o = px.x * width, q = px.y * width;
+        float dl = lin(vUv - vec2(o, 0.0)), dr = lin(vUv + vec2(o, 0.0)), dd = lin(vUv - vec2(0.0, q)), du = lin(vUv + vec2(0.0, q));
+        // the line where a nearer shape stands in front of a farther one, fading far away
+        float jump = max(max(dl - d, dr - d), max(dd - d, du - d)) / d;
+        float edge = smoothstep(0.012, 0.045, jump);
+        // and where the paint changes sharply (a leg on the floor, a cushion on a sofa)
+        vec3 W = vec3(0.299, 0.587, 0.114);
+        float lx = abs(dot(texture2D(tColor, vUv + vec2(o, 0.0)).rgb, W) - dot(texture2D(tColor, vUv - vec2(o, 0.0)).rgb, W));
+        float ly = abs(dot(texture2D(tColor, vUv + vec2(0.0, q)).rgb, W) - dot(texture2D(tColor, vUv - vec2(0.0, q)).rgb, W));
+        edge = max(edge, smoothstep(0.16, 0.32, max(lx, ly)) * 0.55);
+        edge *= 1.0 - smoothstep(45.0, 110.0, d);
+        vec3 col = mix(c.rgb, inkColor, edge * 0.92);
+        // paper: a fine grain and a warm vignette
+        col *= 0.97 + 0.05 * hash(floor(vUv / px));
+        vec2 v = vUv - 0.5; col = mix(col, col * vec3(0.92, 0.84, 0.78), smoothstep(0.35, 0.8, dot(v, v) * 2.2));
+        gl_FragColor = vec4(col, 1.0);
+        #include <colorspace_fragment>
+      }`,
+    depthTest: false, depthWrite: false
+  }));
+  quad.frustumCulled = false;
+  const post = new THREE.Scene(); post.add(quad);
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const u = quad.material.uniforms;
+  return {
+    size(w, h) { target.setSize(w, h); target.depthTexture.image.width = w; target.depthTexture.image.height = h; u.px.value.set(1 / w, 1 / h); u.width.value = Math.max(1.6, renderer.getPixelRatio() * 1.1); },
+    render(scene, camera) {
+      u.near.value = camera.near; u.far.value = camera.far;
+      renderer.setRenderTarget(target); renderer.render(scene, camera);
+      renderer.setRenderTarget(null); renderer.render(post, cam);
+    },
+    dispose() { target.dispose(); quad.geometry.dispose(); quad.material.dispose(); }
+  };
+}
+
 /* ---------- the stage ---------- */
 export const DAY = 0x9fd3ea;
-export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
+export function Stage({ onTap, onHover, light = 'evening', home: home0 } = {}) {
   const day = light === 'day', background = day ? DAY : DUSK;
   const el = document.createElement('div');
   el.className = 'lp-wrap';
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const ink = inkPass(renderer);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const canvas = renderer.domElement;
@@ -125,7 +201,7 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
   let downAt = null, moved = 0, pinch0 = 0, dist0 = 0;
   canvas.addEventListener('pointerdown', e => { try { canvas.setPointerCapture(e.pointerId); } catch (x) { /* synthetic */ } ptrs.set(e.pointerId, [e.clientX, e.clientY]); downAt = [e.clientX, e.clientY]; moved = 0; if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); dist0 = view.dist; } });
   canvas.addEventListener('pointermove', e => {
-    if (!ptrs.has(e.pointerId)) return;
+    if (!ptrs.has(e.pointerId)) { if (onHover && e.pointerType === 'mouse') { const p = groundAt(e.clientX, e.clientY); if (p) onHover(p, e); } return; }
     const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
     target = null; idleAt = performance.now();
     if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch0 && d) view.dist = Math.max(8, Math.min(55, dist0 * pinch0 / d)); moved = 99; return; }
@@ -139,13 +215,18 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
   canvas.addEventListener('wheel', e => { e.preventDefault(); target = null; idleAt = performance.now(); view.dist = Math.max(8, Math.min(55, view.dist * (1 + Math.sign(e.deltaY) * 0.1))); }, { passive: false });
   canvas.addEventListener('dblclick', () => flyTo(home, 700));
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  /* the raycaster through a point of the screen, and the point on the ground there */
+  function rayAt(cx, cy) {
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    return ray;
+  }
+  function groundAt(cx, cy) { const p = new THREE.Vector3(); return rayAt(cx, cy).ray.intersectPlane(ground, p) ? p : null; }
   function tap(e) {
     if (!onTap) return;
-    const r = canvas.getBoundingClientRect();
-    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    ray.setFromCamera(ndc, camera);
-    const p = new THREE.Vector3();
-    if (ray.ray.intersectPlane(ground, p)) onTap(p);
+    const p = groundAt(e.clientX, e.clientY);
+    if (p) onTap(p, e);
   }
 
   /* effects: a particle is any mesh with a life in seconds and step(mesh, 0..1, dt) */
@@ -176,6 +257,7 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
     const w = el.clientWidth || 360, h = Math.round(w * 0.75), key = w + 'x' + h;
     if (key === fitted) return;
     fitted = key; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (ink) ink.size(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
   }
   function frame(now) {
     raf = 0;
@@ -196,7 +278,7 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
       if (u.age >= u.life) { u.step(f, 1, dt); fx.remove(f); if (f.geometry) f.geometry.dispose(); continue; }
       u.step(f, u.age / u.life, dt);
     }
-    renderer.render(scene, camera);
+    if (ink) ink.render(scene, camera); else renderer.render(scene, camera);
     raf = requestAnimationFrame(frame);
   }
   function wake() { if (!raf && visible && !document.hidden && el.isConnected !== false) { last = performance.now(); raf = requestAnimationFrame(frame); } }
@@ -217,12 +299,13 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
     document.removeEventListener('visibilitychange', wake);
     if (io) io.disconnect();
     scene.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+    if (ink) ink.dispose();
     renderer.dispose();
   }
   return {
     el, canvas, scene, camera, view, hemi, sun: moon, flyTo, setHome, goHome: (ms = 700) => flyTo(home, ms), get home() { return home; }, get flying() { return !!target; },
     onFrame(fn) { frames.add(fn); wake(); return () => frames.delete(fn); }, busy: () => ptrs.size > 0,
-    particle, burst, pop, snapshot, clear, dispose, wake
+    particle, burst, pop, snapshot, clear, dispose, wake, rayAt, groundAt
   };
 }
 

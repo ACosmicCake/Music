@@ -8,29 +8,22 @@
    Club3D({ onRoom }) → { el, draw(model), show(n, o), stop(), celebrate(id), snapshot(), dispose() }, the same
    shape as the flat Scene in src/ui/clubscene.js (the fallback without WebGL). model = { club, band, plants,
    guests }. Drag turns the view, a pinch or the wheel zooms, a tap on a room (or an empty plot) calls onRoom. */
-import { THREE, Stage, mat, glow, box, cyl, ball, group, at, shadows, label, person, potPlant, webglOK, HUES } from './lowpoly.js';
-import { owns } from '../club.js';
+import { THREE, Stage, mat, glow, box, cyl, ball, group, at, shadows, label, person, webglOK, HUES } from './lowpoly.js';
+import { owns, live, footprint, fits, itemOf, CELL, ROOMS, BUILT_IN } from '../club.js';
+import { pieceModel, tree, counter, instrument } from './clubpieces.js';
 
 export { webglOK };
 // the garden's island, if this build has it (src/ui/garden3d.js, the garden thread's)
 const ISLAND = import.meta.glob('./garden3d.js');
 
 /* the lot, in metres: x to the right, z away from the street (the island leaves x -10..22, z -7..21 for it) */
-export const ROOMS3D = {
-  courtyard: [-8, 0, 0, 6], cafe: [0, 0, 8, 6], kitchen: [8, 0, 12, 6], hall: [12, 0, 20, 6],
-  school: [-8, 6, 0, 12], jazzbar: [0, 6, 12, 14], studio: [12, 6, 20, 12], roof: [0, 14, 12, 19]
-};
+export const ROOMS3D = Object.fromEntries(ROOMS.map(r => [r.id, r.rect]));
 const FLOOR = { cafe: 0xb88a5a, kitchen: 0xd9d2c3, hall: 0xa77b52, jazzbar: 0x4b3326, studio: 0x55606b, school: 0x7f9a62, roof: 0xc98b62, courtyard: 0x5d9a4f };
 const WALL = { cafe: 0xe8c9a0, kitchen: 0xe7d6c4, hall: 0xb7a0c9, jazzbar: 0x5a4b7a, studio: 0x5b7a87, school: 0xc9d7a8, roof: 0x9fd0bd, courtyard: 0xa6845a };
 const LABEL = { cafe: 'Café', kitchen: 'Kitchen', courtyard: 'Courtyard', jazzbar: 'Jazz bar', school: 'Practice rooms', hall: 'Hall', roof: 'Glasshouse', studio: 'Studio' };
 const WALL_H = 2.4, LOW = 0.35;
 
-/* ---------- pieces only the club uses ---------- */
-function tree(s = 1, leaf = 0x3f8f45, leaf2 = 0x2e6b33) {
-  const g = group(cyl(0.12, 0.18, 1.4, 0x6d4c33), ball(0.9, leaf, 0, 2.0, 0, 1), ball(0.6, leaf2, 0.55, 1.7, 0.2, 1), ball(0.6, leaf, -0.5, 1.8, -0.2, 1));
-  g.scale.setScalar(s);
-  return g;
-}
+/* ---------- pieces only the club uses (the furniture is in src/ui/clubpieces.js) ---------- */
 function kelpPond(n = 1) {
   const g = group(cyl(0.9, 0.9, 0.12, 0x2f6f8f, 0, 0, 0, 20, { transparent: true, opacity: 0.85 }), cyl(0.95, 0.95, 0.08, 0x7d8597));
   for (let i = 0; i < Math.min(5, n + 1); i++) { const k = cyl(0.04, 0.06, 0.9 + (i % 3) * 0.3, 0x6aa84f, Math.cos(i * 2.1) * 0.45, 0.05, Math.sin(i * 2.1) * 0.45, 6); k.userData.sway = i; g.add(k); }
@@ -44,22 +37,6 @@ function bottlePlanter() {
 }
 const testLook = g => { g.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.45; } }); return g; };
 
-/* furniture */
-function table(round = true, chairs = 4, color = 0x6b4a2e) {
-  const g = group(round ? cyl(0.45, 0.45, 0.05, color, 0, 0.7, 0, 16) : box(1.0, 0.05, 0.7, color, 0, 0.7, 0), cyl(0.05, 0.08, 0.7, 0x3b2b1e));
-  const seats = [];
-  for (let i = 0; i < chairs; i++) {
-    const a = (i / chairs) * Math.PI * 2, cx = Math.cos(a) * 0.75, cz = Math.sin(a) * 0.75;
-    const ch = group(box(0.38, 0.05, 0.38, 0x8a5a3a, 0, 0.42, 0), box(0.38, 0.45, 0.05, 0x8a5a3a, 0, 0.45, 0.17), box(0.04, 0.42, 0.04, 0x5a3d26, 0.15, 0, -0.15), box(0.04, 0.42, 0.04, 0x5a3d26, -0.15, 0, -0.15));
-    at(ch, cx, cz, -a - Math.PI / 2); g.add(ch);
-    seats.push({ x: cx, z: cz, face: Math.atan2(-cx, -cz) });
-  }
-  g.userData.seats = seats;
-  return g;
-}
-function counter(w = 3, color = 0x5a3d26) { return group(box(w, 1.0, 0.6, color), box(w + 0.1, 0.06, 0.7, 0x2b1d14, 0, 1.0, 0)); }
-function upright() { return group(box(1.3, 1.2, 0.5, 0x1f1b24), box(1.2, 0.05, 0.25, 0xf4f1ea, 0, 0.75, -0.35), box(0.6, 0.45, 0.35, 0x2b1d14, 0, 0, -0.75)); }
-function grand() { const top = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.3, 20, 1, false, 0, Math.PI), mat(0x111111)); top.position.y = 0.85; top.rotation.y = Math.PI / 2; top.scale.set(1, 1, 1.5); return group(top, box(1.8, 0.3, 0.6, 0x111111, 0, 0.7, 0), box(1.6, 0.04, 0.2, 0xf4f1ea, 0, 0.98, -0.32), cyl(0.05, 0.05, 0.7, 0x111111, 0.7, 0, 0.3), cyl(0.05, 0.05, 0.7, 0x111111, -0.7, 0, 0.3), cyl(0.05, 0.05, 0.7, 0x111111, 0, 0, 1.1)); }
 function stringLights(points, color = 0xffe9a8) {
   const g = group();
   for (let i = 0; i < points.length - 1; i++) {
@@ -68,31 +45,18 @@ function stringLights(points, color = 0xffe9a8) {
   }
   return g;
 }
+/* the ghost of a piece being placed: see-through, green where it fits and red where it doesn't */
+const GHOST = { ok: new THREE.MeshBasicMaterial({ color: 0x9be7a5, transparent: true, opacity: 0.55, depthWrite: false }), no: new THREE.MeshBasicMaterial({ color: 0xf28b82, transparent: true, opacity: 0.55, depthWrite: false }) };
+const PAD = { ok: new THREE.MeshBasicMaterial({ color: 0x6ad07a, transparent: true, opacity: 0.35, depthWrite: false }), no: new THREE.MeshBasicMaterial({ color: 0xe0614f, transparent: true, opacity: 0.35, depthWrite: false }) };
 
-/* people: a body, a head, hair, legs that walk and arms that play */
-
-/* the band's instruments, held or stood at */
-/* the band's instruments, held or stood at */
-function instrument(role) {
-  switch (role) {
-    case 'guitar': { const b = cyl(0.2, 0.2, 0.08, 0xb5703a, 0, 0, 0, 14); b.rotation.x = Math.PI / 2; const n = box(0.05, 0.05, 0.6, 0x3b2b1e, 0.25, 0, -0.05); n.rotation.y = -0.9; return at(group(b, n), 0.05, -0.2, 0, 0.7); }
-    case 'drums': return at(group(cyl(0.3, 0.3, 0.45, 0xc94c4c, 0, 0, 0), cyl(0.18, 0.18, 0.2, 0xc94c4c, 0.35, 0.45, 0.1), cyl(0.18, 0.18, 0.2, 0xc94c4c, -0.35, 0.45, 0.1), cyl(0.25, 0.25, 0.02, 0xe6b422, 0.5, 1.0, 0.2), cyl(0.02, 0.02, 1.0, 0x777777, 0.5, 0, 0.2)), 0, -0.6);
-    case 'bass': { const b = group(ball(0.3, 0xb5703a, 0, 0.5, 0, 1), box(0.06, 1.1, 0.06, 0x3b2b1e, 0, 0.7, 0)); b.children[0].scale.set(0.9, 1.4, 0.5); return at(b, 0.3, -0.25, 0); }
-    case 'piano': return at(upright(), 0, -0.9, Math.PI);
-    case 'vocals': return at(group(cyl(0.02, 0.02, 1.4, 0x888888), ball(0.06, 0x999999, 0, 1.45, 0), cyl(0.15, 0.15, 0.02, 0x555555)), 0, -0.4);
-    case 'saxophone': { const s = group(cyl(0.04, 0.09, 0.6, 0xe6b422, 0, 0, 0, 8), ball(0.1, 0xe6b422, 0, 0, 0.05)); s.rotation.x = 0.4; return at(s, 0.05, -0.25, 0, 0.55); }
-    case 'congas': return at(group(cyl(0.18, 0.14, 0.75, 0x8a4c24, -0.2), cyl(0.16, 0.12, 0.7, 0xa0662e, 0.2)), 0, -0.5);
-    default: return group();
-  }
-}
-
-
-export function Club3D({ onRoom } = {}) {
-  const stage = Stage({ light: 'evening', onTap: p => {
+export function Club3D({ onRoom, onBuild } = {}) {
+  const stage = Stage({ light: 'evening', onTap: (p, e) => {
+    if (building) { buildTap(p, e); return; }
     const id = Object.keys(ROOMS3D).find(k => { const [a, b, c, d] = ROOMS3D[k]; return p.x >= a && p.x <= c && p.z >= b && p.z <= d; });
     if (id && onRoom) onRoom(id);
-  } });
+  }, onHover: p => { if (building && ghostOf) ghostTo(p); } });
   const { el, scene, camera, view, flyTo } = stage;
+
   el.classList.add('cl3-wrap');
   stage.canvas.classList.add('cl3-canvas');
   stage.canvas.setAttribute('role', 'img');
@@ -131,6 +95,7 @@ export function Club3D({ onRoom } = {}) {
 
   /* ---------- building the club ---------- */
   let model = null, walls = [], seats = [], stands = [], lamps = [], beams = [], twinkles = [], sway = [], tiles = [], fires = [], stageAt = null, jar = null;
+  const pieces = new Map(); // uid → the piece's group
   const bandG = new THREE.Group();
   scene.add(bandG);
   const clear = stage.clear;
@@ -194,85 +159,56 @@ export function Club3D({ onRoom } = {}) {
   function put(g, x, z, rot = 0, y = 0, id) { at(g, x, z, rot, y); shadows(g); if (id) g.userData.item = id; world.add(g); addSeats(g, x, z, rot); return g; }
   function furnish(club) {
     const has = id => owns(club, id);
-    // the café: a rug stage by the window, a counter with the tips jar, tables
-    put(box(2.4, 0.04, 1.6, 0xa63d40), 1.8, 4.5);
-    put(counter(2.6), 6.2, 4.9);
-    jar = put(group(cyl(0.14, 0.12, 0.3, 0xcfe6f5, 0, 0, 0, 10, { transparent: true, opacity: 0.5 }), cyl(0.11, 0.11, 0.12, 0xe6b422)), 5.4, 4.7, 0, 1.06);
-    put(table(true, 3), 2.5, 1.8); put(table(true, 3), 5.4, 2.2);
-    if (has('chairs')) { put(table(true, 4, 0x7a5232), 7.0, 1.4); }
+    // the café's built-ins: a rug for a stage, the counter with the tips jar
+    put(box(2.4, 0.04, 1.8, 0xa63d40), 1.75, 4.5);
+    put(counter(3.3), 6.25, 5.0);
+    jar = put(group(cyl(0.14, 0.12, 0.3, 0xcfe6f5, 0, 0, 0, 10, { transparent: true, opacity: 0.5 }), cyl(0.11, 0.11, 0.12, 0xe6b422)), 5.2, 4.9, 0, 1.06);
     if (has('lights')) world.add(collect(stringLights([[0.2, 2.2, 0.2], [4, 2.3, 0.4], [7.8, 2.2, 0.2]])));
-    if (has('monstera')) put(potPlant('monstera', 1.3), 7.4, 3.2, 0, 0, 'monstera');
-    if (has('chalk')) put(group(box(0.9, 1.2, 0.08, 0x26302b, 0, 0.4, 0), box(0.04, 0.4, 0.04, 0x5a3d26, -0.3), box(0.04, 0.4, 0.04, 0x5a3d26, 0.3)), 7.3, 0.6, 0.3, 0, 'chalk');
-    put(potPlant('leafy'), 0.5, 0.5);
-    // the kitchen
     if (has('kitchen')) {
-      put(counter(3, 0x8a8f99), 10, 5.3); put(box(0.8, 0.9, 0.6, 0xcfd4dc), 11.4, 3.2);
-      if (has('oven')) { const o = put(group(box(1.4, 1.2, 1.2, 0xa9573c), ball(0.7, 0xa9573c, 0, 1.2, 0, 1), box(0.6, 0.45, 0.1, 0x2b1d14, 0, 0.3, -0.6)), 9.0, 3.6, Math.PI / 2, 0, 'oven'); const f = ball(0.22, 0xf4a261, 0, 0.35, -0.5, 0, glow(0xf4a261)); o.add(f); fires.push(f); }
-      if (has('herbs')) { const hw = group(box(2.5, 1.6, 0.1, 0x6d4c33, 0, 0.5, 0)); for (let i = 0; i < 9; i++) hw.add(ball(0.17, i % 2 ? 0x43a047 : 0x2e7d32, -1 + (i % 3) * 1, 0.8 + Math.floor(i / 3) * 0.5, -0.1)); put(hw, 10, 0.25, 0, 0, 'herbs'); }
-      if (has('table')) put(group(box(3, 0.06, 0.9, 0x6b4a2e, 0, 0.72, 0), box(0.1, 0.72, 0.8, 0x3b2b1e, -1.3), box(0.1, 0.72, 0.8, 0x3b2b1e, 1.3)), 10, 1.6, Math.PI / 2, 0, 'table');
-      if (has('table')) [[9.4, 0.6], [9.4, 1.6], [9.4, 2.6], [10.6, 0.6], [10.6, 1.6], [10.6, 2.6]].forEach(([x, z]) => seats.push({ x, z, face: x < 10 ? Math.PI / 2 : -Math.PI / 2, taken: null }));
+      put(counter(3, 0x8a8f99), 10, 5.5); put(box(0.8, 1.8, 0.8, 0xcfd4dc), 11.5, 3.0);
+      if (has('herbs')) { const hw = group(box(2.8, 1.6, 0.1, 0x6d4c33, 0, 0.5, 0)); for (let i = 0; i < 12; i++) hw.add(ball(0.17, i % 2 ? 0x43a047 : 0x2e7d32, -1.1 + (i % 4) * 0.73, 0.8 + Math.floor(i / 4) * 0.45, -0.1)); put(hw, 10, 0.2, 0, 0, 'herbs'); }
     }
-    // the courtyard garden
     if (has('courtyard')) {
-      put(table(true, 4, 0xd9d2c3), -5, 2.2); put(table(true, 2, 0xd9d2c3), -2.6, 4.4);
-      if (has('olive')) put(tree(1.1, 0x8aa36a, 0x6b8550), -6.6, 4.8, 0, 0, 'olive');
-      if (has('fountain')) { const f = put(group(cyl(0.9, 1.0, 0.4, 0x9a9faa), cyl(0.8, 0.8, 0.05, 0x5fa8d3, 0, 0.38, 0, 20), cyl(0.08, 0.1, 1.0, 0x9a9faa), cyl(0.35, 0.3, 0.12, 0x9a9faa, 0, 1.0, 0)), -3.0, 1.4, 0, 0, 'fountain'); const w = cyl(0.03, 0.15, 0.4, 0x9fd8f0, 0, 1.1, 0, 8, { transparent: true, opacity: 0.6 }); f.add(w); }
-      if (has('benches')) { put(group(box(1.6, 0.08, 0.45, 0x8a5a3a, 0, 0.45, 0), box(0.08, 0.45, 0.4, 0x3b2b1e, -0.7), box(0.08, 0.45, 0.4, 0x3b2b1e, 0.7)), -7.3, 2.2, Math.PI / 2, 0, 'benches'); seats.push({ x: -7.3, z: 1.8, face: Math.PI / 2, taken: null }, { x: -7.3, z: 2.6, face: Math.PI / 2, taken: null }); }
+      put(box(1.0, 0.09, 6, 0xc9b28a), -1.5, 3);
       if (has('strings')) world.add(collect(stringLights([[-7.8, 2.4, 0.3], [-4, 2.6, 3], [-0.3, 2.4, 5.7]])));
     }
-    // the jazz bar: the stage at the back, a bar, tables in front
     if (has('jazzbar')) {
-      put(box(7, 0.4, 2.6, 0x6b4a2e), 4.2, 12.6);
-      put(counter(3.4, 0x3b2b1e), 10.2, 9.0, Math.PI / 2);
-      put(box(0.4, 1.8, 3.2, 0x3b2b1e, 0, 0, 0), 11.7, 9.0);
-      put(table(true, 3, 0x2b1d14), 2.0, 8.2); put(table(true, 3, 0x2b1d14), 5.0, 7.6); put(table(true, 3, 0x2b1d14), 7.8, 8.4);
-      if (has('spots')) [[2, 0.4], [6.4, -0.4]].forEach(([x, r]) => { const cone = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })); cone.position.set(x, 1.95, 12.6); cone.rotation.z = r * 0.3; beams.push(cone); world.add(cone, at(cyl(0.18, 0.12, 0.3, 0x1f1b24), x, 12.6, 0, 3.4)); });
-      if (has('pa')) [[0.6, 13.2], [7.8, 13.2]].forEach(([x, z]) => put(group(box(0.6, 1.4, 0.5, 0x1f1b24), cyl(0.18, 0.18, 0.05, 0x555555, 0, 0.9, -0.26)), x, z, 0, 0.4, 'pa'));
-      if (has('ferns')) [[1, 6.8], [11, 13], [9, 6.8]].forEach(([x, z]) => put(potPlant('fern', 1.2), x, z, 0, 1.9, 'ferns'));
+      put(box(7.4, 0.4, 2.9, 0x6b4a2e), 4.25, 12.5);
+      put(counter(3.8, 0x3b2b1e), 10.0, 9.0, Math.PI / 2);
+      put(group(box(0.4, 1.8, 3.8, 0x3b2b1e), ...[0, 1, 2, 3, 4].map(i => cyl(0.05, 0.05, 0.25, [0x6aa84f, 0xc94c4c, 0xe6b422][i % 3], 0.05, 1.2, -1.4 + i * 0.7, 6))), 11.75, 9.0);
+      if (has('spots')) [[2, 0.4], [6.4, -0.4]].forEach(([x, r]) => { const cone = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })); cone.position.set(x, 1.95, 12.5); cone.rotation.z = r * 0.3; beams.push(cone); world.add(cone, at(cyl(0.18, 0.12, 0.3, 0x1f1b24), x, 12.5, 0, 3.4)); });
     }
-    // the band, on the jazz bar's stage once it is built, otherwise on the café's rug
-    stageAt = has('jazzbar') ? { x: 4.2, z: 12.6, y: 0.4, w: 6, dir: Math.PI } : { x: 1.8, z: 4.5, y: 0.04, w: 2.2, dir: Math.PI };
-    const piano = has('grand') && has('jazzbar') ? grand() : has('upright') ? upright() : null;
-    if (piano) put(piano, stageAt.x + stageAt.w / 2 - 0.2, stageAt.z + 0.2, has('grand') && has('jazzbar') ? -0.4 : 0, stageAt.y, has('grand') ? 'grand' : 'upright');
-    // the practice rooms
     if (has('school')) {
-      for (let i = 0; i < 3; i++) put(group(box(0.06, 2.4, 2, 0xc9d7a8)), -8 + (i + 1) * 2.6, 9);
-      put(group(box(0.5, 0.5, 0.5, 0x3a3a3a), cyl(0.15, 0.15, 0.4, 0x8a5a3a, 0, 0.5, 0)), -6.6, 10.6);
-      if (has('amps')) [[-4, 10.8], [-1.4, 10.8]].forEach(([x, z]) => put(box(0.6, 0.55, 0.35, 0x1f1b24), x, z, 0, 0, 'amps'));
-      if (has('lending')) { const sh = group(box(2.4, 2, 0.4, 0x3b2b1e)); for (let i = 0; i < 4; i++) sh.add(at(instrument(i % 2 ? 'guitar' : 'saxophone'), -0.9 + i * 0.6, 0.1, 0, 0.5 + (i % 2) * 0.6)); put(sh, -4, 6.4, 0, 0, 'lending'); }
-      if (has('board')) put(group(box(1.4, 1, 0.06, 0x26302b, 0, 1.0, 0)), -1.0, 6.2, 0, 0, 'board');
+      [-5.25, -2.75, -0.25].forEach(x => put(box(0.12, 2.4, 2, 0xc9d7a8), x, 9));
+      put(group(box(0.5, 0.5, 0.5, 0x3a3a3a), cyl(0.15, 0.15, 0.4, 0x8a5a3a, 0, 0.5, 0)), -6.5, 10.5);
     }
-    // the community hall
     if (has('hall')) {
-      put(box(4.5, 0.3, 1.6, 0x6b4a2e), 16, 5.0);
-      put(table(false, 4), 13.6, 1.8); put(table(false, 4), 18.4, 1.8);
-      if (has('floor')) { for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const t = box(0.9, 0.05, 0.9, (i + j) % 2 ? 0xd4a5a5 : 0xf2cc8f, 0, 0, 0, mat((i + j) % 2 ? 0xd4a5a5 : 0xf2cc8f, { emissive: 0x000000 }).clone()); at(t, 14.6 + i * 0.95, 2.4 + j * 0.95); t.userData.k = i + j; tiles.push(t); world.add(t); } }
+      put(box(4.8, 0.3, 1.8, 0x6b4a2e), 16, 5.0);
+      if (has('floor')) { for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const t = box(0.95, 0.05, 0.95, 0, 0, 0, 0, mat((i + j) % 2 ? 0xd4a5a5 : 0xf2cc8f).clone()); at(t, 14.5 + i, 1 + j); t.userData.k = i + j; t.receiveShadow = true; tiles.push(t); world.add(t); } }
       if (has('bunting')) { const b = group(); for (let i = 0; i < 14; i++) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.35, 3), mat(HUES[i % HUES.length])); f.position.set(12.4 + i * 0.55, 2.2 - Math.sin((i / 13) * Math.PI) * 0.3, 3); f.rotation.x = Math.PI; b.add(f); } world.add(b); }
-      if (has('coats')) put(group(cyl(0.04, 0.04, 1.8, 0x5a3d26), ball(0.25, 0x8a4c24, 0.15, 1.4, 0), ball(0.25, 0x3d85c6, -0.15, 1.3, 0.05)), 19.4, 0.6, 0, 0, 'coats');
     }
-    // the glasshouse
-    if (has('roof')) {
-      put(potPlant('monstera', 1.4), 1.2, 18); put(potPlant('fern', 1.3), 10.8, 15);
-      put(table(true, 2, 0xd9d2c3), 6, 16.5);
-      if (has('lemons')) [[2.5, 15.2], [9.5, 18], [4, 18.2]].forEach(([x, z]) => put(potPlant('lemon', 1.6), x, z, 0, 0, 'lemons'));
-      if (has('scope')) { const s = group(cyl(0.03, 0.03, 1.2, 0x555555), box(0.18, 0.18, 1.2, 0xc9b27c, 0, 1.3, 0)); s.children[1].rotation.x = -0.6; put(s, 10.8, 18.2, 0.5, 0, 'scope'); }
-      if (has('hammocks')) { const hm = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.12, 6, 16, Math.PI), mat(0xe9c46a)); hm.rotation.set(Math.PI, 0, 0); hm.position.y = 1.0; put(group(hm, cyl(0.05, 0.05, 1.3, 0x6d4c33, 0.9), cyl(0.05, 0.05, 1.3, 0x6d4c33, -0.9)), 7.5, 18.4, 0, 0, 'hammocks'); seats.push({ x: 7.5, z: 18.4, face: 0, taken: null }); }
-    }
-    // the studio
     if (has('studio')) {
-      put(group(box(2.2, 0.8, 0.9, 0x2b2b33), box(2.0, 0.05, 0.6, 0x9aa3ad, 0, 0.82, 0)), 15, 7.4);
-      put(box(0.06, 2.4, 3, 0x7aa6b8, 0, 0, 0, { transparent: true, opacity: 0.4 }), 17, 9.5);
-      if (has('tape')) { const t = group(box(0.9, 1.1, 0.6, 0x3a3a3a)); [-0.22, 0.22].forEach(x => { const r = cyl(0.18, 0.18, 0.04, 0xaaaaaa, x, 0.7, -0.31, 14); r.rotation.x = Math.PI / 2; t.add(r); }); put(t, 13.2, 10.8, Math.PI, 0, 'tape'); }
-      if (has('booth')) put(group(box(1.8, 2.3, 0.06, 0x2c3e4a), cyl(0.02, 0.02, 1.5, 0x888888, 0, 0, 0.6), ball(0.07, 0x999999, 0, 1.55, 0.6)), 18.8, 11.4, 0, 0, 'booth');
-      if (has('gold')) { const g = group(); for (let i = 0; i < 5; i++) { const d = cyl(0.28, 0.28, 0.03, 0xe6b422, -1.2 + i * 0.6, 1.4 + (i % 2) * 0.5, 0); d.rotation.x = Math.PI / 2; g.add(d); } put(g, 16, 11.85, Math.PI, 0, 'gold'); }
+      put(group(box(2.2, 0.8, 0.9, 0x2b2b33), box(2.0, 0.05, 0.6, 0x9aa3ad, 0, 0.82, 0)), 15, 7.25);
+      put(box(0.1, 2.4, 2.5, 0x7aa6b8, 0, 0, 0, { transparent: true, opacity: 0.4 }), 17, 9.25);
+      if (has('booth')) put(group(box(2.3, 2.3, 0.06, 0x2c3e4a, 0, 0, 0.6), box(0.06, 2.3, 1.2, 0x2c3e4a, -1.15, 0, 0), cyl(0.02, 0.02, 1.5, 0x888888, 0, 0, 0), ball(0.07, 0x999999, 0, 1.55, 0)), 18.75, 11.2, 0, 0, 'booth');
+      if (has('gold')) { const g = group(box(3.4, 1.6, 0.08, 0x2b2238, 0, 0.8, 0.1)); for (let i = 0; i < 5; i++) { const d = cyl(0.28, 0.28, 0.03, 0xe6b422, -1.3 + i * 0.65, 1.4 + (i % 2) * 0.5, 0); d.rotation.x = Math.PI / 2; g.add(d); } put(g, 15.25, 11.85, 0, 0, 'gold'); }
     }
+    // the pieces placed in build mode
+    live(club).forEach(([uid, p]) => {
+      const [x0, z0, x1, z1] = footprint(p.k, p.x, p.z, p.r);
+      const g = collect(pieceModel(p.k));
+      g.userData.uid = uid;
+      put(g, (x0 + x1) / 2 * CELL, (z0 + z1) / 2 * CELL, -p.r * Math.PI / 2, 0, p.k);
+      pieces.set(uid, g);
+    });
+    // the band, on the jazz bar's stage once it is built, otherwise on the café's rug
+    stageAt = has('jazzbar') ? { x: 4.25, z: 12.5, y: 0.4, w: 6, dir: Math.PI } : { x: 1.75, z: 4.5, y: 0.04, w: 2.2, dir: Math.PI };
   }
-  function collect(g) { g.traverse(o => { if (o.userData && o.userData.twinkle !== undefined) twinkles.push(o); }); return g; }
+  function collect(g) { g.traverse(o => { const u = o.userData || {}; if (u.twinkle !== undefined) twinkles.push(o); if (u.fire) fires.push(o); if (u.sway !== undefined) sway.push(o); }); return g; }
 
-  /* real trees, kelp and bottles (plantings() from the garden): in the courtyard once built, along the pavement before */
-  function plantReal(list, club) {
-    const yard = owns(club, 'courtyard');
-    const spots = yard ? [[-7.2, 0.8], [-5.8, 0.6], [-4.4, 0.8], [-1.0, 0.8], [-7.4, 5.4], [-5.2, 5.5], [-1.2, 3.2], [-3.8, 3.6], [-6.4, 3.3], [-2.2, 5.6]] : [[-0.6, -1.4], [1.2, -1.4], [3, -1.4], [5, -1.4], [6.8, -1.4], [8.6, -1.4], [10.4, -1.4], [12.2, -1.4]];
+  /* real trees, kelp and bottles (plantings() from the garden) along the pavement, when the island isn't there */
+  function plantReal(list) {
+    const yard = false, spots = [[-6.6, -1.4], [-4.8, -1.4], [-3, -1.4], [-0.6, -1.4], [1.2, -1.4], [6.8, -1.4], [8.6, -1.4], [10.4, -1.4], [12.2, -1.4], [14, -1.4]];
     let ponds = 0;
     list.slice(0, spots.length).forEach((p, i) => {
       const [x, z] = spots[i];
@@ -288,11 +224,11 @@ export function Club3D({ onRoom } = {}) {
   function draw(m) {
     model = m;
     clear(world); clear(bandG);
-    walls = []; seats = []; stands = []; lamps = []; beams = []; twinkles = []; sway = []; tiles = []; fires = [];
+    walls = []; seats = []; stands = []; lamps = []; beams = []; twinkles = []; sway = []; tiles = []; fires = []; pieces.clear();
     Object.keys(ROOMS3D).forEach(id => { const g = room(id, owns(m.club, id)); g.userData.room = id; world.add(g); });
     furnish(m.club);
     // the real trees, kelp and bottles: on the island around the club when it is there, else by the club
-    if (island) { if (island.update) island.update(m.plants || []); } else plantReal(m.plants || [], m.club);
+    if (island) { if (island.update) island.update(m.plants || []); } else plantReal(m.plants || []);
     // a big sign over the café door, lit
     const sign = group(box(3.2, 0.6, 0.12, 0x2b2238, 0, 2.5, -0.1));
     for (let i = 0; i < 8; i++) { const b = ball(0.07, 0xf6d743, -1.4 + i * 0.4, 2.8, -0.18, 0, glow(0xf6d743)); b.userData.twinkle = 100 + i; twinkles.push(b); sign.add(b); }
@@ -300,27 +236,27 @@ export function Club3D({ onRoom } = {}) {
     // standing spots: the free floor of each built room
     Object.keys(ROOMS3D).filter(id => owns(m.club, id)).forEach(id => {
       const [x0, z0, x1, z1] = ROOMS3D[id];
-      for (let x = x0 + 0.9; x < x1 - 0.6; x += 1.1) for (let z = z0 + 0.9; z < z1 - 0.6; z += 1.1) {
-        if (seats.some(s => Math.hypot(s.x - x, s.z - z) < 1.0)) continue;
-        if (stageAt && Math.abs(x - stageAt.x) < stageAt.w / 2 + 0.4 && Math.abs(z - stageAt.z) < 1.6) continue;
-        if (id === 'jazzbar' && x > 9.2) continue;
+      for (let x = x0 + 0.75; x < x1 - 0.5; x += 1) for (let z = z0 + 0.75; z < z1 - 0.5; z += 1) {
+        if (seats.some(s => Math.hypot(s.x - x, s.z - z) < 0.8)) continue;
+        if (!fits(m.club, 'chair', Math.floor(x / CELL), Math.floor(z / CELL), 0).ok) continue; // a piece or a built-in there
         stands.push({ x, z, room: id, taken: null });
       }
     });
     // the band
     const players = [{ role: 'guitar', id: 'you' }].concat((m.band || []).filter(b => b.level > 0));
-    const hasPiano = !!world.children.find(c => c.userData.item === 'grand' || c.userData.item === 'upright');
+    const piano = world.children.find(c => c.userData.item === 'grand') || world.children.find(c => c.userData.item === 'upright');
     players.forEach((b, i) => {
       const n = players.length, x = stageAt.x - stageAt.w / 2 + 0.4 + (stageAt.w - 0.8) * (n === 1 ? 0.5 : i / (n - 1));
       const p = person(500 + i, { shirt: [0x2b2238, 0xc94c4c, 0x3d85c6, 0x6c9a8b, 0xe9c46a, 0xc77dff, 0xf4a261][i % 7], pants: 0x1a1a22 });
       p.userData.role = b.role;
       at(p, x, stageAt.z + (i % 2 ? 0.3 : -0.2), stageAt.dir, stageAt.y);
-      if (b.role === 'piano' && hasPiano) p.position.x = stageAt.x + stageAt.w / 2 - 0.2; // at the piano
+      if (b.role === 'piano' && piano) { const f = piano.rotation.y; at(p, piano.position.x - Math.sin(f) * 0.9, piano.position.z - Math.cos(f) * 0.9, f, 0); } // at the piano, wherever it stands
       else p.add(instrument(b.role));
       bandG.add(p);
     });
     frameOwned(m.club);
-    if (!stage.flying) Object.assign(view, home);
+    if (building) { drawGrid(); if (ghostOf) { const g = ghostOf; ghost = null; ghostAt(g.k, g.x, g.z, g.r, g.uid); } pick(picked); }
+    if (!stage.flying && !building) Object.assign(view, home);
     spawnCrowd(m.guests || 0, false);
   }
 
@@ -383,6 +319,95 @@ export function Club3D({ onRoom } = {}) {
   }
 
 
+  /* ---------- build mode: a grid over the rooms, a ghost to place, pieces to pick ----------
+     onBuild({ type: 'ghost', k, x, z, r, uid, ok, why }) as the ghost moves, ({ type: 'select', uid }) when a
+     piece is tapped (uid null: nothing). */
+  let building = false, ghostOf = null, ghost = null, picked = null, ring = null;
+  const gridG = new THREE.Group(), ghostG = new THREE.Group();
+  gridG.visible = false;
+  scene.add(gridG, ghostG);
+  function drawGrid() {
+    clear(gridG);
+    if (!model) return;
+    const pts = [];
+    ROOMS.filter(r => owns(model.club, r.id)).forEach(r => {
+      const [x0, z0, x1, z1] = r.rect;
+      for (let x = x0; x <= x1 + 1e-6; x += CELL) pts.push(x, 0.07, z0, x, 0.07, z1);
+      for (let z = z0; z <= z1 + 1e-6; z += CELL) pts.push(x0, 0.07, z, x1, 0.07, z);
+      (BUILT_IN[r.id] || []).forEach(([a, b, c, d, keep]) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(c - a, d - b), new THREE.MeshBasicMaterial({ color: keep ? 0xf2cc8f : 0x2b2238, transparent: true, opacity: keep ? 0.3 : 0.18, depthWrite: false }));
+        m.rotation.x = -Math.PI / 2; m.position.set((a + c) / 2, 0.08, (b + d) / 2); gridG.add(m);
+      });
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    gridG.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })));
+  }
+  function setBuild(on) {
+    building = !!on;
+    gridG.visible = building; people.visible = !building;
+    if (building) { drawGrid(); flyTo({ dist: Math.max(12, home.dist * 0.75), pitch: 1.05 }, 700); }
+    else { endGhost(); pick(null); }
+  }
+  /* the ghost of kind k at cell (x, z) turned r; uid: the piece being moved (hidden meanwhile) */
+  function ghostAt(k, x, z, r = 0, uid = null) {
+    if (ghostOf && ghostOf.uid && ghostOf.uid !== uid && pieces.get(ghostOf.uid)) pieces.get(ghostOf.uid).visible = true;
+    if (!ghost || !ghostOf || ghostOf.k !== k || ghostOf.r !== r) {
+      clear(ghostG);
+      ghost = pieceModel(k);
+      ghost.traverse(o => { if (o.isMesh) { o.castShadow = false; o.userData.ghost = true; } });
+      const it = itemOf(k), w = (r % 2 ? it.d : it.w) * CELL, d = (r % 2 ? it.w : it.d) * CELL;
+      const pad = new THREE.Mesh(new THREE.PlaneGeometry(w, d), PAD.ok);
+      pad.rotation.x = -Math.PI / 2; pad.position.y = 0.1; pad.userData.pad = true;
+      ghost.rotation.y = -r * Math.PI / 2;
+      ghostG.add(ghost, pad);
+    }
+    if (uid && pieces.get(uid)) pieces.get(uid).visible = false;
+    const f = footprint(k, x, z, r), cx = (f[0] + f[2]) / 2 * CELL, cz = (f[1] + f[3]) / 2 * CELL;
+    const fit = fits(model.club, k, x, z, r, uid);
+    ghostG.children.forEach(o => { o.position.x = cx; o.position.z = cz; });
+    ghost.traverse(o => { if (o.isMesh) o.material = fit.ok ? GHOST.ok : GHOST.no; });
+    ghostG.children[1].material = fit.ok ? PAD.ok : PAD.no;
+    ghostOf = { k, x, z, r, uid, ok: fit.ok, why: fit.why };
+    if (onBuild) onBuild(Object.assign({ type: 'ghost' }, ghostOf));
+    return ghostOf;
+  }
+  /* the ghost centred on a point of the ground */
+  function ghostTo(p) {
+    const it = itemOf(ghostOf.k), w = ghostOf.r % 2 ? it.d : it.w, d = ghostOf.r % 2 ? it.w : it.d;
+    const x = Math.round(p.x / CELL - w / 2), z = Math.round(p.z / CELL - d / 2);
+    if (x !== ghostOf.x || z !== ghostOf.z) ghostAt(ghostOf.k, x, z, ghostOf.r, ghostOf.uid);
+  }
+  /* a quarter turn about the ghost's middle */
+  function turn() {
+    if (!ghostOf) return null;
+    const { k, x, z, r, uid } = ghostOf, f = footprint(k, x, z, r), r2 = (r + 1) % 4;
+    const it = itemOf(k), w = r2 % 2 ? it.d : it.w, d = r2 % 2 ? it.w : it.d;
+    return ghostAt(k, Math.round((f[0] + f[2] - w) / 2), Math.round((f[1] + f[3] - d) / 2), r2, uid);
+  }
+  function endGhost() {
+    if (ghostOf && ghostOf.uid && pieces.get(ghostOf.uid)) pieces.get(ghostOf.uid).visible = true;
+    clear(ghostG); ghost = null; ghostOf = null;
+  }
+  /* a piece picked: a ring of light around it */
+  function pick(uid) {
+    picked = uid && pieces.get(uid) ? uid : null;
+    if (ring) { scene.remove(ring); ring.geometry.dispose(); ring = null; }
+    if (!picked) return;
+    const g = pieces.get(picked), box3 = new THREE.Box3().setFromObject(g), size = box3.getSize(new THREE.Vector3());
+    ring = new THREE.Mesh(new THREE.RingGeometry(Math.max(size.x, size.z) * 0.55 + 0.1, Math.max(size.x, size.z) * 0.55 + 0.22, 32), new THREE.MeshBasicMaterial({ color: 0xf6d743, transparent: true, opacity: 0.9, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(g.position.x, 0.12, g.position.z);
+    scene.add(ring);
+  }
+  function buildTap(p, e) {
+    if (ghostOf) { ghostTo(p); return; }
+    const hits = stage.rayAt(e.clientX, e.clientY).intersectObjects([...pieces.values()], true);
+    let uid = null;
+    for (const h of hits) { let o = h.object; while (o && !o.userData.uid) o = o.parent; if (o) { uid = o.userData.uid; break; } }
+    pick(uid);
+    if (onBuild) onBuild({ type: 'select', uid });
+  }
+
   /* ---------- the loop ---------- */
   let showing = false;
   const camDir = new THREE.Vector3();
@@ -403,6 +428,7 @@ export function Club3D({ onRoom } = {}) {
     fires.forEach(f => { f.scale.setScalar(0.85 + Math.sin(t * 13) * 0.08 + Math.sin(t * 7) * 0.07); });
     tiles.forEach(tl => { tl.material.emissive.setHex(want > 0 && Math.floor(t * 2 + tl.userData.k) % 3 === 0 ? 0x553311 : 0x000000); });
     beams.forEach(b => { b.material.opacity += ((showing ? 0.22 : want > 0 ? 0.1 : 0.03) - b.material.opacity) * Math.min(1, dt * 3); });
+    if (ring) ring.material.opacity = 0.6 + 0.35 * Math.sin(t * 5);
     lamps.forEach(l => { l.intensity += ((want > 0 || showing ? 16 : 7) - l.intensity) * Math.min(1, dt * 2); });
   });
 
@@ -452,7 +478,8 @@ export function Club3D({ onRoom } = {}) {
   }
   function stop() { show.token = null; showing = false; }
   function celebrate(id) {
-    const item = world.children.find(c => c.userData.item === id);
+    const item = pieces.get(id) || world.children.find(c => c.userData.item === id);
+    if (building && item) { stage.pop(item); burst(item.position.x, 1, item.position.z, 14); return; }
     const b = ROOMS3D[id];
     let x, z;
     if (b) { x = (b[0] + b[2]) / 2; z = (b[1] + b[3]) / 2; } else if (item) { x = item.position.x; z = item.position.z; } else { x = 4; z = 3; }
@@ -461,5 +488,12 @@ export function Club3D({ onRoom } = {}) {
     flyTo({ cx: x, cz: z - 1, dist: Math.max(12, Math.min(20, view.dist)), pitch: 0.9 }, 700).then(() => burst(x, 1.5, z, 30));
   }
   function dispose() { show.token = null; stage.dispose(); }
-  return { el, draw, show, stop, celebrate, snapshot: w => stage.snapshot(w), dispose, ready: islandReady, home: () => stage.goHome(700) };
+  return {
+    el, draw, show, stop, celebrate, snapshot: w => stage.snapshot(w), dispose, ready: islandReady, home: () => stage.goHome(700),
+    build: { on: setBuild, ghost: ghostAt, turn, end: endGhost, pick, get state() { return ghostOf; }, get picked() { return picked; } },
+    /* the cell in the middle of the view (where a new piece's ghost starts) */
+    centre: () => ({ x: view.cx, z: view.cz }),
+    /* look closer at a point (metres), as when a piece is picked up */
+    focus: (x, z, dist = 13) => flyTo({ cx: x, cz: z, dist: Math.min(view.dist, dist) }, 600)
+  };
 }

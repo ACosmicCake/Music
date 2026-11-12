@@ -253,13 +253,22 @@ describe('loading a save from every past format', () => {
     expect(s.settings.tuning).toBe('dropd');
     expect(s.games).toEqual(saved.games);
   });
-  it('schema 13 (current): the club, its nights and what was built load as saved', async () => {
+  it('schema 13: the club and its nights load, and amenities bought become pieces placed', async () => {
     const saved = JSON.parse(fixture(13));
     localStorage.setItem(LS_KEY, fixture(13));
     const E = await boot();
     const s = E.state;
     expect(s.schema).toBe(SCHEMA);
-    expect(s.club).toEqual(saved.club);
+    expect(s.club.nights).toEqual(saved.club.nights);
+    Object.keys(saved.club.bought).forEach(k => expect(k in s.club.bought || Object.values(s.club.placed).some(p => p.k === k), k).toBe(true));
+    expect(Object.keys(s.club.placed).some(u => u.startsWith('s:cafe:'))).toBe(true);
+  });
+  it('schema 14 (current): the club with its placed pieces loads as saved', async () => {
+    const saved = JSON.parse(fixture(14));
+    localStorage.setItem(LS_KEY, fixture(14));
+    const E = await boot();
+    expect(E.state.schema).toBe(SCHEMA);
+    expect(E.state.club).toEqual(saved.club);
   });
   it('schema 11 gets empty setting times', async () => {
     localStorage.setItem(LS_KEY, fixture(11));

@@ -67,13 +67,13 @@ describe('tips and building', () => {
     expect(C.canBuy(club, 'lights', 0).ok).toBe(false);
     expect(C.canBuy(club, 'roof', 999).why).toMatch(/tips/);
   });
-  it('amenities add their effects only with their room', () => {
+  it('fixtures add their effects only with their room', () => {
     const club = C.openClub({}, {}, T0);
-    club.bought = { oven: 1 };
-    expect(C.effects(club).tip).toBe(0);
+    club.bought = { herbs: 1 };
+    expect(C.effects(club).draw).toBe(0);
     club.bought.kitchen = 1;
-    expect(C.effects(club).tip).toBeCloseTo(0.35);
-    expect(C.effects(club).seats).toBe(20);
+    expect(C.effects(club).draw).toBeCloseTo(0.03);
+    expect(C.effects(club).tip).toBeCloseTo(0.2);
   });
   it('suggests something to aim for', () => {
     const club = C.openClub({}, {}, T0);
@@ -128,7 +128,8 @@ describe('two devices', () => {
     const m = C.mergeClub(a, b);
     expect(m.start).toBe('2026-11-12');
     expect(m.nights['2026-11-12']).toEqual({ m: 45, c: 2, crowd: 12, t: 46, g: { drums: 30, bass: 10 } });
-    expect(m.bought).toEqual({ lights: 3, chairs: 9 });
+    expect(m.bought).toEqual({ lights: 3 });
+    expect(m.placed['a:chairs']).toMatchObject({ k: 'chairs', t: 9 });
     expect(C.mergeClub(undefined, b)).toEqual(C.clean(b));
   });
   it('the progress merge keeps the club, and unknown purchases from a newer app are dropped safely', () => {
@@ -139,5 +140,62 @@ describe('two devices', () => {
     const out = merge(local, remote);
     expect(out.club.bought).toEqual({ lights: 1 });
     expect(out.club.start).toBe('2026-11-12');
+  });
+});
+
+describe('build mode', () => {
+  const rich = () => { const c = C.openClub({}, {}, T0); c.nights = { '2026-11-12': { m: 3000, c: 0, crowd: 0, t: 3000, g: {} } }; return c; };
+  it('a new club has its free starter pieces, which fit and cost nothing', () => {
+    const club = C.openClub({}, {}, T0);
+    const pieces = C.live(club);
+    expect(pieces.length).toBe(C.STARTERS.cafe.length);
+    pieces.forEach(([u, p]) => expect(C.fits(club, p.k, p.x, p.z, p.r, u).ok, u).toBe(true));
+    expect(C.spent(club)).toBe(0);
+    expect(C.effects(club).seats).toBe(6 + 2 + 2 + 1 + 1);
+  });
+  it('every room\'s starters and every old amenity fit together with everything built', () => {
+    const bought = {}; C.ROOMS.forEach(r => { bought[r.id] = 1; }); C.AMENITIES.forEach(a => { bought[a.id] = 1; });
+    C.CATALOG.filter(x => !C.STARTERS.cafe.some(s => s[0] === x.id) && ['chairs', 'monstera', 'chalk', 'upright', 'oven', 'table', 'olive', 'fountain', 'benches', 'pa', 'grand', 'ferns', 'amps', 'lending', 'board', 'coats', 'lemons', 'scope', 'hammocks'].includes(x.id)).forEach(x => { bought[x.id] = 2; });
+    const club = C.clean({ start: '2026-11-12', t0: 1, nights: {}, bought });
+    C.live(club).forEach(([u, p]) => expect(C.fits(club, p.k, p.x, p.z, p.r, u).ok, u).toBe(true));
+    expect(C.live(club).filter(([u]) => u.startsWith('a:'))).toHaveLength(19);
+  });
+  it('places, blocks overlaps and walls, moves, turns and sells for a full refund', () => {
+    const club = rich(), money = C.balance(club);
+    expect(C.fits(club, 'sofa', -10, 2, 0).ok).toBe(false);                 // outside the café
+    expect(C.fits(club, 'sofa', 1, 8, 0).why).toMatch(/built in/);        // on the rug stage
+    expect(C.fits(club, 'sofa', 1, 1, 0).why).toMatch(/in the way/);      // on the first bistro table
+    expect(C.fits(club, 'rug', 1, 1, 0).ok).toBe(true);                   // a rug goes under it
+    const r = C.place(club, 'sofa', 6, 7, 0, T0 + 1);
+    expect(r.ok).toBe(true);
+    expect(C.balance(club)).toBe(money - 80);
+    expect(C.effects(club).seats).toBe(12 + 3);
+    expect(C.move(club, r.uid, 14, 0, 1, T0 + 2).ok).toBe(true);
+    expect(C.footprint('sofa', 14, 0, 1)).toEqual([14, 0, 16, 4]);
+    expect(C.sell(club, r.uid, T0 + 3).refund).toBe(80);
+    expect(C.balance(club)).toBe(money);
+    expect(club.placed[r.uid].gone).toBe(1);
+    expect(C.sell(club, 's:cafe:0', T0 + 4).refund).toBe(0);
+  });
+  it('one of a unique piece, a room\'s pieces wait for the room, and effects count once per kind', () => {
+    const club = rich();
+    expect(C.buy(club, 'upright', 0).ok).toBe(true);
+    expect(C.canPlace(club, 'upright').why).toMatch(/one/);
+    expect(C.canPlace(club, 'oven').why).toMatch(/Kitchen/);
+    const d0 = C.effects(club).draw;
+    C.buy(club, 'lamp', 0, T0 + 1); C.buy(club, 'lamp', 0, T0 + 2);
+    expect(C.effects(club).draw).toBeCloseTo(d0 + 0.01);
+    expect(C.reputation(club, {}).parts.find(p => p.id === 'decor').n).toBe(2);
+  });
+  it('two devices: each piece from the copy that changed it last, a sale kept', () => {
+    const a = rich(), b = C.clean(JSON.parse(JSON.stringify(a)));
+    C.move(a, 's:cafe:4', 1, 0, 0, T0 + 10);
+    C.sell(b, 's:cafe:0', T0 + 20);
+    const u = C.place(b, 'lamp', 15, 0, 0, T0 + 30).uid;
+    const m = C.mergeClub(a, b);
+    expect(m.placed['s:cafe:4']).toMatchObject({ x: 1, z: 0 });
+    expect(m.placed['s:cafe:0'].gone).toBe(1);
+    expect(m.placed[u].k).toBe('lamp');
+    expect(C.mergeClub(b, a)).toEqual(m);
   });
 });

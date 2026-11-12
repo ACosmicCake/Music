@@ -111,9 +111,9 @@ tool('club', {
     const hint = h('p', { class: 'small muted cl-hint', hidden: true, text: 'Drag to turn, pinch or scroll to zoom, double-tap to look at the whole club, tap a room or plot to see what goes there.' });
     const ready = load3d().then(mod => {
       if (!alive || !mod) return;
-      const s3 = mod.Club3D({ onRoom });
+      const s3 = mod.Club3D({ onRoom, onBuild: ev => { if (ev.type === 'ghost') bstate = { mode: 'ghost', g: ev }; else bstate = ev.uid ? { mode: 'picked', uid: ev.uid } : { mode: 'browse' }; drawBuildBar(); } });
       scene.stop(); scene = s3;
-      wrap.classList.add('is3d'); wrap.replaceChildren(s3.el); hint.hidden = false;
+      wrap.classList.add('is3d'); wrap.replaceChildren(s3.el); hint.hidden = false; buildBtn.hidden = false;
       s3.draw(sceneModel(m, (m.today || {}).crowd || 0));
       setTimeout(() => { if (alive) saveShot(s3.snapshot()); }, 2500);
     }).catch(e => console.error(e));
@@ -128,7 +128,117 @@ tool('club', {
     const goalBox = h('div', { class: 'cl-goal' });
     const tabs = h('div', { class: 'seg big wrap cl-tabs', role: 'group', 'aria-label': 'Club pages' });
     const panel = h('div', { class: 'stack cl-panel' });
-    body.append(h('div', { class: 'stack' }, wrap, hint, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel));
+    /* build mode (3D only): a catalogue to pick from, a ghost to place, pieces to move, turn and sell */
+    let building = false, bstate = { mode: 'browse' }, bcat = 'seat';
+    const buildBtn = h('button', { class: 'btn small cl-build-btn', hidden: true, 'aria-pressed': 'false', onclick: () => setBuilding(!building) }, '🛠 Build mode');
+    const buildBar = h('div', { class: 'cl-bb', hidden: true });
+    function setBuilding(on) {
+      building = on; buildBtn.setAttribute('aria-pressed', String(on)); buildBtn.textContent = on ? '✓ Done building' : '🛠 Build mode';
+      wrap.classList.toggle('building', on);
+      page.classList.toggle('cl-building', on);
+      if (on && scene.stop) { scene.stop(); showBtn.disabled = false; }
+      if (scene.build) scene.build.on(on);
+      if (scene.home) scene.home();
+      bstate = { mode: 'browse' }; buildBar.hidden = !on; hint.hidden = on;
+      if (on) { drawBuildBar(); requestAnimationFrame(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'start' })); }
+    }
+    const page = h('div', { class: 'stack cl-page' });
+    body.append(page);
+    page.append(h('div', { class: 'cl-stagebox' }, wrap, h('div', { class: 'cl-stagebtns' }, buildBtn)), buildBar, hint, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel);
+
+    const CAT_ICON = { seat: '🪑', table: '☕', plant: '🌿', light: '💡', music: '🎹', decor: '🖼', kitchen: '🍰' };
+    function pieceWords(it) {
+      const w = [];
+      if (it.seats) w.push(it.seats + ' seat' + (it.seats === 1 ? '' : 's'));
+      const e = effectWords(Object.assign({}, it.fx, { seats: 0 }));
+      if (e) w.push(e);
+      return w.join(' · ');
+    }
+    function drawBuildBar() {
+      if (!building) return;
+      buildBar.textContent = '';
+      const sb = scene.build;
+      if (bstate.mode === 'ghost') {
+        const g = bstate.g, it = C.itemOf(g.k), moving = !!g.uid, can = moving ? { ok: true } : C.canPlace(m.club, g.k, m.money);
+        const ok = g.ok && can.ok;
+        buildBar.append(h('div', { class: 'cl-bb-head' }, h('b', { text: (moving ? 'Moving: ' : '') + it.name }), h('span', { class: 'small ' + (ok ? 'cl-ok' : 'cl-no'), text: !can.ok ? can.why : g.ok ? '✓ Fits here' : g.why })),
+          h('p', { class: 'small muted', text: 'Tap the floor where it should go' + (matchMedia('(hover: hover)').matches ? ' (or move the mouse there)' : '') + '. R turns it, Enter puts it down.' }),
+          h('div', { class: 'row cl-bb-btns' },
+            h('button', { class: 'btn small', onclick: () => sb.turn() }, '⟳ Turn'),
+            h('button', { class: 'btn small brass', disabled: !ok, onclick: confirmGhost }, moving ? '✓ Put it here' : '✓ Buy · ' + fmt(it.cost)),
+            h('button', { class: 'btn small ghost', onclick: () => { sb.end(); bstate = { mode: 'browse' }; drawBuildBar(); } }, '✕ Cancel')));
+        return;
+      }
+      if (bstate.mode === 'picked') {
+        const p = m.club.placed[bstate.uid];
+        if (!p || p.gone) { bstate = { mode: 'browse' }; drawBuildBar(); return; }
+        const it = C.itemOf(p.k), refund = p.f ? 0 : it.cost;
+        buildBar.append(h('div', { class: 'cl-bb-head' }, h('b', { text: it.name }), h('span', { class: 'small muted', text: pieceWords(it) })),
+          h('div', { class: 'row cl-bb-btns' },
+            h('button', { class: 'btn small brass', onclick: () => sb.ghost(p.k, p.x, p.z, p.r, bstate.uid) }, '✥ Move'),
+            h('button', { class: 'btn small', onclick: () => turnPicked(bstate.uid) }, '⟳ Turn'),
+            h('button', { class: 'btn small ghost', onclick: () => sellPicked(bstate.uid) }, refund ? 'Sell · +' + fmt(refund) : 'Take away'),
+            h('button', { class: 'btn small ghost', onclick: () => { sb.pick(null); bstate = { mode: 'browse' }; drawBuildBar(); } }, '✕')));
+        return;
+      }
+      const cats = h('div', { class: 'seg cl-bb-cats', role: 'group', 'aria-label': 'Kinds of piece' });
+      C.CATS.forEach(([id, label]) => cats.append(h('button', { 'aria-pressed': String(bcat === id), onclick: () => { bcat = id; drawBuildBar(); } }, CAT_ICON[id] + ' ' + label)));
+      const strip = h('div', { class: 'cl-bb-strip' });
+      C.CATALOG.filter(x => x.cat === bcat).forEach(it => {
+        const can = C.canPlace(m.club, it.id, m.money);
+        strip.append(h('button', { class: 'cl-bb-card' + (can.ok ? '' : ' off'), disabled: !can.ok && !/tips/.test(can.why) ? true : null, onclick: () => startPlace(it.id), 'aria-label': it.name + ', ' + it.cost + ' tips' },
+          h('span', { class: 'cl-bb-ico', 'aria-hidden': 'true', text: CAT_ICON[it.cat] }),
+          h('b', { class: 'small', text: it.name }),
+          h('span', { class: 'small mono', text: '🪙 ' + fmt(it.cost) }),
+          h('span', { class: 'small muted', text: can.ok ? pieceWords(it) || 'Just for looks' : can.why })));
+      });
+      buildBar.append(h('div', { class: 'cl-bb-head' }, h('b', { text: 'Build' }), h('span', { class: 'small muted', text: '🪙 ' + fmt(m.money) + ' to spend · tap a piece in the club to move, turn or sell it' })), cats, strip,
+        h('p', { class: 'small muted', text: 'Seats add up for every piece; other effects count once for each kind. Selling gives the whole price back, so try things out.' }));
+    }
+    function startPlace(k) {
+      const can = C.canPlace(m.club, k, m.money);
+      if (!can.ok) { toast(can.why); return; }
+      const c = scene.centre(), roomHere = (C.ROOMS.find(r => C.owns(m.club, r.id) && c.x >= r.rect[0] && c.x <= r.rect[2] && c.z >= r.rect[1] && c.z <= r.rect[3]) || {}).id;
+      const at = C.freeSpot(m.club, k, roomHere || C.itemOf(k).room || 'cafe') || { x: Math.round(c.x / C.CELL), z: Math.round(c.z / C.CELL), r: 0 };
+      const g = scene.build.ghost(k, at.x, at.z, at.r), f = C.footprint(k, g.x, g.z, g.r);
+      scene.focus((f[0] + f[2]) / 2 * C.CELL, (f[1] + f[3]) / 2 * C.CELL);
+    }
+    function confirmGhost() {
+      const g = scene.build.state;
+      if (!g) return;
+      const r = g.uid ? C.move(m.club, g.uid, g.x, g.z, g.r) : C.place(m.club, g.k, g.x, g.z, g.r);
+      if (!r.ok) { toast(r.why); return; }
+      E.touch();
+      scene.build.end();
+      bstate = { mode: 'browse' };
+      refresh();
+      scene.celebrate(g.uid || r.uid);
+      if (!g.uid) toast('Added ' + C.itemOf(g.k).name.toLowerCase().replace(/^(?=[aeiou])/, '') + '. ' + pieceWords(C.itemOf(g.k)));
+      drawBuildBar();
+    }
+    function turnPicked(uid) {
+      const p = m.club.placed[uid], it = C.itemOf(p.k), f = C.footprint(p.k, p.x, p.z, p.r), r2 = (p.r + 1) % 4;
+      const w = r2 % 2 ? it.d : it.w, d = r2 % 2 ? it.w : it.d;
+      const r = C.move(m.club, uid, Math.round((f[0] + f[2] - w) / 2), Math.round((f[1] + f[3] - d) / 2), r2);
+      if (!r.ok) { toast('It can\'t turn here: ' + r.why.toLowerCase() + '. Move it first.'); return; }
+      E.touch(); refresh(); scene.build.pick(uid); drawBuildBar();
+    }
+    function sellPicked(uid) {
+      const r = C.sell(m.club, uid);
+      if (!r.ok) return;
+      E.touch(); bstate = { mode: 'browse' }; refresh(); drawBuildBar();
+      toast(r.refund ? '+' + fmt(r.refund) + ' tips back' : 'Taken away');
+    }
+    const onKey = e => {
+      if (!building || e.target.closest('input, textarea, select') || document.querySelector('dialog[open]')) return;
+      const sb = scene.build;
+      if (bstate.mode === 'ghost') {
+        if (e.key === 'r' || e.key === 'R') { sb.turn(); e.preventDefault(); } else if (e.key === 'Enter') { confirmGhost(); e.preventDefault(); } else if (e.key === 'Escape') { sb.end(); bstate = { mode: 'browse' }; drawBuildBar(); e.preventDefault(); e.stopPropagation(); }
+      } else if (bstate.mode === 'picked') {
+        if (e.key === 'r' || e.key === 'R') { turnPicked(bstate.uid); e.preventDefault(); } else if (e.key === 'm' || e.key === 'M') { const p = m.club.placed[bstate.uid]; sb.ghost(p.k, p.x, p.z, p.r, bstate.uid); e.preventDefault(); } else if (e.key === 'Delete' || e.key === 'Backspace') { sellPicked(bstate.uid); e.preventDefault(); } else if (e.key === 'Escape') { sb.pick(null); bstate = { mode: 'browse' }; drawBuildBar(); e.preventDefault(); e.stopPropagation(); }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
 
     function refresh(keepScene) {
       m = model();
@@ -176,18 +286,26 @@ tool('club', {
         const own = C.owns(m.club, r.id);
         const card = h('details', { class: 'card cl-room-card' + (own ? ' own' : ''), 'data-room-card': r.id, open: openRoom === r.id || (own && r.id === 'cafe' && !openRoom) ? true : null });
         const ams = C.AMENITIES.filter(a => a.room === r.id), have = ams.filter(a => C.owns(m.club, a.id)).length;
+        const opens = C.CATALOG.filter(x => (x.room || 'cafe') === r.id);
         card.append(h('summary', {}, h('span', { class: 'stack', style: { gap: '1px' } }, h('b', { text: r.name }),
-          h('span', { class: 'small muted', text: own ? have + ' of ' + ams.length + ' amenities' + effectWords(r.fx, ' · ') : r.need > m.rep.total ? 'Needs ' + r.need + ' ★ and ' + fmt(r.cost) + ' tips' : fmt(r.cost) + ' tips' })),
+          h('span', { class: 'small muted', text: own ? (ams.length ? have + ' of ' + ams.length + ' fixtures' : 'Built') + effectWords(r.fx, ' · ') : r.need > m.rep.total ? 'Needs ' + r.need + ' ★ and ' + fmt(r.cost) + ' tips' : fmt(r.cost) + ' tips' })),
         own ? h('span', { class: 'cl-badge', text: '✓' }) : ''));
         card.append(h('p', { class: 'small', text: r.about }));
+        if (opens.length) card.append(h('p', { class: 'small muted', text: (own ? 'Opened for build mode: ' : 'Opens for build mode: ') + opens.map(x => x.name.toLowerCase()).join(', ') + '.' }));
         if (!own) card.append(buyRow(r));
         else ams.forEach(a => card.append(buyRow(a)));
         panel.append(card);
       });
+      // furniture, plants and decor: build mode in 3D, a plain list without it
+      const mine = C.live(m.club).length, fc = h('div', { class: 'card' }, h('h3', { text: 'Furniture, plants and decor' }),
+        h('p', { class: 'small', text: 'You have ' + mine + ' piece' + (mine === 1 ? '' : 's') + ' in the club. Every chair, sofa and bench is a seat for one more guest; plants, lights and music bring more people in.' }));
+      if (scene.build) fc.append(h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { if (!building) setBuilding(true); wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, '🛠 Open build mode')));
+      else C.CATALOG.forEach(it => { const can = C.canPlace(m.club, it.id, m.money); fc.append(h('div', { class: 'cl-buy' }, h('span', { class: 'stack', style: { gap: '1px' } }, h('span', { text: CAT_ICON[it.cat] + ' ' + it.name }), h('span', { class: 'small muted', text: fmt(it.cost) + ' tips · ' + (pieceWords(it) || 'just for looks') })), h('button', { class: 'btn small ' + (can.ok ? 'brass' : 'ghost'), disabled: !can.ok, onclick: () => doBuy(it) }, can.ok ? 'Buy · ' + fmt(it.cost) : can.why))); });
+      panel.append(fc);
     }
     function effectWords(fx, lead = '') {
       const w = [];
-      if (fx.seats) w.push('+' + fx.seats + ' seats');
+      if (fx.seats) w.push('+' + fx.seats + ' places');
       if (fx.tip) w.push('+' + Math.round(fx.tip * 100) + '% tips');
       if (fx.draw) w.push('+' + Math.round(fx.draw * 100) + ' guests per 100 minutes');
       if (fx.slots) w.push('+' + fx.slots + ' on the set list');
@@ -208,7 +326,7 @@ tool('club', {
       if (C.isRoom(x.id)) openRoom = x.id;
       refresh();
       drawPanel();
-      scene.celebrate(x.id);
+      scene.celebrate(r.uid || x.id);
       toast((C.isRoom(x.id) ? 'Built ' : 'Added ') + x.name.replace(/^The /, 'the ') + '!');
     }
 
@@ -290,7 +408,7 @@ tool('club', {
     const n = m.today, was = seen();
     if (n && n.crowd > 0 && !(was.day === C.dayKey() && was.crowd >= n.crowd)) ready.then(() => setTimeout(() => playShow(Object.assign({ day: C.dayKey() }, n), false), 600));
     const offL = onLedger(() => { if (alive) { refresh(); drawPanel(); } });
-    return () => { alive = false; scene.stop(); if (scene.dispose) scene.dispose(); offL(); };
+    return () => { alive = false; document.removeEventListener('keydown', onKey, true); scene.stop(); if (scene.dispose) scene.dispose(); offL(); };
   }
 });
 

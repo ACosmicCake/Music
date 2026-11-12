@@ -5,13 +5,13 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 13;
+export const SCHEMA = 14;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
 export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder', 'readingClickVol', 'readingZoom'];
 
 import { mergeGames } from './games.js';
-import { mergeClub } from './club.js';
+import { mergeClub, clean as cleanClub } from './club.js';
 
 const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -108,7 +108,14 @@ const MIGRATIONS = {
   },
   // 12 → 13: the Club (src/club.js), opened by the app when it starts (initClub), so nothing to add here:
   // practice from before it opens never counts
-  13(s) { return s; }
+  13(s) { return s; },
+  // 13 → 14: the Club's build mode. Amenities bought before become pieces placed where they stood, and every
+  // built room gets its free starter pieces (clean in src/club.js, with fixed ids so two devices agree)
+  14(s) {
+    const c = cleanClub(s.club);
+    if (c) s.club = c;
+    return s;
+  }
 };
 /* Sight-reading levels renumbered: each level's progress (skill items L<n>:rhythm|melody), tempos
    (settings.readingBpm r<n>/m<n>) and kept pieces (readLib) move by map (old → new; levels not in it keep

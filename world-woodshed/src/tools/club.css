@@ -140,3 +140,31 @@ html.compact .cl-card { grid-template-columns: 1fr; }
 .cl3-canvas:active { cursor: grabbing; }
 .cl-hint { margin: -4px 0 0; }
 .cl-shot { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+
+/* build mode */
+.cl-stagebox { position: relative; }
+.cl-stagebtns { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.cl-build-btn { background: rgba(255, 250, 240, 0.92); color: #3b2b1e; border: 1px solid rgba(59, 43, 30, 0.25); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); }
+.cl-build-btn[aria-pressed="true"] { background: #f6d743; }
+.cl-wrap.building { outline: 3px solid #f6d743; outline-offset: -3px; }
+.cl-page > * { min-width: 0; }
+.cl-bb { min-width: 0; max-width: 100%; overflow: hidden; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.cl-bb-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.cl-bb p { margin: 0; }
+.cl-bb-btns { flex-wrap: wrap; gap: 6px; }
+.cl-ok { color: #2e7d32; font-weight: 600; }
+.cl-no { color: #c0392b; font-weight: 600; }
+.cl-bb-cats { display: flex; max-width: 100%; align-self: flex-start; gap: 4px; flex-wrap: nowrap; overflow-x: auto; border-radius: 14px; scrollbar-width: none; }
+.cl-bb-cats button { flex: 0 0 auto; font-size: 0.85rem; padding: 4px 10px; white-space: nowrap; }
+.cl-bb-strip { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.cl-bb-card { flex: 0 0 132px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--sunk, #f2efe6); color: inherit; font: inherit; cursor: pointer; }
+.cl-bb-card:hover { border-color: #c9a227; }
+.cl-bb-card.off { opacity: 0.55; }
+.cl-bb-card[disabled] { cursor: not-allowed; }
+.cl-bb-ico { font-size: 1.4rem; line-height: 1; }
+html.compact .cl-bb-card { flex-basis: 108px; padding: 6px; }
+html.compact .cl-stagebtns { top: 4px; right: 4px; }
+html.compact .cl-build-btn { font-size: 0.75rem; padding: 3px 8px; }
+.cl-building > :not(.cl-stagebox):not(.cl-bb) { display: none; }
+html.compact .seg.cl-bb-cats { flex-wrap: nowrap; }
+html.compact .seg.cl-bb-cats button { flex: 0 0 auto; }
