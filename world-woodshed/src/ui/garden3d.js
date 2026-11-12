@@ -9,7 +9,7 @@
      { kind, frac } for the sapling growing toward the next order.
    plantModel(kind, o), animalModel(id) and animate(obj, t) are the models and their own small motions.
    mountIsland(el, o) makes a Stage with the island alone, for the garden card and the island page.
-   Units are metres, y = 0 is the lawn, +z is away from the street. All the art is drawn here, original. */
+   Units are metres, y = 0 is the lawn, +z is away from the club's front. All the art is drawn here, original. */
 import { THREE, mat, group, shadows, Stage, reduced } from './lowpoly.js';
 import Eco from '../ecosystem.js';
 
@@ -195,7 +195,7 @@ export function animate(obj, t) {
 }
 
 /* ---------- the island ---------- */
-const LOT = { x0: -10, x1: 22, z0: -7, z1: 21 };            // the Club's flat ground; z0 is the street side
+const LOT = { x0: -10, x1: 22, z0: -7, z1: 21 };            // the Club's flat ground; z0 is its front
 const C = { x: 4, z: 6 }, RX = 40, RZ = 32;                   // the land's centre and radii
 const WILD = { x: -22, z: 9 };                                // where the wood starts and spreads from
 const POND = { x: -25, z: 22, r: 3.4 };                       // appears with ten trees
@@ -208,8 +208,7 @@ const coast = (a, s) => ({ x: C.x + Math.cos(a) * RX * shapeR(a, s), z: C.z + Ma
 const inside = (x, z, s = 1) => { const a = Math.atan2((z - C.z) / RZ, (x - C.x) / RX); const d = Math.hypot((x - C.x) / RX, (z - C.z) / RZ); return d < shapeR(a, s); };
 const inLot = (x, z, m = 0) => x > LOT.x0 - m && x < LOT.x1 + m && z > LOT.z0 - m && z < LOT.z1 + m;
 const nearPond = (x, z, m = 0) => Math.hypot(x - POND.x, z - POND.z) < POND.r + m;
-const onStreet = (x, z) => z < LOT.z0 && z > LOT.z0 - 6 && x > LOT.x0 - 6 && x < LOT.x1 + 6;
-const landOK = (x, z) => inside(x, z, 0.86) && !inLot(x, z, 2) && !nearPond(x, z, 2) && !onStreet(x, z);
+const landOK = (x, z) => inside(x, z, 0.86) && !inLot(x, z, 2) && !nearPond(x, z, 2);
 const shallow = (x, z) => inside(x, z, 1.32) && !inside(x, z, 1.14);
 const BOUNDS = [C.x - RX, C.x + RX, C.z - RZ, C.z + RZ];
 const TREE_SCALE = 3.4, KELP_SCALE = 3.2;
@@ -242,14 +241,14 @@ export function Island(stage, o = {}) {
   const r = Eco.rng(31);
   for (let i = 0; i < 14; i++) {
     const a = r() * Math.PI * 2, p = coast(a, 1.02 + r() * 0.05);
-    if (inLot(p.x, p.z, 4) || onStreet(p.x, p.z)) continue;
+    if (inLot(p.x, p.z, 4)) continue;
     const rock = P(ball(0.6 + r() * 0.9, PALETTE.rock), p.x, -0.1, p.z, [1, 0.6, 1]); rock.rotation.y = r() * 6; deco.add(shadows(rock));
   }
   // ground cover: bushes, flowers and tufts of grass, so a young island isn't bare
   const flowers = [0xf2d24a, 0xe07ab0, 0xffffff, 0xc77dff];
   for (let i = 0; i < 70; i++) {
     const x = BOUNDS[0] + r() * (BOUNDS[1] - BOUNDS[0]), z = BOUNDS[2] + r() * (BOUNDS[3] - BOUNDS[2]);
-    if (!inside(x, z, 0.9) || inLot(x, z, 1) || onStreet(x, z) || nearPond(x, z, 1)) continue;
+    if (!inside(x, z, 0.9) || inLot(x, z, 1) || nearPond(x, z, 1)) continue;
     const k = i % 3;
     if (k === 0) deco.add(shadows(P(ball(0.5 + r() * 0.4, i % 2 ? PALETTE.leaf2 : PALETTE.leaf3), x, 0.25, z, [1, 0.7, 1])));
     else if (k === 1) { const f = group(P(cyl(0.02, 0.02, 0.4, PALETTE.reed, 4), 0, 0.2, 0), P(ball(0.12, flowers[i % 4]), 0, 0.42, 0)); f.position.set(x, 0, z); deco.add(f); }
@@ -274,7 +273,7 @@ export function Island(stage, o = {}) {
   const aShore = Math.atan2((POND.z - C.z) / RZ, (POND.x - C.x) / RX), kelpFrom = coast(aShore + 0.15, 1.22), crateFrom = coast(aShore - 0.2, 0.99);
   const kelpAt = n => Eco.spots(n, { bounds: [C.x - RX * 1.4, C.x + RX * 1.4, C.z - RZ * 1.4, C.z + RZ * 1.4], ok: shallow, gap: 1.8, cx: kelpFrom.x, cz: kelpFrom.z, seed: 23 });
   const LITTER = 16;
-  const litterAt = (() => { const rr = Eco.rng(5), out = []; while (out.length < LITTER) { const a = rr() * Math.PI * 2, p = coast(a, 1.0 + rr() * 0.06); if (!inLot(p.x, p.z, 3) && !onStreet(p.x, p.z)) out.push({ x: p.x, z: p.z, rot: rr() * 6 }); } return out; })();
+  const litterAt = (() => { const rr = Eco.rng(5), out = []; while (out.length < LITTER) { const a = rr() * Math.PI * 2, p = coast(a, 1.0 + rr() * 0.06); if (!inLot(p.x, p.z, 3)) out.push({ x: p.x, z: p.z, rot: rr() * 6 }); } return out; })();
   const crateAt = i => ({ x: crateFrom.x + (i % 4) * 0.7, z: crateFrom.z - 1.5 + Math.floor((i % 8) / 4) * 0.55, y: Math.floor(i / 8) * 0.3 });
 
   let trees = [], sapling = null;
