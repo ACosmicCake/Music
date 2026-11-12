@@ -7,6 +7,7 @@ import { h, tool, openTool, toast, bar, TOOLS } from '../ui/core.js';
 import C from '../club.js';
 import { Scene } from '../ui/clubscene.js';
 import { plantings, onLedger } from '../ui/garden.js';
+import { fullScreen } from '../native.js';
 import './club.css';
 
 export const DEFAULT_NAME = 'The Greenhouse';
@@ -132,6 +133,23 @@ tool('club', {
     let building = false, bstate = { mode: 'browse' }, bcat = 'seat';
     const buildBtn = h('button', { class: 'btn small cl-build-btn', hidden: true, 'aria-pressed': 'false', onclick: () => setBuilding(!building) }, '🛠 Build mode');
     const buildBar = h('div', { class: 'cl-bb', hidden: true });
+    /* full screen: the scene fills the screen (the build bar beside or under it), F or ⛶, Esc or ✕ to leave */
+    let full = false;
+    const fsBtn = h('button', { class: 'btn small cl-build-btn cl-fs-btn', 'aria-label': 'Full screen', title: 'Full screen (F)', onclick: () => setFull(!full) }, '⛶');
+    function setFull(on) {
+      if (on === full) return;
+      full = on;
+      stageArea.classList.toggle('cl-full', on);
+      document.documentElement.classList.toggle('cl-fs-open', on);
+      if (scene.el) scene.el.classList.toggle('lp-fill', on);
+      fsBtn.textContent = on ? '✕' : '⛶';
+      fsBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+      if (on) fsBtn.setAttribute('data-back-close', ''); else fsBtn.removeAttribute('data-back-close');
+      fullScreen(on, stageArea);
+      if (scene.home) setTimeout(() => { if (alive && !building) scene.home(); }, 300);
+    }
+    const onFsChange = () => { if (full && !document.fullscreenElement) setFull(false); }; // the browser's own Esc
+    document.addEventListener('fullscreenchange', onFsChange);
     function setBuilding(on) {
       building = on; buildBtn.setAttribute('aria-pressed', String(on)); buildBtn.textContent = on ? '✓ Done building' : '🛠 Build mode';
       wrap.classList.toggle('building', on);
@@ -144,7 +162,8 @@ tool('club', {
     }
     const page = h('div', { class: 'stack cl-page' });
     body.append(page);
-    page.append(h('div', { class: 'cl-stagebox' }, wrap, h('div', { class: 'cl-stagebtns' }, buildBtn)), buildBar, hint, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel);
+    const stageArea = h('div', { class: 'cl-stage-area' }, h('div', { class: 'cl-stagebox' }, wrap, h('div', { class: 'cl-stagebtns' }, buildBtn, fsBtn)), buildBar);
+    page.append(stageArea, hint, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel);
 
     const CAT_ICON = { seat: '🪑', table: '☕', plant: '🌿', light: '💡', music: '🎹', decor: '🖼', kitchen: '🍰' };
     function pieceWords(it) {
@@ -230,7 +249,10 @@ tool('club', {
       toast(r.refund ? '+' + fmt(r.refund) + ' tips back' : 'Taken away');
     }
     const onKey = e => {
-      if (!building || e.target.closest('input, textarea, select') || document.querySelector('dialog[open]')) return;
+      if (e.target.closest('input, textarea, select') || document.querySelector('dialog[open]')) return;
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) { setFull(!full); e.preventDefault(); return; }
+      if (e.key === 'Escape' && full && !(building && bstate.mode !== 'browse')) { setFull(false); e.preventDefault(); e.stopPropagation(); return; }
+      if (!building) return;
       const sb = scene.build;
       if (bstate.mode === 'ghost') {
         if (e.key === 'r' || e.key === 'R') { sb.turn(); e.preventDefault(); } else if (e.key === 'Enter') { confirmGhost(); e.preventDefault(); } else if (e.key === 'Escape') { sb.end(); bstate = { mode: 'browse' }; drawBuildBar(); e.preventDefault(); e.stopPropagation(); }
@@ -408,7 +430,7 @@ tool('club', {
     const n = m.today, was = seen();
     if (n && n.crowd > 0 && !(was.day === C.dayKey() && was.crowd >= n.crowd)) ready.then(() => setTimeout(() => playShow(Object.assign({ day: C.dayKey() }, n), false), 600));
     const offL = onLedger(() => { if (alive) { refresh(); drawPanel(); } });
-    return () => { alive = false; document.removeEventListener('keydown', onKey, true); scene.stop(); if (scene.dispose) scene.dispose(); offL(); };
+    return () => { alive = false; if (full) setFull(false); document.removeEventListener('keydown', onKey, true); document.removeEventListener('fullscreenchange', onFsChange); scene.stop(); if (scene.dispose) scene.dispose(); offL(); };
   }
 });
 

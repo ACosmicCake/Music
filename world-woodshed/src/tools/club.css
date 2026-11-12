@@ -165,6 +165,22 @@ html.compact .cl-card { grid-template-columns: 1fr; }
 html.compact .cl-bb-card { flex-basis: 108px; padding: 6px; }
 html.compact .cl-stagebtns { top: 4px; right: 4px; }
 html.compact .cl-build-btn { font-size: 0.75rem; padding: 3px 8px; }
-.cl-building > :not(.cl-stagebox):not(.cl-bb) { display: none; }
+.cl-building > :not(.cl-stage-area) { display: none; }
 html.compact .seg.cl-bb-cats { flex-wrap: nowrap; }
 html.compact .seg.cl-bb-cats button { flex: 0 0 auto; }
+
+/* full screen */
+.cl-stage-area { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cl-stage-area.cl-full { position: fixed; inset: 0; z-index: 1000; gap: 0; background: #f3d6b4; }
+.cl-full .cl-stagebox { flex: 1 1 auto; min-height: 0; }
+.cl-full .cl-wrap { height: 100%; border: 0; border-radius: 0; }
+.cl-full .cl-wrap.building { outline-offset: -3px; }
+.cl-full .lp-wrap { height: 100%; }
+.cl-full .cl3-canvas { aspect-ratio: auto; height: 100%; max-height: none; }
+.cl-full .cl-bb { flex: 0 0 auto; border-radius: 0; border-width: 1px 0 0; max-height: 42vh; overflow-y: auto; }
+.cl-full .cl-stagebtns { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); }
+html.cl-fs-open, html.cl-fs-open body { overflow: hidden; }
+@media (min-aspect-ratio: 4/3) {
+  .cl-stage-area.cl-full { flex-direction: row; }
+  .cl-full .cl-bb { width: min(340px, 40vw); max-height: none; border-width: 0 0 0 1px; }
+}
