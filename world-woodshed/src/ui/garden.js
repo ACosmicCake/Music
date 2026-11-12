@@ -8,6 +8,7 @@ import Imp from '../impact.js';
 import { h, s, bar, tool, openTool } from './core.js';
 import Eco from '../ecosystem.js';
 import { fmtMin } from '../routines.js';
+import { show3D } from './scenes3d.js';
 import { repoCall, repoDir, onSynced, status as ghStatus } from '../ghsync.js';
 
 const CACHE = 'ww-impact';
@@ -110,9 +111,6 @@ function idleDays(mins) {
    island page) instead of being made again. Orders not yet seen on this device pop up when it first shows them. */
 const SEEN = 'ww-island-seen';
 let world = null, loading = null;
-const canGL = () => { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return false; } };
-/* Settings → Display → 3D scenes (per device, shared with the club): off draws the flat row and never loads three.js */
-const use3D = () => E.state.settings.scenes3d !== false && canGL();
 function islandState() {
   const mins = Imp.dayMinutes(E.state.hdev), p = Imp.progress(ledger, mins), live = Imp.live(ledger);
   const choice = (E.state.settings.impact && E.state.settings.impact.kind) || 'tree';
@@ -120,7 +118,7 @@ function islandState() {
 }
 /* put the island into `holder` (a stand-in stays there if 3D can't run) */
 function showIsland(holder) {
-  if (!ledger || !use3D()) return;
+  if (!ledger || !show3D()) return;
   const go = () => {
     const st = islandState();
     if (!world) {
@@ -181,7 +179,7 @@ export function gardenCard() {
   if (p.waiting) card.append(h('p', { class: 'small muted', text: p.waiting === 1 ? 'One more is earned and will be ordered at the next daily run.' : p.waiting + ' more are earned and will be ordered at the next daily runs.' }));
   if (test) card.append(h('p', { class: 'small muted', text: 'Test mode: these are pretend orders, nothing is planted or paid yet. Put your live GoodAPI key in the repository to make them real.' }));
   const links = h('div', { class: 'row' });
-  if (use3D()) links.append(h('button', { class: 'btn small brass', onclick: () => openTool('island', { returnTab: 'today' }) }, 'Explore the island'));
+  if (show3D()) links.append(h('button', { class: 'btn small brass', onclick: () => openTool('island', { returnTab: 'today' }) }, 'Explore the island'));
   if (ledger.dashboard && /^https:\/\//.test(ledger.dashboard)) links.append(h('a', { class: 'btn small ghost', href: ledger.dashboard, target: '_blank', rel: 'noopener' }, 'See them on GoodAPI ↗'));
   card.append(h('p', { class: 'small muted', text: 'Every ' + Imp.HOURS + ' hours you practise, on any device, plants one. Counting began ' + ledger.start + '.' }));
   if (links.children.length) card.append(links);
