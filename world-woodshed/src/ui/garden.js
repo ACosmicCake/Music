@@ -5,7 +5,8 @@
    wilts when you haven't played for a couple of days. Settings → Real impact picks what the hours become. */
 import E from '../engine.js';
 import Imp from '../impact.js';
-import { h, s, bar } from './core.js';
+import { h, s, bar, tool, openTool } from './core.js';
+import Eco from '../ecosystem.js';
 import { fmtMin } from '../routines.js';
 import { repoCall, repoDir, onSynced, status as ghStatus } from '../ghsync.js';
 
@@ -104,6 +105,41 @@ function idleDays(mins) {
   return Math.round((now - last) / 864e5);
 }
 
+/* ---------- the island in 3D (src/ui/garden3d.js, its own chunk with three.js) ----------
+   One world for the whole app: Today redraws often, so the same canvas moves into each new card (and into the
+   island page) instead of being made again. Orders not yet seen on this device pop up when it first shows them. */
+const SEEN = 'ww-island-seen';
+let world = null, loading = null;
+const canGL = () => { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return false; } };
+function islandState() {
+  const mins = Imp.dayMinutes(E.state.hdev), p = Imp.progress(ledger, mins), live = Imp.live(ledger);
+  const choice = (E.state.settings.impact && E.state.settings.impact.kind) || 'tree';
+  return { planted: live, wilted: idleDays(mins) >= 2, next: { kind: Imp.kindFor(choice, live.length + p.waiting), frac: p.frac } };
+}
+/* put the island into `holder` (a stand-in stays there if 3D can't run) */
+function showIsland(holder) {
+  if (!ledger || !canGL()) return;
+  const go = () => {
+    const st = islandState();
+    if (!world) {
+      let seen = 0;
+      try { seen = Math.min(+localStorage.getItem(SEEN) || 0, st.planted.length); } catch (e) { /* storage blocked */ }
+      if (localStorage.getItem(SEEN) === null) seen = Math.max(0, st.planted.length - 1); // first visit: only the newest pops
+      world = loading.mountIsland(document.createElement('div'), Object.assign({ seen }, st));
+    } else world.island.update(st.planted, st);
+    try { localStorage.setItem(SEEN, String(st.planted.length)); } catch (e) { /* storage blocked */ }
+    holder.replaceChildren(world.el);
+    world.stage.wake && world.stage.wake();
+  };
+  if (loading && loading.mountIsland) go();
+  else import('./garden3d.js').then(m => { loading = m; if (holder.isConnected || document.contains(holder)) go(); else requestAnimationFrame(() => { if (holder.isConnected) go(); }); }).catch(e => console.error(e));
+}
+/* "Rabbits move in after 1 more tree." */
+function arrivalLine(planted) {
+  const n = Eco.nextArrival(Eco.counts(planted));
+  return n ? n.name + (n.name.startsWith('A ') ? ' moves' : ' move') + ' in after ' + Eco.shortWords(n.short) + '.' : 'Every animal the island can hold has moved in.';
+}
+
 /* Today's card (hidden until the Action has started counting) */
 export function gardenCard() {
   // until the Action has started counting: an empty stand-in, replaced if the ledger turns up
@@ -131,19 +167,45 @@ export function gardenCard() {
   const lead = thirsty
     ? 'Your ' + (nextKind === 'bottles' ? 'next haul' : 'sapling') + ' is thirsty: ' + (idle >= 99 ? 'it hasn\'t had any practice yet' : 'no practice for ' + idle + ' days') + '. A few minutes will perk it up.'
     : fmtMin(Math.ceil(p.toNext)) + ' more practice and ' + (nextKind === 'bottles' ? 'ten more bottles are collected' : 'a real ' + (nextKind === 'kelp' ? 'kelp plant goes into the sea' : 'tree goes into the ground')) + ' in ' + next.where + '.';
+  const holder = h('div', { class: 'gd-3d' }, row);
+  const rs = Eco.residents(Eco.counts(live), { wilted: thirsty });
   card.append(
     h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Your garden' }), h('span', { class: 'mono small', text: summary || 'Growing your first' })),
-    row,
+    holder,
     bar(100 * p.frac, 'good'),
-    h('p', { class: 'small', text: lead }));
+    h('p', { class: 'small', text: lead }),
+    h('p', { class: 'small muted', text: (rs.length ? rs.length + ' kind' + (rs.length === 1 ? '' : 's') + ' of animal live there. ' : '') + arrivalLine(live) }));
+  showIsland(holder);
   if (p.waiting) card.append(h('p', { class: 'small muted', text: p.waiting === 1 ? 'One more is earned and will be ordered at the next daily run.' : p.waiting + ' more are earned and will be ordered at the next daily runs.' }));
   if (test) card.append(h('p', { class: 'small muted', text: 'Test mode: these are pretend orders, nothing is planted or paid yet. Put your live GoodAPI key in the repository to make them real.' }));
   const links = h('div', { class: 'row' });
+  if (canGL()) links.append(h('button', { class: 'btn small brass', onclick: () => openTool('island', { returnTab: 'today' }) }, 'Explore the island'));
   if (ledger.dashboard && /^https:\/\//.test(ledger.dashboard)) links.append(h('a', { class: 'btn small ghost', href: ledger.dashboard, target: '_blank', rel: 'noopener' }, 'See them on GoodAPI ↗'));
   card.append(h('p', { class: 'small muted', text: 'Every ' + Imp.HOURS + ' hours you practise, on any device, plants one. Counting began ' + ledger.start + '.' }));
   if (links.children.length) card.append(links);
   return card;
 }
+
+/* The island page: the same world, bigger, with who lives there */
+tool('island', {
+  tab: 'today', skill: null, title: 'Your island', eyebrow: 'Real trees from your practice',
+  desc: 'Every 10 hours you practise plants a real tree, a kelp plant or collects ten plastic bottles, and each one appears here. As the island grows, animals move in. Drag to turn it, pinch or scroll to zoom, double-tap to come back.',
+  render(body) {
+    if (!ledger) { body.append(h('div', { class: 'card' }, h('p', { text: 'Your island starts with the first daily run. See Settings → Real impact for your practice.' }))); return; }
+    const holder = h('div', { class: 'gd-3d gd-3d-big' });
+    const st = islandState(), live = st.planted, c = Eco.counts(live);
+    const rs = Eco.residents(c, { wilted: st.wilted });
+    const who = h('div', { class: 'chips' }, rs.map(r => h('span', { class: 'chip' + (r.hiding ? ' muted' : ''), text: r.name + (r.n > 1 && !r.name.startsWith('A ') ? ' × ' + r.n : '') + (r.hiding ? ' (hiding)' : '') })));
+    body.append(holder, h('div', { class: 'card stack' },
+      h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'On the island' }), h('span', { class: 'mono small', text: Imp.ORDER.filter(k => c[k]).map(k => Imp.amount(k, c[k])).join(' · ') || 'Nothing planted yet' })),
+      rs.length ? who : h('p', { class: 'small muted', text: 'No animals yet.' }),
+      h('p', { class: 'small', text: arrivalLine(live) }),
+      st.wilted ? h('p', { class: 'small callout', text: 'The island is dry: no practice for two days or more, and the shy animals are hiding. A few minutes of practice brings them back.' }) : null,
+      c.tree < 10 ? h('p', { class: 'small muted', text: 'At ten trees the wood holds enough rain for a pond.' }) : null));
+    showIsland(holder);
+    return () => { if (world && holder.contains(world.el)) holder.replaceChildren(); };
+  }
+});
 
 /* Settings → Real impact: what the hours become, and how it stands */
 export function impactSettingsCard() {
