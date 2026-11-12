@@ -10,6 +10,7 @@ import { micSettingsCard } from './ui/mic.js';
 import Cur from './curriculum.js';
 import { shareFile, isNative } from './native.js';
 import { checkForUpdate as checkWebUpdate } from './pwa.js';
+import { scenesMode, isPhone, SCENES_HELP } from './ui/scenes3d.js';
 import { currentVersion, checkRelease } from './update.js';
 import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus, linkSetup } from './ghsync.js';
 import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendByCode, receiveByCode, CODE_MINUTES } from './linkcode.js';
@@ -501,6 +502,8 @@ function displayCard() {
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Layout' }), seg([['auto', 'Auto'], ['compact', 'Compact'], ['roomy', 'Roomy']], st.display || 'auto', 'display'),
         h('span', { class: 'small muted', text: 'Compact suits small phones: a slim top bar, the tab bar tucked away inside tools, tool descriptions behind ⓘ, and long sections folded. Auto turns it on for screens under 380 × 640.' })),
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Text size' }), seg([['s', 'Small'], ['m', 'Normal'], ['l', 'Large']], st.textSize || 'm', 'textSize')),
+      h('div', { class: 'stack', id: 'scenes3d' }, h('span', { class: 'eyebrow', text: '3D scenes (your club and garden island)' }), seg([['auto', 'Automatic'], ['on', 'On'], ['off', 'Off']], scenesMode(), 'scenes3d'),
+        h('span', { class: 'small muted', text: SCENES_HELP + (scenesMode() === 'auto' ? (isPhone() ? ' This device counts as a phone, so the drawings show.' : ' This device shows 3D.') : '') })),
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Sound output' }), seg([['auto', 'Auto'], ['smooth', 'Smooth'], ['fast', 'Low latency']], st.audioOutput || 'auto', 'audioOutput'),
         h('span', { class: 'small muted', text: 'Low latency answers a tap a little sooner, but on some Android phones it crackles. Smooth avoids that, and the rhythm tools allow for the extra delay. Auto picks Smooth on Android.' + (A.outputUsed() && A.outputUsed() !== A.outputFor(st.audioOutput) ? ' The change applies the next time the app opens.' : '') }),
         h('span', { class: 'small muted', text: 'These settings stay on this device and do not sync.' })),

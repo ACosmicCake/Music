@@ -3,7 +3,8 @@
    src/ui/clubscene.js. Looking at the club is not practice, so the tool counts no time (noTime). */
 import D from '../data.js';
 import E from '../engine.js';
-import { h, tool, openTool, toast, bar, TOOLS } from '../ui/core.js';
+import { h, tool, openTool, toast, bar, TOOLS, ui } from '../ui/core.js';
+import { show3D, isPhone, webgl } from '../ui/scenes3d.js';
 import C from '../club.js';
 import { Scene } from '../ui/clubscene.js';
 import { plantings, onLedger } from '../ui/garden.js';
@@ -110,7 +111,8 @@ tool('club', {
     scene.setItemRoom(id => (C.itemOf(id) || {}).room);
     const wrap = h('div', { class: 'cl-wrap' }, scene.el);
     const hint = h('p', { class: 'small muted cl-hint', hidden: true, text: 'Drag to turn, pinch or scroll to zoom, double-tap to look at the whole club, tap a room or plot to see what goes there.' });
-    const ready = load3d().then(mod => {
+    const want3d = show3D();
+    const ready = (want3d ? load3d() : Promise.resolve(null)).then(mod => {
       if (!alive || !mod) return;
       const s3 = mod.Club3D({ onRoom, onBuild: ev => { if (ev.type === 'ghost') bstate = { mode: 'ghost', g: ev }; else bstate = ev.uid ? { mode: 'picked', uid: ev.uid } : { mode: 'browse' }; drawBuildBar(); } });
       scene.stop(); scene = s3;
@@ -135,6 +137,9 @@ tool('club', {
     const buildBar = h('div', { class: 'cl-bb', hidden: true });
     /* full screen: the scene fills the screen (the build bar beside or under it), F or ⛶, Esc or ✕ to leave */
     let full = false;
+    // 3D or the flat drawing on this device (Settings → Display → 3D scenes): the drawing saves battery
+    const d3Btn = h('button', { class: 'btn small cl-build-btn cl-3d-btn', hidden: !webgl(), title: want3d ? 'Show the flat drawing: saves battery (Settings → Display → 3D scenes)' : 'Show the club in 3D (Settings → Display → 3D scenes)', 'aria-label': want3d ? 'Show the flat drawing to save battery' : 'Show the club in 3D',
+      onclick: () => { E.setSetting('scenes3d', want3d ? (isPhone() ? 'auto' : 'off') : 'on'); if (full) setFull(false); openTool('club', (ui.runner || {}).opts || {}); } }, want3d ? '🔋 Flat' : '✨ 3D');
     const fsBtn = h('button', { class: 'btn small cl-build-btn cl-fs-btn', 'aria-label': 'Full screen', title: 'Full screen (F)', onclick: () => setFull(!full) }, '⛶');
     function setFull(on) {
       if (on === full) return;
@@ -162,7 +167,7 @@ tool('club', {
     }
     const page = h('div', { class: 'stack cl-page' });
     body.append(page);
-    const stageArea = h('div', { class: 'cl-stage-area' }, h('div', { class: 'cl-stagebox' }, wrap, h('div', { class: 'cl-stagebtns' }, buildBtn, fsBtn)), buildBar);
+    const stageArea = h('div', { class: 'cl-stage-area' }, h('div', { class: 'cl-stagebox' }, wrap, h('div', { class: 'cl-stagebtns' }, buildBtn, d3Btn, fsBtn)), buildBar);
     page.append(stageArea, hint, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel);
 
     const CAT_ICON = { seat: '🪑', table: '☕', plant: '🌿', light: '💡', music: '🎹', decor: '🖼', kitchen: '🍰' };
