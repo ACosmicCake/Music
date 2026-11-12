@@ -1,0 +1,42 @@
+name: Plant for practice
+
+# Once a day: every 10 hours practised (counted from the first run) plants a tree, a kelp plant or collects
+# ten plastic bottles through GoodAPI, and records it beside your progress so the app's garden shows it.
+# Setup is in README.md (Real impact for your practice). Without GOODAPI_KEY it does nothing.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      try_one:
+        description: 'With a test key: place one test order now to check everything works'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: impact
+  cancel-in-progress: false
+
+jobs:
+  plant:
+    runs-on: ubuntu-latest
+    if: ${{ vars.SYNC_REPO != '' }}
+    defaults:
+      run:
+        working-directory: world-woodshed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/impact/plant.mjs
+        env:
+          GOODAPI_KEY: ${{ secrets.GOODAPI_KEY }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SYNC_REPO: ${{ vars.SYNC_REPO }}
+          SYNC_PATH: ${{ vars.SYNC_PATH }}
+          IMPACT_CAP: ${{ vars.IMPACT_CAP }}
+          IMPACT_TRY: ${{ inputs.try_one }}

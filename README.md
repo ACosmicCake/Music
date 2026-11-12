@@ -35,6 +35,20 @@ Progress is saved on the device (localStorage, with a second copy in IndexedDB).
 
 **Automatic sync (optional):** the same card can sync by itself through a private GitHub repository of your own. Create a private repository (for example `woodshed-sync`), then a [fine-grained token](https://github.com/settings/personal-access-tokens/new) limited to that repository with **Contents: Read and write**, and enter both under **Today → Your progress on every device → Automatic sync** on each device. It syncs when the app opens, every few minutes while it's open, and shortly after you practise, merging like the sync file. The token stays on the device and never goes into your progress or files.
 
+### Real impact for your practice (optional)
+
+Every 10 hours you practise, on any device, can plant a real tree (Kilifi, Kenya, about $0.43), a kelp plant (British Columbia, about $0.43) or pay for ten ocean-bound plastic bottles to be collected (about $0.50), through [GoodAPI](https://www.thegoodapi.com/), billed to your own GoodAPI account each month. Your garden on Today shows one plant for each, and a sapling growing toward the next. A daily GitHub Action (`.github/workflows/impact.yml`) reads your hours from the automatic sync repository, orders what they earned and writes a ledger (`world-woodshed-impact.json`) beside your progress file, which the app reads. Hours practised before its first run don't count.
+
+1. Turn on automatic sync (above).
+2. Sign up at [app.thegoodapi.com](https://app.thegoodapi.com/fe/login) and copy your **test** key (`test_sk_…`) first. Test orders cost nothing and plant nothing; the garden shows them faded.
+3. In this repository, **Settings → Secrets and variables → Actions**:
+   - Secrets: `GOODAPI_KEY` (the GoodAPI key) and `SYNC_TOKEN` (a fine-grained token with **Contents: Read and write** on your sync repository; the one the app uses will do).
+   - Variables: `SYNC_REPO` (for example `you/woodshed-sync`), and if you changed it, `SYNC_PATH` (default `world-woodshed-progress.json`). Optional: `IMPACT_CAP`, the most a month (default 10, so at most about $5); hours past it carry over to the next month.
+4. **Actions → Plant for practice → Run workflow** once. The first run starts counting; after that it runs every morning (03:17 UTC). Its log says whether GoodAPI accepted the key; tick **place one test order now** (test key only) to check an order goes through without waiting 10 hours.
+5. When it looks right, replace `GOODAPI_KEY` with your **live** key. The test orders are dropped and the hours since the first run are planted for real.
+
+Pick what the hours become (trees, kelp, bottles, or taking turns) in **Settings → Real impact for your practice**. Each order carries a fixed idempotency key, so a run that is retried or runs twice never pays twice.
+
 ### Android app (for commutes)
 
 The same app is also packaged for Android (`world-woodshed/android`, Capacitor), built by `.github/workflows/android.yml`. Each build of `main` is published as a release: on the phone, open **Releases → latest** in this repository, tap `WorldWoodshed.apk`, and allow installs from your browser when Android asks. New versions install over the old one and keep your progress. Pull requests get the APK as a workflow artifact.
