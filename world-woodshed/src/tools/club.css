@@ -5,9 +5,14 @@
 .cl-moon { fill: #f4ecd0; }
 .cl-star { fill: #fff8dc; animation: cl-twinkle 3s ease-in-out infinite; animation-delay: calc(var(--i) * -0.43s); }
 @keyframes cl-twinkle { 50% { opacity: 0.25; } }
-.cl-city { fill: #2a3156; }
-.cl-street { fill: #3a3f4f; }
-.cl-kerb { stroke: #6b7080; stroke-width: 1.5; }
+.cl-lawn { fill: #3f6b3a; }
+.cl-lawnedge { stroke: #5f8f4a; stroke-width: 1.5; }
+.cl-hills { fill: #263a35; }
+.cl-eye { fill: #1d1a22; }
+.cl-beak { fill: #f2b134; }
+.cl-antenna, .cl-antler { stroke: #2b2238; stroke-width: 0.8; fill: none; stroke-linecap: round; }
+.cl-antler { stroke: #d9c3a0; }
+.cl-antenna-tip { fill: #2b2238; }
 .cl-plot { fill: rgb(255 255 255 / 0.03); stroke: rgb(255 255 255 / 0.32); stroke-width: 1; stroke-dasharray: 3 3; }
 .cl-plus-c { fill: rgb(255 255 255 / 0.08); stroke: rgb(255 255 255 / 0.4); }
 .cl-plus { stroke: rgb(255 255 255 / 0.7); stroke-width: 1.6; stroke-linecap: round; }
