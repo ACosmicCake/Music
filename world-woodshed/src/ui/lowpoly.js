@@ -4,10 +4,10 @@
 
    - Pieces: mat, glow, box, cyl, ball, group, at, shadows, label, person, potPlant, rnd, reduced, webglOK,
      the palette (HUES, SKIN, HAIR).
-   - Stage({ onTap, light, home }) (light: 'evening', the default, or 'day'): a canvas seen from high above at an angle, as in a life-sim game. One
+   - Stage({ onTap, light, home }) (light: 'evening', golden hour and the default, or 'day'): a canvas seen from high above at an angle, as in a life-sim game. One
      finger (or the mouse) turns it, a pinch or the wheel zooms, a double-tap goes back home, a tap calls
-     onTap(point on the ground). It holds the renderer, the camera, an evening light (sky, ground and a moon
-     that casts shadows) and a loop that sleeps while the canvas is off screen or the page hidden. Returns
+     onTap(point on the ground). It holds the renderer, the camera, a golden-hour light (warm sky, a low
+     sun that casts long shadows) and a loop that sleeps while the canvas is off screen or the page hidden. Returns
      { el, canvas, scene, camera, view, hemi, sun (the moon or the sun: change them to set your own light), flyTo(v, ms), setHome(v), goHome(ms), onFrame(fn(dt, t, now)),
        busy(), particle(mesh, life, step), burst(x, y, z, n), pop(obj), snapshot(w), clear(group), dispose() }. */
 import * as THREE from 'three';
@@ -15,7 +15,7 @@ import * as THREE from 'three';
 export const HUES = [0xe07a5f, 0x3d85c6, 0x81b29a, 0xf2cc8f, 0xc77dff, 0xe9c46a, 0x6c9a8b, 0xd4a5a5, 0xf4a261, 0x90be6d, 0x7fb7d9, 0xef8fa0];
 export const SKIN = [0xf1c9a5, 0xe0ac7e, 0xc68642, 0xa0663e, 0x7a4a2a, 0xf6d7b8];
 export const HAIR = [0x2b1d14, 0x6b3d1e, 0x111111, 0xa0522d, 0xd8c8a8, 0x888888];
-export const NIGHT = 0x1d2340;
+export const DUSK = 0xe6a77f; // golden hour: the one look of the club and the island
 export const rnd = seed => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 export const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 export function webglOK() {
@@ -79,7 +79,7 @@ export function potPlant(kind = 'leafy', s = 1) {
 /* ---------- the stage ---------- */
 export const DAY = 0x9fd3ea;
 export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
-  const day = light === 'day', background = day ? DAY : NIGHT;
+  const day = light === 'day', background = day ? DAY : DUSK;
   const el = document.createElement('div');
   el.className = 'lp-wrap';
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -94,8 +94,8 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
   scene.background = new THREE.Color(background);
   scene.fog = new THREE.Fog(background, 45, 90);
   const camera = new THREE.PerspectiveCamera(38, 4 / 3, 0.5, 200);
-  const hemi = day ? new THREE.HemisphereLight(0xdff2ff, 0x6b8a4e, 1.9) : new THREE.HemisphereLight(0x9fb3ff, 0x3a2f2a, 1.4);
-  const moon = day ? new THREE.DirectionalLight(0xfff1d6, 2.4) : new THREE.DirectionalLight(0xc9d6ff, 1.3);
+  const hemi = day ? new THREE.HemisphereLight(0xdff2ff, 0x6b8a4e, 1.9) : new THREE.HemisphereLight(0xffd6b0, 0x4a3d55, 1.5);
+  const moon = day ? new THREE.DirectionalLight(0xfff1d6, 2.4) : new THREE.DirectionalLight(0xffb878, 2.3);
   moon.position.set(-14, 26, -10);
   moon.castShadow = true;
   moon.shadow.mapSize.set(1024, 1024);
@@ -112,7 +112,7 @@ export function Stage({ onTap, light = 'evening', home: home0 } = {}) {
     const { yaw, pitch, dist, cx, cz } = view;
     camera.position.set(cx + Math.sin(yaw) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, cz - Math.cos(yaw) * Math.cos(pitch) * dist);
     camera.lookAt(cx, 0.8, cz);
-    moon.target.position.set(cx, 0, cz); moon.position.set(cx - 14, 26, cz - 10);
+    moon.target.position.set(cx, 0, cz); moon.position.set(cx - 26, 16, cz - 8); // low in the west: long warm shadows
   }
   function flyTo(v, ms = 1000) {
     if (reduced() || !ms) { Object.assign(view, v); target = null; return Promise.resolve(); }

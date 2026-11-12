@@ -13,6 +13,18 @@ export const DEFAULT_NAME = 'The Greenhouse';
 const nameOf = () => String((E.state.settings || {}).clubName || '').trim().slice(0, 40) || DEFAULT_NAME;
 const SEEN = 'ww-club-seen'; // this device: the night last shown, so a show plays when there is something new
 
+/* The 3D club (src/ui/club3d.js, three.js) is its own chunk, loaded the first time the club opens; null
+   where WebGL isn't there, and the flat drawing stays */
+let mod3d = null;
+function load3d() {
+  if (!mod3d) mod3d = import('../ui/club3d.js').then(m => (m.webglOK() ? m : null)).catch(() => null);
+  return mod3d;
+}
+/* A picture of the 3D club for the Today card, kept on this device only */
+const SHOT = 'ww-club-shot';
+function saveShot(url) { if (url && url.length < 200000) try { localStorage.setItem(SHOT, url); } catch (e) { /* full */ } }
+const savedShot = () => { try { return localStorage.getItem(SHOT); } catch (e) { return null; } };
+
 /* The club in the state, opened now if it isn't there yet (practice from before never counts) */
 export function ensureClub() {
   const st = E.state;
@@ -65,8 +77,10 @@ function counter(el, from, to, ms = 1400) {
 export function clubCard({ where = 'today' } = {}) {
   let m;
   try { m = model(); } catch (e) { console.error(e); return ''; }
-  const scene = Scene({ small: true });
-  scene.draw(sceneModel(m, (m.today || {}).crowd || 0));
+  const shot = savedShot();
+  let pic;
+  if (shot) pic = h('img', { src: shot, alt: 'Your club', class: 'cl-shot' });
+  else { const scene = Scene({ small: true }); scene.draw(sceneModel(m, (m.today || {}).crowd || 0)); pic = scene.el; }
   const n = m.today;
   const line = n && n.crowd > 0 ? n.crowd + ' guest' + (n.crowd === 1 ? '' : 's') + ' tonight and ' + fmt(n.t) + ' tips.'
     : n && n.m > 0 ? 'The doors open at ' + C.OPEN_MIN + ' minutes; you\'re at ' + Math.floor(n.m) + '.'
@@ -74,7 +88,7 @@ export function clubCard({ where = 'today' } = {}) {
   const goal = C.nextGoal(m.club, m.rep.total);
   const goalLine = goal ? (goal.ready ? 'You can build ' + goal.item.name.replace(/^The /, 'the ') + ' now.' : 'Next: ' + goal.item.name.replace(/^The /, 'the ') + ', ' + (goal.item.need > m.rep.total ? (goal.item.need - m.rep.total) + ' ★ to go' : fmt(goal.item.cost - m.money) + ' tips to go') + '.') : '';
   return h('button', { class: 'card cl-card' + (where === 'games' ? ' cl-banner' : ''), onclick: () => openTool('club', { returnTab: where === 'games' ? 'train' : 'today' }) },
-    h('div', { class: 'cl-card-scene' }, scene.el),
+    h('div', { class: 'cl-card-scene' }, pic),
     h('div', { class: 'stack cl-card-text' },
       h('span', { class: 'eyebrow', text: where === 'games' ? 'Your club · the game you play by practising' : 'Your club' }),
       h('b', { class: 'cl-card-name', text: nameOf() }),
@@ -89,9 +103,20 @@ tool('club', {
   meter: () => { try { return '★ ' + model().rep.total; } catch (e) { return ''; } },
   render(body) {
     let m = model(), tab = 'build', openRoom = null, alive = true;
-    const scene = Scene({ onRoom: id => { tab = 'build'; openRoom = id; drawTabs(); drawPanel(); const el = panel.querySelector(`[data-room-card="${id}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+    const onRoom = id => { tab = 'build'; openRoom = id; drawTabs(); drawPanel(); const el = panel.querySelector(`[data-room-card="${id}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    // the flat drawing first (and for good without WebGL), the 3D club as soon as its chunk has loaded
+    let scene = Scene({ onRoom });
     scene.setItemRoom(id => (C.itemOf(id) || {}).room);
     const wrap = h('div', { class: 'cl-wrap' }, scene.el);
+    const hint = h('p', { class: 'small muted cl-hint', hidden: true, text: 'Drag to turn, pinch or scroll to zoom, double-tap to look at the whole club, tap a room or plot to see what goes there.' });
+    const ready = load3d().then(mod => {
+      if (!alive || !mod) return;
+      const s3 = mod.Club3D({ onRoom });
+      scene.stop(); scene = s3;
+      wrap.classList.add('is3d'); wrap.replaceChildren(s3.el); hint.hidden = false;
+      s3.draw(sceneModel(m, (m.today || {}).crowd || 0));
+      setTimeout(() => { if (alive) saveShot(s3.snapshot()); }, 2500);
+    }).catch(e => console.error(e));
     const nameEl = h('h2', { class: 'cl-name', text: nameOf() });
     const rename = h('button', { class: 'btn ghost small', 'aria-label': 'Rename the club', onclick: () => renameBox() }, '✎');
     const nameRow = h('div', { class: 'row cl-namerow' }, nameEl, rename);
@@ -103,11 +128,12 @@ tool('club', {
     const goalBox = h('div', { class: 'cl-goal' });
     const tabs = h('div', { class: 'seg big wrap cl-tabs', role: 'group', 'aria-label': 'Club pages' });
     const panel = h('div', { class: 'stack cl-panel' });
-    body.append(h('div', { class: 'stack' }, wrap, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel));
+    body.append(h('div', { class: 'stack' }, wrap, hint, nameRow, chips, tonight, h('div', { class: 'row' }, showBtn), goalBox, tabs, panel));
 
     function refresh(keepScene) {
       m = model();
       if (!keepScene) scene.draw(sceneModel(m, (m.today || {}).crowd || 0));
+      if (!keepScene && scene.snapshot) setTimeout(() => { if (alive && scene.snapshot) saveShot(scene.snapshot()); }, 1500);
       nameEl.textContent = nameOf();
       cTips.v.textContent = fmt(m.money); cRep.v.textContent = fmt(m.rep.total);
       cGuests.v.textContent = ((m.today || {}).crowd || 0) + ' / ' + m.st.seats; cSet.v.textContent = m.st.onStage + ' / ' + m.st.slots;
@@ -262,9 +288,9 @@ tool('club', {
     drawPanel();
     // something new since this device last looked: the evening plays by itself
     const n = m.today, was = seen();
-    if (n && n.crowd > 0 && !(was.day === C.dayKey() && was.crowd >= n.crowd)) setTimeout(() => playShow(Object.assign({ day: C.dayKey() }, n), false), 500);
+    if (n && n.crowd > 0 && !(was.day === C.dayKey() && was.crowd >= n.crowd)) ready.then(() => setTimeout(() => playShow(Object.assign({ day: C.dayKey() }, n), false), 600));
     const offL = onLedger(() => { if (alive) { refresh(); drawPanel(); } });
-    return () => { alive = false; scene.stop(); offL(); };
+    return () => { alive = false; scene.stop(); if (scene.dispose) scene.dispose(); offL(); };
   }
 });
 
