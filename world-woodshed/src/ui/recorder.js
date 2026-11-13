@@ -8,8 +8,9 @@
    Both are fed by Mic.on('block'), so they share the mic with whatever tool is listening. */
 import Mic from '../listen.js';
 import { h, s, tool, openTool, toast, ui } from './core.js';
-import { isNative } from '../native.js';
-import { addToLibrary } from '../library.js';
+import { addToLibrary, addFiles, getEntry, getFile, deleteEntry } from '../library.js';
+import { isNative, shareBlob } from '../native.js';
+import E from '../engine.js';
 import { entryPage } from './library.js';
 import { Ring, ROLL_SECS, TAKE_SECS, encode, clipName, fileName, clock } from '../recorder.js';
 import './recorder.css';
@@ -25,7 +26,7 @@ const setWanted = v => { try { localStorage.setItem(ROLL_KEY, v ? 'on' : 'off');
 
 /* ---------- the last 20 minutes ---------- */
 // state: off | waiting (for a first click) | starting | on | denied | unsupported
-const R = { state: 'off', ring: null, unsub: null, saving: 0, saved: null, subs: new Set() };
+const R = { state: 'off', ring: null, unsub: null, saving: 0, saved: null, failed: null, subs: new Set() };
 const notify = () => R.subs.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
 export const Rolling = {
   get state() { return R.state; },
@@ -52,22 +53,37 @@ export const Rolling = {
     R.ring = null; // the memory goes with it
     R.state = 'off'; notify();
   },
-  // the last 20 minutes (or all there is) into the Library → entry id
+  // the last 20 minutes (or all there is) into the Library → entry id. The file is read back from the device's
+  // database before anything is let go; only then does the recording start afresh, from what came after the
+  // snapshot, so the next Save never holds the same part again. If it didn't land, the buffer stays as it was
+  // and the file is downloaded instead, so it isn't lost either way.
   async save() {
     if (!R.ring || R.ring.seconds < 1) { toast('Nothing recorded yet'); return null; }
-    const snap = R.ring.snapshot(ROLL_SECS), at = new Date(), secs = snap.length / snap.sr;
-    R.saving = 0.01; notify();
+    if (R.saving) return null;
+    const ring = R.ring, snap = ring.snapshot(ROLL_SECS), at = new Date(), secs = snap.length / snap.sr;
+    R.saving = 0.01; R.failed = null; notify();
+    let file = null, id = null;
     try {
-      const { blob, ext } = await encode(snap, p => { R.saving = Math.max(0.01, p); notify(); });
+      const { blob, ext } = await encode(snap, p => { R.saving = Math.max(0.01, p * 0.9); notify(); });
       const title = clipName('roll', at), mins = Math.max(1, Math.round(secs / 60));
-      const id = await addToLibrary({ title, status: 'want', source: 'recorder',
-        notes: 'The ' + (mins === 1 ? 'minute' : mins + ' minutes') + ' before you pressed Save, recorded on this computer.',
-        files: [new File([blob], fileName(title, ext), { type: blob.type })] });
+      file = new File([blob], fileName(title, ext), { type: blob.type });
+      id = await addToLibrary({ title, status: 'want', source: 'autorec',
+        notes: 'The ' + (mins === 1 ? 'minute' : mins + ' minutes') + ' before you pressed Save, recorded on this computer.' });
+      const res = await addFiles(id, [file]);
+      if (res.added !== 1) throw new Error(res.failed.length ? res.failed[0][1] : 'not stored');
+      const e = getEntry(id), meta = e && e.files[e.files.length - 1], back = meta && await getFile(meta.id);
+      if (!back || !back.blob || back.blob.size !== blob.size) throw new Error('it could not be read back');
+      if (E.saveNow) await E.saveNow(); // the entry itself, now, not in the next batch of saves
+      if (R.ring === ring) ring.dropUntil(snap.end); // start afresh: keep only what was played while it saved
       R.saved = { id, title, at: Date.now() };
       toast('Saved to the Library: ' + title);
       return id;
-    } catch (e) {
-      console.error(e); toast('Could not save the recording' + (e && e.message ? ': ' + e.message : ''));
+    } catch (err) {
+      console.error(err);
+      if (id) deleteEntry(id).catch(() => {});
+      R.failed = { why: err && err.message ? err.message : 'unknown', file };
+      if (file) shareBlob(file.name, file, file.name).catch(() => {});
+      toast(file ? 'Not saved in the app (' + R.failed.why + '): downloaded instead' : 'Could not save the recording: ' + R.failed.why);
       return null;
     } finally { R.saving = 0; notify(); }
   }
@@ -106,8 +122,10 @@ function rollingPanel() {
       btns.append(h('button', { class: 'btn brass', onclick: () => Rolling.start() }, 'Keep the last 20 minutes'));
     }
     savedRow.innerHTML = '';
-    savedRow.hidden = !R.saved;
-    if (R.saved) savedRow.append('Saved ', h('b', { text: R.saved.title }), ' ', h('button', { class: 'btn small ghost', onclick: () => { closePop(); entryPage(R.saved.id); } }, 'Open it'));
+    savedRow.hidden = !R.saved && !R.failed;
+    if (R.failed) savedRow.append(h('span', { class: 'rec-failed', text: 'The last Save didn’t reach the Library (' + R.failed.why + '). The recording is still here, so try again' + (R.failed.file ? ', or ' : '.') }),
+      R.failed.file ? h('button', { class: 'btn small', onclick: () => shareBlob(R.failed.file.name, R.failed.file, R.failed.file.name) }, 'download it again') : null);
+    else if (R.saved) savedRow.append('Saved ', h('b', { text: R.saved.title }), ' ', h('button', { class: 'btn small ghost', onclick: () => { closePop(); entryPage(R.saved.id); } }, 'Open it'));
   }
   paint();
   const off = Rolling.on(paint), tick = setInterval(() => { if (R.state === 'on' && !R.saving) paint(); }, 1000);
@@ -152,7 +170,8 @@ function topBarButton() {
     btn.title = t; btn.setAttribute('aria-label', t);
   };
   paint(); Rolling.on(paint); setInterval(() => { if (R.state === 'on') paint(); }, 5000);
-  document.addEventListener('click', ev => { if (pop && !pop.contains(ev.target) && ev.target !== btn && document.body.contains(ev.target)) closePop(); });
+  // a download's link click (a failed save's fallback) isn't you clicking away
+  document.addEventListener('click', ev => { if (pop && ev.isTrusted && !pop.contains(ev.target) && ev.target !== btn && document.body.contains(ev.target)) closePop(); });
   document.addEventListener('keydown', ev => { if (pop && ev.key === 'Escape') { ev.stopPropagation(); closePop(); btn.focus(); } }, true);
 }
 export function bootRecorder() {

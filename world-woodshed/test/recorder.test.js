@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Ring, wav, oggOpus, crcOgg, opusHead, clipName, fileName, clock } from '../src/recorder.js';
+import { Ring, wav, oggOpus, crcOgg, opusHead, clipName, fileName, clock, isAutoRec } from '../src/recorder.js';
 
 const tone = (n, v = 0.5) => Float32Array.from({ length: n }, () => v);
 const cat = parts => { const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let o = 0; parts.forEach(p => { out.set(p, o); o += p.length; }); return out; };
@@ -36,6 +36,21 @@ describe('Ring', () => {
     const r = Ring(4, 0);
     r.push(Float32Array.of(1.5, -1.5, 1, -1));
     expect([...r.snapshot().chunks[0]]).toEqual([32767, -32768, 32767, -32768]);
+  });
+  it('after a save, keeps only what came after the snapshot', () => {
+    const r = Ring(10, 3);
+    for (let i = 0; i < 25; i++) r.push(Float32Array.of(i / 100));
+    const snap = r.snapshot(3);
+    expect(snap.end).toBe(25);
+    for (let i = 25; i < 32; i++) r.push(Float32Array.of(i / 100)); // played while it was saving
+    r.dropUntil(snap.end);
+    expect(r.length).toBe(7);
+    const flat = [...r.snapshot().chunks.flatMap(c => [...c])];
+    expect(flat).toEqual([25, 26, 27, 28, 29, 30, 31].map(i => Math.round(i / 100 * 32767)));
+    r.push(tone(5));
+    expect(r.length).toBe(12); // and carries on from there
+    r.dropUntil(r.total);
+    expect(r.length).toBe(0);
   });
   it('grows without limit for a take', () => {
     const r = Ring(10, 0);
@@ -126,5 +141,15 @@ describe('names', () => {
     expect(fileName(t, 'ogg').endsWith('14.05.ogg')).toBe(true);
     expect(fileName('  ', 'wav')).toBe('Recording.wav');
     expect(clock(125.7)).toBe('2:05');
+  });
+});
+
+describe('isAutoRec', () => {
+  it('knows the last 20 minutes\' saves, old and new, from takes and other entries', () => {
+    expect(isAutoRec({ source: 'autorec', title: 'x' })).toBe(true);
+    expect(isAutoRec({ source: 'recorder', title: 'Improvisation · Wed 11 Nov 14:20' })).toBe(true);
+    expect(isAutoRec({ source: 'recorder', title: 'Take · Wed 11 Nov 14:20' })).toBe(false);
+    expect(isAutoRec({ source: '', title: 'Improvisation in D' })).toBe(false);
+    expect(isAutoRec(null)).toBe(false);
   });
 });

@@ -12,10 +12,11 @@ export const OPUS_BITRATE = 96000;
 /* ---------- the buffer ---------- */
 /* Samples in one-second Int16 chunks. maxSecs: the rolling length (oldest dropped); 0 grows without limit. */
 export function Ring(sr, maxSecs = 0) {
-  let full = [], cur = new Int16Array(sr), n = 0;
+  let full = [], cur = new Int16Array(sr), n = 0, total = 0;
   return {
     sr,
     push(f32) {
+      total += f32.length;
       for (let i = 0; i < f32.length; i++) {
         const v = f32[i];
         cur[n++] = v >= 1 ? 32767 : v <= -1 ? -32768 : Math.round(v * 32767);
@@ -35,7 +36,16 @@ export function Ring(sr, maxSecs = 0) {
       const want = Math.min(length, Math.round(secs * sr));
       while (chunks.length && length - chunks[0].length >= want) length -= chunks.shift().length;
       if (length > want) { const cut = length - want; chunks[0] = chunks[0].subarray(cut); length = want; }
-      return { chunks, length, sr };
+      return { chunks, length, sr, end: total };
+    },
+    // every sample pushed so far: a snapshot's `end`, so a save can drop what it saved and keep what came after
+    get total() { return total; },
+    // keep only the samples pushed after `end` (a snapshot's), so the next save doesn't hold the same part again
+    dropUntil(end) {
+      const keep = Math.max(0, Math.min(full.length * sr + n, total - end));
+      const { chunks } = this.snapshot(keep / sr);
+      full = []; cur = new Int16Array(sr); n = 0;
+      chunks.forEach(c => { for (let i = 0; i < c.length; i++) { cur[n++] = c[i]; if (n === sr) { full.push(cur); cur = new Int16Array(sr); n = 0; } } });
     },
     clear() { full = []; cur = new Int16Array(sr); n = 0; }
   };
@@ -63,6 +73,10 @@ export function crcOgg(bytes, crc = 0) {
   for (let i = 0; i < bytes.length; i++) crc = ((crc << 8) ^ CRC[((crc >>> 24) ^ bytes[i]) & 0xff]) >>> 0;
   return crc >>> 0;
 }
+/* The Library entries the last 20 minutes saved: source 'autorec', or, saved before that source existed, the
+   recorder's own entries named Improvisation (takes are named Take) */
+export const isAutoRec = e => !!e && (e.source === 'autorec' || (e.source === 'recorder' && /^Improvisation\b/.test(e.title || '')));
+
 const ascii = t => Uint8Array.from(t, c => c.charCodeAt(0));
 export function opusHead(preSkip, rate) {
   const b = new Uint8Array(19), d = new DataView(b.buffer);
