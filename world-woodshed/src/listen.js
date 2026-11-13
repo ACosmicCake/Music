@@ -28,6 +28,7 @@ registerProcessor('ww-mic', WWMic);`;
 
 // block: the raw samples (Float32Array, audio time of the first) for tools that look at the spectrum themselves
 const subs = { onset: new Set(), pitch: new Set(), note: new Set(), level: new Set(), block: new Set() };
+let clickOff = null;
 let stream = null, srcNode = null, node = null, sink = null, analyzer = null, starting = null, stopTimer = null;
 let state = 'off'; // off | starting | on | denied | unsupported
 const stateSubs = new Set();
@@ -67,6 +68,8 @@ async function start() {
       srcNode = ctx.createMediaStreamSource(stream);
       makeAnalyzer = () => Analyzer(ctx.sampleRate, { emit: dispatch, sensitivity: E.state.settings.micSensitivity ?? 0.5 });
       analyzer = makeAnalyzer(); idle = false;
+      // the app's own clicks reach the mic about latencyMs() after they are scheduled
+      if (!clickOff) clickOff = A.onClick((when, type) => { if (analyzer && analyzer.clickAt) analyzer.clickAt(when + latencyMs() / 1000, type); });
       sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
       if (ctx.audioWorklet) {
         const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
@@ -92,6 +95,7 @@ async function start() {
 function stopNow() {
   try { if (srcNode) srcNode.disconnect(); if (node) { if (node.port) node.port.onmessage = null; node.disconnect(); } if (sink) sink.disconnect(); } catch (e) { /* ignore */ }
   if (stream) stream.getTracks().forEach(t => t.stop());
+  if (clickOff) { clickOff(); clickOff = null; }
   stream = srcNode = node = sink = analyzer = null;
   if (state === 'on' || state === 'starting') setState('off');
 }

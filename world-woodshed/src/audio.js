@@ -263,9 +263,14 @@ function toneHit(when, vel, wave, f0, f1, decay, glide, out) {
    o: { kit: which recorded instruments play low, mid and high (see drumkit.js), synth: true to skip them } */
 let hitSampler = null;
 function setHitSampler(fn) { hitSampler = fn; }
+// the mic is told when a click will sound (the metronome, a count-in, Sight-reading's beat), so the note
+// detector can tell the click from the guitar (src/listen.js)
+const clickSubs = new Set();
+function onClick(fn) { clickSubs.add(fn); return () => clickSubs.delete(fn); }
 function hit(type, when, vel = 0.8, out, o = {}) {
   ensure();
   when = Math.max(when || 0, ctx.currentTime);
+  if (type === 'click' || type === 'clickHi') clickSubs.forEach(fn => { try { fn(when, type); } catch (e) { console.error(e); } });
   const smp = hitSampler && !o.synth ? hitSampler(type, when, vel, out || chan.perc, o) : null;
   if (smp) { if (typeof smp === 'object') track(smp, smp.gainNode, when); return; }
   switch (type) {
@@ -422,4 +427,4 @@ function eventToAudioTime(ev) {
 /* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
 const channel = name => { ensure(); return chan[name]; };
 
-export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, heard, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, tone, Loop, Drone, stopAll, fresh, later, eventToAudioTime };
+export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, heard, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, onClick, tone, Loop, Drone, stopAll, fresh, later, eventToAudioTime };
