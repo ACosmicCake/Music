@@ -12,7 +12,7 @@ import { shareFile, isNative } from './native.js';
 import { checkForUpdate as checkWebUpdate } from './pwa.js';
 import { scenesMode, isPhone, SCENES_HELP } from './ui/scenes3d.js';
 import { currentVersion, checkRelease } from './update.js';
-import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, status as ghStatus, onStatus as ghOnStatus, linkSetup } from './ghsync.js';
+import { connect as ghConnect, disconnect as ghDisconnect, syncNow as ghSyncNow, changeToken as ghChangeToken, status as ghStatus, onStatus as ghOnStatus, linkSetup } from './ghsync.js';
 import { decodeLink, linkUrl, qrGrid, SITE, makeCode, showCode, normCode, sendByCode, receiveByCode, CODE_MINUTES } from './linkcode.js';
 import { smartPlanner, learningPrefsCard } from './ui/smart.js';
 import { goalCard, applyRamp } from './ui/goal.js';
@@ -356,6 +356,25 @@ function githubSyncBox() {
       h('label', { class: 'stack field', for: 'gh-link-dev' }, h('span', { class: 'eyebrow', text: 'This device’s name' }), dev),
       h('div', { class: 'row' }, join, h('button', { class: 'btn small ghost', onclick: () => { pendingLink = null; draw(); } }, 'Cancel')), err));
   }
+  // a new token for the same repository (after regenerating or renewing it): progress and settings stay as they are
+  let tokenOpen = false;
+  function tokenCard() {
+    const err = h('p', { class: 'small bad-text', hidden: true });
+    const inp = h('input', { id: 'gh-newtoken', type: 'password', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'github_pat_…' });
+    const save = h('button', { class: 'btn brass small' }, 'Save token');
+    const go = async () => {
+      if (!inp.value.trim()) { err.hidden = false; err.textContent = 'Paste the new token.'; return; }
+      save.disabled = true; save.textContent = 'Checking…'; err.hidden = true; connecting = true;
+      try { await ghChangeToken(inp.value); connecting = false; tokenOpen = false; toast('New token saved: synced'); draw(); }
+      catch (e) { connecting = false; err.hidden = false; err.textContent = e.message; save.disabled = false; save.textContent = 'Save token'; }
+    };
+    save.onclick = go;
+    inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+    return h('div', { class: 'stack linkjoin' },
+      h('label', { class: 'stack field', for: 'gh-newtoken' }, h('span', { class: 'eyebrow', text: 'New token' }), inp),
+      h('p', { class: 'small muted', text: 'For the same repository, after you regenerate or renew the token on GitHub. Nothing on this device or in the repository changes: the app checks the token by syncing once and keeps the old one if GitHub refuses it. Your other devices need the new token too: change it there the same way, or use Link another device.' }),
+      h('div', { class: 'row' }, save, tokenOpen ? h('button', { class: 'btn small ghost', onclick: () => { tokenOpen = false; draw(); } }, 'Cancel') : ''), err);
+  }
   function draw() {
     box.innerHTML = '';
     const st = ghStatus();
@@ -365,7 +384,9 @@ function githubSyncBox() {
         st.lastError ? h('p', { class: 'small bad-text', text: st.lastError }) : '',
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: async () => { await ghSyncNow('button'); draw(); toast(ghStatus().lastError ? 'Sync failed' : 'Synced'); } }, 'Sync now'),
           h('button', { class: 'btn small', onclick: () => showLink() }, 'Link another device'),
-          h('button', { class: 'btn small ghost', onclick: () => { ghDisconnect(); draw(); toast('Automatic sync is off on this device'); } }, 'Turn off')),
+          h('button', { class: 'btn small', onclick: () => { tokenOpen = !tokenOpen; draw(); } }, 'Change token'),
+          h('button', { class: 'btn small ghost', onclick: () => { ghDisconnect(); tokenOpen = false; draw(); toast('Automatic sync is off on this device'); } }, 'Turn off')),
+        tokenOpen || /token/i.test(st.lastError || '') ? tokenCard() : '',
         linkBox);
       if (pendingLink) { const same = pendingLink.owner === st.owner && pendingLink.repo === st.repo; pendingLink = null; toast(same ? 'This device already syncs with that repository' : 'This device already syncs. Turn it off first to join another repository.'); }
       return;
@@ -415,11 +436,11 @@ function githubSyncBox() {
           h('li', {}, 'Make a token that can only touch that repository: ', h('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noopener' }, 'new fine-grained token'), '. Repository access: Only select repositories → that one. Permissions → Contents: Read and write. Choose an expiry, generate it and copy it.'),
           h('li', { text: 'Fill in the form below on this device and tap Connect.' }),
           h('li', { text: 'Do the same on your other device with the same repository (the same token works). From then on both stay in step.' })),
-        h('p', { class: 'small muted', text: 'The token is kept only on this device, never in your progress, sync files or backups. It can read and write that one repository and nothing else. When it expires, make a new one and connect again.' }),
+        h('p', { class: 'small muted', text: 'The token is kept only on this device, never in your progress, sync files or backups. It can read and write that one repository and nothing else. When it expires, make a new one and tap Change token.' }),
         form));
   }
   draw();
-  const off = ghOnStatus(() => { if (!box.isConnected) { off(); return; } if (!connecting) draw(); });
+  const off = ghOnStatus(() => { if (!box.isConnected) { off(); return; } const t = box.querySelector('#gh-newtoken'); if (!connecting && !(t && t.value)) draw(); });
   return box;
 }
 

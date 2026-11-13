@@ -127,6 +127,19 @@ export async function connect({ owner, repo, token, path, deviceName }) {
   wire(); start();
   return true;
 }
+/* Swap in a new token (a regenerated or renewed one) for the same repository, keeping everything else.
+   Checked by syncing once; if GitHub refuses it, the old token stays and the error is thrown. */
+export async function changeToken(token) {
+  if (!cfg) throw new Error('Automatic sync is off');
+  token = (token || '').trim();
+  if (!token) throw new Error('Paste the new token.');
+  if (busy) await busy;
+  const old = cfg.token, oldErr = cfg.lastError;
+  cfg.token = token; cfg.lastError = null; save();
+  const ok = await syncNow('token');
+  if (!ok) { const err = cfg.lastError; cfg.token = old; cfg.lastError = oldErr; save(); throw new Error(err || 'Could not sync with that token'); }
+  return true;
+}
 export function disconnect() { stop(); cfg = null; save(); }
 export function status() { return cfg ? { on: true, owner: cfg.owner, repo: cfg.repo, path: cfg.path, lastSync: cfg.lastSync, lastError: cfg.lastError, busy: !!busy } : { on: false }; }
 /* what another device needs to join this sync (Settings → Link another device); null when sync is off */
