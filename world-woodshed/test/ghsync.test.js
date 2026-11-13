@@ -107,4 +107,23 @@ describe('GitHub sync', () => {
     await G.syncNow();
     expect(E.state.skills).toEqual({});
   });
+  // a regenerated token goes in without turning sync off: progress and the repository stay as they were
+  it('changes the token, and keeps the old one when GitHub refuses the new one', async () => {
+    const { E, G } = await device('d-one');
+    E.record('intervals', 'P5:up', true);
+    const real = gh.fetch;
+    let good = 't2';
+    globalThis.fetch = (url, opts = {}) => (opts.headers && opts.headers.Authorization !== 'Bearer ' + good)
+      ? Promise.resolve({ status: 401, ok: false, json: async () => ({}) }) : real(url, opts);
+    expect(await G.syncNow()).toBe(false); // the old token 't' was revoked
+    expect(G.status().lastError).toMatch(/token/);
+    await expect(G.changeToken('wrong')).rejects.toThrow(/token/);
+    expect(G.linkSetup().token).toBe('t');
+    expect(await G.changeToken(' t2 ')).toBe(true);
+    expect(G.linkSetup().token).toBe('t2');
+    expect(JSON.parse(localStorage.getItem('ww-gh-sync')).token).toBe('t2');
+    expect(G.status()).toMatchObject({ on: true, owner: 'me', repo: 'sync', path: PATH, lastError: null });
+    expect(JSON.parse(gh.text).state.skills.intervals.items['P5:up'].n).toBe(1);
+    expect(E.state.skills.intervals.items['P5:up'].n).toBe(1);
+  });
 });
