@@ -12,6 +12,7 @@ import { placeFrets } from '../notate.js';
 import { parseChord } from '../theory.js';
 import { guitarMidis } from '../voicings.js';
 import Lib from '../readlib.js';
+import { delayTracker } from '../games.js';
 
 const SKILL = 'reading';
 const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -1066,27 +1067,39 @@ function melodyMode(root, lv, ctx, own) {
     const listening = mic.on, chained = runOn() && !(own && own.single);
     const read = []; // pieces read to the end: { seg, score }
     const exp = [];  // every expected attack so far, across the run
-    const winOf = (seg, j) => { const ats = seg.ats; const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.08, Math.min(0.25, gap * seg.spq * 0.5)); };
+    const winOf = (seg, j) => { const ats = seg.ats; const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.1, Math.min(0.25, gap * seg.spq * 0.5)); };
     let heardN = 0, goodN = 0;
+    const drift = delayTracker(0.08, 4);
     if (listening) {
       micNoteOff = Mic.on('note', ev => {
         if (!exp.length) return;
-        const t = ev.t - Mic.latencyMs() / 1000;
+        // the mic's delay as set in Settings (or guessed), less the steady part of how late or early the right notes
+        // land, learned as you play: an uncalibrated laptop's guess can be tens of milliseconds out
+        const off = drift.get(), t = ev.t - Mic.latencyMs() / 1000 - off;
         let best = null, bd = Infinity;
         for (let x = exp.length - 1; x >= 0 && x >= exp.length - 24; x--) { const d = t - exp[x].t; if (Math.abs(d) < Math.abs(bd)) { bd = d; best = exp[x]; } }
         if (!best) return;
         const seg = best.seg, j = best.j;
         seg.judged = seg.judged || new Map();
-        if (seg.judged.has(j) || Math.abs(bd) > winOf(seg, j)) return;
+        if (Math.abs(bd) > winOf(seg, j)) return;
         const a = seg.ats[j], got = Math.round(ev.midi), want = (a.chord || [a.midi]).map(m => m + SOUND(seg.piece));
         // a slash: any note of the strum counts; a bass clef line in any octave (much of it lies below the guitar)
         const octOk = w => (got - w) % 12 === 0;
-        const pitch = a.slash ? 1 : want.includes(got) || (seg.piece.clef === 'bass' && want.some(octOk)) ? 1 : want.some(octOk) ? 0.5 : 0;
+        // the right note in another octave counts too: a laptop's mic often hears a low string an octave up, and
+        // the live line says which octave it heard
+        const exact = a.slash || want.includes(got), pitch = exact || want.some(octOk) ? 1 : 0;
+        // a note already judged keeps its first reading unless this one is the right pitch where that wasn't (the
+        // click or a string still ringing heard first, the note itself a moment later)
+        if (pitch === 1) drift.add(bd + off);
+        const before = seg.judged.get(j);
+        if (before && !(pitch > before.pitch)) return;
         seg.judged.set(j, { pitch, d: bd, got });
-        const good = pitch === 1 && Math.abs(bd) <= winOf(seg, j) * 0.6;
+        // the right note within its window is right: how close to the beat it was counts in the score, not the mark
+        const good = pitch === 1;
         if (seg.staff === staff) { marks[a.i] = good ? 'good' : 'bad'; markAttack(staff, piece, a, marks[a.i]); }
-        heardN++; if (good) goodN++;
-        live.textContent = (a.slash ? 'Heard a strum' : 'Heard ' + noteLabel(ev.midi).split(' ')[0]) + (pitch === 1 ? ' ✓' : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' clean';
+        if (!before) heardN++;
+        if (good) goodN++;
+        live.textContent = (a.slash ? 'Heard a strum' : 'Heard ' + noteLabel(ev.midi).split(' ')[0]) + (pitch === 1 ? ' ✓' + (exact ? '' : ' (another octave)') : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' right';
       });
     }
     const scoreMic = seg => {

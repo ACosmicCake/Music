@@ -161,6 +161,20 @@ export function bestF0(peaks, lo = GUITAR_LO, hi = GUITAR_HI, slack = 0) {
   return best;
 }
 
+/* x with each band [lo, hi] (Hz) taken out: two band-stop biquads per band, run forward over the window. */
+function bandStop(x, bands, sr) {
+  let y = Float32Array.from(x);
+  for (const [lo, hi] of bands) {
+    const f0 = Math.sqrt(lo * hi), q = f0 / (hi - lo), w = 2 * Math.PI * f0 / sr, c = Math.cos(w), al = Math.sin(w) / (2 * q);
+    const a0 = 1 + al, b0 = 1 / a0, b1 = -2 * c / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
+    for (let pass = 0; pass < 2; pass++) {
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      for (let i = 0; i < y.length; i++) { const v = y[i], o = b0 * v + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = v; y2 = y1; y1 = o; y[i] = o; }
+    }
+  }
+  return y;
+}
+
 /* The lowest value seen over the last `span` seconds, kept as minima of `step`-second chunks. */
 function MinTracker(span, step) {
   const n = Math.ceil(span / step), mins = []; let chunk = Infinity, chunkT = null;
@@ -218,6 +232,16 @@ export function Analyzer(sr, opts = {}) {
   const FLUX = 0.34 - 0.2 * sens;       // log rise per bin over the room and the frame two before, weighted by the bin's level
   let fluxHold = null, fprev1 = null, fprev2 = null, fFloor = null, fluxPrev = 0, fluxPrev2 = 0, fluxT = 0, dsCount = 0;
   const fluxHist = new Float32Array(32); let fluxN = 0;
+  /* The app's own clicks (the metronome's woodblock, Sight-reading's beat), as the mic hears them: a short burst
+     whose energy lies in one band, which laptop speakers play straight into the mic, often as loud as the guitar
+     and on the very beat a note is played. Within a click's moment that band is left out of naming notes and of
+     the spectral flux, and an onset it made gives way to the note's own. */
+  const clicks = [];
+  // the woodblock's body and its upper ring (the synth clicks are single tones inside them); the accent is a fifth up
+  const CLICK_BAND = { click: [[1080, 1800], [3300, 3850]], clickHi: [[1600, 2750], [4950, 5780]] };
+  const clickIn = (t0, t1) => { for (const c of clicks) if (c.t - 0.04 < t1 && c.t + 0.07 > t0) return c; return null; };
+  const bandsIn = (t0, t1) => { const b = []; for (const c of clicks) if (c.t - 0.04 < t1 && c.t + 0.07 > t0) b.push(...CLICK_BAND[c.kind]); return b; };
+  const inBands = (f, bands) => bands.some(([lo, hi]) => f >= lo && f <= hi);
 
   function windowEnding(tEnd, n) {
     const back = Math.round((tds - tEnd) * dsr);
@@ -228,9 +252,18 @@ export function Analyzer(sr, opts = {}) {
   }
   // the size of a peak that stands clear of the room's noise in a SN-sample Hann window
   const noiseMag = () => roomRms * Math.sqrt(0.375 * SN) * 3;
+  let lastClicky = false;
   function onsetAt(t, strength, kind) {
-    if (lastOnset >= 0 && t - lastOnset < 0.06) return;
-    lastOnset = t; armed = false;
+    const clicky = !!clickIn(t, t);
+    if (lastOnset >= 0 && t - lastOnset < 0.06) {
+      // an onset in a click's moment may be only the click: the note's own attack just after it takes over,
+      // keeping the spectrum from before the click
+      if (!(lastClicky && pending && !pending.spec && t - lastOnset > 0.012)) return;
+      lastOnset = t; lastClicky = clicky; armed = false;
+      pending = { t, kind, readings: [], before: pending.before, specT: t + 0.005 + SN / dsr };
+      return;
+    }
+    lastOnset = t; lastClicky = clicky; armed = false;
     emit({ type: 'onset', t, strength });
     notePending(t); // a note still waiting to be named is named now, before the next one starts
     const xb = windowEnding(t - 0.003, SN);
@@ -275,7 +308,9 @@ export function Analyzer(sr, opts = {}) {
     const m = magSpectrum(x, FN);
     if (!fFloor) { fFloor = Float32Array.from(m); fprev1 = fprev2 = m; return; }
     let sum = 0, wsum = 0;
+    const cb = bandsIn(tds - FN / dsr, tds);
     for (let k = fLo; k <= fHi; k++) {
+      if (cb.length && inBands(k * fdf, cb)) { fFloor[k] = Math.max(fFloor[k], 0); continue; }
       const fl = 4 * fFloor[k], ref = Math.max(fprev2[k - 1], fprev2[k], fprev2[k + 1]);
       const r = Math.log((m[k] + fl) / (ref + fl)); if (r > 0) sum += r * m[k];
       wsum += m[k];
@@ -314,15 +349,25 @@ export function Analyzer(sr, opts = {}) {
     const xa = windowEnding(pending.specT, SN);
     if (!xa) { pending.spec = null; return; }
     const A = magSpectrum(xa, NFFT), B = pending.before, N = new Float32Array(A.length);
+    // a click's band, widened by its skirt, is left out of the energies and the peaks
+    const cb = bandsIn(pending.t - 0.01, pending.specT).map(([lo, hi]) => [lo * 0.93, hi * 1.06]);
     let ea = 0, eb = 0, en = 0;
     // what was ringing, widened by a few bins so its partials leave no edges behind when taken away
     for (let k = 0; k < A.length; k++) {
       let b = 0; if (B) for (let j = Math.max(0, k - 3); j <= Math.min(A.length - 1, k + 3); j++) if (B[j] > b) b = B[j];
-      N[k] = Math.max(0, A[k] - b); ea += A[k] * A[k]; en += N[k] * N[k]; if (B) eb += B[k] * B[k];
+      N[k] = Math.max(0, A[k] - b);
+      if (cb.length && inBands(k * df, cb)) continue;
+      ea += A[k] * A[k]; en += N[k] * N[k]; if (B) eb += B[k] * B[k];
     }
     const fresh = eb < 0.1 * ea; // nothing much was sounding before
-    const all = spectralPeaks(A, df, 24, 30, noiseMag()), peaks = fresh ? all : spectralPeaks(N, df, 24, 30, noiseMag());
+    // (taken out before the peaks are picked, so a loud click doesn't set the range they are picked in; a peak
+    // right at the cut's edge is the click's skirt)
+    if (cb.length) for (let k = 0; k < A.length; k++) if (inBands(k * df, cb)) A[k] = N[k] = 0;
+    const edge = cb.map(([lo, hi]) => [lo * 0.97, hi * 1.03]);
+    const outside = list => cb.length ? list.filter(p => !inBands(p.f, edge)) : list;
+    const all = outside(spectralPeaks(A, df, 24, 30, noiseMag())), peaks = fresh ? all : outside(spectralPeaks(N, df, 24, 30, noiseMag()));
     const res = bestF0(peaks, GUITAR_LO, GUITAR_HI, SLACK);
+    pending.clicky = cb.length > 0;
     pending.spec = { midi: res ? freqToMidi(res.freq) : null, fit: res ? res.fit : 0, frac: res ? res.frac : 0, cover: res ? res.cover : 0, peaks, all, fresh, loud: peaks.length > 0 && peaks[0].a >= 6 * noiseMag(), added: fresh ? 1 : en / (ea + 1e-20) };
   }
   // does a reading explain what the attack added about as well as the best note does?
@@ -358,7 +403,8 @@ export function Analyzer(sr, opts = {}) {
   function decide(age, last) {
     const S = pending.spec, M = pending.cand;
     if (S === undefined && !last) return undefined;
-    const wait = !last && age < 0.11;
+    // (a click with the attack blurs the first readings: a little longer for a clear one)
+    const wait = !last && age < (pending.clicky && !M ? 0.2 : 0.11);
     if (!S) return M ? (M.sure || !wait ? M.midi : undefined) : (last ? null : undefined);
     if (M && fits(S, M.midi)) {
       // A plucked string's first tens of milliseconds can read an octave high or be muddy: when the reading is
@@ -369,13 +415,17 @@ export function Analyzer(sr, opts = {}) {
     if (wait) return undefined;
     // the attack brought next to nothing new: a ringing string's own wobble or a hand touching it, not a note
     // (with a clear attack in the level, the same note played again over itself)
-    if (S.added < 0.05) return pending.kind === 'level' && M && cur && Math.abs(M.midi - cur.midi) < 0.5 ? M.midi : null;
+    // (or a soft new note over louder ones ringing: a pitch that isn't the note ringing, its fundamental in the sound)
+    if (S.added < 0.05) return M && ((pending.kind === 'level' && cur && Math.abs(M.midi - cur.midi) < 0.5) || ((!cur || Math.abs(M.midi - cur.midi) >= 0.5) && mOwnH1(S.all, M.midi))) ? M.midi : null;
     // nothing in the attack's spectrum stands well clear of the room: a bump in the noise, unless the time-domain
     // reading is sure of itself
-    if (!S.loud) return M && M.sure ? M.midi : null;
+    if (!S.loud) return M && (M.sure || mOwnH1(S.all, M.midi)) ? M.midi : null;
     // an unsure low reading with no fundamental of its own in the sound: the common period of strings struck
     // together (a root and its fifth read as the octave below the root), so the attack's own note
-    if (M && !M.sure && midiToFreq(M.midi) < 200 && S.fit >= 0.2 && !mOwnH1(S.all, M.midi)) return S.midi;
+    if (M && !M.sure && midiToFreq(M.midi) < 200 && !mOwnH1(S.all, M.midi)) {
+      if (S.fit >= (pending.clicky ? 0.08 : 0.2)) return S.midi;
+      if (pending.clicky) return null; // the click left too little of the attack to tell: better nothing than a note under it
+    }
     // S, unsure, an octave or more above M, and M has partials of its own in the sound (not S's): the attack's
     // window is short for a low note, and M is the note itself
     const mOwn = M && ownPartials(S.all, M.midi, S.midi);
@@ -419,8 +469,15 @@ export function Analyzer(sr, opts = {}) {
       if (pending && tEnd - pending.t > 0.25) { notePending(); pending = null; }
     }
     if (quiet) { if (cur && tEnd - cur.last > 0.25) cur = null; return; }
-    const res = detectPitch(win, dsr);
-    if (!res || res.clarity < (pending ? 0.6 : 0.8)) { if (pending) tryName(tEnd); return; }
+    // a click in the window: its band taken out first, so the reading is the guitar's and not the click's
+    const cb = bandsIn(tEnd - Wsec, tEnd);
+    let pw = win;
+    if (cb.length) { // filtered with a run-in before the window, so the filter's own start-up isn't in it
+      const pre = Math.round(0.02 * dsr), long = windowEnding(tEnd, W + pre);
+      pw = long ? bandStop(long, cb, dsr).subarray(pre) : bandStop(win, cb, dsr);
+    }
+    const res = detectPitch(pw, dsr);
+    if (!res || res.clarity < (pending ? (cb.length ? 0.45 : 0.6) : 0.8)) { if (pending) tryName(tEnd); return; }
     const midi = freqToMidi(res.freq);
     emit({ type: 'pitch', t: tEnd, freq: res.freq, midi, clarity: res.clarity, rms });
     // turn readings into notes: after an onset, or when the pitch moves without one (hammer-ons, slides)
@@ -459,6 +516,12 @@ export function Analyzer(sr, opts = {}) {
     return fits({ midi: freqToMidi(best.freq), fit: best.fit, peaks }, nm);
   }
   return {
+    // the app plays a click ('click' or 'clickHi') that reaches the mic at audio time t
+    clickAt(t, kind = 'click') {
+      clicks.push({ t, kind: CLICK_BAND[kind] ? kind : 'click' });
+      while (clicks.length && clicks[0].t < tds - 1) clicks.shift();
+      if (clicks.length > 64) clicks.splice(0, clicks.length - 64);
+    },
     push(block, t0) {
       for (let i = 0; i < block.length; i++) {
         if (fpos === 0) frameT = t0 + i / sr;

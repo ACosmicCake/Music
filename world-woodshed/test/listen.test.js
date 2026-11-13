@@ -136,6 +136,29 @@ describe('Analyzer', () => {
     expect(ghosts).toBeLessThanOrEqual(2);
     expect(named).toBeGreaterThanOrEqual(n - 3);
   });
+  it('hears notes played on the beat with a loud click from the laptop speakers, once told when it sounds', () => {
+    // a woodblock-like click (a cluster around 1.4 kHz and a ring near 3.5 kHz) as loud as the guitar, a few ms
+    // either side of each note, as Sight-reading's beat is
+    const line = [52, 55, 57, 59, 62, 64, 67, 69, 64, 60, 57, 55];
+    const x = new Float32Array(SR * 7), when = [];
+    line.forEach((m, i) => {
+      const t = 0.6 + i * 0.45; pluck(x, t, m, 0.2, 0.44);
+      const c = t + (rnd() - 0.5) * 0.03; when.push(c);
+      for (let k = 0; k < SR * 0.04; k++) {
+        const env = Math.exp(-k / (SR * 0.006));
+        x[Math.round(c * SR) + k] += env * 0.35 * (Math.sin(2 * Math.PI * 1367 * k / SR) + 0.7 * Math.sin(2 * Math.PI * 1453 * k / SR) + 0.6 * Math.sin(2 * Math.PI * 1303 * k / SR) + 0.1 * Math.sin(2 * Math.PI * 3600 * k / SR));
+      }
+    });
+    addNoise(highpass(x, 150), 0.0005);
+    const ev = [];
+    const an = Analyzer(SR, { emit: e => ev.push(e) });
+    when.forEach(c => an.clickAt(c + (rnd() - 0.5) * 0.02, 'click'));
+    for (let i = 0; i < x.length; i += 512) an.push(x.subarray(i, Math.min(x.length, i + 512)), i / SR);
+    const notes = ev.filter(e => e.type === 'note');
+    const right = line.filter((m, i) => { const n = near(notes, 0.6 + i * 0.45); return n && Math.round(n.midi) === m; }).length;
+    expect(right).toBeGreaterThanOrEqual(line.length - 1);
+    expect(notes.length).toBeLessThanOrEqual(line.length + 1);
+  });
 });
 
 describe('spectral pitch', () => {
