@@ -25,6 +25,77 @@ add('tuplets', { id: 'htrip', tier: 3, name: 'Half-note triplets: 3 over 4 beats
 add('tuplets', { id: 'q5over2', tier: 4, name: 'Five over two beats', desc: 'Five even notes across two beats. Count the 16th-note quintuplets (10 per 2 beats) and play every other one.', pattern: () => overSpan(5, 2, 4), label: () => '5 in the time of 2 beats' });
 add('tuplets', { id: 'q5over4', tier: 5, name: 'Quarter-note quintuplets: 5 over 4 beats', desc: 'Five even notes across the bar. A favourite of modern jazz and progressive rock.', pattern: () => overSpan(5, 4, 4), label: () => '5 in the time of 4 beats' });
 
+// --- feel changes: one steady beat, the feel underneath it changes every few bars. You mix your own: pick the feels,
+// their order (or shuffle) and 1, 2 or 4 bars per feel. The bar before a change shows the next feel and rings a bell on
+// its last beat; the first bar of each feel is guided. Choices are { seq, random, seg }, kept in settings.gymFeel.
+// a feel's notes in one bar: `pos`, the same every bar, or `at(b)` for one that runs across the bar line (dotted
+// quarters and dotted eighths), b counted from the bar its feel came in, so it always starts on 1
+const running = step => b => { const o = []; for (let i = 0; i < 16; i++) if ((b * 16 + i) % step === 0) o.push(i / 4); return o; };
+export const FEEL_GROUPS = { even: 'Even notes', across: 'Across the beat', groove: 'Grooves' };
+export const FEELS = {
+  hn: { group: 'even', name: 'Half notes', short: 'Halves', say: 'on 1 and 3', pos: [0, 2] },
+  q: { group: 'even', name: 'Quarters', short: 'Quarters', say: 'ta', pos: perBeat(1, 4) },
+  e: { group: 'even', name: 'Eighths', short: 'Eighths', say: 'ta-ka', pos: perBeat(2, 4) },
+  t: { group: 'even', name: 'Triplets', short: 'Triplets', say: 'ta-ki-ta', pos: perBeat(3, 4) },
+  s: { group: 'even', name: 'Sixteenths', short: '16ths', say: 'ta-ka-di-mi', pos: perBeat(4, 4) },
+  q5: { group: 'even', name: 'Quintuplets', short: '5s', say: 'ta-di-ki-na-tom', pos: perBeat(5, 4) },
+  x6: { group: 'even', name: 'Sextuplets', short: '6s', say: 'ta-ka-di-mi-ta-ka', pos: perBeat(6, 4) },
+  dq: { group: 'across', name: 'Dotted quarters', short: 'Dotted ¼s', say: 'every 3rd eighth, across the bar line; home on 1 every 3 bars', at: running(6) },
+  d8: { group: 'across', name: 'Dotted eighths', short: 'Dotted 8ths', say: 'every 3rd sixteenth, across the beat; home on 1 every 3 beats', at: running(3) },
+  q3: { group: 'across', name: '3 against 2 (quarter-note triplets)', short: '3:2', say: '3 even notes across every 2 beats', pos: overSpan(3, 2, 4) },
+  h3: { group: 'across', name: '3 against 4 (half-note triplets)', short: '3:4', say: '3 even notes across the bar', pos: overSpan(3, 4, 4) },
+  q54: { group: 'across', name: '5 against 4 (quarter-note quintuplets)', short: '5:4', say: '5 even notes across the bar', pos: overSpan(5, 4, 4) },
+  sw: { group: 'groove', name: 'Swing eighths', short: 'Swing', say: 'ta – ta (the 1st and 3rd of each triplet)', pos: perBeat(3, 4).filter((_, i) => i % 3 !== 1) },
+  off: { group: 'groove', name: 'Off-beat eighths', short: 'Off-beats', say: 'only the “&”: 1 & 2 & 3 & 4 &', pos: [0.5, 1.5, 2.5, 3.5] },
+  t332: { group: 'groove', name: '3 + 3 + 2 (tresillo)', short: '3+3+2', say: 'eighths grouped 3, 3, 2: on 1, the & of 2, and 4', pos: [0, 1.5, 3] },
+  gal: { group: 'groove', name: 'Gallop (8th and two 16ths)', short: 'Gallop', say: 'ta – ka-di on every beat', pos: sixteenths([0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15]) }
+};
+export const feelPos = (f, b) => (f.at ? f.at(b) : f.pos);
+export const SEGS = [1, 2, 4];
+export const FEEL_PRESETS = [
+  { name: 'Up the gears', seq: ['q', 'e', 't', 's', 't', 'e'] },
+  { name: 'Eighths ↔ triplets', seq: ['e', 't'] },
+  { name: 'Quarters ↔ 3:2', seq: ['q', 'q3'] },
+  { name: 'Triplets ↔ 3:2', seq: ['t', 'q3'] },
+  { name: 'Straight ↔ swing', seq: ['e', 'sw'] },
+  { name: '16ths ↔ dotted 8ths', seq: ['s', 'd8'] },
+  { name: 'Over the bar', seq: ['q', 'q3', 'h3', 'q3'] },
+  { name: 'Quarters ↔ dotted ¼s', seq: ['q', 'dq'] },
+  { name: 'Halves to 6s', seq: ['hn', 'q', 'e', 't', 's', 'q5', 'x6'] },
+  { name: 'Grooves', seq: ['e', 'off', 't332', 'gal', 'sw'] },
+  { name: 'Surprise me', seq: ['q', 'e', 't', 's', 'sw', 'q3', 'h3', 'd8', 'dq', 'off'], random: true }
+];
+// a saved or half-made choice made safe: known feels only, never empty, 1, 2 or 4 bars
+export const feelOpts = o => {
+  const seq = (o && Array.isArray(o.seq) ? o.seq : []).filter(k => FEELS[k]).slice(0, 16);
+  return { seq: seq.length ? seq : FEEL_PRESETS[0].seq.slice(), random: !!(o && o.random), seg: o && SEGS.includes(o.seg) ? o.seg : 2 };
+};
+const surprise = new Map(); // run + feels → feels chosen so far, so a change never lands on the same feel twice running
+function feelSeq(o, i, run) {
+  const seq = o.seq;
+  if (!o.random || seq.length < 2) return seq[i % seq.length];
+  const key = run + ':' + seq.join(',');
+  let got = surprise.get(key);
+  if (!got) { if (surprise.size > 20) surprise.clear(); got = [seq[0]]; surprise.set(key, got); }
+  while (got.length <= i) {
+    const rng = seeded(run * 131 + got.length * 17 + 5), prev = seq.indexOf(got[got.length - 1]);
+    rng();
+    got.push(seq[(prev + 1 + Math.floor(rng() * (seq.length - 1))) % seq.length]);
+  }
+  return got[i];
+}
+export const feelAt = (bar, run = 0, opts) => { const o = feelOpts(opts); return FEELS[feelSeq(o, Math.floor(bar / o.seg), run)]; };
+export const nextFeel = (bar, run = 0, opts) => { const o = feelOpts(opts); return bar % o.seg === o.seg - 1 ? FEELS[feelSeq(o, Math.floor(bar / o.seg) + 1, run)] : null; };
+add('feel', {
+  id: 'feel-mix', tier: 1, name: 'Feel changes: mix your own', feels: true, bpm: [50, 90],
+  desc: 'Keep the beat steady while the feel underneath changes: half notes to sextuplets, dotted quarters and eighths, 3 against 2, swing, off-beats, tresillo and more. Pick the feels, their order and how many bars each lasts. The bar before each change shows the next feel and rings a bell on its last beat.',
+  pattern: (bar, run, o) => feelPos(feelAt(bar, run, o), bar % feelOpts(o).seg),
+  label: (bar, run, o) => { const f = feelAt(bar, run, o), n = nextFeel(bar, run, o); return f.name + ': ' + f.say + (n && n !== f ? '  →  next: ' + n.name : ''); },
+  cue: (bar, run, o) => { const n = nextFeel(bar, run, o); return !!n && n !== feelAt(bar, run, o); },
+  // the first bar of each feel is guided; with one bar per feel, guided and alone take turns a whole pass at a time
+  guided: (bar, opts) => { const o = feelOpts(opts); return o.seg === 1 ? Math.floor(bar / (o.random ? 4 : o.seq.length)) % 2 === 0 : bar % o.seg < o.seg / 2; }
+});
+
 // --- polyrhythms: the click plays one side, you play the other
 [[3, 2, 1], [2, 3, 2], [4, 3, 3], [3, 4, 3], [5, 4, 4], [4, 5, 4], [5, 3, 5], [7, 4, 5]].forEach(([n, m, tier]) => add('poly', {
   id: 'p' + n + m, tier, beats: m, bpm: [50, 110], name: n + ' against ' + m, poly: [n, m],
@@ -68,5 +139,5 @@ function randomBar(rng, tier) {
   pattern: (bar, run) => randomBar(seeded(1000 * run + Math.floor(bar / 2) * 7 + 3), tier), label: bar => (bar % 2 ? 'Your turn: play it back' : 'Listen…') }));
 
 export const gymItems = () => GYM.map(x => ({ id: x.id, label: x.name, tier: x.tier }));
-export const CATS = { tuplets: 'Subdivisions & tuplets', poly: 'Polyrhythms', grid16: 'The 16th-note grid', displace: 'Displaced click', echo: 'Echo' };
+export const CATS = { tuplets: 'Subdivisions & tuplets', feel: 'Feel changes', poly: 'Polyrhythms', grid16: 'The 16th-note grid', displace: 'Displaced click', echo: 'Echo' };
 

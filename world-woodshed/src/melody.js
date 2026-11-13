@@ -193,6 +193,7 @@ export function fromMusicXML(text, pick = null) {
   const notes = [], open = new Map(); // midi → the note a tie continues
   const starts = [], fwd = [], back = [], first = []; // each measure's start; repeat signs and first endings by measure
   const events = [], times = new Set(), implicit = []; // every note and rest of each measure as written, for writtenBars
+  const barTimes = []; // each measure's time signature (it can change from bar to bar)
   kids(part, 'measure').forEach((meas, mi) => {
     let barStart = pos, far = pos;
     starts.push(pos);
@@ -210,6 +211,7 @@ export function fromMusicXML(text, pick = null) {
         const tr = kid(x, 'transpose'); if (tr) trans = (+txt(tr, 'chromatic') || 0) + 12 * (+txt(tr, 'octave-change') || 0);
         const t = kid(x, 'time'); if (t) times.add(txt(t, 'beats') + '/' + txt(t, 'beat-type'));
         if (t && !time) time = txt(t, 'beats') + '/' + txt(t, 'beat-type');
+        if (t) barTimes[mi] = txt(t, 'beats') + '/' + txt(t, 'beat-type');
         const k = kid(x, 'key'); if (k && fifths == null && txt(k, 'fifths') !== '' && isFinite(+txt(k, 'fifths'))) fifths = +txt(k, 'fifths');
       } else if (x.name === 'direction' || x.name === 'sound') {
         const snd = x.name === 'sound' ? x : kid(x, 'sound');
@@ -252,6 +254,7 @@ export function fromMusicXML(text, pick = null) {
       }
     });
     pos = Math.max(pos, far, barStart);
+    if (!barTimes[mi]) barTimes[mi] = mi ? barTimes[mi - 1] : null;
   });
   notes.forEach(n => { n.s = r3(n.s); n.e = r3(n.e); });
   starts.push(pos);
@@ -262,9 +265,12 @@ export function fromMusicXML(text, pick = null) {
   const chosen = staves.find(x => x.part === parts.indexOf(part) && x.staff === (staff || '1'));
   // tempo marks often sit only in the first part: look there when this part has none
   if (!bpm && part !== parts[0]) bpm = firstTempo(parts[0]);
-  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', parts: parts.length, staves,
+  // a time that changes from bar to bar: each measure's, as a list (null when it never changes)
+  const perBar = barTimes.map(t => t || time || '4/4');
+  const varies = times.size > 1;
+  return { notes: notes.filter(n => n.e > n.s).slice(0, MAX_NOTES), title, bpm, time: time || '4/4', times: varies ? perBar : null, parts: parts.length, staves,
     part: parts.indexOf(part), staff: staff || '1', clef: chosen ? chosen.clef : 'treble', trans, repeats: repeatSpans(starts, fwd, back, first),
-    fifths: written ? fifths : null, spell, written: times.size <= 1 ? writtenBars(events, time || '4/4', voice, staff, implicit, starts, written) : null };
+    fifths: written ? fifths : null, spell, written: writtenBars(events, perBar, voice, staff, implicit, starts, written) };
 }
 function firstTempo(part) {
   for (const meas of kids(part, 'measure')) for (const x of meas.kids) {
@@ -275,7 +281,8 @@ function firstTempo(part) {
 }
 /* The line that was read (the first voice of the top staff) bar by bar as the score writes it, as notation.js
    notes at sounding pitch: { bars, starts (each bar's start in quarters, as the notes count them) }, or null
-   when it can't be written that way (32nd notes, tuplets other than triplets, a bar longer than the time).
+   when it can't be written that way (32nd notes, tuplets other than triplets, a bar longer than its time).
+   times: each measure's time signature.
    Chords keep all their notes, ties and triplets stay, each note keeps its own sharp or flat; a short bar
    (a pickup, or one the reader left short) is filled with rests, before the notes for a pickup. */
 const TYPE = { whole: 'w', half: 'h', quarter: 'q', eighth: '8', '16th': '16' };
@@ -285,11 +292,12 @@ function restsTo(q) {
   for (const d of ['w', 'h', 'q', '8', '16']) while (q >= QOF[d] - 1e-6) { out.push({ midi: null, dur: d }); q -= QOF[d]; }
   return q > 1e-3 ? null : out;
 }
-function writtenBars(events, time, voice, staff, implicit, starts, ownSpell) {
-  const [num, den] = time.split('/').map(Number), barQ = num * 4 / den;
-  if (!(barQ > 0)) return null;
+function writtenBars(events, times, voice, staff, implicit, starts, ownSpell) {
+  const qOf = time => { const [num, den] = String(time).split('/').map(Number); return num * 4 / den; };
+  if (!times.every(t => qOf(t) > 0)) return null;
   const bars = [];
   for (let mi = 0; mi < events.length; mi++) {
+    const barQ = qOf(times[mi]);
     const bar = [];
     let used = 0;
     for (const e of events[mi]) {

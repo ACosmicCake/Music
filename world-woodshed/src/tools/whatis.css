@@ -1,0 +1,19 @@
+/* What chord is this? and What scale is this? (src/tools/whatis.js) */
+.wi-result { display: grid; gap: 8px; }
+.wi-big { font-family: var(--font-display); font-weight: 800; font-size: 2.6rem; line-height: 1.05; overflow-wrap: anywhere; }
+.wi-sub { margin: 0; color: var(--muted); }
+.wi-tones { display: flex; flex-wrap: wrap; gap: 6px; }
+.wi-tone { display: grid; justify-items: center; min-width: 46px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.wi-tone b { font-family: var(--font-display); font-size: 1.1rem; }
+.wi-tone span { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
+.wi-tone.off { border-style: dashed; opacity: 0.6; }
+.wi-also .chips { flex-wrap: wrap; }
+.wi-pcs { display: flex; flex-wrap: wrap; gap: 6px; }
+.wi-pc { display: grid; justify-items: center; min-width: 44px; padding: 5px 7px; border-radius: 8px; border: 1px solid var(--line);
+  background: linear-gradient(to top, var(--patina-soft) calc(var(--w, 0) * 100%), var(--surface) 0); }
+.wi-pc b { font-family: var(--font-display); }
+.wi-list { display: grid; gap: 4px; }
+.wi-row { display: grid; gap: 1px; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.wi-row:hover { border-color: var(--ink); }
+html.compact .wi-big { font-size: 1.9rem; }
+html.compact .wi-tone, html.compact .wi-pc { min-width: 36px; padding: 4px 5px; }

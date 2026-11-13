@@ -2,22 +2,24 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { h, s, toast, tool, openTool, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
-import { degreeLabel, diatonicChords, spell, keyPrefersFlats, prettySym, flatName } from '../theory.js';
+import { degreeLabel, diatonicChords, spell, keyPrefersFlats, prettySym, flatName, QUAL } from '../theory.js';
 import { PATTERNS, DRILLS, warmScales } from '../routines.js';
 import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { keepAwake } from '../native.js';
+import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote, pickString, advice, centsText, needleAngle, Steady } from '../tuner.js';
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
 import { statsPage } from '../ui/stats.js';
+import { ARP_ORDER, arpOf, toneLabel, windowNotes, arpPositions, PROGRESSIONS, progOf, progChords, bestPosition } from '../arpeggios.js';
 
 /* ======================================================
    PRACTICE TOOLS: scale warm-up, explorer, circle of fifths, tuner, free practice, break
    ====================================================== */
 
 const scaleOf = id => D.SCALES.find(x => x.id === id) || D.SCALES[0];
-function selectEl(id, label, options, value, onchange) {
+export function selectEl(id, label, options, value, onchange) {
   const sel = h('select', { id, 'aria-label': label });
   options.forEach(o => {
     if (o.group) { const g = h('optgroup', { label: o.group }); o.items.forEach(it => g.append(h('option', { value: it.value, selected: it.value === value ? true : null, text: it.text }))); sel.append(g); }
@@ -26,7 +28,7 @@ function selectEl(id, label, options, value, onchange) {
   sel.onchange = () => onchange(sel.value);
   return h('label', { class: 'stack field', for: id }, h('span', { class: 'eyebrow', text: label }), sel);
 }
-function keyChips(value, onpick) {
+export function keyChips(value, onpick) {
   const wrap = h('div', { class: 'chips' });
   D.NOTE_NAMES.forEach((n, i) => wrap.append(h('button', { class: 'chip', 'aria-pressed': i === value ? 'true' : 'false', onclick: () => onpick(i) }, n)));
   return wrap;
@@ -131,8 +133,11 @@ tool('scalewarm', {
     const st = {
       scale: p.scale || saved.scale || 'major', tonic: p.tonic ?? saved.tonic ?? 7, pattern: p.pattern || saved.pattern || 'updown',
       sub: saved.sub || 2, guide: saved.guide !== false, climb: saved.climb !== false, start: null,
-      autoPos: p.autoPos ?? saved.autoPos ?? false, posEvery: saved.posEvery || 2
+      autoPos: p.autoPos ?? saved.autoPos ?? false, posEvery: saved.posEvery || 2,
+      // on a timer: up rampStep bpm every rampMin minutes, with a countdown (replaces the climb by rounds)
+      ramp: !!saved.ramp, rampStep: saved.rampStep || 4, rampMin: saved.rampMin || 1
     };
+    if (st.ramp) st.climb = false;
     const bpmKey = () => st.scale + ':' + st.pattern;
     const bpms = E.state.settings.warmBpm || {};
     // the smart plan sets the tempo and position itself
@@ -154,10 +159,11 @@ tool('scalewarm', {
     const fb = Fretboard({ onTap: (si, f) => A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.8, 1.2) });
     const playBtn = h('button', { class: 'btn primary' }, '▶ Start');
     const roundLbl = h('span', { class: 'small muted mono' });
+    const rampLbl = h('p', { class: 'small mono warm-ramp', hidden: true });
     card.append(
       h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '0' } }, h('span', { class: 'eyebrow', text: 'Now' }), now),
         h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), h('div', { class: 'stack', style: { gap: '0', justifyItems: 'center' } }, h('span', { class: 'eyebrow', text: 'bpm' }), bpmLbl), h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'))),
-      fb.el, info, timeLbl,
+      rampLbl, fb.el, info, timeLbl,
       h('div', { class: 'row' }, playBtn,
         h('button', { class: 'btn brass', onclick: () => { saveBest(); setBpm(bpm + 4); sig.clean++; report(); toast('Clean. Up to ' + bpm + ' bpm'); } }, 'Clean ✓ +4'),
         h('button', { class: 'btn', onclick: () => { setBpm(bpm - 6); sig.notClean++; report(); toast('Back to ' + bpm + ' bpm. Rebuild it clean.'); } }, 'Not clean'), roundLbl));
@@ -187,11 +193,10 @@ tool('scalewarm', {
       onOff: () => { listenBox.hidden = true; meter.stop(); if (micNoteOff) micNoteOff(); micNoteOff = null; } });
     card.append(mic.el, listenBox);
 
-    const posSel = h('div');
-    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery }); }
+    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, ramp: st.ramp, rampStep: st.rampStep, rampMin: st.rampMin }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));
-      bpmLbl.textContent = bpm;
+      bpmLbl.textContent = bpm; rampFrom = null;
       const all = Object.assign({}, E.state.settings.warmBpm || {}); all[bpmKey()] = bpm; E.setSetting('warmBpm', all);
       if (loop) { stop(); start(); }
     }
@@ -199,7 +204,8 @@ tool('scalewarm', {
       const best = Object.assign({}, E.state.settings.warmBest || {});
       best[bpmKey()] = Math.max(best[bpmKey()] || 0, bpm); E.setSetting('warmBest', best);
     }
-    function defaultStart() { const f = ((st.tonic - 4) % 12 + 12) % 12; return Math.max(0, f === 0 ? 0 : f - 1); }
+    // the root under the first finger on the 6th string, as it is tuned now (drop D, a capo)
+    function defaultStart() { const f = ((st.tonic - E.STRINGS[0].midi) % 12 + 12) % 12; return Math.max(0, f === 0 ? 0 : f - 1); }
     function build() {
       clock.flush();
       const sc = scaleOf(st.scale);
@@ -210,7 +216,8 @@ tool('scalewarm', {
       fb.mark(notes.map(n => ({ s: n.s, f: n.f, kind: n.deg === 0 ? 'root' : 'tone', label: degreeLabel(n.deg) })));
       const ps = rootPositions(st.tonic), pi = ps.indexOf(st.start);
       info.textContent = spell(st.tonic, flats) + ' ' + sc.name + ', frets ' + st.start + '–' + (st.start + 4) + (pi >= 0 ? ' (position ' + (pi + 1) + ' of ' + ps.length + ')' : '') + ' · ' + PATTERNS[st.pattern].toLowerCase() + ' · ' + seq.length + ' notes per round, root to root. ' +
-        'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.' + (st.autoPos ? ' The position moves every ' + st.posEvery + ' round' + (st.posEvery > 1 ? 's' : '') + '.' : '');
+        'Gold = root. Play one note per ' + ['', 'beat', 'half beat', 'triplet', 'sixteenth'][st.sub] + '.' + (st.autoPos ? ' The position moves every ' + st.posEvery + ' round' + (st.posEvery > 1 ? 's' : '') + '.' : '') +
+        (st.ramp ? ' The tempo goes up ' + st.rampStep + ' bpm every ' + (st.rampMin === 1 ? 'minute' : st.rampMin + ' minutes') + ', on a beat; Stop goes back to where you started.' : '');
       const best = (E.state.settings.warmBest || {})[bpmKey()];
       roundLbl.textContent = best ? 'Best clean: ' + best + ' bpm' : '';
       paintTime();
@@ -222,11 +229,34 @@ tool('scalewarm', {
       now.textContent = spell(n.p, keyPrefersFlats(st.tonic, scaleOf(st.scale).steps[2] === 3));
     }
     let countTimers = [], loops = [], posDir = 1;
+    // The timed speed-up: rampAt is the audio time of the next step up, taken on the first beat at or after
+    // it; rampFrom is the tempo Start began at, which the Stop button goes back to.
+    let rampAt = 0, rampFrom = null, rampTimer = null;
+    const rampSecs = () => st.rampMin * 60;
+    function paintRamp() {
+      if (!st.ramp || !loop) { rampLbl.hidden = true; return; }
+      const left = Math.max(0, Math.ceil(rampAt - A.heard()));
+      rampLbl.hidden = false;
+      if (bpm >= 260) { rampLbl.textContent = 'Top speed: 260 bpm'; rampLbl.classList.remove('soon'); return; }
+      const soon = left <= 5;
+      rampLbl.classList.toggle('soon', soon);
+      rampLbl.textContent = soon ? 'Faster in ' + Math.max(1, left) + '… ' + Math.min(260, bpm + st.rampStep) + ' bpm'
+        : '↑ ' + Math.min(260, bpm + st.rampStep) + ' bpm in ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+    }
+    function startRamp(at) {
+      clearInterval(rampTimer); rampTimer = null;
+      if (!st.ramp) { rampLbl.hidden = true; return; }
+      if (rampFrom === null) rampFrom = bpm;
+      rampAt = at + rampSecs();
+      rampTimer = setInterval(paintRamp, 250);
+      paintRamp();
+    }
     function start() {
       A.ensure(); rounds = 0; steps.length = 0; lastStep = null; posDir = 1;
       const beat = 60 / bpm;
       // one bar of count-in, then rounds of the pattern
       const t0 = A.now() + 0.1;
+      startRamp(t0 + 4 * beat);
       for (let k = 0; k < 4; k++) {
         A.hit(k === 0 ? 'clickHi' : 'click', t0 + k * beat, 1);
         countTimers.push(setTimeout(() => { now.textContent = (k + 1) + '…'; }, Math.max(0, (t0 + k * beat - A.now() + A.latency()) * 1000)));
@@ -238,11 +268,18 @@ tool('scalewarm', {
     // One round of the pattern. Its last step schedules the next round exactly on time, so the tempo
     // and the position can change between rounds without a gap.
     function playRound(at) {
-      const rs = seq, rn = notes, len = rs.length, n = Math.ceil(len / st.sub) * st.sub, sd = 60 / bpm / st.sub;
+      const rs = seq, rn = notes, len = rs.length, n = Math.ceil(len / st.sub) * st.sub;
+      let sd = 60 / bpm / st.sub;
       const round = rounds, label = st.autoPos ? 'frets ' + st.start + '–' + (st.start + 4) : '';
+      const bumps = {}; // steps where the timed speed-up came in: the tempo to show when they are heard
       const lp = A.Loop({
         steps: n, maxSteps: n, stepDur: () => sd,
         onStep: (i, t) => {
+          // the timer's step up lands on a beat, even in the middle of a round
+          if (st.ramp && i % st.sub === 0 && rampAt && t >= rampAt - 0.01) {
+            rampAt += rampSecs();
+            if (bpm < 260) { bpm = Math.min(260, bpm + st.rampStep); sd = 60 / bpm / st.sub; bumps[i] = bpm; }
+          }
           if (i % st.sub === 0) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8);
           // guide notes would confuse the mic, so they stay off while it listens
           if (i < len && st.guide && !mic.on) A.note(rs[i].m, t, 0.32, 0.25);
@@ -251,7 +288,9 @@ tool('scalewarm', {
         },
         onVisual: i => {
           if (i < len) highlight(i, rs, rn);
-          if (i === 0) { bpmLbl.textContent = Math.round(60 / sd / st.sub); roundLbl.textContent = 'Round ' + (round + 1) + (label ? ' · ' + label : ''); }
+          if (bumps[i]) { bpmLbl.textContent = bumps[i]; toast('Faster: ' + bumps[i] + ' bpm'); }
+          else if (i === 0) bpmLbl.textContent = Math.round(60 / sd / st.sub);
+          if (i === 0) { roundLbl.textContent = 'Round ' + (round + 1) + (label ? ' · ' + label : ''); }
         }
       });
       loop = lp; loops.push(lp); if (loops.length > 3) loops.shift();
@@ -271,8 +310,10 @@ tool('scalewarm', {
       }
       playRound(at);
     }
-    function stop() { clock.stop(); countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
-    playBtn.onclick = () => (loop ? stop() : start());
+    function stop() { clearInterval(rampTimer); rampTimer = null; rampLbl.hidden = true; clock.stop(); countTimers.forEach(clearTimeout); countTimers = []; loops.forEach(l => l.stop()); loops = []; loop = null; playBtn.textContent = '▶ Start'; ctx.setActive(false); now.textContent = '—'; build(); }
+    // Stop goes back to the tempo the timed speed-up started from (a tempo you set while it ran starts it over)
+    function halt() { stop(); if (rampFrom !== null) { bpm = rampFrom; bpmLbl.textContent = bpm; } rampFrom = null; }
+    playBtn.onclick = () => (loop ? halt() : start());
 
     function renderCtl() {
       ctl.innerHTML = '';
@@ -286,14 +327,19 @@ tool('scalewarm', {
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.tonic, i => { st.tonic = i; restart(); })),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.guide ? true : null, onchange: e => { st.guide = e.target.checked; persist(); } }), 'Play the notes with me'),
-          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; persist(); } }), 'Speed up 2 bpm every 2 rounds')),
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.climb ? true : null, onchange: e => { st.climb = e.target.checked; if (st.climb) st.ramp = false; persist(); renderCtl(); if (loop) startRamp(A.now()); } }), 'Speed up 2 bpm every 2 rounds')),
+        h('div', { class: 'row' },
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.ramp ? true : null, onchange: e => { st.ramp = e.target.checked; if (st.ramp) st.climb = false; persist(); build(); if (loop) startRamp(A.now()); } }), 'Speed up on a timer:'),
+          (() => { const sel = h('select', { 'aria-label': 'bpm per step' }); [1, 2, 4, 5, 8, 10].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.rampStep ? true : null, text: '+' + v + ' bpm' }))); sel.onchange = () => { st.rampStep = +sel.value; persist(); build(); paintRamp(); }; return sel; })(),
+          h('span', { text: 'every' }),
+          (() => { const sel = h('select', { 'aria-label': 'Minutes per step' }); [1, 2, 3, 5].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.rampMin ? true : null, text: v + ' min' }))); sel.onchange = () => { st.rampMin = +sel.value; persist(); build(); if (loop) startRamp(A.now()); }; return sel; })()),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.autoPos ? true : null, onchange: e => { st.autoPos = e.target.checked; persist(); build(); } }), 'Move up the neck to a new position every'),
           (() => { const sel = h('select', { 'aria-label': 'Rounds per position' }); [1, 2, 4].forEach(v => sel.append(h('option', { value: String(v), selected: v === st.posEvery ? true : null, text: v + (v === 1 ? ' round' : ' rounds') }))); sel.onchange = () => { st.posEvery = +sel.value; persist(); build(); }; return sel; })()),
         h('p', { class: 'small muted', text: 'Positions follow the root on the 6th, 5th and 4th strings, so you cover the neck in a few rounds. Each round starts and ends on the root.' }));
     }
     build();
-    return () => { clock.stop(); countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
+    return () => { clearInterval(rampTimer); clock.stop(); countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
   }
 });
 
@@ -446,65 +492,130 @@ tool('circle', {
   render(body) { body.append(h('div', { class: 'card' }, CircleWidget())); }
 });
 
-/* ---------- Reference tones (tuner) ---------- */
+/* ---------- Tuner and reference tones ---------- */
 const TUNINGS = E.TUNINGS.map(t => [t.name, t.midi]);
+/* the dial: an arc from −50 to +50 cents, the in-tune zone in the middle, a needle */
+function TunerDial() {
+  const W = 240, H = 132, cx = 120, cy = 122, R = 104;
+  const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const arc = (a0, a1, r) => { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' A' + r + ' ' + r + ' 0 0 1 ' + x1.toFixed(1) + ' ' + y1.toFixed(1); };
+  const ticks = [];
+  for (let c = -50; c <= 50; c += 5) {
+    const big = c % 25 === 0, [x0, y0] = pt(needleAngle(c), R - (big ? 14 : 8)), [x1, y1] = pt(needleAngle(c), R);
+    ticks.push(s('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'td-tick' + (big ? ' big' : '') }));
+  }
+  const labs = [[-50, '−50'], [-25, '−25'], [25, '+25'], [50, '+50']].map(([c, t]) => { const [x, y] = pt(needleAngle(c), R - 26); return s('text', { x, y: y + 4, class: 'td-lab' }, t); });
+  const needle = s('g', { class: 'td-needle' }, s('line', { x1: cx, y1: cy, x2: cx, y2: cy - R + 4 }), s('circle', { cx, cy, r: 6 }));
+  const svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'tdial', role: 'img', 'aria-hidden': 'true' },
+    s('path', { d: arc(needleAngle(-50), needleAngle(50), R), class: 'td-arc' }),
+    s('path', { d: arc(needleAngle(-IN_TUNE), needleAngle(IN_TUNE), R - 4), class: 'td-zone' }),
+    ...ticks, ...labs, needle);
+  return { el: svg, set(cents) { needle.style.transform = cents === null ? '' : 'rotate(' + needleAngle(cents).toFixed(1) + 'deg)'; svg.classList.toggle('idle', cents === null); } };
+}
 tool('tuner', {
-  tab: 'learn', skill: null, title: 'Tuner & reference tones', eyebrow: 'Reference · tune up',
-  desc: 'Let the app hear each string and show how far off it is, or tune by ear to sustained reference tones in eight tunings.',
+  tab: 'learn', skill: null, title: 'Tuner', eyebrow: 'Tune up',
+  desc: 'A chromatic and guitar tuner that listens through the mic: the note, how many cents sharp or flat, and which way to turn the peg, in ten tunings and at any A from 430 to 450 Hz. Reference tones below for tuning by ear.',
   render(body) {
+    const saved = Object.assign({ mode: 'guitar', a4: 440 }, E.state.settings.tuner || {});
+    const opt = { mode: saved.mode === 'chromatic' ? 'chromatic' : 'guitar', a4: a4Of(saved.a4) };
+    const keep = () => E.setSetting('tuner', { mode: opt.mode, a4: opt.a4 });
     let ti = Math.max(0, E.TUNINGS.findIndex(t => t.id === E.guitar().tuning)), stopFn = null, playing = -1, cycle = null;
+    let pinned = -1, done = new Set(), inSince = 0, heardSi = -1, quiet = null;
+    const steady = Steady();
     // the listening tuner
     const tcard = h('div', { class: 'card tuner' });
+    const dial = TunerDial(); dial.set(null);
     const noteEl = h('div', { class: 'tn-note', text: '—' });
     const centsEl = h('div', { class: 'mono tn-cents', text: '' });
-    const needle = h('i', { class: 'tn-needle' });
-    const scale = h('div', { class: 'tn-scale' }, h('span', { class: 'tn-zone' }), needle, h('span', { class: 'tn-lab l', text: '−50' }), h('span', { class: 'tn-lab c', text: '0' }), h('span', { class: 'tn-lab r', text: '+50' }));
-    const strEl = h('p', { class: 'small muted', text: 'Play one string at a time and let it ring.' });
-    const recent = [];
-    let pitchOff = null, quiet = null;
+    const adviceEl = h('p', { class: 'tn-advice', 'aria-live': 'polite', text: 'Turn on the mic, then play one string at a time and let it ring.' });
+    const modeSeg = h('div', { class: 'seg tn-mode' });
+    const strRow = h('div', { class: 'tn-strings' });
+    const a4Lbl = h('b', { class: 'mono', text: '' });
+    const tunSel = h('div', { class: 'tn-tuning' });
+    const idle = () => { dial.set(null); noteEl.textContent = '—'; centsEl.textContent = ''; heardSi = -1; tcard.classList.remove('intune', 'live'); paintStrings(); };
+    function paintMode() {
+      modeSeg.innerHTML = '';
+      [['guitar', 'Guitar'], ['chromatic', 'Chromatic']].forEach(([id, t]) => modeSeg.append(h('button', { type: 'button', 'aria-pressed': String(opt.mode === id), onclick: () => { opt.mode = id; keep(); paintMode(); idle(); } }, t)));
+      strRow.hidden = tunSel.hidden = opt.mode !== 'guitar';
+      if (opt.mode === 'chromatic') adviceEl.textContent = 'Any note, on any instrument: the nearest note and how far off it is.';
+      else adviceEl.textContent = pinned >= 0 ? 'Tuning string ' + (6 - pinned) + '. Tap Auto to let the tuner pick.' : 'Play one string at a time and let it ring. Tap a string to tune only that one.';
+    }
+    function paintStrings() {
+      strRow.innerHTML = '';
+      const midis = TUNINGS[ti][1];
+      strRow.append(h('button', { type: 'button', class: 'tn-str auto', 'aria-pressed': String(pinned < 0), onclick: () => { pinned = -1; steady.reset(); paintMode(); paintStrings(); } }, h('b', { text: 'Auto' }), h('span', { class: 'small muted', text: 'any string' })));
+      midis.forEach((m, i) => strRow.append(h('button', { type: 'button', class: 'tn-str' + (heardSi === i ? ' heard' : '') + (done.has(i) ? ' done' : ''), 'aria-pressed': String(pinned === i), 'aria-label': 'String ' + (6 - i) + ', ' + flatName(m) + (done.has(i) ? ', in tune' : ''),
+        onclick: () => { pinned = pinned === i ? -1 : i; steady.reset(); paintMode(); paintStrings(); } },
+      h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: done.has(i) ? '✓' : String(6 - i) }))));
+    }
+    function paintA4() { a4Lbl.textContent = 'A = ' + opt.a4 + ' Hz'; }
+    const stepA4 = d => { opt.a4 = a4Of(Math.max(A4_MIN, Math.min(A4_MAX, opt.a4 + d))); keep(); paintA4(); steady.reset(); if (playing >= 0) { stopTone(); draw(); } };
+    let pitchOff = null;
     const mic = MicToggle({ label: 'Tune with the mic', onLabel: 'Listening', hint: '',
-      onOn: () => { pitchOff = Mic.on('pitch', ev => {
-        recent.push(ev.midi); if (recent.length > 5) recent.shift();
-        const sorted = recent.slice().sort((a, b) => a - b), m = sorted[sorted.length >> 1];
-        if (Math.abs(ev.midi - m) > 0.7) return; // wait for the reading to settle
-        const r = Math.round(m), c = Math.round((m - r) * 100);
-        noteEl.textContent = noteLabel(r);
-        centsEl.textContent = (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(c) + ' cents · ' + ev.freq.toFixed(1) + ' Hz';
-        needle.style.left = (50 + Math.max(-50, Math.min(50, c))) + '%';
-        tcard.classList.toggle('intune', Math.abs(c) <= 4);
-        const midis = TUNINGS[ti][1];
-        let si = 0; midis.forEach((x, i) => { if (Math.abs(x - m) < Math.abs(midis[si] - m)) si = i; });
-        const off = Math.round((m - midis[si]) * 100);
-        strEl.textContent = 'String ' + (6 - si) + ' (' + flatName(midis[si]) + '): ' + (Math.abs(off) <= 4 ? 'in tune' : Math.abs(off) > 150 ? 'far off: check you’re on the right string' : (off > 0 ? 'sharp by ' + off + ' cents, tune down' : 'flat by ' + (-off) + ' cents, tune up'));
-        clearTimeout(quiet); quiet = setTimeout(() => { tcard.classList.remove('intune'); }, 1500);
+      onOn: () => { keepAwake(true, 'tuner'); pitchOff = Mic.on('pitch', ev => {
+        const m = steady.push(freqToMidi(ev.freq, opt.a4));
+        if (m === null) return;
+        tcard.classList.add('live');
+        let cents, label;
+        if (opt.mode === 'guitar') {
+          const midis = TUNINGS[ti][1], p = pickString(m, midis, pinned);
+          const moved = heardSi !== p.si;
+          if (moved) inSince = 0;
+          cents = p.cents; heardSi = p.si; label = flatName(midis[p.si]);
+          noteEl.textContent = label; noteEl.dataset.sub = 'string ' + (6 - p.si);
+          adviceEl.textContent = 'String ' + (6 - p.si) + ' (' + label + '): ' + advice(cents);
+          if (Math.abs(cents) <= IN_TUNE) {
+            if (!inSince) inSince = Date.now();
+            else if (Date.now() - inSince >= HOLD_MS && !done.has(p.si)) { done.add(p.si); paintStrings(); }
+          } else inSince = 0;
+          if (moved) paintStrings();
+        } else {
+          const n = nearestNote(m);
+          cents = n.cents; label = noteLabel(n.midi).split(' ')[0];
+          noteEl.textContent = label; noteEl.dataset.sub = '';
+          adviceEl.textContent = advice(cents);
+        }
+        dial.set(cents);
+        centsEl.textContent = centsText(cents) + ' cents · ' + ev.freq.toFixed(1) + ' Hz';
+        tcard.classList.toggle('intune', Math.abs(cents) <= IN_TUNE);
+        clearTimeout(quiet); quiet = setTimeout(() => { inSince = 0; steady.reset(); idle(); }, 1500);
       }); },
-      onOff: () => { if (pitchOff) pitchOff(); pitchOff = null; noteEl.textContent = '—'; centsEl.textContent = ''; } });
-    tcard.append(h('div', { class: 'spread' }, h('h2', { text: 'Tuner' }), mic.el), noteEl, centsEl, scale, strEl);
+      onOff: () => { keepAwake(false, 'tuner'); if (pitchOff) pitchOff(); pitchOff = null; clearTimeout(quiet); steady.reset(); idle(); paintMode(); } });
+    tcard.append(h('div', { class: 'spread' }, modeSeg, mic.el),
+      h('div', { class: 'tn-dialwrap' }, dial.el, h('div', { class: 'tn-read' }, noteEl, centsEl)), adviceEl, strRow, tunSel,
+      h('div', { class: 'row tn-a4' }, h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Lower A by 1 Hz', onclick: () => stepA4(-1) }, '−'), a4Lbl,
+        h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Raise A by 1 Hz', onclick: () => stepA4(1) }, '+'),
+        h('button', { class: 'btn small ghost', type: 'button', onclick: () => stepA4(440 - opt.a4) }, '440')));
     body.append(tcard);
     const card = h('div', { class: 'card' }); body.append(card);
     function stopTone() { if (stopFn) stopFn(); stopFn = null; playing = -1; clearTimeout(cycle); cycle = null; }
+    const toneOf = m => at440(m, opt.a4);
+    function drawTuning() {
+      tunSel.innerHTML = '';
+      tunSel.append(selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; done = new Set(); pinned = -1; steady.reset(); drawTuning(); paintStrings(); paintMode(); draw(); }));
+    }
     function draw() {
       card.innerHTML = '';
       const [name, midis] = TUNINGS[ti];
-      card.append(h('h3', { text: 'Reference tones' }), selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; draw(); }),
+      card.append(h('h3', { text: 'Reference tones' }),
         h('div', { class: 'strings' }, midis.map((m, i) => h('button', { class: 'stringbtn' + (playing === i ? ' on' : ''), onclick: () => {
           A.ensure(); const was = playing === i; stopTone();
-          if (!was) { stopFn = A.tone(m, A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
+          if (!was) { stopFn = A.tone(toneOf(m), A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
           draw();
         } }, h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
         h('div', { class: 'row' },
           h('button', { class: 'btn', onclick: () => {
             A.ensure(); stopTone();
             let i = 0;
-            const step = () => { if (i >= midis.length) { stopTone(); draw(); return; } stopFn && stopFn(); stopFn = A.tone(midis[i], A.now() + 0.02, 2.2); playing = i; draw(); i++; cycle = setTimeout(step, 2400); };
+            const step = () => { if (i >= midis.length) { stopTone(); draw(); return; } stopFn && stopFn(); stopFn = A.tone(toneOf(midis[i]), A.now() + 0.02, 2.2); playing = i; draw(); i++; cycle = setTimeout(step, 2400); };
             step();
           } }, '▶ Play all strings'),
           h('button', { class: 'btn ghost', onclick: () => { stopTone(); draw(); } }, 'Stop')),
-        E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo : '') + '.' }),
-        h('p', { class: 'small muted', text: name + '. Tones use A = 440 Hz, without a capo. Tap a string to hold its note; tap again to stop. The tuner above uses the tuning you pick here.' }));
+        E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo + ' (tune the open strings without it)' : '') + '.' }),
+        h('p', { class: 'small muted', text: name + '. Tones use A = ' + opt.a4 + ' Hz, without a capo. Tap a string to hold its note; tap again to stop.' }));
     }
-    draw();
-    return () => { stopTone(); clearTimeout(quiet); mic.cleanup(); };
+    paintA4(); drawTuning(); paintStrings(); paintMode(); draw();
+    return () => { stopTone(); clearTimeout(quiet); keepAwake(false, 'tuner'); mic.cleanup(); };
   }
 });
 
@@ -556,7 +667,7 @@ const FINGER_PATTERNS = { '1234': [1, 2, 3, 4], '4321': [4, 3, 2, 1], '1324': [1
 const KONNAKOL = { 3: ['ta', 'ki', 'ta'], 4: ['ta', 'ka', 'di', 'mi'], 5: ['ta', 'di', 'ki', 'na', 'tom'], 7: ['ta', 'ki', 'ta', 'ta', 'ka', 'di', 'mi'] };
 tool('away', {
   tab: 'train', skill: null, title: 'No-guitar drills', eyebrow: 'Practice away from the instrument',
-  desc: 'Finger independence on a tabletop, konnakol, seeing the neck in your head and singing scale degrees. All you need is the phone.',
+  desc: 'Finger independence on a tabletop, konnakol, seeing scales and arpeggios on the neck in your head and singing scale degrees. All you need is the phone.',
   render(body, ctx) {
     let drill = (ctx.params || {}).drill || 'fingers';
     let loop = null, drone = null, cleanupExtra = null;
@@ -671,6 +782,95 @@ tool('away', {
             h('button', { class: 'btn ghost', onclick: surprise }, 'Surprise me')),
           fbWrap,
           h('p', { class: 'small muted', text: 'Mental practice works: players who rehearse in their heads keep much of their progress. Do the same with a piece you are learning.' }));
+      } else if (drill === 'arps') {
+        // an arpeggio in one position, or a progression's chords one after another, pictured on the neck
+        const p = ctx.params || {}, saved = E.state.settings.visArp || {};
+        const S = () => E.STRINGS.map(x => x.midi);
+        const ivOf = type => (QUAL.find(([k]) => k === type) || QUAL[QUAL.length - 1])[1];
+        const known = id => ARP_ORDER.includes(id);
+        const st = {
+          mode: p.mode === 'changes' || (!p.chord && saved.mode === 'changes') ? 'changes' : 'one',
+          chord: known(p.chord) ? p.chord : known(saved.chord) ? saved.chord : 'maj7',
+          root: Number.isInteger(p.root) ? p.root : Number.isInteger(saved.root) ? saved.root : 7,
+          prog: progOf(saved.prog || 'iiVI').id, key: Number.isInteger(saved.key) ? saved.key : 0, bars: saved.bars || 2,
+          start: null, bpm: 60, click: saved.click !== false
+        };
+        const persist = () => E.setSetting('visArp', { mode: st.mode, chord: st.chord, root: st.root, prog: st.prog, key: st.key, bars: st.bars, click: st.click });
+        const prompt = h('div', { class: 'prompt' }), nextLbl = h('p', { class: 'small muted' });
+        const fb = Fretboard({});
+        const fbWrap = h('div', { hidden: true }, fb.el);
+        const setup = h('div', { class: 'stack' });
+        let chords = [], at = 0;
+        const flatsOf = (root, minor) => keyPrefersFlats(root, minor);
+        const symOf = c => prettySym(spell(c.root, flatsOf(st.key, !!progOf(st.prog).minor)) + c.type);
+        const tones = (iv, root, flats, id) => iv.map(x => spell(root + x, flats) + ' (' + toneLabel(x, id) + ')').join(', ');
+        const markWin = (W, id) => fb.mark(W.map(n => ({ s: n.s, f: n.f, kind: n.iv === 0 ? 'root' : 'tone', label: toneLabel(n.iv, id) })));
+        const answer = h('p', { class: 'small muted', hidden: true });
+        function showChord(i) {
+          const c = chords[i]; if (!c) return;
+          at = i;
+          const iv = ivOf(c.type), flats = flatsOf(st.key, !!progOf(st.prog).minor);
+          prompt.textContent = symOf(c) + ', frets ' + st.start + '–' + (st.start + 4);
+          nextLbl.textContent = 'Next: ' + symOf(chords[(i + 1) % chords.length]);
+          answer.textContent = tones(iv, c.root, flats, c.type === 'dim7' ? 'dim7' : '');
+          markWin(windowNotes(iv, c.root, st.start, S(), false), c.type === 'dim7' ? 'dim7' : '');
+        }
+        const draw = () => {
+          setup.innerHTML = ''; fbWrap.hidden = true; answer.hidden = true;
+          const modeSeg = h('div', { class: 'seg' }, [['one', 'One arpeggio'], ['changes', 'Through the changes']].map(([k, t]) => h('button', { 'aria-pressed': st.mode === k ? 'true' : 'false', onclick: () => { st.mode = k; st.start = null; persist(); draw(); } }, t)));
+          setup.append(modeSeg);
+          if (st.mode === 'one') {
+            const c = arpOf(st.chord), ps = arpPositions(st.root, S());
+            if (st.start === null || !ps.includes(st.start)) { const f = ((st.root - S()[0]) % 12 + 12) % 12; st.start = ps.includes(Math.max(0, f - 1)) ? Math.max(0, f - 1) : ps[0]; }
+            const flats = flatsOf(st.root, c.iv[1] === 3);
+            prompt.textContent = spell(st.root, flats) + ' ' + c.name.toLowerCase() + ', frets ' + st.start + '–' + (st.start + 4);
+            nextLbl.textContent = '';
+            answer.textContent = tones(c.iv, st.root, flats, c.id);
+            markWin(windowNotes(c.iv, st.root, st.start, S()), c.id);
+            setup.append(
+              h('div', { class: 'formgrid' },
+                selectEl('visarp-chord', 'Arpeggio', ARP_ORDER.map(id => ({ value: id, text: arpOf(id).name })), st.chord, v => { st.chord = v; persist(); draw(); }),
+                selectEl('visarp-pos', 'Position', ps.map((f, i) => ({ value: String(f), text: (i + 1) + ' · frets ' + f + '–' + (f + 4) })), String(st.start), v => { st.start = +v; draw(); })),
+              h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Root' }), keyChips(st.root, i => { st.root = i; st.start = null; persist(); draw(); })));
+          } else {
+            chords = progChords(progOf(st.prog), st.key);
+            st.start = bestPosition(chords, ivOf, st.key, S());
+            showChord(0);
+            setup.append(
+              h('div', { class: 'formgrid' },
+                selectEl('visarp-prog', 'Progression', PROGRESSIONS.map(x => ({ value: x.id, text: x.name })), st.prog, v => { st.prog = v; persist(); draw(); }),
+                selectEl('visarp-bars', 'New chord every', [1, 2, 4].map(v => ({ value: String(v), text: v === 1 ? 'bar' : v + ' bars' })), String(st.bars), v => { st.bars = +v; persist(); })),
+              h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.key, i => { st.key = i; persist(); draw(); })));
+          }
+        };
+        const surprise = () => {
+          if (st.mode === 'one') { const easy = ARP_ORDER.filter(id => arpOf(id).tier <= 4); st.chord = easy[Math.floor(Math.random() * easy.length)]; st.root = Math.floor(Math.random() * 12); const ps = arpPositions(st.root, S()); draw(); st.start = ps[Math.floor(Math.random() * ps.length)]; }
+          else { st.prog = PROGRESSIONS[Math.floor(Math.random() * PROGRESSIONS.length)].id; st.key = Math.floor(Math.random() * 12); }
+          draw();
+        };
+        draw();
+        card.append(h('h2', { text: 'See arpeggios in your head' }), prompt, nextLbl, setup,
+          h('p', { text: 'Close your eyes. Picture the neck and "play" the arpeggio in this position, one note per click, up and down from the lowest root. Say each chord tone under your breath (root, 3rd, 5th, 7th). Through the changes, the chord moves on every few bars: find its nearest note without moving your hand. Then reveal it and check.' }),
+          clickRow(st, () => {
+            A.ensure();
+            const per = () => st.bars * 4;
+            loop = A.Loop({ steps: 4, stepDur: () => 60 / st.bpm,
+              onStep: (i, t) => { if (st.click) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.8); },
+              onVisual: (() => { let beat = 0; return () => {
+                if (st.mode === 'changes' && chords.length) {
+                  if (beat && beat % per() === 0) { showChord((at + 1) % chords.length); fbWrap.hidden = true; answer.hidden = true; }
+                  if (beat % per() === per() - 1) nextLbl.textContent = 'Next: ' + symOf(chords[(at + 1) % chords.length]) + ' →';
+                }
+                beat++;
+              }; })() });
+            loop.start(); ctx.setActive(true);
+          }),
+          h('div', { class: 'row' },
+            h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.click ? true : null, onchange: e => { st.click = e.target.checked; persist(); } }), 'Click sound')),
+          h('div', { class: 'row' }, h('button', { class: 'btn brass', onclick: () => { fbWrap.hidden = !fbWrap.hidden; answer.hidden = fbWrap.hidden; } }, 'Reveal / hide'),
+            h('button', { class: 'btn ghost', onclick: surprise }, 'Surprise me')),
+          answer, fbWrap,
+          h('p', { class: 'small muted', text: 'Spell each chord before you picture it: knowing that G7 is G B D F makes finding it on the neck much faster.' }));
       } else {
         // sing the degrees over a drone
         const pool = D.DEGREES.filter(x => x.tier <= 3);

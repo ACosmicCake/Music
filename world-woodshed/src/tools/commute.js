@@ -7,7 +7,7 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { h, tool, toast, openTool } from '../ui/core.js';
-import { BLOCKS, describe, totalOf, fmtMin } from '../routines.js';
+import { describe, totalOf, fmtMin, blockDef } from '../routines.js';
 import { GO_GROUPS, keyTitle, goTitle, goBlock, planRide, mineBlocks, toMine, DEFAULT_MINE } from '../commuteplan.js';
 import { startSession, autoAdvanceToggle } from '../ui/session.js';
 import { ribbon } from '../ui/routine.js';
@@ -113,7 +113,7 @@ tool('commute', {
           i > 0 ? h('button', { class: 'btn small ghost', 'aria-label': 'Move up', onclick: () => { blocks.splice(i - 1, 0, blocks.splice(i, 1)[0]); edited(); } }, '↑') : '',
           h('button', { class: 'btn small ghost', 'aria-label': 'Remove ' + goTitle(b), disabled: blocks.length < 2 ? true : null, onclick: () => { blocks.splice(i, 1); edited(); } }, '✕')));
       const title = goTitle(b), sub = b.reason || describe(b);
-      return h('li', { class: 'brow cat-' + BLOCKS[b.type].cat },
+      return h('li', { class: 'brow cat-' + blockDef(b.type).cat },
         h('div', { class: 'bmain' }, h('span', { class: 'bicon' }), h('div', { class: 'btext' }, h('b', { text: title }), sub && !sub.startsWith(title) ? h('span', { class: 'small muted', text: sub }) : '')),
         ctl);
     }

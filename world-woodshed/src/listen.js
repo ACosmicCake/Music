@@ -1,5 +1,6 @@
 /* World Woodshed — listening to your guitar through the microphone.
-   Everything runs on the device; no audio is stored or sent anywhere.
+   Everything runs on the device and nothing is sent anywhere. The only audio kept is what the recorder
+   (src/recorder.js, src/ui/recorder.js) holds in memory through 'block' until you save it to the Library.
    The analyzer (src/analyzer.js) is pure signal code: note onsets with millisecond timing, the pitch of what
    you play (McLeod pitch method) and level. Mic: opens the input, feeds the analyzer from an AudioWorklet and fans events out
    to whichever tools are listening; it closes the mic when the last one stops. */
@@ -25,7 +26,9 @@ class WWMic extends AudioWorkletProcessor {
 }
 registerProcessor('ww-mic', WWMic);`;
 
-const subs = { onset: new Set(), pitch: new Set(), note: new Set(), level: new Set() };
+// block: the raw samples (Float32Array, audio time of the first) for tools that look at the spectrum themselves
+const subs = { onset: new Set(), pitch: new Set(), note: new Set(), level: new Set(), block: new Set() };
+let clickOff = null;
 let stream = null, srcNode = null, node = null, sink = null, analyzer = null, starting = null, stopTimer = null;
 let state = 'off'; // off | starting | on | denied | unsupported
 const stateSubs = new Set();
@@ -37,7 +40,21 @@ function dispatch(ev) {
   if (ev.type === 'onset' || ev.type === 'note') lastHeard = Date.now();
   subs[ev.type].forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
 }
-function listenerCount() { return subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size; }
+function listenerCount() { return subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size + subs.block.size; }
+// the analyzer runs only while a tool wants its events: the recorder alone (a 'block' listener) doesn't need it,
+// and when a tool starts listening again it starts afresh, as with a newly opened mic
+const analysing = () => subs.onset.size + subs.pitch.size + subs.note.size + subs.level.size > 0;
+let makeAnalyzer = null, idle = false;
+function feed(buf, t0) {
+  if (analyzer) {
+    if (!analysing()) idle = true;
+    else {
+      if (idle && makeAnalyzer) { analyzer = makeAnalyzer(); idle = false; }
+      analyzer.push(buf, t0);
+    }
+  }
+  subs.block.forEach(fn => { try { fn(buf, t0); } catch (e) { console.error(e); } });
+}
 
 async function start() {
   if (state === 'on') return true;
@@ -49,17 +66,20 @@ async function start() {
       const ctx = A.ensure();
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
       srcNode = ctx.createMediaStreamSource(stream);
-      analyzer = Analyzer(ctx.sampleRate, { emit: dispatch, sensitivity: E.state.settings.micSensitivity ?? 0.5 });
+      makeAnalyzer = () => Analyzer(ctx.sampleRate, { emit: dispatch, sensitivity: E.state.settings.micSensitivity ?? 0.5 });
+      analyzer = makeAnalyzer(); idle = false;
+      // the app's own clicks reach the mic about latencyMs() after they are scheduled
+      if (!clickOff) clickOff = A.onClick((when, type) => { if (analyzer && analyzer.clickAt) analyzer.clickAt(when + latencyMs() / 1000, type); });
       sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
       if (ctx.audioWorklet) {
         const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
         await ctx.audioWorklet.addModule(url);
         URL.revokeObjectURL(url);
         node = new AudioWorkletNode(ctx, 'ww-mic');
-        node.port.onmessage = e => { if (analyzer) analyzer.push(e.data.buf, e.data.t0); }; // a block can still arrive after stopNow()
+        node.port.onmessage = e => { if (analyzer) feed(e.data.buf, e.data.t0); }; // a block can still arrive after stopNow()
       } else {
         node = ctx.createScriptProcessor(1024, 1, 1);
-        node.onaudioprocess = e => { if (analyzer) analyzer.push(e.inputBuffer.getChannelData(0).slice(), ctx.currentTime - 1024 / ctx.sampleRate); };
+        node.onaudioprocess = e => { if (analyzer) feed(e.inputBuffer.getChannelData(0).slice(), ctx.currentTime - 1024 / ctx.sampleRate); };
       }
       srcNode.connect(node); node.connect(sink);
       setState('on');
@@ -75,6 +95,7 @@ async function start() {
 function stopNow() {
   try { if (srcNode) srcNode.disconnect(); if (node) { if (node.port) node.port.onmessage = null; node.disconnect(); } if (sink) sink.disconnect(); } catch (e) { /* ignore */ }
   if (stream) stream.getTracks().forEach(t => t.stop());
+  if (clickOff) { clickOff(); clickOff = null; }
   stream = srcNode = node = sink = analyzer = null;
   if (state === 'on' || state === 'starting') setState('off');
 }
@@ -121,6 +142,8 @@ async function restart() { if (state !== 'on') return; stopNow(); await start();
 
 export const Mic = {
   start, stop: stopNow, restart, on, latencyMs, calibrate,
+  // the input's sample rate, for 'block' listeners
+  get sampleRate() { return srcNode ? srcNode.context.sampleRate : 0; },
   get state() { return state; },
   // wall-clock time (ms) the mic last heard the player play a note: the session runner waits for a pause
   get lastHeard() { return lastHeard; },

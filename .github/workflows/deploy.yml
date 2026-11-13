@@ -33,6 +33,9 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # the public client ID of your Spotify app (Settings → Secrets and variables → Actions → Variables);
+          # without it the app asks for one in Settings → Your music taste
+          VITE_SPOTIFY_CLIENT_ID: ${{ vars.SPOTIFY_CLIENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: world-woodshed/dist

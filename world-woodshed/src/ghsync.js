@@ -84,12 +84,13 @@ async function push(sha) {
 }
 
 /* One round: pull, merge, push if this device has news. Retries once when another device saved first. */
-export function syncNow(reason) {
+export function syncNow() {
   if (!cfg || !cfg.token) return Promise.resolve(false);
   if (busy) return busy;
   busy = (async () => {
     try {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      let settled = false;
+      for (let attempt = 0; attempt < 3 && !settled; attempt++) {
         const remote = await pull();
         let remoteState = null;
         if (remote.data) {
@@ -98,12 +99,14 @@ export function syncNow(reason) {
         }
         const mine = syncDigest(E.state);
         const theirs = remoteState ? syncDigest(remoteState) : null;
-        if (theirs === mine) { lastPushedDigest = mine; break; }
+        if (theirs === mine) { lastPushedDigest = mine; settled = true; break; }
         const r = await push(remote.sha);
         if (r.clash) continue; // someone saved in between: pull their version, merge, try again
         lastPushedDigest = mine;
-        break;
+        settled = true;
       }
+      // another device saved first every time: this device's news is not in the repository yet
+      if (!settled) throw new Error('Another device was syncing at the same moment. It will try again shortly.');
       cfg.lastSync = Date.now(); cfg.lastError = null; save();
       syncedListeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
       return true;
@@ -124,8 +127,23 @@ export async function connect({ owner, repo, token, path, deviceName }) {
   wire(); start();
   return true;
 }
+/* Swap in a new token (a regenerated or renewed one) for the same repository, keeping everything else.
+   Checked by syncing once; if GitHub refuses it, the old token stays and the error is thrown. */
+export async function changeToken(token) {
+  if (!cfg) throw new Error('Automatic sync is off');
+  token = (token || '').trim();
+  if (!token) throw new Error('Paste the new token.');
+  if (busy) await busy;
+  const old = cfg.token, oldErr = cfg.lastError;
+  cfg.token = token; cfg.lastError = null; save();
+  const ok = await syncNow('token');
+  if (!ok) { const err = cfg.lastError; cfg.token = old; cfg.lastError = oldErr; save(); throw new Error(err || 'Could not sync with that token'); }
+  return true;
+}
 export function disconnect() { stop(); cfg = null; save(); }
 export function status() { return cfg ? { on: true, owner: cfg.owner, repo: cfg.repo, path: cfg.path, lastSync: cfg.lastSync, lastError: cfg.lastError, busy: !!busy } : { on: false }; }
+/* what another device needs to join this sync (Settings → Link another device); null when sync is off */
+export function linkSetup() { return cfg ? { owner: cfg.owner, repo: cfg.repo, token: cfg.token, path: cfg.path } : null; }
 export function onStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 function start() {
@@ -142,7 +160,8 @@ function wire() {
   document.addEventListener('visibilitychange', () => { if (cfg && document.visibilityState === 'visible') syncNow('resume'); });
   window.addEventListener('online', () => { if (cfg) syncNow('online'); });
   E.onChange(() => {
-    if (!cfg || busy) return;
+    // (a change made while a round is running still sets the timer: the round may have pushed before it)
+    if (!cfg) return;
     clearTimeout(changeTimer);
     changeTimer = setTimeout(() => { if (syncDigest(E.state) !== lastPushedDigest) syncNow('change'); }, AFTER_CHANGE_MS);
   });

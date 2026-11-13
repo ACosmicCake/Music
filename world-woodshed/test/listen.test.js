@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Analyzer, detectPitch, freqToMidi } from '../src/analyzer.js';
+import { Analyzer, detectPitch, freqToMidi, magSpectrum, spectralPeaks, bestF0 } from '../src/analyzer.js';
 
 /* Plucked strings (Karplus-Strong) and the rooms they are heard in. Recorded guitars and a laptop-mic model
    are in scripts/listen/bench.mjs; these keep the main behaviours from coming undone. */
@@ -113,5 +113,62 @@ describe('Analyzer', () => {
     const { onsets } = listen(addNoise(x, 0.0005));
     expect(onsets.length).toBe(1);
     expect(Math.abs(onsets[0].t - 1.0)).toBeLessThan(0.004);
+  });
+  it('hears each note of a line played legato over the notes still ringing', () => {
+    // a fingerpicked line: every note rings on under the next, as on an open-string guitar
+    const line = [52, 55, 59, 64, 57, 60, 64, 69];
+    const x = new Float32Array(SR * 6);
+    line.forEach((m, i) => pluck(x, 0.5 + i * 0.5, m, 0.15, 3));
+    const { notes } = listen(addNoise(highpass(x, 150), 0.0005));
+    const right = line.filter((m, i) => { const n = near(notes, 0.5 + i * 0.5); return n && Math.round(n.midi) === m; }).length;
+    expect(right).toBeGreaterThanOrEqual(line.length - 1);
+    expect(notes.length).toBeLessThanOrEqual(line.length + 1);
+  });
+  it('names a note of a strummed chord, not the low note under it that nobody played', () => {
+    // a root and its fifth have a common period an octave below the root, which the time-domain reading takes
+    let ghosts = 0, named = 0, n = 0;
+    for (let rep = 0; rep < 2; rep++) for (const chord of [[48, 52, 55, 60, 64], [55, 59, 62, 67, 71], [57, 64, 69, 72, 76], [52, 59, 64, 67, 71], [50, 57, 62, 66], [53, 57, 60, 65]]) {
+      const x = new Float32Array(SR * 2.5), gap = 0.008 + 0.03 * rnd();
+      chord.forEach((m, i) => pluck(x, 0.5 + i * gap, m, 0.12, 2));
+      const heard = listen(addNoise(x, 0.0005)).notes.map(e => Math.round(e.midi));
+      n++; if (heard.some(m => m < chord[0])) ghosts++; if (heard.some(m => chord.includes(m))) named++;
+    }
+    expect(ghosts).toBeLessThanOrEqual(2);
+    expect(named).toBeGreaterThanOrEqual(n - 3);
+  });
+  it('hears notes played on the beat with a loud click from the laptop speakers, once told when it sounds', () => {
+    // a woodblock-like click (a cluster around 1.4 kHz and a ring near 3.5 kHz) as loud as the guitar, a few ms
+    // either side of each note, as Sight-reading's beat is
+    const line = [52, 55, 57, 59, 62, 64, 67, 69, 64, 60, 57, 55];
+    const x = new Float32Array(SR * 7), when = [];
+    line.forEach((m, i) => {
+      const t = 0.6 + i * 0.45; pluck(x, t, m, 0.2, 0.44);
+      const c = t + (rnd() - 0.5) * 0.03; when.push(c);
+      for (let k = 0; k < SR * 0.04; k++) {
+        const env = Math.exp(-k / (SR * 0.006));
+        x[Math.round(c * SR) + k] += env * 0.35 * (Math.sin(2 * Math.PI * 1367 * k / SR) + 0.7 * Math.sin(2 * Math.PI * 1453 * k / SR) + 0.6 * Math.sin(2 * Math.PI * 1303 * k / SR) + 0.1 * Math.sin(2 * Math.PI * 3600 * k / SR));
+      }
+    });
+    addNoise(highpass(x, 150), 0.0005);
+    const ev = [];
+    const an = Analyzer(SR, { emit: e => ev.push(e) });
+    when.forEach(c => an.clickAt(c + (rnd() - 0.5) * 0.02, 'click'));
+    for (let i = 0; i < x.length; i += 512) an.push(x.subarray(i, Math.min(x.length, i + 512)), i / SR);
+    const notes = ev.filter(e => e.type === 'note');
+    const right = line.filter((m, i) => { const n = near(notes, 0.6 + i * 0.45); return n && Math.round(n.midi) === m; }).length;
+    expect(right).toBeGreaterThanOrEqual(line.length - 1);
+    expect(notes.length).toBeLessThanOrEqual(line.length + 1);
+  });
+});
+
+describe('spectral pitch', () => {
+  it('finds the fundamental of a harmonic tone with a weak first harmonic', () => {
+    for (const m of [45, 52, 57, 64, 69]) {
+      const f = hz(m), x = new Float32Array(1024);
+      for (let i = 0; i < x.length; i++) for (let k = 1; k <= 6; k++) x[i] += (k === 1 ? 0.2 : 1 / k) * Math.sin(2 * Math.PI * k * f * i / 24000);
+      const mag = magSpectrum(x, 4096), df = 24000 / 4096;
+      const best = bestF0(spectralPeaks(mag, df, 24, 30), undefined, undefined, 1.5 * df);
+      expect(Math.round(freqToMidi(best.freq))).toBe(m);
+    }
   });
 });

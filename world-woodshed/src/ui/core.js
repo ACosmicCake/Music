@@ -2,6 +2,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
+import { tapper } from '../taptempo.js';
 
 export const PAGES = {};
 // filled in by other modules (session.js) to avoid import cycles
@@ -81,6 +82,16 @@ export function watchErrors() {
   });
   window.addEventListener('unhandledrejection', e => note(e.reason && e.reason.message || e.reason));
 }
+/* Tap tempo: a button to tap on the beat a few times; onBpm gets the tempo from the second tap on. It reacts on
+   pointerdown, not click, so the time is the moment the finger lands. Keyboard: Enter or Space on it. */
+export function tapButton(onBpm, o = {}) {
+  const tp = tapper(o);
+  const b = h('button', { class: 'btn small tap-btn', type: 'button', title: 'Tap on the beat a few times to set the tempo', 'aria-label': 'Tap tempo' }, o.label || 'Tap');
+  const hit = () => { const bpm = tp.tap(performance.now()); b.classList.remove('tapped'); void b.offsetWidth; b.classList.add('tapped'); if (bpm) onBpm(bpm); };
+  b.addEventListener('pointerdown', e => { if (e.button === 0 || e.pointerType !== 'mouse') hit(); });
+  b.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); hit(); } });
+  return b;
+}
 export function bar(pct, cls) { return h('div', { class: 'bar ' + (cls || '') }, h('i', { style: { width: Math.max(0, Math.min(100, pct)) + '%' } })); }
 export function regionName(id) { const r = D.REGIONS.find(x => x.id === id); return r ? r.name : id; }
 
@@ -113,6 +124,8 @@ export function renderTabs() {
   document.body.classList.toggle('in-settings', !!ui.runner && ui.runner.id === 'settings');
   const gear = document.getElementById('settings-btn');
   if (gear) gear.setAttribute('aria-pressed', String(!!ui.runner && ui.runner.id === 'settings'));
+  const fork = document.getElementById('tuner-btn');
+  if (fork) fork.setAttribute('aria-pressed', String(!!ui.runner && ui.runner.id === 'tuner'));
   tabsEl.innerHTML = '';
   TABS.forEach(([id, label]) => {
     // inside a tool, the tab it was opened from stays marked (not as the current page), so you know where Back goes
@@ -229,8 +242,9 @@ export function openTool(id, opts = {}) {
 
   let lastAct = Date.now(), active = false, finished = false;
   const markAct = () => { lastAct = Date.now(); };
-  document.addEventListener('pointerdown', markAct, true);
-  document.addEventListener('keydown', markAct, true);
+  // reading a score or page by scrolling it (wheel, trackpad, a swipe) counts as being there, as taps and keys do
+  const ACT_EVENTS = ['pointerdown', 'keydown', 'wheel', 'scroll'];
+  ACT_EVENTS.forEach(ev => document.addEventListener(ev, markAct, { capture: true, passive: true }));
   const unitIsTime = block && !block.questions;
   function renderBlockBar() {
     if (!block) return;
@@ -277,7 +291,10 @@ export function openTool(id, opts = {}) {
     if (document.visibilityState !== 'visible') return;
     if (!active && Date.now() - lastAct > 45000) return;
     const skill = (ctx.timeSkill) || t.skill;
-    if (!opts.session) E.addTime(5, skill); // a session counts its own wall-clock time
+    // a session counts its own wall-clock time, in its tools and in any other tool opened while it runs
+    const ses = E.session(), sessionCounts = opts.session || !!(ses && !ses.paused && ses.blocks[ses.idx]);
+    // a tool that isn't practice (the Club) counts no time of its own
+    if (!sessionCounts && !t.noTime) E.addTime(5, skill);
     if (block && unitIsTime) {
       block.progress = (block.progress || 0) + 5;
       if (ui.plan && ui.plan.kind === 'routine' && block.progress % 30 === 0) E.blockProgress(block.id, block.progress, false);
@@ -291,8 +308,7 @@ export function openTool(id, opts = {}) {
   try { toolCleanup = t.render(body, ctx); focusView(); } catch (e) { failure(body, e, t.title || 'This tool'); }
   ui.cleanup = () => {
     clearInterval(timer);
-    document.removeEventListener('pointerdown', markAct, true);
-    document.removeEventListener('keydown', markAct, true);
+    ACT_EVENTS.forEach(ev => document.removeEventListener(ev, markAct, { capture: true }));
     if (typeof toolCleanup === 'function') toolCleanup();
     if (block && ui.plan && ui.plan.kind === 'routine') E.blockProgress(block.id, block.progress || 0, block.done);
   };
@@ -371,7 +387,7 @@ export function Quiz(container, ctx, gen, opts = {}) {
     }
     card.append(ctrl, hintBox);
     const grid = h('div', { class: 'choices' + (q.wide ? ' wide' : '') });
-    q.choices.forEach((c, i) => {
+    q.choices.forEach(c => {
       const b = h('button', { class: 'choice' + (q.wide ? ' wide' : ''), 'data-id': c.id, onclick: () => answer(c.id, b) }, h('b', { text: c.label }), c.sub ? h('span', { text: c.sub }) : null);
       grid.append(b);
     });
@@ -421,6 +437,8 @@ export function Quiz(container, ctx, gen, opts = {}) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) return;
     // Enter and Space on a focused button (an answer, Next, Hear yours) belong to that button
     if (e.target && e.target.tagName === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
+    // with Ctrl, Cmd or Alt held the key is the browser's (Ctrl+1 switches tab, Cmd+R reloads), not an answer
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const n = parseInt(e.key, 10);
     if (!answered && n >= 1 && q && n <= q.choices.length) answer(q.choices[n - 1].id);
     else if (answered && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); }

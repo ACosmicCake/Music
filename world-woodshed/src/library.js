@@ -216,8 +216,8 @@ export async function replaceFile(entryId, oldId, blob, name) {
     tempos = {};
     Object.entries(cur.tempos).forEach(([k, v]) => { tempos[k.startsWith(oldId + ':') ? id + k.slice(oldId.length) : k] = v; });
   }
+  E.tombstone('libfile:' + oldId); // before the save below, so the two are written together
   E.saveLibEntry(Object.assign({}, cur, { files }, tempos ? { tempos } : {}));
-  E.tombstone('libfile:' + oldId);
   await delFile(oldId);
   return id;
 }

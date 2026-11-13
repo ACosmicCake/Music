@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sections, readScoreMelody } from '../src/scorepieces.js';
 import { toMusicXML, toMidi } from '../src/notate.js';
-import { pieceLength, attacks } from '../src/content/reading.js';
+import { pieceLength, playLength, attacks, eventStarts } from '../src/content/reading.js';
 
 /* Your own scores as sight-reading (src/scorepieces.js): a melody cut into sections the Sight-reading tool reads. */
 
@@ -185,6 +185,27 @@ describe('a MusicXML score is read as it is written', () => {
     expect(p.bars[0].map(n => [n.midi, n.dur, n.tup || 0, n.spell || '', !!n.tie])).toEqual([
       [72, 'q', 0, '', false], [null, 'q', 0, '', false], [75, '8', 3, '#', false], [75, '8', 3, 'b', false], [76, '8', 3, '', false], [79, 'q', 0, '', true]]);
     expect(p.bars[1][1]).toMatchObject({ midi: 76, chord: [72, 76] });
+  });
+  it('a time that changes from bar to bar: each bar keeps its own, and a whole-bar rest lasts its bar', async () => {
+    const T = (n, d) => `<attributes><time><beats>${n}</beats><beat-type>${d}</beat-type></time></attributes>`;
+    const xml = score([
+      [N('C5', 'half'), N('D5', 'half')],
+      [T(5, 4), N('E5', 'half'), N('F5', 'half'), N('G5', 'quarter')],
+      [T(7, 4), '<note><rest measure="yes"/><duration>14</duration><voice>1</voice></note>'],
+      [T(4, 4), N('C5', 'quarter'), N('r', 'quarter'), N('r', 'half')]
+    ]);
+    const m = await readScoreMelody('w.musicxml', new Blob([xml]));
+    expect(m.times).toEqual(['4/4', '5/4', '7/4', '4/4']);
+    const p = sections(m, 0)[0].piece;
+    expect(p.times).toEqual(['4/4', '5/4', '7/4', '4/4']);
+    expect(p.bars[1].map(n => n.midi)).toEqual([76, 77, 79]);
+    expect(pieceLength(p)).toBe(20);
+    expect(playLength(p)).toBe(20);
+    // the bar after the 7/4 rest starts 4 + 5 + 7 quarters in
+    expect(eventStarts(p).find(e => e.bar === 3).q).toBe(16);
+    expect(attacks(p).map(a => a.q)).toEqual([0, 2, 4, 6, 8, 16]);
+    // sections of a few bars carry their own bars' times
+    expect(sections(m, 2).map(x => x.piece.times)).toEqual([['4/4', '5/4'], ['7/4', '4/4']]);
   });
   it('a pickup bar is filled with rests before its notes', async () => {
     const p = await read(score([[N('G4', 'quarter')], [N('C5', 'half'), N('D5', 'half')]], true));

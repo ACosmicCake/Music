@@ -2,7 +2,7 @@ import './env.js';
 import { describe, it, expect, beforeEach } from 'vitest';
 import E from '../src/engine.js';
 import D from '../src/data.js';
-import { BLOCKS, TEMPLATES, paramsFor, fitTo, placeBreaks, setTotal, totalOf, fromTemplate, newBlock, awayBlocks, needsGuitar, fmtMin, fmtClock } from '../src/routines.js';
+import { DRILLS as AWAY_DRILLS, BLOCKS, TEMPLATES, paramsFor, fitTo, placeBreaks, setTotal, totalOf, fromTemplate, newBlock, awayBlocks, needsGuitar, fmtMin, fmtClock } from '../src/routines.js';
 
 /* Routines (src/routines.js): fitting blocks to a total length, automatic breaks, and swapping
    guitar blocks for no-guitar drills. */
@@ -125,5 +125,23 @@ describe('paramsFor', () => {
     const p = paramsFor(blk('drill', 10, { settings: { drill: 'konnakol' } }));
     expect(p.drill).not.toBe('konnakol');
     expect(D.DRILLS.some(d => d.id === p.drill)).toBe(true);
+  });
+  // "A different one each time" once drew from the first four only, so Sing the degrees never came up
+  it('can give any no-guitar drill when none is chosen', () => {
+    const seen = new Set();
+    for (let i = 0; i < 400; i++) seen.add(paramsFor(blk('away', 5)).drill);
+    expect([...seen].sort()).toEqual(Object.keys(AWAY_DRILLS).sort());
+  });
+});
+
+describe('a block from a newer app', () => {
+  it('is described, titled and fitted without throwing, and kept as it is', async () => {
+    const R = await import('../src/routines.js');
+    const b = { id: 'x', type: 'hologram', minutes: 7, settings: { a: 1 } };
+    expect(R.blockTitle(b)).toBe('A block from a newer version');
+    expect(() => R.describe(b)).not.toThrow();
+    const r = { blocks: [b, { id: 'y', type: 'free', minutes: 10, settings: {} }] };
+    expect(() => R.setTotal(r, 30)).not.toThrow();
+    expect(r.blocks.find(x => x.id === 'x').type).toBe('hologram');
   });
 });

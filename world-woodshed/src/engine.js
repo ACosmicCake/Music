@@ -3,8 +3,10 @@ import D from './data.js';
 import { readingItems } from './content/reading.js';
 import { gymItems } from './content/gym.js';
 import { dictationItems } from './content/dictation.js';
-import { SCHEMA, migrate, merge, digest } from './sync.js';
+import { noteNameItems } from './content/notenames.js';
+import { SCHEMA, migrate, merge, digest, stampKeys, keyCache } from './sync.js';
 import Goals from './goals.js';
+import { addScore, table as gameTable, rankFor } from './games.js';
 
 const LS_KEY = 'world-woodshed-v1';
 const DAY = 86400000;
@@ -33,6 +35,7 @@ const SKILLS = {
   repertoire: { name: 'Repertoire', cat: 'play', tool: 'repertoire', qpm: 6 },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', qpm: 1 },
   reading: { name: 'Sight-reading', cat: 'play', tool: 'sightread', qpm: 4 },
+  notenames: { name: 'Note names', cat: 'play', tool: 'notenames', qpm: 10 },
   atlas: { name: 'World knowledge', cat: 'know', tool: 'atlasquiz', qpm: 6 }
 };
 const CAT_NAMES = { ear: 'Ear', rhythm: 'Rhythm', play: 'Fretboard, reading & repertoire', tech: 'Technique', know: 'Knowledge' };
@@ -92,7 +95,7 @@ function universe(skill) {
   let list = [];
   switch (skill) {
     case 'intervals': {
-      const t1 = ['P5', 'P4', 'P8', 'M3'], t2 = ['m3', 'M2', 'M6'], t3 = ['m6', 'm7', 'M7', 'm2', 'TT'];
+      const t1 = ['P5', 'P4', 'P8', 'M3'], t2 = ['m3', 'M2', 'M6']; // the rest are tier 3
       D.INTERVALS.forEach(iv => {
         const up = t1.includes(iv.id) ? 1 : t2.includes(iv.id) ? 2 : 3;
         const down = t1.includes(iv.id) ? 2 : t2.includes(iv.id) ? 3 : 4;
@@ -125,6 +128,7 @@ function universe(skill) {
     case 'repertoire': list = D.TUNES.map((t, i) => ({ id: t.id, label: t.name, tier: t.group === 'Jazz standards' ? Math.min(5, 1 + Math.floor(i / 3)) : 2 })); break;
     case 'technique': list = D.EXERCISES.map(e => ({ id: e.id, label: e.name, tier: 1 })); break;
     case 'reading': list = readingItems(); break;
+    case 'notenames': list = noteNameItems(); break;
     case 'tuplets': list = gymItems(); break;
     case 'atlas':
       D.REGIONS.forEach(r => r.facts.forEach((f, i) => list.push({ id: r.id + ':' + i, label: r.name + ': ' + f.q, tier: 1, region: r.id })));
@@ -145,7 +149,7 @@ function freshState() {
   return {
     v: 1, schema: SCHEMA, created: Date.now(), updatedAt: 0,
     skills: {}, history: {}, hdev: {}, tomb: {}, anchors: {},
-    tech: {}, scaleTime: {}, records: {},
+    tech: {}, scaleTime: {}, records: {}, games: {},
     settings: { latencyMs: 0, minutes: 30, focus: 'balanced', regionWeek: null },
     routine: null, placementDone: false, songs: {}, tunes: {}, melodies: {}, library: {},
     routines: [], session: null, lessons: {}, heard: {}, journal: []
@@ -169,7 +173,10 @@ function loadLocal() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) state = Object.assign(freshState(), migrate(s, DEV)); }
   } catch (e) { /* storage unavailable */ }
+  keys = keyCache(state);
 }
+/* Each setting and preference as last saved, so a save can note which ones changed (state.keyT, src/sync.js) */
+let keys = { settings: {}, prefs: {} };
 /* Save health: did the last save reach this device's storage? localStorage is the main copy and IndexedDB
    the second; a save that fails in one still goes to the other. The UI shows one quiet banner while the
    main copy is failing (src/ui/savebanner.js), never a toast per save. */
@@ -191,10 +198,33 @@ function markSave(store, ok, err, quiet) {
   if (sig !== healthSig) { healthSig = sig; healthListeners.forEach(fn => { try { fn(h); } catch (e) { console.error(e); } }); }
 }
 function saveLocal() {
+  clearTimeout(localTimer); localTimer = null; lastLocal = Date.now();
   const json = JSON.stringify(state);
   // a failure here is announced once the IndexedDB copy has settled, so the banner says the right thing first time
   try { localStorage.setItem(LS_KEY, json); markSave('local', true); } catch (e) { markSave('local', false, e, true); }
   idbPut(json);
+}
+
+/* Writing the whole state is the app's heaviest regular work (a running session saves every few seconds), so
+   saves that come close together are written once: at most every SAVE_GAP, and always when the page is hidden
+   or closed (below). saveNow() writes at once, for the moments that must not wait. */
+const SAVE_GAP = 2000;
+let localTimer = null, lastLocal = 0;
+function saveSoon() {
+  if (!health.local) return saveLocal(); // while saves fail, try each one, so the banner clears at once
+  if (localTimer) return;
+  const wait = Math.max(0, SAVE_GAP - (Date.now() - lastLocal));
+  if (!wait) return saveLocal();
+  localTimer = setTimeout(saveLocal, wait);
+}
+function saveNow() { if (localTimer) saveLocal(); }
+/* How much room the saved progress takes on this device (localStorage holds about 5 MB of text) */
+const LS_LIMIT = 5 * 1024 * 1024;
+function storageUse() {
+  const parts = {};
+  let total = 0;
+  Object.entries(state).forEach(([k, v]) => { const n = v === undefined ? 0 : JSON.stringify(v).length + k.length + 4; parts[k] = n; total += n; });
+  return { bytes: total, limit: LS_LIMIT, share: total / LS_LIMIT, parts };
 }
 
 /* A second copy in IndexedDB, so progress survives if localStorage is cleared or full */
@@ -246,7 +276,9 @@ function replaceState(next) { patchInPlace(state, next); }
    Nothing practised on either side is lost; returns true when anything changed. */
 function adopt(other, save = true) {
   const before = digest(state);
+  stampKeys(state, keys);
   replaceState(Object.assign(freshState(), merge(state, other)));
+  keys = keyCache(state);
   const changed = digest(state) !== before;
   if (changed) { applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); saveLocal(); emit(); }
   if (save && changed) scheduleSave(300);
@@ -263,7 +295,10 @@ function importBackup(obj, mode = 'merge') {
   const s = obj && obj.app === 'world-woodshed' ? obj.state : obj;
   if (!s || s.v !== 1 || typeof s.skills !== 'object') throw new Error('This file is not a World Woodshed backup');
   const m = migrate(JSON.parse(JSON.stringify(s)), obj.device || 'file');
-  if (mode === 'replace') { replaceState(Object.assign(freshState(), m)); applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); scheduleSave(100); emit(); return true; }
+  // restoring a backup from before "erase every device" brings it back: it is dated after the erase, not dropped
+  // by it (merging one, as a sync file or the GitHub sync does, still obeys the erase)
+  if (mode === 'replace' && state.resetAt && !(m.resetAt >= state.resetAt)) m.resetAt = state.resetAt;
+  if (mode === 'replace') { replaceState(Object.assign(freshState(), m)); keys = keyCache(state); applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo); scheduleSave(100); emit(); return true; }
   return adopt(m);
 }
 
@@ -312,7 +347,8 @@ async function connectCloud() {
 }
 function scheduleSave(delay = 1200) {
   state.updatedAt = Date.now();
-  saveLocal();
+  stampKeys(state, keys, state.updatedAt);
+  saveSoon();
   if (!docRef) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flush, delay);
@@ -335,6 +371,7 @@ async function flush() {
   if (pendingSave) { pendingSave = false; flush(); }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { saveLocal(); flush(); } });
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => saveNow());
 
 /* ---------- Dates & history ---------- */
 function dayKey(t = Date.now()) {
@@ -513,9 +550,10 @@ function topConfusion(skill) { return confusions(50).find(c => c.skill === skill
 function lastNDays(n) {
   const out = [];
   for (let i = n - 1; i >= 0; i--) {
-    const k = dayKey(Date.now() - i * DAY);
+    // by the calendar: steps of 24 hours skip or repeat a day around a daylight-saving change
+    const k = Goals.dayBefore(Date.now(), i);
     const h = state.history[k] || { sec: 0, q: 0, c: 0 };
-    out.push({ key: k, min: Math.round(h.sec / 60), q: h.q, c: h.c, acc: h.q ? h.c / h.q : null, date: new Date(Date.now() - i * DAY) });
+    out.push({ key: k, min: Math.round(h.sec / 60), q: h.q, c: h.c, acc: h.q ? h.c / h.q : null, date: new Date(k + 'T12:00:00') });
   }
   return out;
 }
@@ -534,10 +572,20 @@ function streaks() {
   return st;
 }
 function streak() { return streaks().current; }
+/* Game mode's high scores (src/games.js): a game's table, best first, and adding a score to it */
+function gameScores(id) { return gameTable((state.games || {})[id]); }
+function addGameScore(id, entry) {
+  if (!state.games) state.games = {};
+  const r = addScore(state.games[id], Object.assign({}, entry, { t: entry.t || Date.now(), d: DEV }));
+  state.games[id] = r.list;
+  touch();
+  return r.rank;
+}
+const gameRank = (id, score) => rankFor((state.games || {})[id], score);
 function trend(skill) {
   const nowM = mastery(skill);
   for (let i = 7; i <= 14; i++) {
-    const h = state.history[dayKey(Date.now() - i * DAY)];
+    const h = state.history[Goals.dayBefore(Date.now(), i)];
     if (h && h.mastery && typeof h.mastery[skill] === 'number') return nowM - h.mastery[skill];
   }
   return null;
@@ -758,7 +806,16 @@ function setAnchor(ivId, dir, text) { state.anchors[ivId + ':' + dir] = text; sc
 function setSetting(k, v) { state.settings[k] = v; scheduleSave(); emit(); }
 // save and notify after changing state in place (used by the curriculum)
 function touch() { scheduleSave(); emit(); }
-function resetAll() { replaceState(freshState()); scheduleSave(100); emit(); }
+/* Erase the progress. everywhere: the erase is dated (resetAt), wins every merge and so clears the other
+   devices and the synced copy when they next sync. Otherwise only this device is cleared, and the caller
+   disconnects sync first, or the next sync would bring it all back. */
+function resetAll(everywhere) {
+  const next = freshState();
+  if (everywhere) next.resetAt = Date.now(); else if (state.resetAt) next.resetAt = state.resetAt;
+  replaceState(next); keys = keyCache(state);
+  applyNames(state.settings.noteNames); applyTuning(guitar().tuning, guitar().capo);
+  scheduleSave(100); saveLocal(); emit();
+}
 
 function init() {
   loadLocal();
@@ -866,7 +923,8 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 function session() {
   const s = state.session;
   if (!s) return null;
-  if (Date.now() - (s.lastTick || s.started) > 12 * 3600 * 1000) { state.session = null; return null; }
+  // one put aside with Finish for now is kept for a week (src/ui/session.js closes it into the journal then)
+  if (Date.now() - (s.lastTick || s.started) > (s.parked ? 8 * 86400000 : 12 * 3600 * 1000)) { state.session = null; return null; }
   return s;
 }
 function startSession(src) {
@@ -918,6 +976,6 @@ export default {
   universe, unlocked, unlockedTier, levelProgress, pick, record, mastery, dueCount, daysSince, itemLabel,
   weakItems, confusions, lastNDays, streak, streaks, trend, regionOfWeek, setRegionWeek, regionScore,
   makeRoutine, routineToday, blockProgress, placementPlan, finishPlacement,
-  techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, exportBackup, importBackup,
+  gameScores, addGameScore, gameRank, techState, techResult, techCount, setTechBpm, anchor, setAnchor, setSetting, touch, addTime, addScaleTime, resetAll, saveNow, storageUse, exportBackup, importBackup,
   storageNote: () => (saveHealth().level === 'failing' ? 'Not saving on this device' : storageNote), saveHealth, onSaveHealth, skillState, dayKey, tombstone, adopt, device: () => DEV, cloudOn: () => !!docRef
 };

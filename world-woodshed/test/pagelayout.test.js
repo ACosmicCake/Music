@@ -5,7 +5,7 @@ import { recognize } from '../src/omr/recognize.js';
 import { rotateGray } from '../src/omr/image.js';
 import { scoreToMusicXML } from '../src/omr/musicxml.js';
 import { withCheckBars } from '../src/scoreedit.js';
-import { encodeLayout, decodeLayout, layoutFromXML, spots, rowOf, lastBars, spreadOf } from '../src/pagelayout.js';
+import { encodeLayout, decodeLayout, layoutFromXML, spots, rowOf, lastBars, spreadOf, ZOOMS, stepZoom, zoomOf, followTop, followLeft, rowEnds } from '../src/pagelayout.js';
 
 /* Where a score read from a page sits on it (src/pagelayout.js): kept by the recognizer, written in the
    MusicXML, and turned into a spot on the page for each note Sight-reading reads. */
@@ -94,6 +94,8 @@ describe('spots for the notes being read', () => {
     expect(s[0].p).toBe(1);
     expect(s[1].p).toBe(0);
     expect(s[1].y0).toBe(0.2);
+    // and which of the piece's bars each spot is in, so a tap on the page finds the bar to play from
+    expect(s.map(x => x.bi)).toEqual([0, 1]);
   });
 
   it('knows the last bar of each page and the pages shown together', () => {
@@ -109,5 +111,54 @@ describe('spots for the notes being read', () => {
     expect(decodeLayout('[2,1,[[0]],[]]')).toBe(null);
     expect(decodeLayout(encodeLayout(layout, 2)).bars[2].p).toBe(1);
     expect(layoutFromXML('<score-partwise/>')).toBe(null);
+  });
+});
+
+describe('zooming the page view', () => {
+  it('steps in and out through the sizes, from an odd size to the next round one', () => {
+    expect(stepZoom(1, 1)).toBe(1.1);
+    expect(stepZoom(1, -1)).toBe(0.9);
+    expect(stepZoom(0.83, 1)).toBe(0.9);
+    expect(stepZoom(0.83, -1)).toBe(0.75);
+    expect(stepZoom(4, 1)).toBe(4);
+    expect(stepZoom(0.25, -1)).toBe(0.25);
+    expect(stepZoom(0.995, 1)).toBe(1.1); // a size a hair under a step does not stop on it
+    expect([...ZOOMS].sort((a, b) => a - b)).toEqual(ZOOMS);
+  });
+  it('keeps a saved zoom sane', () => {
+    expect(zoomOf('width')).toBe('width');
+    expect(zoomOf(undefined)).toBe('page');
+    expect(zoomOf('<b>')).toBe('page');
+    expect(zoomOf(-1)).toBe('page');
+    expect(zoomOf(12)).toBe(4);
+    expect(zoomOf(0.1)).toBe(0.25);
+    expect(zoomOf(1.5)).toBe(1.5);
+  });
+});
+
+describe('scrolling along with the line being read', () => {
+  const view = { top: 1000, height: 600 };
+  it('stays put while the line is in view', () => {
+    expect(followTop(view, { top: 1100, bottom: 1250 }, null)).toBe(null);
+  });
+  it('brings a line out of view near the top', () => {
+    expect(followTop(view, { top: 1700, bottom: 1850 }, null)).toBe(1700 - 24);
+    expect(followTop(view, { top: 400, bottom: 550 }, null)).toBe(400 - 24);
+  });
+  it('shows the next line before it comes, with this one if both fit', () => {
+    expect(followTop(view, { top: 1200, bottom: 1350 }, { top: 1400, bottom: 1550 })).toBe(null);
+    expect(followTop(view, { top: 1400, bottom: 1550 }, { top: 1600, bottom: 1750 })).toBe(1400 - 24);
+    // a line too tall to show with the next: the next at the top
+    expect(followTop(view, { top: 1400, bottom: 1900 }, { top: 1950, bottom: 2300 })).toBe(1950 - 24);
+  });
+  it('follows across when zoomed wider than the screen', () => {
+    expect(followLeft({ left: 0, width: 400 }, 200)).toBe(null);
+    expect(followLeft({ left: 0, width: 400 }, 390)).toBe(290);
+    expect(followLeft({ left: 500, width: 400 }, 30)).toBe(0);
+  });
+  it('knows the last bar of each printed line', () => {
+    const sp = (bi, p, y0) => ({ p, b: bi, bi, x: 0.5, y0, y1: y0 + 0.04 });
+    const list = [sp(0, 0, 0.1), sp(0, 0, 0.1), sp(1, 0, 0.1), null, sp(2, 0, 0.3), sp(3, 1, 0.1)];
+    expect(rowEnds(list)).toEqual([null, null, 4, null, 5, null]);
   });
 });

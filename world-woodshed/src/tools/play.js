@@ -2,7 +2,8 @@ import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
 import { guitarMidis } from '../voicings.js';
-import { h, s, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks } from '../ui/core.js';
+import { h, rand, choice, shuffle, pc, noteName, toast, bar, regionName, TOOLS, tool, openTool, pickFor, Quiz, Fretboard, positionsOfPc, hooks, tapButton } from '../ui/core.js';
+import { withStar, favStar } from '../ui/favs.js';
 import { TapPad } from './rhythm.js';
 import { parseChord, flatName, prettySym } from '../theory.js';
 import TN from '../mytunes.js';
@@ -13,6 +14,7 @@ import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { loadTuneNotes, drawWhenLoaded } from '../content/lazy.js';
 import { chartNumerals, keyName, prettyNumeral } from '../harmony.js';
 import { SoloTips } from '../ui/solo.js';
+import { PLAYERS } from '../taste.js';
 import { renderStaff } from '../notation.js';
 import { guessKey, cleanDraft } from '../notate.js';
 import { parseMel, cleanMelody, packNotes, shiftNotes, trimLead, staffKey, melodyBars, readMelodyFile, MELODY_FILE } from '../melody.js';
@@ -64,7 +66,7 @@ tool('fretboard', {
         else if (!locked) sub.textContent = 'Heard ' + noteLabel(ev.midi) + ': that isn’t on the ' + E.STRINGS[si].name + ' string between frets 0 and 12.';
       }); },
       onOff: () => { if (micOff) micOff(); micOff = null; } });
-    card.append(prompt, sub, mic.el, fb.el, fbk);
+    card.append(prompt, sub, mic.el, fb.el, fbk, TOOLS.firefly && !ctx.block ? h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => openTool('firefly', { returnTab: 'train' }) }, '🎮 Play as a game: Firefly Hunt')) : '');
     function next() {
       clearTimeout(timer); locked = false; fbk.hidden = true; fb.clear();
       item = pickFor('fretboard', ctx);
@@ -196,9 +198,21 @@ tool('repertoire', {
       const mine = E.listTunes().map(TN.playable).filter(Boolean);
       listCard.append(h('div', { class: 'spread' }, h('h2', { text: 'Your tunes' }), h('button', { class: 'btn small', onclick: () => editTune() }, '+ New tune')));
       listCard.append(mine.length ? h('div', { class: 'tools' }, mine.map(tile)) : h('p', { class: 'small muted', text: 'Type a chord chart, pick a groove and a tempo, and the band plays it like the tunes below.' }));
-      ['Jazz standards', 'Blues, rock & roots', 'World grooves'].forEach(g => {
-        listCard.append(h('h2', { text: g }));
-        listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
+      ['Jazz standards', 'Players', 'Blues, rock & roots', 'World grooves'].forEach(g => {
+        if (g !== 'Players') {
+          listCard.append(h('h2', { text: g }));
+          listCard.append(h('div', { class: 'tools' }, D.TUNES.filter(t => t.group === g).map(tile)));
+          return;
+        }
+        // tunes in the manner of a player, a heading each, your favourite players first
+        const fav = (E.state.cur && E.state.cur.prefs && E.state.cur.prefs.players) || [];
+        listCard.append(h('h2', { text: 'Favourite players' }));
+        PLAYERS.slice().sort((a, b) => fav.includes(b.id) - fav.includes(a.id)).forEach(pl => {
+          const ts = D.TUNES.filter(t => t.group === g && (t.players || []).includes(pl.id));
+          if (!ts.length) return;
+          listCard.append(h('h3', { class: 'small', text: (fav.includes(pl.id) ? '★ ' : '') + pl.name + (pl.style !== 'jazz' ? ' · ' + regionName(pl.style) : '') }));
+          listCard.append(h('div', { class: 'tools' }, ts.map(tile)));
+        });
       });
     }
     /* Write a tune, edit one of yours, start your own version of a preset (src), or check a draft made from
@@ -321,7 +335,7 @@ tool('repertoire', {
         chartEl.innerHTML = ''; barEls.length = 0;
         const B = barsFor(shownCh);
         let bi = 0;
-        form.forEach(([lbl, len], fi) => {
+        form.forEach(([lbl, len]) => {
           const grid = h('div', { class: 'cchart' });
           const first = bi;
           for (let k = 0; k < len && bi < B.length; k++, bi++) {
@@ -385,14 +399,16 @@ tool('repertoire', {
       const checkCard = h('div', { class: 'callout patina formcheck' },
         h('label', { class: 'check' }, checkBox, h('b', { text: 'Follow the form by ear' })),
         h('p', { class: 'small', text: 'The bar marker and chord readout go dark. Keep your place by listening, best with just the bass. When asked, or whenever you like, tap the bar the band is in. Play over it at the same time if you can: soloing without losing the form is the skill.' }),
-        tally);
+        tally,
+        TOOLS.formgame && !ctx.block && !t.mine && t.form && new Set(t.form.map(f => f[0].replace(/\d+$/, ''))).size > 1
+          ? h('button', { class: 'btn small ghost', onclick: () => { stopLoop(); openTool('formgame', { params: { tune: t.id }, returnTab: 'train' }); } }, '🎮 Play as a game: Lost in the Form') : null);
       const card = h('div', { class: 'card' },
         h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: g.name })),
         h('h2', { text: t.name }), t.note ? h('p', { class: 'small muted', text: t.note }) : null,
         h('div', { class: 'row' }, playBtn, blindBtn, drillBtn),
         h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => editTune(t) }, t.mine ? 'Edit this tune' : 'Make your own version'),
           t.song && E.getSong(t.song) ? h('button', { class: 'btn small ghost', onclick: () => openTool('transcribe', { params: { song: t.song }, returnTab: 'library' }) }, 'Open the song in Transcribe') : null),
-        h('label', { class: 'stack', for: 'tune-tempo' }, h('span', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Tempo' }), tempoLbl), tempo),
+        h('div', { class: 'stack' }, h('span', { class: 'spread' }, h('label', { class: 'eyebrow', for: 'tune-tempo', text: 'Tempo' }), h('span', { class: 'row' }, tempoLbl, tapButton(v => { bpm = Math.max(+tempo.min, Math.min(+tempo.max, v)); tempo.value = bpm; tempoLbl.textContent = bpm + ' bpm'; }, { min: 40, max: 300 }))), tempo),
         band_, shed, checkCard,
         h('div', { class: 'spread' }, nowLbl, where), fb.el, legend, chartEl, melBox);
       const notesHolder = h('div');
@@ -485,7 +501,7 @@ tool('repertoire', {
           if (!f) return;
           try { takeIt(await readMelodyFile(f.name, f), 'file', f.name); } catch (e) { toast('Couldn’t read ' + f.name + ': ' + (e && e.message ? e.message : 'not a score')); }
         });
-        if (!replacing) box.append(h('p', { class: 'small', text: t.mine ? 'Add the melody and it shows here under the chords and plays with the band.' : 'The melody of ' + t.name + ' is still under copyright, so it isn’t built in. Add it yourself and it shows here under the chords and plays with the band.' }));
+        if (!replacing) box.append(h('p', { class: 'small', text: t.mine ? 'Add the melody and it shows here under the chords and plays with the band.' : t.players ? 'These are changes in the manner of ' + t.players.map(id => (PLAYERS.find(p => p.id === id) || { name: id }).name).join(' and ') + ', with no melody of their own. Write one by playing and it shows here under the chords and plays with the band.' : 'The melody of ' + t.name + ' is still under copyright, so it isn’t built in. Add it yourself and it shows here under the chords and plays with the band.' }));
         box.append(h('div', { class: 'row' },
           h('button', { class: 'btn small brass', onclick: () => openTool('notate', { params: { forTune: { id: t.id, name: t.name } }, returnTab: 'play' }) }, 'Write it by playing'),
           h('button', { class: 'btn small', onclick: () => fileIn.click() }, 'Open a file'), fileIn));
@@ -625,9 +641,9 @@ tool('technique', {
       const tl = h('div', { class: 'tools' });
       D.EXERCISES.forEach(ex => {
         const t = E.state.tech[ex.id];
-        tl.append(h('button', { class: 'tile', onclick: () => open(ex) }, h('span', { class: 't-title', text: ex.name }),
+        tl.append(withStar(h('button', { class: 'tile', onclick: () => open(ex) }, h('span', { class: 't-title', text: ex.name }),
           h('span', { class: 't-desc' }, bar(t && t.best ? 100 * t.best / ex.target : 0, 'brass')),
-          h('span', { class: 't-meter', text: (t && t.best ? t.best : '—') + ' / ' + ex.target })));
+          h('span', { class: 't-meter', text: (t && t.best ? t.best : '—') + ' / ' + ex.target })), 'tech', ex.id, ex.name));
       });
       holder.append(tl);
     }
@@ -638,7 +654,7 @@ tool('technique', {
       holder.append(card);
       const back = h('button', { class: 'btn ghost small', onclick: list }, '← All exercises');
       const guide = D.TECHNIQUES.find(g => g.id === ex.id);
-      card.append(h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: ex.unit })), h('h2', { text: ex.name }), h('p', { class: 'small', text: ex.how }),
+      card.append(h('div', { class: 'spread' }, back, h('span', { class: 'eyebrow', text: ex.unit })), h('div', { class: 'spread' }, h('h2', { text: ex.name }), favStar('tech', ex.id, ex.name)), h('p', { class: 'small', text: ex.how }),
         guide ? h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => techniquePage(guide, () => openTool('technique', { params: { exercise: ex.id } })) }, 'Read the full guide: how, why and what to listen for →')) : null);
       const best = h('p', { class: 'small muted' });
       const progress = h('div');
@@ -705,7 +721,7 @@ tool('technique', {
       function setVar(i) { vi = ((i % vars.length) + vars.length) % vars.length; const o = Object.assign({}, E.state.settings.techVar || {}); o[ex.id] = vi; E.setSetting('techVar', o); drawVar(); }
       const cueEl = VX.cue ? h('p', { class: 'small cue', text: '🎧 ' + VX.cue }) : '';
       const burstBtn = h('button', { class: 'btn small', title: VX.burst || 'One bar at +20% tempo, then back to normal' }, '⚡ Burst');
-      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus), playBtn), varBox, cueEl, h('div', { class: 'row' }, cleanBtn, sloppyBtn, burstBtn), mic.el, meterBox, note,
+      card.append(best, progress, h('div', { class: 'spread' }, h('div', { class: 'row' }, minus, big, plus, tapButton(v => { E.setTechBpm(ex.id, v); big.textContent = t.bpm; })), playBtn), varBox, cueEl, h('div', { class: 'row' }, cleanBtn, sloppyBtn, burstBtn), mic.el, meterBox, note,
         VX.burst ? h('p', { class: 'small muted', text: 'Burst: ' + VX.burst }) : '');
       drawVar();
       let burstNext = false, burstOn = false; // a burst starts on the next downbeat and lasts one bar

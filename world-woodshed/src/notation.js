@@ -172,13 +172,19 @@ const STEM = 34;
            showTime (default true), endBar: 'final' | 'single' | 'none', tab: [{ si, f } | null per note], strings (default 6),
            chords: [[{ text, at (quarters into the bar) }] per bar] (chord symbols above the staff), barBands: true,
            repeat: [first bar, last bar] (from 0: repeat signs around those bars), repeats: [[first, last]…] (several),
-           oneLine: true (every bar on one line, for reading scrolled sideways), clef: 'treble' (default) | 'bass' }
+           oneLine: true (every bar on one line, for reading scrolled sideways), clef: 'treble' (default) | 'bass',
+           times: ['5/4', …] (each bar's time, when it changes from bar to bar: drawn where it changes) }
    returns { el, noteEls, items, xOf(i), posOf(i), mark(i, 'now'|'good'|'bad'|null), clearMarks(), cursor(i|null), bar(i|null) };
    i is the index of a note or rest counting through all bars. */
 export function renderStaff(opts) {
   const bars = opts.bars || [];
   const key = KEYS[opts.key] ? opts.key : 'C', K = KEYS[key];
-  const ts = parseTime(opts.time || '4/4');
+  // opts.times: each bar's time signature, for a score whose time changes from bar to bar
+  const times = Array.isArray(opts.times) && opts.times.length ? opts.times : null;
+  const ts = parseTime((times && times[0]) || opts.time || '4/4');
+  const tsOf = bi => (times && times[bi] ? parseTime(times[bi]) : ts);
+  const changes = bi => !!times && bi > 0 && opts.showTime !== false && times[bi] && times[bi] !== (times[bi - 1] || times[0]);
+  const timeW = t => 24 + (String(t.num).length > 1 || String(t.den).length > 1 ? 12 : 0);
   const widthPx = opts.width || 600;
   const narrow = widthPx < 480;
   const maxPer = opts.oneLine ? Math.max(1, bars.length) : opts.barsPerLine || (narrow ? 2 : 4);
@@ -191,8 +197,8 @@ export function renderStaff(opts) {
     const state = {};
     let onset = 0;
     const full = bar.length === 1 && bar[0].midi == null && bar[0].dur === 'w';
-    const list = bar.map((n, j) => {
-      const q = full ? ts.barQ : durQ(n);
+    const list = bar.map(n => {
+      const q = full ? tsOf(bi).barQ : durQ(n);
       const it = { i: items.length, bar: bi, onset, q, n, rest: n.midi == null, full };
       onset += q;
       it.lead = 0;
@@ -234,7 +240,9 @@ export function renderStaff(opts) {
     const lead = list.reduce((a, x) => a + x.lead, 0);
     const reps = Array.isArray(opts.repeats) ? opts.repeats : Array.isArray(opts.repeat) ? [opts.repeat] : [];
     const repL = reps.some(r => bi === r[0] && r[0] > 0) ? 13 : 0, repR = reps.some(r => bi === r[1]) ? 8 : 0;
-    return { list, spring, min: LEFT + RIGHT + repL + repR + spring + lead, full, repL, repR };
+    // a new time signature at the start of the bar
+    const timeL = changes(bi) ? timeW(tsOf(bi)) : 0;
+    return { list, spring, min: LEFT + RIGHT + repL + repR + timeL + spring + lead, full, repL, repR, timeL, ts: tsOf(bi) };
   });
 
   /* 2. systems: the fewest lines that fit, with bars spread evenly */
@@ -276,13 +284,13 @@ export function renderStaff(opts) {
     sy.bars.forEach(b => {
       b.x0 = x;
       const k = 1 + extra / springs;
-      let cx = x + LEFT + b.repL;
+      let cx = x + LEFT + b.repL + b.timeL;
       b.list.forEach(it => {
         cx += it.lead;
         it.x = cx + 6; it.sys = si;
         cx += it.space * k;
       });
-      if (b.full) b.list[0].x = x + b.repL + (cx + RIGHT - x - b.repL) / 2;
+      if (b.full) b.list[0].x = x + b.repL + b.timeL + (cx + RIGHT - x - b.repL - b.timeL) / 2;
       x = cx + RIGHT + b.repR; b.x1 = x;
     });
     sy.x1 = x;
@@ -295,7 +303,7 @@ export function renderStaff(opts) {
     const flush = () => { if (grp.length > 1) { const g = { notes: grp }; grp.forEach(it => { it.beam = g; }); } grp = []; };
     b.list.forEach(it => {
       const beamable = !it.rest && (it.n.dur === '8' || it.n.dur === '16') && !it.full;
-      const beat = Math.floor(it.onset / ts.beatQ + 1e-6), endBeat = Math.floor((it.onset + it.q) / ts.beatQ - 1e-6);
+      const beat = Math.floor(it.onset / b.ts.beatQ + 1e-6), endBeat = Math.floor((it.onset + it.q) / b.ts.beatQ - 1e-6);
       if (!beamable || beat !== endBeat) { flush(); return; }
       if (grp.length && grp[0].beat !== beat) flush();
       it.beat = beat; grp.push(it);
@@ -347,7 +355,6 @@ export function renderStaff(opts) {
   const svg = el('svg', { class: 'ww-staff' + (opts.cls ? ' ' + opts.cls : ''), role: 'img', 'aria-label': opts.label || 'Music notation' });
   const noteEls = new Array(items.length), barBands = [];
   const sysGroups = [];
-  const ties = [];
   systems.forEach((sy, si) => {
     const g = el('g', { class: 'st-sys' }, svg);
     sysGroups.push(g);
@@ -375,10 +382,16 @@ export function renderStaff(opts) {
     const dots = x => [15, 25].forEach(y => el('circle', { class: 'st-bar', cx: f1(x), cy: y, r: 2 }, g));
     sy.bars.forEach((b, k) => {
       const isLast = sy.first + k === bars.length - 1;
+      // a new time signature, then the start repeat after it (as the clef, key and time come before it)
+      if (b.timeL) {
+        const tx = b.x0 + 2 + b.timeL / 2;
+        [[b.ts.num, 10], [b.ts.den, 30]].forEach(([v, y]) => el('text', { class: 'st-time', x: f1(tx), y: y + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'central' }, g).textContent = v);
+      }
       if (b.repL) { // ‖: a thick line, a thin one, and the dots facing the bars that repeat
-        el('rect', { class: 'st-bar', x: f1(b.x0), y: 0, width: 4, height: 40 }, g);
-        el('rect', { class: 'st-bar', x: f1(b.x0 + 6.5), y: 0, width: 1.3, height: 40 }, g);
-        dots(b.x0 + 11.5);
+        const rx = b.x0 + b.timeL;
+        el('rect', { class: 'st-bar', x: f1(rx), y: 0, width: 4, height: 40 }, g);
+        el('rect', { class: 'st-bar', x: f1(rx + 6.5), y: 0, width: 1.3, height: 40 }, g);
+        dots(rx + 11.5);
       }
       if (b.repR) { // :‖
         el('rect', { class: 'st-bar', x: f1(b.x1 - 4), y: 0, width: 4, height: 40 }, g);
@@ -496,7 +509,7 @@ export function renderStaff(opts) {
         let room = b.x0 + 4; // chords in one bar never overlap: each starts after the one before
         (opts.chords[sy.first + k] || []).forEach(c => {
           const it = b.full ? null : b.list.find(x => Math.abs(x.onset - c.at) < 1e-6);
-          const x = Math.max(room, it ? it.x - 6 : b.x0 + LEFT + (b.x1 - RIGHT - b.x0 - LEFT) * c.at / ts.barQ);
+          const x = Math.max(room, it ? it.x - 6 : b.x0 + LEFT + b.timeL + (b.x1 - RIGHT - b.x0 - LEFT - b.timeL) * c.at / b.ts.barQ);
           el('text', { class: 'st-chord', x: f1(x), y: f1(cy) }, g).textContent = c.text;
           room = x + 7.4 * String(c.text).length + 6;
         });
@@ -585,6 +598,22 @@ export function renderStaff(opts) {
     systemBox: k => (systems[k] ? { top: systems[k].top + systems[k].minY, bottom: systems[k].top + systems[k].maxY } : null),
     xOf: i => (items[i] ? items[i].x : null),
     posOf,
+    /* the written bar under a point on the screen (a tap), or null: the line nearest it, then the bar along it */
+    barAt(cx, cy) {
+      const m = svg.getScreenCTM && svg.getScreenCTM();
+      if (!m || !systems.length) return null;
+      const p = new DOMPoint(cx, cy).matrixTransform(m.inverse());
+      let best = null, bd = Infinity;
+      systems.forEach(sy => {
+        const d = Math.max(0, sy.top + sy.minY - p.y, p.y - (sy.top + sy.maxY));
+        if (d < bd) { bd = d; best = sy; }
+      });
+      if (!best || bd > 30) return null;
+      const k = best.bars.findIndex(b => p.x >= b.x0 && p.x < b.x1);
+      if (k >= 0) return best.first + k;
+      // left of the first bar (the clef and key) is that bar; past the last, the last
+      return p.x < best.bars[0].x0 ? best.first : best.first + best.bars.length - 1;
+    },
     mark(i, cls) { const e = noteEls[i]; if (!e) return; e.classList.remove('now', 'good', 'bad', 'near'); if (cls) cls.split(' ').forEach(c => e.classList.add(c)); },
     bar(i, cls) { barBands.forEach((e, k) => e && e.classList.toggle(cls || 'now', k === i)); },
     clearMarks() { noteEls.forEach(e => e && e.classList.remove('now', 'good', 'bad', 'near')); },

@@ -2,16 +2,17 @@
 import A from '../audio.js';
 import E from '../engine.js';
 import Mic from '../listen.js';
-import { h, tool, toast, Fretboard, hooks } from '../ui/core.js';
+import { h, tool, toast, Fretboard, hooks, isCompact, TOOLS, openTool } from '../ui/core.js';
 import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
-import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts } from '../content/reading.js';
+import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts, barTime, barLength } from '../content/reading.js';
 import { placeFrets } from '../notate.js';
 import { parseChord } from '../theory.js';
 import { guitarMidis } from '../voicings.js';
 import Lib from '../readlib.js';
+import { delayTracker } from '../games.js';
 
 const SKILL = 'reading';
 const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
@@ -53,6 +54,9 @@ function markAttack(staff, piece, a, cls) {
 }
 function minGapQ(ats) { let g = Infinity; for (let i = 1; i < ats.length; i++) g = Math.min(g, ats[i].q - ats[i - 1].q); return isFinite(g) ? g : 1; }
 
+/* the time signature to name: a score whose time changes from bar to bar names each one it uses */
+const timeText = piece => (piece.times ? [...new Set(piece.times)].join(', ') + ' (it changes)' : piece.time);
+
 /* counting syllables under each note: 1 e & a, or 1 2 3 4 5 6 in 6/8 */
 function countLabels(piece) {
   const ts = parseTime(piece.time), out = [];
@@ -93,30 +97,58 @@ function followAlong(staff, x) {
    the start of its count-in, so there is a bar to look it over while the beat goes on.
    o: { first: { piece }, staff (drawn for the first piece), bpm, countIn, click, notes (play the pitches),
         phase (element), next(): the next { piece } of the run or null to stop, show(item): draws an item's piece
-        and returns its staff, onExpected(e, seg), onPieceEnd(seg): a piece was read to its end, onEnd() }
+        and returns its staff, onExpected(e, seg), onPieceEnd(seg): a piece was read to its end, onEnd(),
+        from: start the first piece at this bar of its play order (a tapped bar), after a count-in in that bar's time }
    A seg is { item, piece, k, expected: [{ i, q, len, midi, chord, t, dur, j }], ats, spq, staff }. */
 const G = 1 / 12;
 function playRun(o) {
-  A.ensure();
+  const actx = A.ensure();
   const segs = [];
+  // the click at one fixed level into the percussion channel: how loud it is follows the device's own volume
+  const clickBus = actx.createGain(); clickBus.gain.value = CLICK_LEVEL; clickBus.connect(A.channel('perc'));
+  const click = (down, t, vel) => A.hit(down ? 'clickHi' : 'click', t, vel, clickBus);
   const opts = { steps: 1e9, maxSteps: 0, ahead: 0.3 }; // the beat scheduled well ahead, so a slow phone or a long score can't make it stumble
-  const make = (item, start) => {
+  const make = (item, start, from) => {
     // piece.beatQ: the beat the click counts when the player chose another (6 quarters to a bar of 12/8)
     const piece = item.piece, ts0 = parseTime(piece.time), ts = piece.beatQ ? Object.assign({}, ts0, { beatQ: piece.beatQ }) : ts0, spq = 60 / o.bpm / ts.beatQ;
-    const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G);
-    const pre = segs.length || o.countIn ? barSteps : 0;
-    const len = Math.round(playLength(piece) / G), order = playOrder(piece);
-    const ats = attacks(piece);
+    const barSteps = Math.round(ts.barQ / G), beatSteps = Math.round(ts.beatQ / G), order = playOrder(piece);
+    // from a tapped bar: the steps before it are skipped, and the count-in is a bar of that bar's own time
+    const f = from > 0 && from < order.length ? from : 0;
+    let skipQ = 0; for (let x = 0; x < f; x++) skipQ += barLength(piece, order[x]);
+    const skip = Math.round(skipQ / G), t0 = barTime(piece, order[f] || 0);
+    const preBar = Math.round(t0.barQ / G), preBeat = Math.round((piece.beatQ || t0.beatQ) / G);
+    const pre = segs.length || o.countIn || f ? preBar : 0;
+    const len = Math.round(playLength(piece) / G) - skip;
+    // a time that changes from bar to bar: where each bar starts as played, and its beat
+    const bars = piece.times ? [] : null;
+    if (bars) {
+      let at = 0;
+      order.forEach(b => {
+        const bt = barTime(piece, b);
+        bars.push({ at, b, beat: Math.round((piece.beatQ || bt.beatQ) / G) });
+        at += Math.round(barLength(piece, b) / G);
+      });
+    }
+    const ats = attacks(piece).filter(a => a.q >= skipQ - 1e-6);
     const byStep = new Map(); ats.forEach((a, j) => byStep.set(Math.round(a.q / G), Object.assign({ j }, a)));
     const evAt = new Map(); eventStarts(piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
     // the first note of each note's bar, for a cursor that shows only where each bar starts
     const barFirst = []; piece.bars.forEach(bar => { const f = barFirst.length; bar.forEach(() => barFirst.push(f)); });
-    const seg = { item, piece, order, barFirst, k: segs.length, start, pre, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
+    const seg = { item, piece, order, barFirst, bars, k: segs.length, start, pre, preBar, preBeat, skip, from: f, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
     segs.push(seg);
     return seg;
   };
   const segAt = i => { for (let k = segs.length - 1; k >= 0; k--) if (segs[k].start <= i) return segs[k]; return segs[0]; };
-  make(o.first, 0);
+  // the beat at step kk of a piece (after its count-in): { beat (a click here), down (a bar's first), bar (as
+  // written), n (which beat of it) }
+  const beatAt = (seg, kk) => {
+    if (!seg.bars) return { beat: kk % seg.beatSteps === 0, down: kk % seg.barSteps === 0, bar: seg.order[Math.floor(kk / seg.barSteps)] || 0, n: (kk % seg.barSteps) / seg.beatSteps + 1 };
+    let k = 0;
+    while (k + 1 < seg.bars.length && seg.bars[k + 1].at <= kk) k++;
+    const x = seg.bars[k], into = kk - x.at;
+    return { beat: into % x.beat === 0, down: into === 0, bar: x.b, n: into / x.beat + 1 };
+  };
+  make(o.first, 0, o.from);
   let nowEl = null, nowSys = -1, ended = false;
   const setNow = (seg, i) => {
     // o.cursor(): 'note' (default) follows every note, 'bar' shows only where each bar starts, 'off' none;
@@ -136,13 +168,15 @@ function playRun(o) {
   Object.assign(opts, {
     stepDur: i => segAt(i).spq * G,
     onStep: (i, t) => {
-      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre + seg.skip;
       // only the beats: in 12/8 four dotted quarters, never the eighths between, which at a slow beat
       // sound like a fast 3/4 (loud, soft, soft)
-      if (kk % seg.beatSteps === 0) {
-        const down = kk % seg.barSteps === 0;
-        if (inPre) A.hit(down ? 'clickHi' : 'click', t, 0.95);
-        else if (o.click) A.hit(down ? 'clickHi' : 'click', t, 0.45);
+      const bt = inPre ? { beat: kk % seg.preBeat === 0, down: kk % seg.preBar === 0 } : beatAt(seg, kk);
+      if (bt.beat) {
+        const down = bt.down;
+        // the click while reading as loud as the count-in: at 0.45 it was half as loud and took the woodblock's
+        // soft recording, too quiet to play along to
+        if (inPre || o.click) click(down, t, 0.95);
       }
       if (!inPre && seg.byStep.has(kk)) {
         const a = seg.byStep.get(kk), e = Object.assign({}, a, { t, dur: a.len * seg.spq });
@@ -159,7 +193,7 @@ function playRun(o) {
       }
     },
     onVisual: i => {
-      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre;
+      const seg = segAt(i), k = i - seg.start, inPre = k < seg.pre, kk = inPre ? k : k - seg.pre + seg.skip;
       if (i === seg.start && seg.k > 0) {
         const prev = segs[seg.k - 1];
         setNow(prev, null);
@@ -167,8 +201,14 @@ function playRun(o) {
         seg.staff = o.show(seg.item, seg); nowSys = -1;
         if (!seg.staff.line) follow(seg.staff, 0);
       }
-      if (inPre) { if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : 'Count-in: ') + (kk / seg.beatSteps + 1) + ' …'; return; }
-      if (o.phase && kk % seg.beatSteps === 0) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + ((seg.order[Math.floor(kk / seg.barSteps)] || 0) + 1) + ' of ' + seg.piece.bars.length + ' · beat ' + ((kk % seg.barSteps) / seg.beatSteps + 1);
+      if (inPre) {
+        // started from a tapped bar: the cursor waits on it through the count-in
+        if (kk === 0 && seg.skip && seg.evAt.has(seg.skip)) setNow(seg, seg.evAt.get(seg.skip));
+        if (o.phase && kk % seg.preBeat === 0) o.phase.textContent = (seg.k ? 'Next piece · count-in: ' : seg.skip ? 'From bar ' + (seg.order[seg.from] + 1) + ' · count-in: ' : 'Count-in: ') + (kk / seg.preBeat + 1) + ' …';
+        return;
+      }
+      const bt = beatAt(seg, kk);
+      if (o.phase && bt.beat) o.phase.textContent = (segs.length > 1 || o.next ? 'Piece ' + (seg.k + 1) + ' · ' : '') + 'Bar ' + (bt.bar + 1) + ' of ' + seg.piece.bars.length + (seg.bars ? ' · ' + seg.piece.times[bt.bar] : '') + ' · beat ' + bt.n;
       if (seg.evAt.has(kk)) setNow(seg, seg.evAt.get(kk));
     },
     onEnd: () => {
@@ -190,7 +230,10 @@ function playRun(o) {
 function staffWidth(holder) { return Math.max(260, (holder.clientWidth || 320) - 4); }
 
 const paperOn = () => !!E.state.settings.readingPaper;
-const accOn = () => !!E.state.settings.readingAcc;
+/* Sharps and flats on any level (settings.readingAcc): off, both (true, as the old switch saved it), or one kind */
+const ACC_MODES = [[false, 'Off'], [true, '♯ and ♭'], ['sharps', '♯ only'], ['flats', '♭ only']];
+const accMode = () => { const v = E.state.settings.readingAcc; return v === 'sharps' || v === 'flats' ? v : !!v; };
+const accOnly = () => ({ sharps: '#', flats: 'b' })[accMode()];
 /* how many bars a rhythm or melody runs to, and whether the next one follows by itself */
 const LENGTHS = [4, 8, 16];
 const lenFor = kind => { const v = (E.state.settings.readingLen || {})[kind]; return LENGTHS.includes(v) ? v : 8; };
@@ -205,11 +248,44 @@ function lengthControls(kind, onChange) {
   return h('div', { class: 'stack sr-opts' }, seg, keep);
 }
 
+/* ======================================================
+   KEYBOARD: shortcuts on a computer keyboard. Each mode lists its keys ({ on, label, when, run }), which both
+   answer the keys and make the list that ? shows, so the two never disagree.
+   ====================================================== */
+const KEY_NAME = { ' ': 'Space', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', PageUp: 'Page Up', PageDown: 'Page Down', Escape: 'Esc', Home: 'Home', End: 'End', Enter: 'Enter' };
+const keyLabel = k => KEY_NAME[k] || (k.length === 1 ? k.toUpperCase() : k);
+// typing in a field: no shortcuts (a checkbox, radio or button is not typing)
+const typing = t => !!(t && (t.isContentEditable || (t.closest && t.closest('textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=button])'))));
+// Space or Enter on a focused button, link, checkbox or summary does what it does there
+const pressable = t => !!(t && t.closest && t.closest('button, a, summary, input, [role=button]'));
+/* the entry a key press matches: letters in either case; a shifted arrow or Home only where an entry asks for
+   Shift (+ and ? need Shift on many keyboards, so a typed character is matched as it comes) */
+function keyFor(list, e) {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if ((k === ' ' || k === 'Enter') && pressable(e.target)) return null;
+  return list.find(x => x.on && x.on.includes(k) && (k.length === 1 || !!x.shift === e.shiftKey) && (!x.when || x.when())) || null;
+}
+function keysSheet(host, groups, onClose) {
+  const close = () => { back.remove(); onClose(); };
+  const row = x => [h('dt', {}, (x.keys || x.on.map(k => (x.shift ? 'Shift + ' : '') + keyLabel(k))).map((k, i) => [i ? ' ' : '', h('kbd', { text: k })])), h('dd', { text: x.label })];
+  const closeBtn = h('button', { class: 'btn small ghost', 'aria-label': 'Close', onclick: () => close() }, '✕');
+  const back = h('div', { class: 'sheet-back sr-keys-back', onclick: e => { if (e.target === back) close(); } },
+    h('div', { class: 'sheet sr-keys', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Keyboard shortcuts' },
+      h('div', { class: 'spread' }, h('h3', { text: 'Keyboard shortcuts' }), closeBtn),
+      groups.filter(g => g[1].length).map(([title, list]) => h('section', { class: 'stack' }, h('span', { class: 'eyebrow', text: title }),
+        h('dl', { class: 'sr-keylist' }, list.map(row)))),
+      h('p', { class: 'small muted', text: 'Not while typing in a box. Press ? or Esc to close this.' })));
+  host.append(back);
+  closeBtn.focus({ preventScroll: true });
+  return { close };
+}
+
 tool('sightread', {
   tab: 'train', skill: SKILL, title: 'Sight-reading', eyebrow: 'Reading · notes, rhythm, melody',
   desc: 'Read standard notation on the guitar, level by level: name notes, tap rhythms, then play melodies at sight while a cursor keeps time.',
   render(body, ctx) {
     const p = ctx.params || {};
+    if (TOOLS.opening && !ctx.block && p.mode !== 'scores') body.append(h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => openTool('opening', { returnTab: 'train' }) }, '🎮 Play as a game: Opening Night')));
     const unlocked = () => Math.max(1, Math.min(LEVELS.length, E.unlockedTier(SKILL) || 1));
     let level = p.level ? clampLevel(p.level) : unlocked();
     let mode = ['notes', 'rhythm', 'melody', 'scores'].includes(p.mode) ? p.mode : (E.state.settings.readingMode || 'notes');
@@ -223,11 +299,18 @@ tool('sightread', {
     const how = h('details', { class: 'card sr-how' },
       h('summary', {}, h('b', { text: 'How to sight-read' })),
       h('ul', { class: 'sr-howlist' }, HOW_TO.map(([t, d]) => h('li', {}, h('b', { text: t + '. ' }), d))));
-    const accBox = h('label', { class: 'check small sr-acctoggle' }, h('input', { type: 'checkbox', checked: accOn() ? true : null, onchange: e => { E.setSetting('readingAcc', e.target.checked); renderLevel(); renderMode(); } }), 'Sharps and flats: add ♯ and ♭ beside the notes, at any level');
-    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, how);
+    const accSeg = h('div', { class: 'seg sr-accseg', role: 'group', 'aria-label': 'Sharps and flats' });
+    const paintAcc = () => accSeg.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', ACC_MODES[i][0] === accMode() ? 'true' : 'false'));
+    ACC_MODES.forEach(([v, label]) => accSeg.append(h('button', { onclick: () => { if (accMode() === v) return; E.setSetting('readingAcc', v); paintAcc(); renderLevel(); renderMode(); } }, label)));
+    paintAcc();
+    const accBox = h('div', { class: 'sr-acctoggle' }, h('span', { class: 'small', text: 'Sharps and flats beside the notes, at any level' }), accSeg);
+    // shown only where there is a keyboard and a mouse (styles.css hides it on a touch screen)
+    const keyHelp = h('button', { class: 'btn small ghost' }, '⌨ Keyboard shortcuts');
+    const keyHint = h('p', { class: 'row small muted sr-keyhint' }, keyHelp, h('span', { text: 'or press ?' }));
+    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, keyHint, how);
     body.append(wrap);
 
-    const L = () => accOn() ? withAccidentals(LEVELS[level - 1]) : LEVELS[level - 1];
+    const L = () => accMode() ? withAccidentals(LEVELS[level - 1], accOnly()) : LEVELS[level - 1];
     const go = n => { level = clampLevel(n); renderLevel(); renderMode(); };
     function renderLevel() {
       const top = unlocked(), lv = L();
@@ -254,7 +337,7 @@ tool('sightread', {
           h('h2', { text: lv.name }),
           h('button', { class: 'btn small', 'aria-label': 'Next level', disabled: level >= LEVELS.length ? true : null, onclick: () => go(level + 1) }, '→')),
         h('p', { text: lv.goal }),
-        lv.acc ? h('p', { class: 'small muted sr-accnote', text: 'With sharps and flats: notes can carry a ♯ or ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' }) : '',
+        lv.acc ? h('p', { class: 'small muted sr-accnote', text: lv.accOnly === '#' ? 'With sharps only: notes can carry a ♯ (and a ♮ to cancel it), which lasts to the end of the bar.' : lv.accOnly === 'b' ? 'With flats only: notes can carry a ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' : 'With sharps and flats: notes can carry a ♯ or ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' }) : '',
         locked ? h('p', { class: 'small sr-preview', text: 'Preview: this level unlocks when you read level ' + top + ' reliably (notes, rhythm and melody). You can still try it.' }) : '',
         h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))),
         path);
@@ -273,8 +356,39 @@ tool('sightread', {
     let rsz = null, lastW = window.innerWidth;
     const onResize = () => { clearTimeout(rsz); rsz = setTimeout(() => { if (Math.abs(window.innerWidth - lastW) < 40) return; lastW = window.innerWidth; if (modeApi && modeApi.redraw) modeApi.redraw(); }, 250); };
     window.addEventListener('resize', onResize);
+    // keys for the whole tool: ? lists every key; Shift + ← and → change the level. The mode's own keys first.
+    const busy = () => !!(modeApi && modeApi.busy && modeApi.busy());
+    const toolKeys = [
+      { on: ['?'], label: 'Show these keys' },
+      { on: ['ArrowLeft'], shift: true, label: 'Previous level', when: () => mode !== 'scores' && !busy() && level > 1, run: () => go(level - 1) },
+      { on: ['ArrowRight'], shift: true, label: 'Next level', when: () => mode !== 'scores' && !busy() && level < LEVELS.length, run: () => go(level + 1) }
+    ];
+    let sheet = null;
+    const showKeys = () => {
+      if (sheet) return;
+      const mk = modeApi && modeApi.keys ? modeApi.keys() : [];
+      const name = { notes: 'Notes', rhythm: 'Rhythm', melody: 'Melody', scores: 'Your scores' }[mode];
+      sheet = keysSheet((modeApi && modeApi.host && modeApi.host()) || document.body, [[name, mk.filter(x => !x.when || x.when() || x.list)], ['Sight-reading', toolKeys.filter(x => !x.when || x.when())]], () => { sheet = null; });
+    };
+    const onKey = e => {
+      if (sheet) { // the list is open: ? or Esc closes it, and nothing else happens underneath
+        if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); sheet.close(); }
+        if (e.key !== 'Tab') e.stopImmediatePropagation();
+        return;
+      }
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+      if (!wrap.isConnected) return;
+      // another window over the tool (the score viewer, Fix notes): its keys, not these
+      if ([...document.querySelectorAll('[role="dialog"]')].some(d => !d.classList.contains('sr-fs'))) return;
+      if (e.key === '?') { e.preventDefault(); showKeys(); return; }
+      const k = keyFor((modeApi && modeApi.keys ? modeApi.keys() : []).concat(toolKeys), e);
+      if (!k || !k.run || k.run(e) === false) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+    };
+    document.addEventListener('keydown', onKey, true);
+    keyHelp.onclick = showKeys;
     renderLevel(); renderSeg(); renderMode();
-    return () => { window.removeEventListener('resize', onResize); clearTimeout(rsz); if (modeApi) modeApi.cleanup(); };
+    return () => { window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey, true); if (sheet) sheet.close(); clearTimeout(rsz); if (modeApi) modeApi.cleanup(); };
   }
 });
 
@@ -378,6 +492,14 @@ function notesMode(root, lv, ctx) {
   next();
   return {
     redraw: () => q && draw(),
+    // answered by onKey above; listed for ?
+    keys: () => [
+      { keys: ['A … G'], label: 'Name the note' },
+      { keys: ['#', '+'], label: 'Sharp, before the letter' },
+      { keys: ['-'], label: 'Flat, before the letter' },
+      { keys: ['='], label: 'Natural, before the letter' },
+      { keys: ['Space', 'Enter'], label: 'Next note, once answered' }
+    ],
     cleanup() { clearTimeout(auto); document.removeEventListener('keydown', onKey); if (micOff) micOff(); mic.cleanup(); }
   };
 }
@@ -453,7 +575,8 @@ function scoresMode(root, lv, ctx, p) {
     // a score the app read from a PDF or photos is read from those pages in full screen, as printed
     async function pagesOf(got, mel) {
       pageHint.hidden = true;
-      if (!/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
+      // not on a small phone (html.compact): a printed page is too small to read there, so One line only and no switch
+      if (isCompact() || !/ \(notes read\)\.musicxml$/.test(pick.f.name)) return null;
       const PL = await import('../pagelayout.js');
       const layout = PL.layoutFromXML(await got.blob.text());
       const e = L.getEntry(pick.e.id) || pick.e, here = await L.localIds();
@@ -464,7 +587,7 @@ function scoresMode(root, lv, ctx, p) {
       const kind = pdf ? 'PDF' : photos.length > 1 ? 'photos' : 'photo';
       pageHint.hidden = false;
       if (!layout) { pageHint.textContent = 'Read the notes again in the Library (Read the notes again) to read from the ' + kind + ' itself in full screen: this reading is older than that.'; return null; }
-      pageHint.textContent = 'In full screen you read from the ' + kind + ' itself, page by page as printed, with the cursor over its notes (📄 The page there switches it).';
+      pageHint.textContent = 'In full screen you read from the ' + kind + ' itself, page by page as printed, with the cursor over its notes; zoom in with + or a pinch and the page scrolls along as you read (📄 The page there switches it).';
       return {
         layout, kind, row: PL.rowOf(layout, { part: mel.part, staff: mel.staff }),
         on: () => saved().pages !== false,
@@ -514,10 +637,12 @@ function scoresMode(root, lv, ctx, p) {
         single: secs.length === 1,
         opts: h('div', { class: 'stack sr-opts' }, ts.compound ? h('div', { class: 'row small' }, 'Click on', clickSeg) : '', wholeBox, h('div', { class: 'row' }, perSeg, secs.length > 1 ? h('label', { class: 'row small' }, 'Start at', fromSel) : ''), secs.length > 1 ? runKeep : ''),
         make() {
-          const x = secs[idx], label = barsLabel(x);
-          idx = (idx + 1) % secs.length;
-          return { piece: beatQ === ts.beatQ ? x.piece : Object.assign({}, x.piece, { beatQ }), label, of: title };
+          const i = idx, x = secs[i], label = barsLabel(x);
+          idx = (i + 1) % secs.length;
+          return { piece: beatQ === ts.beatQ ? x.piece : Object.assign({}, x.piece, { beatQ }), label, of: title, no: i + 1, total: secs.length };
         },
+        // the section at index i (wrapping round), for Previous and Next section
+        go(i) { idx = ((i % secs.length) + secs.length) % secs.length; return own.make(); },
         record(score) {
           // practising a Library piece counts for it in the daily plan, as its own page does
           if (hooks.signal) hooks.signal('piece:' + pick.e.id, { score });
@@ -530,7 +655,7 @@ function scoresMode(root, lv, ctx, p) {
     }
     load(pick.f.id === want.file ? want.from || 0 : 0);
   })().catch(e => { console.error(e); status.textContent = 'Could not open your Library here.'; });
-  return { redraw: () => { if (api && api.redraw) api.redraw(); }, cleanup: () => { gone = true; done(); } };
+  return { redraw: () => { if (api && api.redraw) api.redraw(); }, keys: () => (api && api.keys ? api.keys() : []), busy: () => !!(api && api.busy && api.busy()), host: () => (api && api.host ? api.host() : null), cleanup: () => { gone = true; done(); } };
 }
 
 /* ======================================================
@@ -596,6 +721,9 @@ function bpmFor(lv, kind) {
   return typeof v === 'number' ? v : lv.tempo[0];
 }
 function saveBpm(lv, kind, v) { const all = Object.assign({}, E.state.settings.readingBpm || {}); all[kind + lv.id] = v; E.setSetting('readingBpm', all); }
+/* how loud the click is while reading: the woodblock at full velocity through this gain, as loud as the old
+   default (Loud). There is no setting: the device's own volume sets how loud it is */
+const CLICK_LEVEL = 1.8;
 function tempoControl(get, set, lv) {
   const lbl = h('b', { class: 'mono sr-bpm' });
   const paint = () => { lbl.textContent = get() + ' bpm'; };
@@ -702,7 +830,19 @@ function rhythmMode(root, lv, ctx) {
     });
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: () => stop() };
+  // while you tap, Space is the tap (TapPad); otherwise it starts, and stops Hear it
+  const keys = () => [
+    { on: [' '], label: 'Start: count-in, then tap (Space is then the tap)', when: () => !pad, run: () => { if (run) stop(true); else startBtn.onclick(); } },
+    { on: ['Escape'], label: 'Stop', when: () => !!run, run: () => stop(true) },
+    { on: ['h'], label: 'Hear it, or stop it', run: () => { if (run) stop(true); else hearBtn.onclick(); } },
+    { on: ['n', 'ArrowRight'], label: 'Next rhythm', when: () => !run, run: () => newBtn.onclick() },
+    { on: ['ArrowUp'], label: '4 bpm faster', run: () => tempo.bump(4) },
+    { on: ['ArrowDown'], label: '4 bpm slower', run: () => tempo.bump(-4) },
+    { on: ['ArrowUp'], shift: true, label: '1 bpm faster', run: () => tempo.bump(1) },
+    { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => tempo.bump(-1) },
+    { on: ['c'], label: 'Show the counts, or hide them', when: () => !run, run: () => { const i = countBox.querySelector('input'); i.checked = !i.checked; i.dispatchEvent(new Event('change')); } }
+  ];
+  return { redraw: () => { if (!run) draw(); }, keys, busy: () => !!run, cleanup: () => stop() };
 }
 
 /* ======================================================
@@ -727,6 +867,9 @@ function melodyMode(root, lv, ctx, own) {
   const make = own ? own.make : () => Lib.next(lv.id, 'm', () => genMelody(lv, { bars: lenFor('m') }));
   const NEXT = own ? 'Next section' : 'Next melody';
   let cur = make(), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
+  // a tapped bar: the next run starts there (its place in the play order), and whether it was Hear it playing
+  let from = 0, hearing = false;
+  const takeFrom = () => { const f = from; from = 0; return f; };
   const src = h('p', { class: 'small sr-src' });
   const lib = own ? { el: '', toggle() {}, draw() {} } : libraryPanel('m', lv, id => { cur = Lib.open(id); piece = cur.piece; fresh(); lib.toggle(); card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
   const libBtn = own ? { el: '', paint() {} } : libButton('m', lv, lib);
@@ -740,6 +883,10 @@ function melodyMode(root, lv, ctx, own) {
   const startBtn = h('button', { class: 'btn brass' }, '▶ Start reading');
   const hearBtn = h('button', { class: 'btn' }, 'Hear it');
   const newBtn = h('button', { class: 'btn ghost' }, NEXT);
+  // Your scores in sections: back a section as well as on, and which section of how many this is
+  const sectioned = !!(own && !own.single && own.go);
+  const prevBtn = sectioned ? h('button', { class: 'btn ghost', onclick: () => { cur = own.go(cur.no - 2); piece = cur.piece; fresh(); } }, '← Previous section') : '';
+  const secCount = h('span', { class: 'mono small sr-seccount', hidden: !sectioned });
   const stopBtn = h('button', { class: 'btn small', onclick: () => stop(true) }, '■ Stop');
   const runBar = h('div', { class: 'sr-runbar live', hidden: true }, h('div', { class: 'stack' }, phase, live), stopBtn);
   let micNoteOff = null;
@@ -748,7 +895,9 @@ function melodyMode(root, lv, ctx, own) {
   const fullBtn = h('button', { class: 'btn ghost', onclick: () => setFull(true) }, '⛶ Full screen');
   const fsBpm = h('b', { class: 'mono' });
   const fsStart = h('button', { class: 'btn brass small', onclick: () => startBtn.onclick() }, '▶ Start');
+  const fsPrevSec = h('button', { class: 'btn small', hidden: !sectioned, 'aria-label': 'Previous section', onclick: () => prevBtn.onclick() }, 'Prev');
   const fsNext = h('button', { class: 'btn small', onclick: () => newBtn.onclick() }, own ? 'Next' : 'New');
+  const fsSecCount = h('span', { class: 'mono small sr-seccount', hidden: !sectioned });
   const fsExit = h('button', { class: 'btn small ghost', 'aria-label': 'Leave full screen', 'data-back-close': '', onclick: () => setFull(false) }, '✕');
   // a score read from a PDF or photos: its own pages in full screen, as printed (own.page, src/ui/pageview.js)
   const paged = own && own.page;
@@ -766,15 +915,25 @@ function melodyMode(root, lv, ctx, own) {
   const fsPrev = h('button', { class: 'btn small', 'aria-label': 'Previous page', onclick: () => { if (pv) pv.turn(-1); } }, '‹');
   const fsPage = h('span', { class: 'mono small sr-fspage' });
   const fsNextPage = h('button', { class: 'btn small', 'aria-label': 'Next page', onclick: () => { if (pv) pv.turn(1); } }, '›');
-  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsStart, fsNext,
+  // zoom, as a word processor has it (src/ui/pageview.js): − and +, the size (a tap shows the whole page again)
+  // and fit to width; a pinch or Ctrl + the wheel too. Kept per device, settings.readingZoom
+  const fsZoomPct = h('button', { class: 'btn small sr-zpct', title: 'Show the whole page', onclick: () => { if (pv) pv.setZoom('page'); } });
+  const fsFitW = h('button', { class: 'btn small', title: 'Make the page as wide as the screen', onclick: () => { if (pv) pv.setZoom(pv.zoom() === 'width' ? 'page' : 'width'); } });
+  const fsZoom = h('span', { class: 'sr-fszoom', role: 'group', 'aria-label': 'Zoom' },
+    h('button', { class: 'btn small', 'aria-label': 'Zoom out', title: 'Zoom out', onclick: () => { if (pv) pv.zoomOut(); } }, '−'), fsZoomPct,
+    h('button', { class: 'btn small', 'aria-label': 'Zoom in', title: 'Zoom in', onclick: () => { if (pv) pv.zoomIn(); } }, '+'), fsFitW);
+  // the keyboard shortcuts (the tool's own list, opened as the ? key opens it); not on a touch screen
+  const fsKeys = h('button', { class: 'btn small ghost sr-keybtn', 'aria-label': 'Keyboard shortcuts', title: 'Keyboard shortcuts (?)', onclick: () => document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' })) }, '⌨');
+  const fsBar = h('div', { class: 'sr-fsbar' }, fsExit, fsKeys, fsStart, fsPrevSec, fsSecCount, fsNext,
     h('button', { class: 'btn small', 'aria-label': 'Slower', onclick: () => { tempo.bump(-4); paintFs(); } }, '−'), fsBpm,
     h('button', { class: 'btn small', 'aria-label': 'Faster', onclick: () => { tempo.bump(4); paintFs(); } }, '+'),
-    fsCursor, fsPages, fsPrev, fsPage, fsNextPage);
+    fsCursor, fsPages, fsPrev, fsPage, fsNextPage, fsZoom);
   function paintFs() {
     fsBpm.textContent = bpm + ' bpm';
-    fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single);
+    fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single); fsPrevSec.hidden = !!run || !sectioned;
+    if (sectioned && cur.total) fsSecCount.textContent = cur.no + '/' + cur.total;
     fsCursor.textContent = (CURSORS.find(c => c[0] === cursorMode()) || CURSORS[0])[1];
-    if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = true; return; }
+    if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = fsZoom.hidden = true; return; }
     fsPages.textContent = paged.on() ? '♫ One line' : '📄 The page';
     fsPages.setAttribute('aria-label', paged.on() ? 'Read it on one line instead' : 'Read it from the ' + paged.kind + ' itself');
     const on = usePages();
@@ -782,13 +941,21 @@ function melodyMode(root, lv, ctx, own) {
     fsPage.hidden = !(on || (paged.on() && full));
     fsPage.textContent = on ? pv.label() : 'Opening the ' + paged.kind + '…';
     if (on) { fsPrev.disabled = !pv.canTurn(-1); fsNextPage.disabled = !pv.canTurn(1); }
+    fsZoom.hidden = !on;
+    if (on) {
+      const z = pv.zoom();
+      fsZoomPct.textContent = pv.zoomText();
+      fsZoomPct.setAttribute('aria-label', 'Zoom ' + pv.zoomText() + (z === 'page' ? ', the whole page' : '; tap to show the whole page'));
+      fsFitW.textContent = z === 'width' ? '▯ Page' : '↔ Width';
+      fsFitW.setAttribute('aria-pressed', z === 'width' ? 'true' : 'false');
+    }
   }
   function loadPages() {
     if (pv || pvLoading || !paged) return pvLoading;
     pvLoading = Promise.all([import('../ui/pageview.js'), paged.source()]).then(async ([PV, src]) => {
       const source = await PV.openSource(src);
       if (gone) { source.close(); return; }
-      pv = PV.PageView(source, paged.layout);
+      pv = PV.PageView(source, paged.layout, { zoom: E.state.settings.readingZoom, onZoom: z => { E.setSetting('readingZoom', z); paintFs(); } });
       pv.onTurn = () => paintFs();
       if (full && !run) draw();
       paintFs();
@@ -796,12 +963,6 @@ function melodyMode(root, lv, ctx, own) {
       .finally(() => { pvLoading = null; });
     return pvLoading;
   }
-  // the arrow keys and a page-turner pedal (which sends Page Up and Page Down) turn the pages
-  const pageKeys = e => {
-    if (!usePages() || (e.target && e.target.closest && e.target.closest('input, select, textarea'))) return;
-    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); pv.turn(1); }
-    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); pv.turn(-1); }
-  };
   let resizeT = 0;
   const onResize = () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (full && !run) draw(); }, 200); };
   const onFsChange = () => { if (full && !document.fullscreenElement && full.wasFull) setFull(false); else if (full && document.fullscreenElement) full.wasFull = true; };
@@ -816,14 +977,12 @@ function melodyMode(root, lv, ctx, own) {
       document.body.append(box);
       full = { box, moved, wasFull: false };
       document.addEventListener('fullscreenchange', onFsChange);
-      document.addEventListener('keydown', pageKeys);
       window.addEventListener('resize', onResize);
       if (paged && paged.on()) loadPages();
       fullScreen(true, box).then(() => { if (full) onResize(); });
     } else {
       const f = full; full = null;
       document.removeEventListener('fullscreenchange', onFsChange);
-      document.removeEventListener('keydown', pageKeys);
       window.removeEventListener('resize', onResize);
       f.moved.forEach(([el, ph]) => ph.replaceWith(el));
       result.classList.remove('sr-fsresult');
@@ -837,7 +996,20 @@ function melodyMode(root, lv, ctx, own) {
   const mic = MicToggle({ label: 'Check my playing', onLabel: 'Listening: notes and timing are checked', hint: 'Headphones help, so the mic hears your guitar and not the click.' });
   const opts = own ? own.opts : lengthControls('m', () => { if (!run && !cur.entry) newBtn.onclick(); });
   card.append(h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: own ? own.title : lv.chords ? 'Play these chords at sight' : 'Play this at sight' }), info), src, tempo.el, opts,
-    h('div', { class: 'row' }, startBtn, hearBtn, newBtn, libBtn.el, fullBtn), mic.el, staffBox, runBar, runList, result, lib.el);
+    h('div', { class: 'row' }, startBtn, hearBtn, prevBtn, newBtn, secCount, libBtn.el, fullBtn), mic.el, staffBox,
+    h('p', { class: 'small muted sr-taphint', text: 'Tap a bar to play from there, after a bar of count-in.' }), runBar, runList, result, lib.el);
+  // tap a bar (on the staff, the one long line or the printed page): play from there, after a count-in bar in
+  // that bar's time. Hear it carries on as Hear it; otherwise it is read from there. A repeated bar starts at
+  // its first time through.
+  staffBox.addEventListener('click', e => {
+    if (!staff || !staff.barAt || (e.target.closest && e.target.closest('button, a, input'))) return;
+    const b = staff.barAt(e.clientX, e.clientY);
+    const at = b == null ? -1 : playOrder(piece).indexOf(b);
+    if (at < 0) return;
+    const hear = !!run && hearing;
+    from = at;
+    (hear ? hearBtn : startBtn).onclick();
+  });
   function draw() {
     staffBox.innerHTML = '';
     staffBox.classList.toggle('sr-pagebox', usePages());
@@ -848,12 +1020,12 @@ function melodyMode(root, lv, ctx, own) {
       pv.fit(staffBox.clientWidth, staffBox.clientHeight);
       staff = pv.forPiece(piece, paged.row, own.title + ', ' + cur.label);
       attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
-      info.textContent = keyName(piece.key) + ' · ' + piece.time;
+      info.textContent = keyName(piece.key) + ' · ' + timeText(piece);
       src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of);
       paintFs();
       return staff;
     }
-    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, clef: piece.clef, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
+    staff = renderStaff({ bars: piece.bars, key: piece.key, time: piece.time, times: piece.times, clef: piece.clef, width: staffWidth(staffBox), chords: chartChords(piece), repeat: piece.repeat, repeats: piece.repeats, tab: lv.tab ? tabFor(piece) : null, oneLine: !!full, label: (own ? own.title + ', ' + cur.label : 'A melody of ' + piece.bars.length + ' bars') + ' in ' + keyName(piece.key) });
     staffBox.append(staff.el);
     if (full) {
       // larger than on the page, as the height allows, but not so large that too little of what comes next shows
@@ -863,54 +1035,71 @@ function melodyMode(root, lv, ctx, own) {
       staffBox.scrollLeft = 0;
     }
     attacks(piece).forEach(a => { if (marks[a.i]) markAttack(staff, piece, a, marks[a.i]); });
-    info.textContent = keyName(piece.key) + ' · ' + piece.time + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
+    info.textContent = keyName(piece.key) + ' · ' + timeText(piece) + (lv.position ? ' · ' + POS_NAME(lv.position) + ' position' : '');
     if (own) { src.innerHTML = ''; src.append(h('span', { class: 'badge', text: 'Your score' }), ' ' + cur.label + ' of ' + cur.of); } else sourceLine(src, cur, 'm');
+    if (sectioned && cur.total) { secCount.textContent = 'Section ' + cur.no + ' of ' + cur.total; fsSecCount.textContent = cur.no + '/' + cur.total; }
     libBtn.paint();
     return staff;
   }
   let onStop = null;
   function stop(byHand) {
-    if (run) run.stop(); run = null;
+    if (run) run.stop(); run = null; hearing = false;
     if (micNoteOff) micNoteOff(); micNoteOff = null;
-    ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; runBar.hidden = true;
+    ctx.setActive(false); startBtn.disabled = hearBtn.disabled = newBtn.disabled = false; if (prevBtn) prevBtn.disabled = false; runBar.hidden = true;
     paintFs();
     const f = onStop; onStop = null;
     if (byHand && f) setTimeout(f, 320); // after the piece that just ended is scored
   }
   function fresh() { stop(); marks = {}; result.innerHTML = ''; runList.innerHTML = ''; runList.hidden = true; live.textContent = ''; draw(); }
   hearBtn.onclick = () => {
+    const f = takeFrom();
     fresh(); ctx.setActive(true); hearBtn.disabled = true; runBar.hidden = false;
-    run = playRun({ first: { piece }, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
-    if (mic.on) Mic.muteUntil(A.now() + 0.2 + (parseTime(piece.time).barQ + playLength(piece)) * 60 / bpm / (piece.beatQ || parseTime(piece.time).beatQ) + 1.5);
+    run = playRun({ first: { piece }, from: f, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: true, phase, onEnd: () => { run = null; stop(); } });
+    hearing = true;
+    const sg = run.segs[0];
+    if (mic.on) Mic.muteUntil(A.now() + 0.2 + sg.end * G * sg.spq + 1.5);
   };
-  newBtn.onclick = () => { cur = make(); piece = cur.piece; fresh(); };
+  newBtn.onclick = () => { cur = sectioned ? own.go(cur.no) : make(); piece = cur.piece; fresh(); };
   startBtn.onclick = () => {
+    const f = takeFrom();
     fresh(); A.ensure(); ctx.setActive(true);
-    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; runBar.hidden = false;
+    startBtn.disabled = hearBtn.disabled = newBtn.disabled = true; if (prevBtn) prevBtn.disabled = true; runBar.hidden = false;
     const listening = mic.on, chained = runOn() && !(own && own.single);
     const read = []; // pieces read to the end: { seg, score }
     const exp = [];  // every expected attack so far, across the run
-    const winOf = (seg, j) => { const ats = seg.ats; const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.08, Math.min(0.25, gap * seg.spq * 0.5)); };
+    const winOf = (seg, j) => { const ats = seg.ats; const gap = Math.min(j > 0 ? ats[j].q - ats[j - 1].q : 9, j + 1 < ats.length ? ats[j + 1].q - ats[j].q : 9); return Math.max(0.1, Math.min(0.25, gap * seg.spq * 0.5)); };
     let heardN = 0, goodN = 0;
+    const drift = delayTracker(0.08, 4);
     if (listening) {
       micNoteOff = Mic.on('note', ev => {
         if (!exp.length) return;
-        const t = ev.t - Mic.latencyMs() / 1000;
+        // the mic's delay as set in Settings (or guessed), less the steady part of how late or early the right notes
+        // land, learned as you play: an uncalibrated laptop's guess can be tens of milliseconds out
+        const off = drift.get(), t = ev.t - Mic.latencyMs() / 1000 - off;
         let best = null, bd = Infinity;
         for (let x = exp.length - 1; x >= 0 && x >= exp.length - 24; x--) { const d = t - exp[x].t; if (Math.abs(d) < Math.abs(bd)) { bd = d; best = exp[x]; } }
         if (!best) return;
         const seg = best.seg, j = best.j;
         seg.judged = seg.judged || new Map();
-        if (seg.judged.has(j) || Math.abs(bd) > winOf(seg, j)) return;
+        if (Math.abs(bd) > winOf(seg, j)) return;
         const a = seg.ats[j], got = Math.round(ev.midi), want = (a.chord || [a.midi]).map(m => m + SOUND(seg.piece));
         // a slash: any note of the strum counts; a bass clef line in any octave (much of it lies below the guitar)
         const octOk = w => (got - w) % 12 === 0;
-        const pitch = a.slash ? 1 : want.includes(got) || (seg.piece.clef === 'bass' && want.some(octOk)) ? 1 : want.some(octOk) ? 0.5 : 0;
+        // the right note in another octave counts too: a laptop's mic often hears a low string an octave up, and
+        // the live line says which octave it heard
+        const exact = a.slash || want.includes(got), pitch = exact || want.some(octOk) ? 1 : 0;
+        // a note already judged keeps its first reading unless this one is the right pitch where that wasn't (the
+        // click or a string still ringing heard first, the note itself a moment later)
+        if (pitch === 1) drift.add(bd + off);
+        const before = seg.judged.get(j);
+        if (before && !(pitch > before.pitch)) return;
         seg.judged.set(j, { pitch, d: bd, got });
-        const good = pitch === 1 && Math.abs(bd) <= winOf(seg, j) * 0.6;
+        // the right note within its window is right: how close to the beat it was counts in the score, not the mark
+        const good = pitch === 1;
         if (seg.staff === staff) { marks[a.i] = good ? 'good' : 'bad'; markAttack(staff, piece, a, marks[a.i]); }
-        heardN++; if (good) goodN++;
-        live.textContent = (a.slash ? 'Heard a strum' : 'Heard ' + noteLabel(ev.midi).split(' ')[0]) + (pitch === 1 ? ' ✓' : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' clean';
+        if (!before) heardN++;
+        if (good) goodN++;
+        live.textContent = (a.slash ? 'Heard a strum' : 'Heard ' + noteLabel(ev.midi).split(' ')[0]) + (pitch === 1 ? ' ✓' + (exact ? '' : ' (another octave)') : ' ✗ (wanted ' + soundName(want[want.length - 1]) + ')') + ' · ' + goodN + ' of ' + heardN + ' right';
       });
     }
     const scoreMic = seg => {
@@ -977,7 +1166,7 @@ function melodyMode(root, lv, ctx, own) {
     }
     onStop = finishAll;
     run = playRun({
-      first: { piece, cur }, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: false, phase,
+      first: { piece, cur }, from: f, staff, bpm, cursor: cursorMode, countIn: true, click: true, notes: false, phase,
       next: chained ? () => { const c = make(); return { piece: c.piece, cur: c }; } : null,
       show: item => { cur = item.cur; piece = item.piece; marks = {}; return draw(); },
       onExpected: (e, seg) => exp.push(Object.assign({ seg }, e)),
@@ -987,5 +1176,33 @@ function melodyMode(root, lv, ctx, own) {
     paintFs();
   };
   draw();
-  return { redraw: () => { if (!run) draw(); }, cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); gone = true; if (pv) pv.destroy(); pv = null; } };
+  /* the keys (the tool answers them, ? lists them). In the page view the arrow keys and a page-turner pedal
+     (which sends Page Up and Page Down) turn the pages, and + − 0 W zoom as a word processor does. */
+  const idle = () => !run;
+  const nextOk = () => idle() && !(own && own.single);
+  const goSec = i => { cur = own.go(i); piece = cur.piece; fresh(); };
+  const keys = () => [
+    { on: [' '], label: run && hearing ? 'Stop' : run ? 'Stop reading' : 'Start reading, or stop', run: () => { if (run) stop(true); else startBtn.onclick(); } },
+    { on: ['h'], label: 'Hear it, or stop it', run: () => { if (run) stop(true); else hearBtn.onclick(); } },
+    { on: ['Escape'], label: full ? 'Stop, or leave full screen' : 'Stop', when: () => !!(run || full), run: () => { if (run) stop(true); else setFull(false); } },
+    { on: ['ArrowRight', 'PageDown'], label: 'Next page', when: usePages, run: () => pv.turn(1) },
+    { on: ['ArrowLeft', 'PageUp'], label: 'Previous page', when: usePages, run: () => pv.turn(-1) },
+    { on: ['n', 'ArrowRight'], label: NEXT, when: nextOk, run: () => newBtn.onclick() },
+    { on: ['p', 'ArrowLeft'], label: 'Previous section', when: () => sectioned && idle(), run: () => prevBtn.onclick() },
+    { on: ['Home'], label: 'First section', when: () => sectioned && idle(), run: () => goSec(0) },
+    { on: ['End'], label: 'Last section', when: () => sectioned && idle(), run: () => goSec(cur.total - 1) },
+    { on: ['ArrowUp'], label: '4 bpm faster', run: () => { tempo.bump(4); paintFs(); } },
+    { on: ['ArrowDown'], label: '4 bpm slower', run: () => { tempo.bump(-4); paintFs(); } },
+    { on: ['ArrowUp'], shift: true, label: '1 bpm faster', run: () => { tempo.bump(1); paintFs(); } },
+    { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => { tempo.bump(-1); paintFs(); } },
+    { on: ['l'], label: 'Check my playing (the mic), on or off', when: idle, run: () => { const b = mic.el.querySelector('.micbtn'); if (b) b.click(); } },
+    { on: ['f'], label: full ? 'Leave full screen' : 'Full screen', run: () => setFull(!full) },
+    { on: ['c'], label: 'Cursor: every note, each bar, off', when: () => !!full, run: () => fsCursor.click() },
+    { on: ['v'], label: 'The printed page, or one line', when: () => !!(full && paged), run: () => fsPages.click() },
+    { on: ['+', '='], label: 'Zoom in', when: usePages, run: () => pv.zoomIn() },
+    { on: ['-'], label: 'Zoom out', when: usePages, run: () => pv.zoomOut() },
+    { on: ['0'], label: 'The whole page', when: usePages, run: () => pv.setZoom('page') },
+    { on: ['w'], label: 'As wide as the screen', when: usePages, run: () => fsFitW.click() }
+  ];
+  return { redraw: () => { if (!run) draw(); }, keys, busy: () => !!(run || full), host: () => (full ? full.box : null), cleanup: () => { stop(); if (full) setFull(false); mic.cleanup(); gone = true; if (pv) pv.destroy(); pv = null; } };
 }

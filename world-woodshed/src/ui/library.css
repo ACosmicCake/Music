@@ -92,3 +92,4 @@ html.compact .lib-fixtools .btn { min-width: 34px; padding-inline: 6px; }
 html.compact .lib-fixtools select { flex: 1 1 40%; min-width: 0; }
 .lib-follow { margin: 0; padding: 4px 10px; font-weight: 700; }
 html.compact .lib-follow { padding: 2px 6px; font-size: 0.78rem; }
+.lib-audio { width: 100%; margin-top: 6px; grid-column: 1 / -1; }

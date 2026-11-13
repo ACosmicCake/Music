@@ -57,8 +57,8 @@ function miscOf(opts) {
 export function scoreToMusicXML(score, opts = {}) {
   const title = opts.title || score.title || 'Untitled';
   const bpm = Math.round(opts.bpm || score.bpm || 80);
-  const { num, den } = score.time;
-  const barQ = num * 4 / den;
+  const timeAt = bi => (score.times && score.times[bi]) || score.time;
+  const { num, den } = timeAt(0);
   const L = [];
   L.push('<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
     '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">',
@@ -85,7 +85,8 @@ export function scoreToMusicXML(score, opts = {}) {
     L.push(`  <part id="P${pi + 1}">`);
     p.bars.forEach((bar, bi) => {
       const pickup = bi === 0 && score.pickup;
-      const len = pickup ? score.pickup : barQ;
+      const tb = timeAt(bi), prev = bi ? timeAt(bi - 1) : null;
+      const len = pickup ? score.pickup : tb.num * 4 / tb.den;
       L.push(`    <measure number="${pickup ? 0 : score.pickup ? bi : bi + 1}"${pickup ? ' implicit="yes"' : ''}>`);
       const reps = score.repeats || [];
       // first and second endings: [first bar, last bar, number]; one left and one right barline per bar
@@ -97,7 +98,7 @@ export function scoreToMusicXML(score, opts = {}) {
       if (bi === 0) {
         L.push('      <attributes>', `        <divisions>${DIV}</divisions>`,
           `        <key><fifths>${score.fifths || 0}</fifths></key>`,
-          `        <time${score.time.symbol ? ` symbol="${score.time.symbol}"` : ''}><beats>${num}</beats><beat-type>${den}</beat-type></time>`);
+          `        <time${tb.symbol ? ` symbol="${tb.symbol}"` : ''}><beats>${num}</beats><beat-type>${den}</beat-type></time>`);
         if (p.staves.length > 1) L.push(`        <staves>${p.staves.length}</staves>`);
         p.staves.forEach((c, si) => {
           const [sign, line] = CLEF[c] || CLEF.G;
@@ -106,6 +107,8 @@ export function scoreToMusicXML(score, opts = {}) {
         L.push('      </attributes>');
         if (pi === 0) L.push(`      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${bpm}</per-minute></metronome></direction-type><sound tempo="${bpm}"/></direction>`);
       }
+      // a time that changes from bar to bar
+      if (bi > 0 && (tb.num !== prev.num || tb.den !== prev.den || tb.symbol !== prev.symbol)) L.push(`      <attributes><time${tb.symbol ? ` symbol="${tb.symbol}"` : ''}><beats>${tb.num}</beats><beat-type>${tb.den}</beat-type></time></attributes>`);
       let first = true;
       bar.forEach((voices, si) => voices.forEach((ev, vi) => {
         if (!first) L.push(`      <backup><duration>${Math.round(len * DIV)}</duration></backup>`);

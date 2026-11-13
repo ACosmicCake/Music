@@ -8,6 +8,8 @@ import { CircleWidget } from './practice.js';
 import { guitarMidis, progressionMidis } from '../voicings.js';
 import { loadEssays, loadGuides, loadLessons, whenLoaded, drawWhenLoaded } from '../content/lazy.js';
 import { onSpotify, spotifyQuery, spotifyWeb, openSpotify } from '../spotify.js';
+import { PLAYERS } from '../taste.js';
+import Cur from '../curriculum.js';
 
 /* ======================================================
    LEARN: styles library, theory course, reference tools
@@ -43,7 +45,12 @@ function stylesIndex() {
   const chips = h('div', { class: 'chips' });
   const search = h('input', { type: 'search', placeholder: 'Search styles, players, instruments…', 'aria-label': 'Search styles', class: 'search' });
   const grid = h('div', { class: 'stylegrid' });
-  view.append(h('div', { class: 'stack' }, search, chips), grid,
+  /* Your musicians: each opens the drills By musician at that player's drills, tunes and records. */
+  const fav = Cur.prefs().players || [];
+  const players = PLAYERS.slice().sort((a, b) => fav.includes(b.id) - fav.includes(a.id));
+  const byPlayer = h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'By musician' }),
+    h('div', { class: 'chips' }, players.map(pl => h('button', { class: 'chip', onclick: () => openTool('drill', { params: { player: pl.id }, returnTab: 'learn' }) }, (fav.includes(pl.id) ? '★ ' : '') + pl.name))));
+  view.append(byPlayer, h('div', { class: 'stack' }, search, chips), grid,
     h('div', { class: 'tools' }, tile('atlasquiz')));
   function drawChips() {
     chips.innerHTML = '';
@@ -457,6 +464,6 @@ function drawTechniquePage(t, back) {
 
 /* ---------- Reference ---------- */
 function refIndex() {
-  view.append(h('div', { class: 'tools' }, ['explorer', 'circle', 'tuner', 'drone', 'metronome'].map(id => tile(id))));
+  view.append(h('div', { class: 'tools' }, ['explorer', 'whatchord', 'whatscale', 'circle', 'tuner', 'drone', 'metronome'].map(id => tile(id))));
   view.append(h('p', { class: 'small muted', text: 'The explorer maps any scale or chord across the neck and shows the chords inside a scale. Reference tones help you tune by ear in eight tunings.' }));
 }

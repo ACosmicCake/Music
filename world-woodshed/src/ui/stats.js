@@ -7,10 +7,11 @@ import Cur from '../curriculum.js';
 import St from '../stats.js';
 import { view, h, s, ui, go, renderTabs, teardown, focusView } from './core.js';
 import { fmtMin } from '../routines.js';
+import { weekReviewCard } from './weekreview.js';
 import { spell, keyPrefersFlats } from '../theory.js';
 
-const OTHER_NAMES = { transcribe: 'Transcribe', pieces: 'Library pieces' };
-const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
+const OTHER_NAMES = { transcribe: 'Transcribe', pieces: 'Library pieces', improv: 'Improvising' };
+export const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
 const weekLabel = w => w.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const pct = x => Math.round(x * 100) + '%';
 const hm = m => { m = Math.round(m); return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + m % 60 + 'm' : ''); }; // short, for the narrow column
@@ -36,6 +37,8 @@ function draw(body) {
   const ws = St.weeks(st.hdev, span, now), skills = St.skillsIn(ws);
   const min = ws.reduce((a, w) => a + w.min, 0), q = ws.reduce((a, w) => a + w.q, 0), c = ws.reduce((a, w) => a + w.c, 0);
 
+  const review = weekReviewCard();
+  if (review) body.append(review);
   body.append(h('div', { class: 'seg', role: 'group', 'aria-label': 'Weeks shown' }, [4, 8, 12].map(n =>
     h('button', { 'aria-pressed': n === span ? 'true' : 'false', onclick: () => { span = n; draw(body); } }, n + ' weeks'))));
 
@@ -165,55 +168,101 @@ function dueTomorrow(now) {
   return card;
 }
 
-/* Six months of practice at a glance: one square per day, darker for longer */
+/* Draw an SVG at the width its box has on screen, so its text stays at its own size on a phone
+   instead of shrinking with a wide viewBox, and again when that width changes (a turned phone, an opened fold) */
+function sized(box, draw, fallback) {
+  let w = 0;
+  const redraw = () => {
+    const now = Math.round(box.clientWidth) || 0;
+    if (now === w && box.firstChild) return;
+    if (!now && box.firstChild) return; // hidden (a closed fold): keep what is drawn
+    w = now;
+    box.replaceChildren(draw(now || fallback));
+  };
+  redraw();
+  requestAnimationFrame(redraw);
+  if ('ResizeObserver' in window) {
+    const ro = new ResizeObserver(() => { if (!box.isConnected) { ro.disconnect(); return; } redraw(); });
+    ro.observe(box);
+  }
+  return box;
+}
+
+/* Six months of practice at a glance: one square per day, darker for longer.
+   The squares shrink to fit the card, down to a size still easy to see; below that the map scrolls, latest weeks first */
 export function heatmap() {
-  const weeks = 26, cell = 13, gap = 3, padL = 22, padT = 16;
+  const weeks = 26, padL = 24, padT = 16, minCol = 8, maxCol = 16;
   const end = new Date(); end.setHours(12, 0, 0, 0);
   const start = new Date(end); start.setDate(end.getDate() - (weeks * 7 - 1));
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // back to a Monday
-  const W = padL + weeks * (cell + gap) + 2, Hh = padT + 7 * (cell + gap);
-  const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'heatmap', role: 'img', 'aria-label': 'Practice per day over the last six months' });
-  ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach((t, i) => t && svg.append(s('text', { x: 0, y: padT + i * (cell + gap) + cell - 2 }, t)));
-  let days = 0, total = 0, lastMonth = -1;
-  for (let w = 0; w < weeks + 1; w++) for (let d = 0; d < 7; d++) {
+  const cols = Math.round((end - start) / 864e5 / 7) + 1;
+  let days = 0, total = 0;
+  const cells = [];
+  for (let w = 0; w < cols; w++) for (let d = 0; d < 7; d++) {
     const dt = new Date(start); dt.setDate(start.getDate() + w * 7 + d);
     if (dt > end) continue;
     const hrec = E.state.history[E.dayKey(dt.getTime())], min = hrec ? Math.round(hrec.sec / 60) : 0, q = hrec ? hrec.q : 0;
     const lvl = min >= 45 ? 4 : min >= 20 ? 3 : min >= 8 ? 2 : (min > 0 || q > 0) ? 1 : 0;
     if (lvl) { days++; total += min; }
-    const x = padL + w * (cell + gap), y = padT + d * (cell + gap);
-    if (d === 0 && dt.getMonth() !== lastMonth) { lastMonth = dt.getMonth(); svg.append(s('text', { x, y: 10 }, dt.toLocaleDateString(undefined, { month: 'short' }))); }
-    const r = s('rect', { class: 'hm l' + lvl, x, y, width: cell, height: cell, rx: 3 });
-    r.append(s('title', {}, dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ': ' + (min ? min + ' min' : q ? q + ' answers' : 'no practice')));
-    svg.append(r);
+    cells.push({ w, d, dt, min, q, lvl });
   }
-  const scroller = h('div', { class: 'heatscroll' }, svg);
-  requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; }); // the latest weeks first on a narrow screen
+  const draw = width => {
+    // on the narrowest phones the weekday names go, so the six months still fit without scrolling
+    const pl = width - padL - 2 >= cols * minCol ? padL : 0;
+    const col = Math.max(pl ? minCol : 6, Math.min(maxCol, Math.floor((width - pl - 2) / cols)));
+    const gap = col >= 12 ? 3 : col >= 8 ? 2 : 1, cell = col - gap;
+    const W = pl + cols * col, Hh = padT + 7 * col;
+    const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, width: W, height: Hh, class: 'heatmap', role: 'img', 'aria-label': 'Practice per day over the last six months' });
+    if (pl) ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach((t, i) => t && svg.append(s('text', { x: 0, y: padT + i * col + cell - 1 }, t)));
+    let lastMonth = -1, lastX = -99;
+    cells.forEach(c => {
+      const x = pl + c.w * col, y = padT + c.d * col;
+      if (c.d === 0 && c.dt.getMonth() !== lastMonth) {
+        lastMonth = c.dt.getMonth();
+        // a month's name only where it fits: not over the one before, nor past the right edge
+        if (x - lastX >= 26 && x + 20 <= W) { svg.append(s('text', { x, y: 10 }, c.dt.toLocaleDateString(undefined, { month: 'short' }))); lastX = x; }
+      }
+      const r = s('rect', { class: 'hm l' + c.lvl, x, y, width: cell, height: cell, rx: Math.min(3, cell / 3) });
+      r.append(s('title', {}, c.dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ': ' + (c.min ? c.min + ' min' : c.q ? c.q + ' answers' : 'no practice')));
+      svg.append(r);
+    });
+    return svg;
+  };
+  const scroller = sized(h('div', { class: 'heatscroll' }), draw, padL + cols * 13);
+  requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; }); // the latest weeks first if it scrolls
   return h('div', { class: 'stack heatwrap' }, h('div', { class: 'spread' }, h('span', { class: 'eyebrow', text: 'Six months' }), h('span', { class: 'small muted', text: days + ' day' + (days === 1 ? '' : 's') + ' practised · ' + fmtMin(total) })), scroller);
 }
 
 /* Minutes as bars with an accuracy line: 14 days on Today, weeks here. points: [{ min, acc }] */
 export function dayChart(days, o = {}) {
   const label = o.label || (d => d.date.getDate());
-  const W = 640, Hh = 160, padL = 30, padB = 22, padT = 12;
   const maxMin = Math.max(30, ...days.map(d => d.min));
   const top = Math.ceil(maxMin / 15) * 15;
-  const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'chart', role: 'img', 'aria-label': o.aria || 'Minutes practiced per day for 14 days, with accuracy line' });
-  const ih = Hh - padB - padT, iw = W - padL - 30;
-  const y = v => padT + ih - (v / top) * ih;
-  [0, top / 2, top].forEach(v => { svg.append(s('line', { class: 'grid', x1: padL, x2: W - 30, y1: y(v), y2: y(v) }), s('text', { x: padL - 5, y: y(v) + 3, 'text-anchor': 'end' }, Math.round(v))); });
-  svg.append(s('text', { x: padL - 5, y: padT - 2, 'text-anchor': 'end' }, 'min'), s('text', { x: W - 4, y: padT - 2, 'text-anchor': 'end' }, 'acc'));
-  const bw = iw / days.length;
-  const pts = [];
-  days.forEach((d, i) => {
-    const x = padL + i * bw;
-    if (d.min > 0) svg.append(s('rect', { class: 'barfill', x: x + 3, y: y(d.min), width: Math.max(2, bw - 6), height: Math.max(1, y(0) - y(d.min)), rx: 2 }));
-    if (i % 2 === (days.length - 1) % 2) svg.append(s('text', { x: x + bw / 2, y: Hh - 6, 'text-anchor': 'middle' }, label(d)));
-    if (d.acc !== null) pts.push([x + bw / 2, padT + ih - d.acc * ih]);
-  });
-  [0, 0.5, 1].forEach(v => svg.append(s('text', { x: W - 4, y: padT + ih - v * ih + 3, 'text-anchor': 'end' }, Math.round(v * 100) + '%')));
-  if (pts.length > 1) svg.append(s('polyline', { class: 'accline', points: pts.map(p => p.join(',')).join(' ') }));
-  pts.forEach(p => svg.append(s('circle', { class: 'accdot', cx: p[0], cy: p[1], r: 3 })));
-  const wrap = h('div', { class: 'stack' }, svg, h('p', { class: 'small muted', text: o.note || 'Bars: minutes per day. Gold line: accuracy on days you answered questions.' }));
-  return wrap;
+  const labels = days.map(d => String(label(d)));
+  const longest = Math.max(1, ...labels.map(t => t.length));
+  const draw = width => {
+    const W = Math.max(160, width), Hh = Math.round(Math.min(180, Math.max(130, W * 0.36)));
+    const padL = 28, padR = 32, padB = 20, padT = 18;
+    const svg = s('svg', { viewBox: `0 0 ${W} ${Hh}`, width: W, height: Hh, class: 'chart', role: 'img', 'aria-label': o.aria || 'Minutes practiced per day for 14 days, with accuracy line' });
+    const ih = Hh - padB - padT, iw = W - padL - padR;
+    const y = v => padT + ih - (v / top) * ih;
+    [0, top / 2, top].forEach(v => { svg.append(s('line', { class: 'grid', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }), s('text', { x: padL - 4, y: y(v) + 3, 'text-anchor': 'end' }, Math.round(v))); });
+    [0, 0.5, 1].forEach(v => svg.append(s('text', { x: W - 2, y: padT + ih - v * ih + 3, 'text-anchor': 'end' }, Math.round(v * 100) + '%')));
+    // the units above their own axis, clear of its top number
+    svg.append(s('text', { x: 0, y: 8 }, 'min'), s('text', { x: W - 2, y: 8, 'text-anchor': 'end' }, 'acc'));
+    const bw = iw / days.length, gapB = Math.min(3, bw * 0.2);
+    // as many labels as fit, always the latest
+    const step = Math.max(1, Math.ceil((longest * 6.2 + 6) / bw));
+    const pts = [];
+    days.forEach((d, i) => {
+      const x = padL + i * bw;
+      if (d.min > 0) svg.append(s('rect', { class: 'barfill', x: x + gapB, y: y(d.min), width: Math.max(2, bw - 2 * gapB), height: Math.max(1, y(0) - y(d.min)), rx: 2 }));
+      if ((days.length - 1 - i) % step === 0) svg.append(s('text', { x: x + bw / 2, y: Hh - 5, 'text-anchor': 'middle' }, labels[i]));
+      if (d.acc !== null) pts.push([x + bw / 2, padT + ih - d.acc * ih]);
+    });
+    if (pts.length > 1) svg.append(s('polyline', { class: 'accline', points: pts.map(p => p.join(',')).join(' ') }));
+    pts.forEach(p => svg.append(s('circle', { class: 'accdot', cx: p[0], cy: p[1], r: 3 })));
+    return svg;
+  };
+  return h('div', { class: 'stack' }, sized(h('div', { class: 'chartbox' }), draw, 640), h('p', { class: 'small muted', text: o.note || 'Bars: minutes per day. Gold line: accuracy on days you answered questions.' }));
 }

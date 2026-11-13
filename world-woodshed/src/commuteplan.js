@@ -5,13 +5,13 @@
    No DOM, so it can be tested (test/commuteplan.test.js). */
 import D from './data.js';
 import Cur from './curriculum.js';
-import { BLOCKS, DRILLS, newBlock, fitTo, totalOf } from './routines.js';
+import { BLOCKS, DRILLS, newBlock, fitTo, totalOf, blockDef } from './routines.js';
 
 /* What a ride can hold, grouped for "What to include". 'away:<drill>' is a no-guitar drill. */
 export const GO_GROUPS = {
   ear: { name: 'Ear training', keys: ['intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation'] },
   rhythm: { name: 'Rhythm', keys: ['rhythms', 'gym', 'clock', 'rhythmid'] },
-  neck: { name: 'Neck & reading', keys: ['away:visualise', 'fretboard', 'sightread'] },
+  neck: { name: 'Neck & reading', keys: ['away:visualise', 'away:arps', 'fretboard', 'sightread'] },
   body: { name: 'Fingers & voice', keys: ['away:fingers', 'away:konnakol', 'away:sing'] },
   tunes: { name: 'Tunes by ear', keys: ['repertoire'] },
   study: { name: 'Theory & listening', keys: ['lesson', 'listening', 'atlasquiz'] }
@@ -25,7 +25,7 @@ export function keyTitle(key) {
   if (drill) return DRILLS[drill].split(' (')[0];
   return type === 'repertoire' ? 'Follow a tune by ear' : BLOCKS[type].name;
 }
-export const goTitle = b => (GO_KEYS.includes(keyOf(b)) ? keyTitle(keyOf(b)) : BLOCKS[b.type] ? BLOCKS[b.type].name : b.type);
+export const goTitle = b => (GO_KEYS.includes(keyOf(b)) ? keyTitle(keyOf(b)) : blockDef(b.type) ? blockDef(b.type).name : b.type);
 
 /* A new block of one kind, set up for the phone */
 export function goBlock(key, minutes) {
@@ -47,6 +47,9 @@ export function commuteBlocks(blocks) {
     };
     switch (b.type) {
       case 'scalewarm': return as('away', Object.assign({ drill: 'visualise' }, p.scale ? { scale: p.scale } : {}, Number.isInteger(p.tonic) ? { tonic: p.tonic } : {}), 'See the scale on the neck in your head');
+      case 'arpwarm': return as('away', Object.assign({ drill: 'arps' }, p.chord ? { chord: p.chord } : {}, Number.isInteger(p.root) ? { root: p.root } : {}), 'See the arpeggio on the neck in your head');
+      case 'arpchanges': return as('away', { drill: 'arps', mode: 'changes' }, 'See the chord tones through the changes in your head');
+      case 'constraint': return as('away', { drill: 'sing' }, 'Sing the degrees');
       case 'technique': return as('away', { drill: 'fingers' }, 'Finger independence, tapping on your leg');
       case 'free': return as('away', { drill: 'visualise' });
       case 'callresp': return as('dictation', {}, 'Hear it and write it back, instead of playing it back');

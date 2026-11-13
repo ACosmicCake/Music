@@ -1,6 +1,6 @@
 import D from '../data.js';
 import E from '../engine.js';
-import { h, shuffle, tool, pickFor, Quiz } from '../ui/core.js';
+import { shuffle, tool, pickFor, Quiz } from '../ui/core.js';
 
 /* ======================================================
    ATLAS

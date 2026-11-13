@@ -20,23 +20,40 @@ import './tools/rhythm.js';
 import './tools/play.js';
 import './tools/atlas.js';
 import './tools/practice.js';
+import './tools/whatis.js';
+import './tools/arpeggio.js';
+import './tools/constraint.js';
 import './tools/reading.js';
+import './tools/notenames.js';
 import './tools/notate.js';
 import './tools/drills.js';
 import './tools/rhythmgym.js';
+import './tools/tower.js';
+import './tools/tightrope.js';
+import './tools/twodrums.js';
+import './tools/parrot.js';
+import './tools/lighthouse.js';
+import './tools/firefly.js';
+import './tools/formgame.js';
+import './tools/opening.js';
+import { initClub } from './tools/club.js';
 import './tools/learn.js';
 import { bootSession } from './ui/session.js';
 import './ui/routine.js';
-import './pages.js';
+import { settingsPage, offerLink } from './pages.js';
+import { decodeLink, isLinkHash } from './linkcode.js';
 import './ui/library.js';
+import { bootRecorder } from './ui/recorder.js';
 import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
 import { initGitHubSync } from './ghsync.js';
 import { initLibSync } from './libsync.js';
+import { initGarden } from './ui/garden.js';
 import './tools/commute.js';
 import { initSaveBanner } from './ui/savebanner.js';
 import { initReminder } from './reminder.js';
+import { bootSpotify } from './ui/taste.js';
 
 /* ---------- plugins (e.g. Transcribe) ---------- */
 const UI = { h, s, tool, openTool, go, Fretboard, positionsOfPc, toast, bar, noteName, TOOLS, PAGES, TABS, ICONS, renderTabs, get ui() { return ui; } };
@@ -49,7 +66,10 @@ applyDisplay();
 initSaveBanner();
 initGitHubSync();
 initLibSync();
+initGarden();
+initClub();
 initReminder();
+bootRecorder();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);
@@ -66,8 +86,19 @@ const hashTab = () => { const t = (location.hash || '').replace('#', ''); return
 const startHash = location.hash;
 go(hashTab() || 'today');
 if (startHash === '#go') openTool('commute', { returnTab: 'today' }); // the 'On the go' shortcut
+// coming back from the Spotify login (Settings → Your music taste): finish it, then show what it found
+if (!isNative() && /[?&](code|error)=/.test(location.search)) bootSpotify(settingsPage);
+// a scanned Link another device code (#link=ww1.…): take the token out of the address bar and history, then ask to join
+function takeLink(hash = location.hash) {
+  if (!isLinkHash(hash)) return false;
+  const cfg = decodeLink(hash);
+  history.replaceState(null, '', location.pathname + location.search + '#' + (ui.tab || 'today'));
+  if (cfg) offerLink(cfg); else toast('That link is broken. Copy it again on the device that syncs.');
+  return true;
+}
+takeLink(startHash); // go() above already put #today in the address bar
 // Links and app shortcuts like #transcribe switch tabs without a reload.
-window.addEventListener('hashchange', () => { if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
+window.addEventListener('hashchange', () => { if (takeLink()) return; if (location.hash === '#go') { openTool('commute', { returnTab: 'today' }); return; } const t = hashTab(); if (t && (t !== ui.tab || ui.runner)) go(t); });
 // The Android app has no service worker (it is already offline); its back button closes tools first.
 if (!isNative()) registerApp(toast);
 // a full-screen view inside a tool marks its close button with data-back-close: back closes that first

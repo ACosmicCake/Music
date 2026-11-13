@@ -3,6 +3,14 @@
    scale or mode, why it fits, and the colour and tension notes. */
 
 export default {
+  'jazz-sunra-vamp': {
+    harmony: ['There is one chord, Em7: G and D are its colour notes, E and B the places to rest.', 'Answer the bell: play in its gaps, then wait for it to come round.'],
+    theory: ['E minor pentatonic (E G A B D) first; add F♯ and C♯ for E Dorian.', 'Make a phrase of one to three notes, then rest a bar. Change one note each time.']
+  },
+  'jazz-sunra-freepulse': {
+    harmony: ['No chords to follow: the only home is E, under you in the drone.', 'Leave and return on purpose: four bars out, then land on E with the pulse.'],
+    theory: ['Any notes, but choose one thing per phrase to change: register, density or loudness.', 'Try chromatic clusters, harmonics and scrapes as well as scales.']
+  },
   'cuba-coro-pregon': {
     harmony: ['Answer with chord tones: E or G over C, A or C over F, B or F over G7.', 'End your answer on a note of the chord that follows, and stop before the coro comes back.'],
     theory: ['C major pentatonic (C D E G A) for the first answers; add F and B for the F and G7 chords.', 'Start answers on a clave hit (the a of 1 or the & of 2), not on 1, so they sit with the rhythm.']

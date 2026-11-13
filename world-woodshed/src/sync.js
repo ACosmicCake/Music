@@ -5,10 +5,13 @@
      without losing practice done on either. Items keep the newer record; lists are joined; practice time is
      kept per device so the same day practised on two devices adds up instead of being counted twice. */
 
-export const SCHEMA = 10;
+export const SCHEMA = 14;
 // Settings that belong to one device (audio and mic latency, screen layout and text size differ per phone and laptop) never sync.
 // So does the session length last chosen here: the phone's ride and the desk's evening session are different times.
-export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder'];
+export const DEVICE_SETTINGS = ['latencyMs', 'micLatencyMs', 'micSensitivity', 'micOn', 'display', 'textSize', 'audioOutput', 'lastMinutes', 'lastRide', 'reminder', 'readingClickVol', 'readingZoom', 'scenes3d'];
+
+import { mergeGames } from './games.js';
+import { mergeClub, clean as cleanClub } from './club.js';
 
 const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -90,6 +93,28 @@ const MIGRATIONS = {
   // last level, Everything (40 → 44), and take its record when you had read it.
   10(s) {
     return moveLevels(s, { 40: 44 }, 44, n => n >= 40 && n <= 43);
+  },
+  // 10 → 11: game mode's high-score tables (src/games.js), by game
+  11(s) {
+    if (!isObj(s.games)) s.games = {};
+    return s;
+  },
+  // 11 → 12: when each setting and learning preference last changed (keyT), so they merge one by one, and
+  // the time of the last "erase every device" (resetAt, none yet). Settings saved before have no time and
+  // merge as before, by the newer copy.
+  12(s) {
+    if (!isObj(s.keyT)) s.keyT = { settings: {}, prefs: {} };
+    return s;
+  },
+  // 12 → 13: the Club (src/club.js), opened by the app when it starts (initClub), so nothing to add here:
+  // practice from before it opens never counts
+  13(s) { return s; },
+  // 13 → 14: the Club's build mode. Amenities bought before become pieces placed where they stood, and every
+  // built room gets its free starter pieces (clean in src/club.js, with fixed ids so two devices agree)
+  14(s) {
+    const c = cleanClub(s.club);
+    if (c) s.club = c;
+    return s;
   }
 };
 /* Sight-reading levels renumbered: each level's progress (skill items L<n>:rhythm|melody), tempos
@@ -192,10 +217,55 @@ function mergeList(a = [], b = [], key, cap) {
   if (cap) out = out.sort((x, y) => stamp(y) - stamp(x)).slice(0, cap);
   return out;
 }
-function mergeCur(a = {}, b = {}, newerSide) {
+/* Settings and learning preferences merge one by one: each key comes from the copy that changed it last
+   (keyT, stamped by stampKeys when it is saved). A key with no time on either copy (saved before schema 12,
+   or never changed) comes from the newer copy, or from the other when the newer one doesn't have it. */
+function mergeKeyed(x, y, tx, ty, yNewer) {
+  x = isObj(x) ? x : {}; y = isObj(y) ? y : {}; tx = isObj(tx) ? tx : {}; ty = isObj(ty) ? ty : {};
+  const out = {}, t = {};
+  new Set([...Object.keys(x), ...Object.keys(y), ...Object.keys(tx), ...Object.keys(ty)]).forEach(k => {
+    const sa = tx[k] || 0, sb = ty[k] || 0;
+    let useY = sa !== sb ? sb > sa : yNewer;
+    if (!(useY ? sb : sa) && !(k in (useY ? y : x))) useY = !useY; // no time and not on the newer copy
+    const src = useY ? y : x, st = useY ? sb : sa;
+    if (k in src && src[k] !== undefined) out[k] = clone(src[k]);
+    if (st) t[k] = st;
+  });
+  return { out, t };
+}
+/* Note which settings and preferences changed since the last save: cache holds each key's JSON as last seen. */
+export function stampKeys(s, cache, now = Date.now()) {
+  if (!isObj(s.keyT)) s.keyT = { settings: {}, prefs: {} };
+  [['settings', s.settings], ['prefs', s.cur && s.cur.prefs]].forEach(([part, obj]) => {
+    const t = isObj(s.keyT[part]) ? s.keyT[part] : (s.keyT[part] = {}), seen = cache[part] || (cache[part] = {});
+    const o = isObj(obj) ? obj : {};
+    new Set([...Object.keys(o), ...Object.keys(seen)]).forEach(k => {
+      const j = o[k] === undefined ? undefined : JSON.stringify(o[k]);
+      // a key appearing for the first time is not dated: the app fills in defaults as it starts, and a default
+      // must never beat a choice made on another device (a key only one copy has is kept by the merge anyway)
+      if (j !== seen[k]) { if (k in seen) t[k] = now; if (j === undefined) delete seen[k]; else seen[k] = j; }
+    });
+  });
+  return cache;
+}
+/* The cache stampKeys compares against, set from a state just loaded or merged (nothing stamped). */
+export function keyCache(s) {
+  const c = { settings: {}, prefs: {} };
+  [['settings', s.settings], ['prefs', s.cur && s.cur.prefs]].forEach(([part, obj]) => {
+    Object.entries(isObj(obj) ? obj : {}).forEach(([k, v]) => { if (v !== undefined) c[part][k] = JSON.stringify(v); });
+  });
+  return c;
+}
+/* After "erase every device" (resetAt), a copy from before it keeps only this device's own settings. */
+function wiped(s, at) {
+  const settings = {};
+  DEVICE_SETTINGS.forEach(k => { if (s.settings && k in s.settings) settings[k] = s.settings[k]; });
+  return { v: 1, schema: s.schema, created: at, updatedAt: 0, resetAt: at, settings, session: null };
+}
+function mergeCur(a = {}, b = {}, newerSide, ta = {}, tb = {}) {
   const out = Object.assign({}, newerSide === 'b' ? b : a);
   out.items = byKey(a.items, b.items);
-  out.prefs = clone((newerSide === 'b' ? b.prefs : a.prefs) || a.prefs || b.prefs || {});
+  out.prefs = mergeKeyed(a.prefs, b.prefs, ta, tb, newerSide === 'b').out;
   out.days = byKey(a.days, b.days, (x, y) => {
     if (!x || !y) return x || y;
     return {
@@ -238,7 +308,10 @@ function dropDeleted(obj, tomb, prefix) {
 export function merge(local, remote) {
   if (!isObj(remote)) return local;
   if (!isObj(local)) return remote;
-  const a = local, b = remote;
+  let a = local, b = remote;
+  // "erase every device": the copy from before the latest erase is dropped
+  const ra = a.resetAt || 0, rb = b.resetAt || 0;
+  if (rb > ra) a = wiped(a, rb); else if (ra > rb) b = wiped(b, ra);
   const bNewer = (b.updatedAt || 0) > (a.updatedAt || 0);
   const base = clone(bNewer ? b : a);
   const tomb = byKey(a.tomb, b.tomb, maxNum);
@@ -261,19 +334,25 @@ export function merge(local, remote) {
     lessons: byKey(a.lessons, b.lessons, maxNum),
     heard: byKey(a.heard, b.heard, maxNum),
     records: byKey(a.records, b.records, maxNum),
+    games: mergeGames(a.games, b.games),
     placementDone: !!(a.placementDone || b.placementDone),
     // a running session belongs to the device it runs on: another copy (the phone's sync file, the cloud, an
     // older save) must never start it here, or bring back one that was finished or discarded on this device
     session: a.session || null,
-    cur: mergeCur(a.cur || {}, b.cur || {}, bNewer ? 'b' : 'a')
+    cur: mergeCur(a.cur || {}, b.cur || {}, bNewer ? 'b' : 'a', (a.keyT || {}).prefs, (b.keyT || {}).prefs)
   });
+  const club = mergeClub(a.club, b.club);
+  if (club) out.club = club; else delete out.club;
+  if (ra || rb) out.resetAt = Math.max(ra, rb); else delete out.resetAt;
   if (a.readLib || b.readLib) {
     const la = a.readLib || {}, lb = b.readLib || {};
     out.readLib = { n: maxNum(la.n, lb.n), pieces: dropDeleted(byKey(la.pieces, lb.pieces), tomb, 'piece:') };
   }
   out.history = rebuildHistory(out, Object.assign({}, b.history, a.history));
-  // settings: the newer copy's choices, but this device keeps its own latency and mic settings
-  out.settings = Object.assign({}, clone(bNewer ? b.settings || {} : a.settings || {}));
+  // settings: each from the copy that changed it last, but this device keeps its own latency and mic settings
+  const st = mergeKeyed(a.settings, b.settings, (a.keyT || {}).settings, (b.keyT || {}).settings, bNewer);
+  out.settings = st.out;
+  out.keyT = { settings: st.t, prefs: mergeKeyed(a.cur && a.cur.prefs, b.cur && b.cur.prefs, (a.keyT || {}).prefs, (b.keyT || {}).prefs, bNewer).t };
   DEVICE_SETTINGS.forEach(k => { if (a.settings && k in a.settings) out.settings[k] = a.settings[k]; else delete out.settings[k]; });
   return out;
 }
@@ -289,7 +368,7 @@ const stable = x => {
 };
 export function digest(s) {
   const pick = { skills: s.skills, hdev: s.hdev, tech: s.tech, scaleTime: s.scaleTime, cur: s.cur, readLib: s.readLib, tunes: s.tunes, melodies: s.melodies, songs: s.songs, library: s.library, journal: (s.journal || []).length,
-    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone };
+    routines: s.routines, settings: s.settings, lessons: s.lessons, heard: s.heard, records: s.records, games: s.games, club: s.club, anchors: s.anchors, tomb: s.tomb, placementDone: !!s.placementDone, resetAt: s.resetAt || 0 };
   const str = stable(pick);
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }

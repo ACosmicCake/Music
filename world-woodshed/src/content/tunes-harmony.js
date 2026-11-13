@@ -164,6 +164,195 @@ export default {
     ]
   },
 
+  monkblues: {
+    intro: 'A 12-bar blues in B♭ with dominant 7ths on I, IV and V, and a diminished chord in bar 6 that lets the bass climb from E♭ through E to F (B♭7 with F in the bass). Monk kept blues like this plain so that his own sounds stood out: whole-tone runs over the dominants, minor seconds in the chords, and a lot of space.',
+    rn: ['I7', 'IV7', 'I7', 'I7', 'IV7', '#iv°7', 'I7', 'I7', 'V7', 'IV7', 'I7', 'V7'],
+    sections: [
+      { bars: [1, 4], key: 'Bb', title: 'I with a quick IV', text: 'B♭7, a quick E♭7 in bar 2, then B♭7 for two bars.', aim: 'D (the 3rd of B♭7) falls to D♭ (the 7th of E♭7); A♭ (the 7th of B♭7) falls to G (the 3rd of E♭7).', scale: 'The B♭ blues scale (B♭ D♭ E♭ E F A♭) over the whole form.' },
+      { bars: [5, 8], key: 'Bb', title: 'IV and the diminished step', text: 'E♭7, then E°7 (E G B♭ D♭), then home to B♭7. E°7 shares three notes with B♭7 (G, B♭ and D♭ against B♭7♭9), so it sounds like B♭7 leaning upward.', aim: 'G on E°7 rising to A♭, or D♭ falling to D on B♭7.' },
+      { bars: [9, 12], key: 'Bb', title: 'V, IV, I and a turnaround', text: 'F7 (V) falls to E♭7 (IV), then B♭7 and F7 to go round again.', aim: 'A (the 3rd of F7) falls to G (the 3rd of E♭7); then D on B♭7.', scale: 'Over F7, the whole-tone scale on F (F G A B C♯ E♭) for the Monk sound.' }
+    ]
+  },
+
+  monkslips: {
+    intro: 'F, with each F7 nudged up a half step to G♭7 and straight back. The second half climbs: D♭7, D7, E♭7, E7, a dominant on every half step, until E7 slides into F7. Monk built tunes on moves like this; every chord is a 7th, so the colour comes from the root moving, not the chord type.',
+    rn: ['I7 bII7', 'I7 bII7', 'I7 bII7', 'I7', 'bVI7', 'VI7', 'bVII7 VII7', 'I7'],
+    sections: [
+      { bars: [1, 4], key: 'F', title: 'Up a half step and back', text: 'F7 to G♭7 and back, three times, then F7. G♭7 is a half step above home, so it falls back like a neighbour note.', aim: 'A (the 3rd of F7) up to B♭ (the 3rd of G♭7) and back; E♭ (the 7th of F7) to E (the 7th of G♭7, F♭) and back.' },
+      { bars: [5, 8], key: 'F', title: 'Dominants climbing by half steps', text: 'D♭7, D7, E♭7, E7: the same chord moved up a fret at a time until it lands on F7.', aim: 'Move one shape up a fret per chord. The 3rds climb F, F♯, G, G♯ and arrive on A.', scale: 'Mixolydian on each root, or simply the chord’s own four notes moved up a fret at a time.' }
+    ]
+  },
+
+  sunravamp: {
+    intro: 'E minor for four bars, two of F7♯11, then E minor again. F7♯11 is a half step above home (♭II), so it is a short trip out and straight back. The vamp is the point: in Sun Ra’s Arkestra one chord could go on for minutes while chants and solos floated over it.',
+    rn: ['i7', 'i7', 'i7', 'i7', 'bII7#11', 'bII7#11', 'i7', 'i7'],
+    sections: [
+      { bars: [1, 4], key: 'Em', title: 'The vamp', text: 'Em7 over the bell pattern. Nothing moves, so you choose when to play and when to wait.', aim: 'G (the 3rd) and D (the 7th); end phrases on E or B.', scale: 'E Dorian (E F♯ G A B C♯ D) or E minor pentatonic.' },
+      { bars: [5, 6], key: 'Em', title: 'Out a half step', text: 'F7♯11 (F A C E♭ B), a half step above E. The B is the ♯11 and is also the 5th of Em7, so it can carry over.', aim: 'Hold B through the change; or play A and E♭ (the 3rd and 7th of F7) and let them fall to G and D on Em7.', scale: 'F Lydian dominant (F G A B C D E♭).' },
+      { bars: [7, 8], key: 'Em', title: 'Home', text: 'Back to Em7 for two bars before the top.' }
+    ]
+  },
+
+  /* ---------- More favourite players ---------- */
+  milesmodal: {
+    intro: 'Thirty-two bars and only two chords: Dm7 for sixteen bars, E♭m7 for the eight-bar bridge, Dm7 to end. Each chord stands for a whole mode, D Dorian and then E♭ Dorian, as on Miles Davis’s Kind of Blue (1959). With nothing changing, the shape of the solo has to come from you.',
+    rn: ['i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7', 'i7'],
+    sections: [
+      { bars: [1, 8], key: 'Dm', title: 'A: D Dorian', text: 'Eight bars of Dm7. Treat it as one long chord and build a phrase that rises and falls across all eight.', aim: 'F and C (the 3rd and 7th); B, the 6th, for the Dorian colour.', scale: 'D Dorian (D E F G A B C): the notes of C major.' },
+      { bars: [9, 16], key: 'Dm', title: 'A again', text: 'The same eight bars. Answer what you played the first time instead of starting something new.' },
+      { bars: [17, 24], key: 'Ebm', title: 'B: up a half step', text: 'E♭m7 for eight bars: everything moves one fret up. Arriving there is the event of the tune, so make the first note of the bridge count.', aim: 'G♭ and D♭ (the 3rd and 7th); C, the 6th.', scale: 'E♭ Dorian (E♭ F G♭ A♭ B♭ C D♭).' },
+      { bars: [25, 32], key: 'Dm', title: 'A: home', text: 'Back down to Dm7. A half step down feels like coming home, so end your phrase near D or A.' }
+    ]
+  },
+
+  mileselectric: {
+    intro: 'A funk vamp on E7♯9 for eight bars, then a lift through G7 and A7 (♭III and IV) before the vamp comes back. In Miles’s electric bands one chord could run for minutes; the changes came when he cued them. The ♯9 (G) and the 3rd (G♯) side by side give the chord its bite and let the blues scale fit it.',
+    rn: ['I7#9', 'I7#9', 'I7#9', 'I7#9', 'I7#9', 'I7#9', 'I7#9', 'I7#9', 'bIII7', 'IV7', 'bIII7', 'IV7'],
+    sections: [
+      { bars: [1, 8], key: 'E', title: 'The vamp', text: 'E7♯9 for eight bars. Play riffs with the bass and drums, short stabs, or nothing; a solo here is built of rhythm as much as notes.', aim: 'G (the ♯9) bent toward G♯, and D (the 7th).', scale: 'E minor pentatonic or the E blues scale (E G A B♭ B D).' },
+      { bars: [9, 12], key: 'E', title: 'The lift', text: 'G7 and A7, a bar each, twice. G7 is a minor third above E, so the blues scale still fits; A7 is the IV of the blues.', aim: 'B (the 3rd of G7) up to C♯ (the 3rd of A7).', scale: 'G Mixolydian, then A Mixolydian; or keep the E blues scale and bend.' }
+    ]
+  },
+
+  arseniomontuno: {
+    intro: 'A son in A minor in two parts, as Arsenio Rodríguez’s conjunto played them: eight bars of song with one chord a bar, then the montuno, where the same i–iv–V7–i turns twice as fast and the tres, the trumpets and the coro take over. The chords stay simple so that the rhythm can be complicated.',
+    rn: ['i', 'iv', 'V7', 'i', 'i', 'iv', 'V7', 'i', 'i iv', 'V7 i', 'i iv', 'V7 i', 'i iv', 'V7 i', 'i iv', 'V7 i'],
+    sections: [
+      { bars: [1, 8], key: 'Am', title: 'The son', text: 'Am, Dm, E7, Am, twice: the song part, one chord a bar. The bass anticipates each change on the & of 2 and on 4.', aim: 'C (the 3rd of Am) to F on Dm; G♯ on E7 rising to A.', scale: 'A harmonic minor (A B C D E F G♯) for the G♯ of E7; A natural minor elsewhere.' },
+      { bars: [9, 16], key: 'Am', title: 'The montuno', text: 'Two chords a bar, round and round. Here the tres plays its cells and the trumpets their riffs, the diablo.', aim: 'Thirds on the clave strokes: C and E over Am, D and F over Dm, B and D (or G♯ and B) over E7.', scale: 'A minor pentatonic for riffs, with G♯ over E7.' }
+    ]
+  },
+
+  bvscson: {
+    intro: 'Dm, F, Gm, A7, round and round: i–♭III–iv–V7 in D minor. Loops like this carry many sones from the Oriente, the east of Cuba, including songs on the Buena Vista Social Club record. Every chord is on the top three strings near the nut, so the left hand is free to fill between them.',
+    rn: ['i', 'bIII', 'iv', 'V7', 'i', 'bIII', 'iv', 'V7', 'i', 'bIII', 'iv', 'V7', 'i', 'bIII', 'iv', 'V7'],
+    sections: [
+      { bars: [1, 8], key: 'Dm', title: 'The loop', text: 'i to ♭III is D minor to its relative major, F; iv (Gm) and V7 (A7) bring it back. The bass moves D, F, G, A: up the minor scale.', aim: 'F on Dm and on F (it belongs to both); D on Gm; C♯ on A7, rising to D.', scale: 'D natural minor (D E F G A B♭ C), with C♯ over A7.' },
+      { bars: [9, 16], key: 'Dm', title: 'Round again', text: 'The same four chords. Change your fills, not the chords: a run in thirds into Gm, single notes into A7.', aim: 'End every fill a step from the next chord’s root or 3rd.' }
+    ]
+  },
+
+  bvscbolero: {
+    intro: 'A Cuban bolero in C, slow and romantic: I, then A7 (V7 of ii) to Dm7, and the ii–V home. The second half goes to the IV through C7, then darkens it to F minor 6 (iv, borrowed from C minor), a sound boleros love, before the turnaround.',
+    rn: ['I', 'V7/ii', 'ii7', 'V7', 'iii7', 'V7/ii', 'ii7', 'V7', 'I', 'V7/IV', 'IV', 'iv6', 'I', 'V7/ii', 'ii7 V7', 'I'],
+    sections: [
+      { bars: [1, 8], key: 'C', title: 'Round the circle', text: 'C, A7, Dm7, G7, then Em7 standing in for C before A7 again. Each dominant leads a fifth down.', aim: 'C♯ (the 3rd of A7) up to D on Dm7; B on G7 to C.', scale: 'C major, with C♯ over A7.' },
+      { bars: [9, 16], key: 'C', title: 'To IV, and darker', text: 'C7 leads to F (IV); then F becomes Fm6 (iv), whose A♭ falls to G on the way home. The last bars are the turnaround.', aim: 'B♭ on C7 to A on F; A to A♭ on Fm6, then G.', scale: 'C major; F minor 6 arpeggio (F A♭ C D) over Fm6.' }
+    ]
+  },
+
+  piazzollaminor: {
+    intro: 'A minor over Piazzolla’s 3-3-2. The A section falls: Am, Am7, F♯m7♭5 (Am with F♯ in the bass, the line A, G, F♯), Fmaj7, then iv and V. The B section moves through the circle, Dm7 G7 Cmaj7 Fmaj7, into the minor ii–V (Bm7♭5 E7) and home.',
+    rn: ['i', 'i7', 'viø7', 'bVImaj7', 'iv7', 'V7', 'i', 'V7', 'iv7', 'bVII7', 'bIIImaj7', 'bVImaj7', 'iiø7', 'V7', 'i', 'i'],
+    sections: [
+      { bars: [1, 4], key: 'Am', title: 'The falling line', text: 'Am, Am7, F♯m7♭5, Fmaj7: one note steps down each bar, A, G, F♯, F, over the same A minor colour.', aim: 'The falling note itself: A, G, F♯, F, then E.', scale: 'A melodic minor (with F♯ and G♯) in bar 3, natural minor elsewhere.' },
+      { bars: [5, 8], key: 'Am', title: 'iv and V', text: 'Dm7, E7, Am, E7: the strongest close in minor. E7 is where the tango leans hardest.', aim: 'G♯ on E7, falling to A or rising to A.', scale: 'A harmonic minor (A B C D E F G♯).' },
+      { bars: [9, 12], key: 'Am', title: 'The circle', text: 'Dm7, G7, Cmaj7, Fmaj7: a run of fifths through the relative major, C.', aim: 'F (the 7th of G7) falling to E (the 3rd of C).', scale: 'C major (the same notes as A minor) through these bars.' },
+      { bars: [13, 16], key: 'Am', title: 'Minor ii–V home', text: 'Bm7♭5 and E7, the ii–V of A minor, then two bars of Am.', aim: 'D on Bm7♭5, G♯ on E7, A.', scale: 'A harmonic minor.' }
+    ]
+  },
+
+  sosazamba: {
+    intro: 'A zamba in A minor, slow and in six: a verse of eight bars and its estribillo, the refrain. It turns round the minor circle: Am, Dm, G7, C, then E7 back to Am. G7 to C is the relative major, so the music rises in the middle of each half and falls back to minor at its end.',
+    rn: ['i', 'i', 'iv', 'iv', 'bVII7', 'bVII7', 'bIII', 'V7', 'i', 'i', 'iv', 'bVII7', 'bIII', 'V7', 'i', 'i'],
+    sections: [
+      { bars: [1, 8], key: 'Am', title: 'The verse', text: 'Two bars each of Am, Dm and G7, then C and E7: the circle of fifths in A minor, with E7 to lead home.', aim: 'C on Am, F on Dm, B on G7, E on C, G♯ on E7.', scale: 'A natural minor, with G♯ over E7.' },
+      { bars: [9, 16], key: 'Am', title: 'The estribillo', text: 'The same circle, faster: Dm and G7 a bar each, C, E7 and home.', aim: 'Let the line fall to A or C on the last two bars.', scale: 'A natural minor, with G♯ over E7.' }
+    ]
+  },
+
+  miltonminas: {
+    intro: 'D major in the A section: Dmaj7, Bm7, Gmaj7, then Em7 and A7. The B section borrows from D minor, Fmaj7, Cmaj7 and B♭maj7 (♭III, ♭VII and ♭VI), and its major 7ths over shifting roots give the floating Minas sound, before Em7 and A7 lead home. Keep the open B and E strings ringing where you can.',
+    rn: ['Imaj7', 'Imaj7', 'vi7', 'vi7', 'IVmaj7', 'IVmaj7', 'ii7', 'V7', 'bIIImaj7', 'bIIImaj7', 'bVIImaj7', 'bVIImaj7', 'bVImaj7', 'bVImaj7', 'ii7', 'V7'],
+    sections: [
+      { bars: [1, 8], key: 'D', title: 'A: in D major', text: 'Dmaj7, Bm7, Gmaj7 and Em7 A7, two bars each but the last. The open B and E belong to every chord here.', aim: 'F♯ on Dmaj7, D on Bm7, B on Gmaj7; G on A7 falling to F♯.', scale: 'D major (D E F♯ G A B C♯).' },
+      { bars: [9, 16], key: 'D', title: 'B: borrowed from D minor', text: 'Fmaj7, Cmaj7 and B♭maj7 come from D minor (♭III, ♭VII and ♭VI), each a major 7th chord, so the colour stays bright while the key goes dark. Em7 and A7 bring back D major.', aim: 'E (the 7th of Fmaj7) to E (the 3rd of Cmaj7), then D (the 3rd of B♭maj7); C♯ on A7.', scale: 'F Lydian, C Lydian and B♭ Lydian (each major scale with a raised 4th), or just each chord’s own notes.' }
+    ]
+  },
+
+  getzbossa: {
+    intro: 'A bossa in C with the chromatic ii–Vs of the songs Stan Getz played: Em7 A7 slips down to E♭m7 A♭7 and lands on Dm7 G7. The bridge moves to E♭ major by its own ii–V (Fm7 B♭7), then A♭maj7 (♭VI in C) slides back to Dm7 G7 and home.',
+    rn: ['Imaj7', 'Imaj7', 'iii7 V7/ii', 'biii7 bVI7', 'ii7', 'V7', 'Imaj7', 'ii7 V7', 'Imaj7', 'Imaj7', 'ii7 V7', 'Imaj7', 'bVImaj7', 'ii7 V7', 'Imaj7', 'ii7 V7'],
+    sections: [
+      { bars: [1, 8], key: 'C', title: 'A: ii–Vs that slide', text: 'Two bars of C, then Em7 A7, E♭m7 A♭7, Dm7 G7: the same ii–V pair one fret lower each time, so one shape slides down the neck.', aim: 'G (the 3rd of Em7, the 7th of A7), then G♭, then F: one note falling a half step a bar.', scale: 'C major over C; each ii–V’s own major key (D, D♭, C), or simply its guide tones.' },
+      { bars: [9, 10], key: 'C', title: 'B: C again', text: 'Two bars of Cmaj7 to start the bridge.' },
+      { bars: [11, 12], key: 'Eb', title: 'Up to E♭', text: 'Fm7 B♭7 to E♭maj7: a ii–V into a key a minor third up.', aim: 'A♭ (the 3rd of Fm7) to A♭ (the 7th of B♭7) to G (the 3rd of E♭maj7).', scale: 'E♭ major.' },
+      { bars: [13, 16], key: 'C', title: 'Back home', text: 'A♭maj7, ♭VI in C, borrowed from C minor, then Dm7 G7 and C. Its A♭ falls a half step to G.', aim: 'G on A♭maj7 to F on Dm7 and G7, then E.', scale: 'A♭ Lydian (A♭ B♭ C D E♭ F G) over A♭maj7.' }
+    ]
+  },
+
+  kulthumkurd: {
+    intro: 'Maqam Kurd on D (D E♭ F G A B♭ C) over the maqsum rhythm, in two parts: a lazima, the refrain the orchestra plays between sung lines, and the line itself. Arabic music is a melody, not a chord progression; the chords here only mark where the maqam rests: D minor at home, E♭ for the dark second degree, G minor for the fourth.',
+    rn: ['i', 'i', 'bII', 'i', 'iv', 'iv', 'bII', 'i'],
+    sections: [
+      { bars: [1, 4], key: 'Dm', title: 'The lazima', text: 'D, then E♭ (the half step above the tonic that defines Kurd), then D again. Play the lazima tight with the drum.', aim: 'E♭ falling to D; A, the maqam’s second resting note.', scale: 'Maqam Kurd on D: D E♭ F G A B♭ C.' },
+      { bars: [5, 8], key: 'Dm', title: 'The line', text: 'Gm, the 4th, opens the sung line; E♭ and D close it. Repeat it with a new ornament each time round.', aim: 'G and B♭ over Gm, then down to D.', scale: 'Maqam Kurd on D; an upper jins from G (G A B♭ C) for the line.' }
+    ]
+  },
+
+  sunraspace: {
+    intro: 'D minor with a slip: Dm7, then E♭m7 a half step up (♭ii) and straight back, then B♭maj7 (♭VI) and A7♯9 (V) home. Sun Ra liked chords that slide by half steps and dominants with a bite; the A7♯9 holds both C♯ and C.',
+    rn: ['i7', 'i7', 'bii7', 'i7', 'bVImaj7', 'V7#9', 'i7', 'i7'],
+    sections: [
+      { bars: [1, 4], key: 'Dm', title: 'A slip up and back', text: 'Dm7, Dm7, E♭m7, Dm7: the whole chord moves up a fret for one bar.', aim: 'F on Dm7, G♭ on E♭m7, back to F.', scale: 'D Dorian, then E♭ Dorian for one bar.' },
+      { bars: [5, 8], key: 'Dm', title: 'Home through A7♯9', text: 'B♭maj7 falls a half step to A7♯9, whose C♯ and C (the ♯9) rub, then two bars of Dm7.', aim: 'D on B♭maj7, C♯ on A7♯9, D on Dm7.', scale: 'B♭ Lydian over B♭maj7; the altered scale or D harmonic minor over A7♯9.' }
+    ]
+  },
+
+  arseniodos: {
+    intro: 'A major son in C on the 2-3 clave: eight bars of song with I, V7 and IV, then a montuno where C–F and G7–F turn every bar. The bars of the montuno are where the tres plays its guajeo and the band its breaks.',
+    rn: ['I', 'V7', 'V7', 'I', 'I', 'IV', 'V7', 'I', 'I IV', 'V7 IV', 'I IV', 'V7 IV', 'I IV', 'V7 IV', 'I IV', 'V7 I'],
+    sections: [
+      { bars: [1, 8], key: 'C', title: 'The son', text: 'C, G7 for two bars, C; then C, F, G7, C. The bass anticipates each change.', aim: 'E on C, B and F on G7, A on F.', scale: 'C major.' },
+      { bars: [9, 16], key: 'C', title: 'The montuno', text: 'C F, G7 F, round and round, ending on G7 C.', aim: 'E and G on C, A on F, B on G7.', scale: 'C major pentatonic for guajeos; add F and B for G7.' }
+    ]
+  },
+
+  piazzollamilonga: {
+    intro: 'A slow milonga in E minor over 3-3-2. The A section goes i–iv–V7, then C (♭VI) and the minor ii–V (F♯m7♭5 B7) home. The B section turns to the relative major, G, by D7, then Cmaj7 and the minor ii–V bring E minor back.',
+    rn: ['i', 'i', 'iv', 'V7', 'i', 'bVI', 'iiø7', 'V7', 'i', 'i', 'iv', 'bVII7', 'bIIImaj7', 'bVImaj7', 'iiø7 V7', 'i'],
+    sections: [
+      { bars: [1, 8], key: 'Em', title: 'A: E minor', text: 'Em, Am, B7, then C and the minor ii–V F♯m7♭5 B7.', aim: 'G on Em, C on Am, D♯ on B7 rising to E.', scale: 'E harmonic minor (E F♯ G A B C D♯).' },
+      { bars: [9, 16], key: 'Em', title: 'B: to G and back', text: 'D7 leads to Gmaj7, the relative major; Cmaj7 falls to F♯m7♭5 B7 and E minor.', aim: 'F♯ on D7, B on Gmaj7, E on Cmaj7, D♯ on B7.', scale: 'E natural minor (the notes of G major), with D♯ over B7.' }
+    ]
+  },
+
+  sosachacarera: {
+    intro: 'A chacarera in D minor on three chords: i, V7 and iv. The harmony is simple so the rhythm can be strong: the two-against-three of the sesquiáltera, the bombo and the strum carry it.',
+    rn: ['i', 'V7', 'i', 'V7', 'i', 'iv', 'V7', 'i', 'iv', 'i', 'V7', 'i'],
+    sections: [
+      { bars: [1, 8], key: 'Dm', title: 'The verse', text: 'Dm and A7 back and forth, then Gm, A7 and home.', aim: 'F on Dm, C♯ on A7, B♭ on Gm.', scale: 'D harmonic minor (D E F G A B♭ C♯).' },
+      { bars: [9, 12], key: 'Dm', title: 'The close', text: 'Gm, Dm, A7, Dm: the four bars that end each verse.', aim: 'D on Gm, A on Dm, C♯ on A7, D.', scale: 'D harmonic minor.' }
+    ]
+  },
+
+  miltonpedal: {
+    intro: 'D, C and G over a D that the guitar keeps ringing: I, ♭VII and IV of D Mixolydian, the major scale with a C natural. The pedal makes the C and G chords sound suspended over D. A7 in the last bar brings a C♯ back, as a lift into the top.',
+    rn: ['I', 'bVII', 'IV', 'I', 'I', 'bVII', 'IV', 'V7'],
+    sections: [
+      { bars: [1, 4], key: 'D', title: 'Over the pedal', text: 'D, C, G, D, each over the open D string.', aim: 'F♯ on D, E on C, D on G (the pedal itself).', scale: 'D Mixolydian (D E F♯ G A B C).' },
+      { bars: [5, 8], key: 'D', title: 'And up to A7', text: 'The same, with A7 at the end: its C♯ leads back to D.', aim: 'C♯ on A7 rising to D.', scale: 'D Mixolydian, with C♯ over A7.' }
+    ]
+  },
+
+  getzminor: {
+    intro: 'A minor bossa in D: two bars of Dm7, the minor ii–V (Em7♭5 A7) back home, a bar of Gm7 (iv), and the ii–V again to Dm7. Eight bars, made for chord melody or long legato lines.',
+    rn: ['i7', 'i7', 'iiø7', 'V7', 'i7', 'iv7', 'iiø7 V7', 'i7'],
+    sections: [
+      { bars: [1, 4], key: 'Dm', title: 'Minor ii–V', text: 'Dm7 for two bars, then Em7♭5 and A7.', aim: 'F on Dm7, G on Em7♭5, C♯ on A7.', scale: 'D Dorian over Dm7; D harmonic minor over the ii–V.' },
+      { bars: [5, 8], key: 'Dm', title: 'iv and home', text: 'Dm7, Gm7, then the ii–V in one bar and Dm7.', aim: 'B♭ on Gm7, then G, C♯ and F.', scale: 'D Dorian; D harmonic minor over A7.' }
+    ]
+  },
+
+  kulthumnahawand: {
+    intro: 'Maqam Nahawand on C (C D E♭ F G A♭ B C, often B♭ on the way down) over maqsum: four bars of lazima on C minor, F minor and G7, then a line through A♭ back home. Nahawand is the maqam closest to the Western minor scale; the chords mark its resting notes, and the music is in the line.',
+    rn: ['i', 'i', 'iv', 'V7', 'i', 'bVI', 'V7', 'i'],
+    sections: [
+      { bars: [1, 4], key: 'Cm', title: 'The lazima', text: 'C minor, F minor, G7: the line rises to G and falls back.', aim: 'E♭ and G on Cm; B (the leading note) on G7.', scale: 'Maqam Nahawand on C: C D E♭ F G A♭ B C.' },
+      { bars: [5, 8], key: 'Cm', title: 'The line', text: 'C minor, A♭ (♭VI), G7, C minor: a sung line that leans on A♭ and resolves.', aim: 'A♭ falling to G; B rising to C.', scale: 'Nahawand on C, with B♭ when the line falls.' }
+    ]
+  },
+
   /* ---------- Blues, rock and roots; world grooves ---------- */
   minorswing: {
     intro: 'A gypsy jazz tune in A minor with three chords: Am6 (i), Dm6 (iv) and E7 (V). Each lasts two bars, so there is time to outline every chord.',
@@ -378,6 +567,86 @@ export const SOLO = {
   giant: {
     harmony: ['Learn the three major triads first (B D♯ F♯, G B D, E♭ G B♭) and arpeggiate each in its bar.', 'Then the V7s: D7 (D F♯ A C), B♭7 (B♭ D F A♭), F♯7 (F♯ A♯ C♯ E). Each 7th falls a half step to the next 3rd.', 'Play 1-2-3-5 shapes on every chord, as Coltrane did: they keep you in the key at speed.'],
     theory: ['Three major scales (B, G, E♭), switching every bar or two.', 'On each V7 or ii–V, the scale of the key it leads to.', 'Start at 60–80 bpm and loop bars 1–4 until the changes feel automatic.']
+  },
+  monkblues: {
+    harmony: ['Aim for the 3rd of each chord as it arrives: D on B♭7, G on E♭7, A on F7.', 'Over E°7 in bar 6, play its own four notes (E G B♭ D♭), then land on D in bar 7.', 'Play one short idea and repeat it, shifted across the beat, for a whole chorus (see the drill “One idea, moved across the beat”).'],
+    theory: ['The B♭ blues scale (B♭ D♭ E♭ E F A♭) fits the whole form.', 'Whole-tone runs over the dominants: on F7, F G A B C♯ E♭ (see the drill “Whole-tone runs down a dominant”).', 'Strike a chord tone with the note a half step below it, and leave silence after it.']
+  },
+  monkslips: {
+    harmony: ['Play the same small idea on F7 and on G♭7, moved up a fret, so the slip is in your line too.', 'In bars 5–8, move one chord shape up a fret per chord and let the 3rds climb F, F♯, G, G♯, A.', 'Land on A (the 3rd of F7) on beat 1 of bar 8.'],
+    theory: ['F Mixolydian over F7, G♭ Mixolydian over G♭7: one shape, a fret apart.', 'The whole-tone scale on F (F G A B C♯ E♭) covers F7 and its ♯11 and ♯5.', 'Over the climbing dominants, the chord’s own notes are enough: speed comes from moving the shape, not from scales.']
+  },
+  sunravamp: {
+    harmony: ['On Em7, rest on G and D; end phrases on E or B.', 'On F7♯11, hold B (the ♯11, also the 5th of Em7) across the change, or play A and E♭ and let them fall to G and D.', 'Leave whole bars empty: the vamp keeps going without you.'],
+    theory: ['E Dorian (with C♯) or E minor pentatonic over Em7.', 'F Lydian dominant (F G A B C D E♭) over F7♯11.', 'Chords in fourths (the four open bass strings, E A D G) slide up and down a fret for colour.']
+  },
+  milesmodal: {
+    harmony: ['On Dm7, rest on F, A and C; touch B, the 6th, for the Dorian colour.', 'Shape each eight bars as one phrase: start low, climb, fall back.', 'At the bridge, move your idea up one fret to E♭m7, then back down for the last A.'],
+    theory: ['D Dorian (D E F G A B C) for the A sections, E♭ Dorian (E♭ F G♭ A♭ B♭ C D♭) for the bridge.', 'Chords in fourths (E A D G with B on top) slide a fret for the bridge.', 'D minor pentatonic works too; add B and E to make it Dorian.']
+  },
+  mileselectric: {
+    harmony: ['On E7♯9, riff on the low strings or stab the chord off the beat; leave bars empty.', 'In the lift, land on B on G7 and C♯ on A7.', 'Bend G toward G♯: the ♯9 and the 3rd of E7.'],
+    theory: ['E minor pentatonic or the E blues scale (E G A B♭ B D) over the vamp.', 'G Mixolydian and A Mixolydian in the lift, or stay in the E blues scale.', 'Funk-guitar sixteenths with the left hand muting between chords.']
+  },
+  arseniomontuno: {
+    harmony: ['In the son part, aim for C on Am, F on Dm and G♯ on E7.', 'In the montuno, play one cell or riff for eight bars before changing it.', 'Put your notes on the clave strokes, or right between them, on purpose.'],
+    theory: ['A natural minor, with G♯ over E7 (A harmonic minor).', 'A minor pentatonic for riffs; thirds and sixths for tres-style double stops.', 'See the drills “Arsenio: a tres solo built on one cell” and “the diablo”.']
+  },
+  bvscson: {
+    harmony: ['Strum two beats of each chord and fill the other two with a run into the next.', 'Over A7, play C♯ and let it rise to D.', 'Add a second voice a third under any line you play.'],
+    theory: ['D natural minor (D E F G A B♭ C), with C♯ over A7.', 'Thirds on the top strings for fills; octaves for a tres sound.', 'See the drills “Buena Vista: the second voice” and “strum, then fill”.']
+  },
+  bvscbolero: {
+    harmony: ['Aim for each chord’s 3rd as it arrives: E, C♯, F, B, G.', 'Over Fm6, A♭ falling to G is the bolero’s sigh.', 'Play under the voice: thumb on 1 and 3, soft chords between.'],
+    theory: ['C major, with C♯ over A7 and B♭ over C7.', 'The F minor 6 arpeggio (F A♭ C D) over Fm6.', 'Thirds and sixths for fills between sung lines.']
+  },
+  piazzollaminor: {
+    harmony: ['Play the falling line A, G, F♯, F yourself, one note per bar, in bars 1–4.', 'Over E7, lean on G♯ and resolve it to A.', 'Accent your phrases 3 + 3 + 2 with the backing.'],
+    theory: ['A harmonic minor (A B C D E F G♯) over E7 and Bm7♭5.', 'A melodic minor (with F♯) over F♯m7♭5.', 'C major through the circle in bars 9–12.']
+  },
+  sosazamba: {
+    harmony: ['Arpeggiate each chord in six, bass on 1.', 'Over E7, play G♯ and let it rise to A.', 'Leave room for a voice: thin out while it moves, fill while it holds.'],
+    theory: ['A natural minor, with G♯ over E7.', 'Feel each bar in two, then in three: the sesquiáltera.', 'See the drills “Mercedes Sosa: zamba arpeggios” and “chacarera strum”.']
+  },
+  miltonminas: {
+    harmony: ['Keep the open B and E ringing through the A section; they belong to every chord there.', 'In the B section, hear the borrowed chords as bright colours over a dark key.', 'Land on F♯ (the 3rd of D) when D major returns.'],
+    theory: ['D major for the A section.', 'Each borrowed major 7th chord as Lydian: F, C and B♭ Lydian.', 'See the drill “Milton: shapes that move over ringing strings”.']
+  },
+  getzbossa: {
+    harmony: ['Hold the guide tones: G, G♭, F as the ii–Vs slide down.', 'In the bridge, A♭ (the 3rd of Fm7) holds over B♭7 and falls to G on E♭maj7.', 'Start phrases late and let them fall, as Getz did.'],
+    theory: ['C major on the C bars; D, D♭ and C major on the three ii–Vs, or just their 3rds and 7ths.', 'E♭ major in bars 11–12; A♭ Lydian over A♭maj7.', 'See the drills “Getz: long, singing lines” and “ii–Vs that slide down a fret”.']
+  },
+  kulthumkurd: {
+    harmony: ['Play the lazima the same way each time, tight with the drum.', 'In the line, start from G or B♭ and end on D.', 'Repeat the line with one change each time: a held note, a turn, higher.'],
+    theory: ['Maqam Kurd on D: D E♭ F G A B♭ C. No quarter tones, so it lies well on guitar.', 'Turns around E♭ and A, tremolo on held notes, as an oud would play them.', 'See the drills “Umm Kulthum: the lazima” and “one line, again and again”.']
+  },
+  sunraspace: {
+    harmony: ['On Dm7, rest on F and C; on E♭m7, move the same idea up a fret.', 'Over A7♯9, play C (the ♯9) and C♯ (the 3rd) in turn, then land on D.', 'Leave space: let a chord ring alone for a bar.'],
+    theory: ['D Dorian, E♭ Dorian for the slip, B♭ Lydian over B♭maj7.', 'D harmonic minor or the A altered scale over A7♯9.', 'Chords in fourths slid by half steps (see the drill “Sun Ra: chords in fourths that drift”).']
+  },
+  arseniodos: {
+    harmony: ['Aim for E on C, B on G7 and A on F.', 'In the montuno, play a guajeo or a riff and keep it for eight bars.', 'End the montuno with a break on the clave.'],
+    theory: ['C major; C major pentatonic for riffs.', 'Thirds and octaves for tres-style double stops.', 'See the drills “Arsenio: a two-bar guajeo” and “the band break on the clave”.']
+  },
+  piazzollamilonga: {
+    harmony: ['Hold one long note a bar over the bass, as in the drill “Piazzolla: a milonga lenta”.', 'On B7, play D♯ and resolve it to E.', 'In the B section, let G major sound bright before E minor returns.'],
+    theory: ['E harmonic minor in the A section.', 'E natural minor (G major’s notes) in bars 9–14.', 'Arpeggios in 3 + 3 + 2 for the accompaniment.']
+  },
+  sosachacarera: {
+    harmony: ['Strum it: the harmony is three chords, the music is the rhythm.', 'If you solo, keep to F, A and D on Dm, and C♯ on A7.', 'Answer the bombo: leave the chasquido on 4 clear.'],
+    theory: ['D harmonic minor (D E F G A B♭ C♯).', 'The bar in two and in three, the sesquiáltera.', 'See the drills “Mercedes Sosa: chacarera strum” and “the bombo on your guitar”.']
+  },
+  miltonpedal: {
+    harmony: ['Keep the open D ringing under every chord.', 'Over C, lean on E and C, the notes that are not in D major.', 'Over A7, play C♯ and rise to D for the top.'],
+    theory: ['D Mixolydian (D E F♯ G A B C).', 'Open-string shapes over the pedal (see the drill “Milton: chords over a D pedal”).', 'Leaps of an octave in the melody, sung softly at the top.']
+  },
+  getzminor: {
+    harmony: ['Chord melody: the top note of each chord is the melody.', 'On A7, C♯ resolving to D; on Em7♭5, B♭ falling to A.', 'Long legato lines in eighths through the ii–V.'],
+    theory: ['D Dorian over Dm7; D harmonic minor over Em7♭5 and A7.', 'G Dorian over Gm7, or simply D Dorian throughout.', 'See the drills “Jazz Samba: chord melody” and “Getz: cool, legato eighths”.']
+  },
+  kulthumnahawand: {
+    harmony: ['Play the lazima the same each time; ornament the line.', 'Lean on A♭ and let it fall to G.', 'B rises to C at the end of the line; on the way down use B♭.'],
+    theory: ['Maqam Nahawand on C: C D E♭ F G A♭ B C.', 'Turns and tremolo on held notes, as the oud plays them.', 'See the drill “Umm Kulthum: one line, again and again”.']
   },
   minorswing: {
     harmony: ['Arpeggiate the chords, as Django did: Am6 (A C E F♯), Dm6 (D F A B), E7 (E G♯ B D, adding F for the ♭9).', 'Land on G♯ over E7 and resolve it to A on Am6.', 'Slide into chord notes from a half step below (see the drill “Arpeggios with chromatic approach”).'],

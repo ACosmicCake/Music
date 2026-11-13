@@ -1,7 +1,7 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import { h, rand, choice, shuffle, noteName, toast, TOOLS, tool, pickFor, Quiz, Fretboard, positionsOfPc } from '../ui/core.js';
+import { h, rand, choice, shuffle, noteName, toast, TOOLS, tool, pickFor, Quiz, Fretboard, positionsOfPc, openTool } from '../ui/core.js';
 
 /* ======================================================
    EAR TOOLS
@@ -25,7 +25,8 @@ tool('intervals', {
         });
       });
     }
-    body.append(h('div', { class: 'row' }, anchorsBtn), editor);
+    const gameBtn = TOOLS.tower && !ctx.block ? h('button', { class: 'btn small ghost', onclick: () => openTool('tower', { returnTab: 'train' }) }, '🎮 Play as a game') : '';
+    body.append(h('div', { class: 'row' }, anchorsBtn, gameBtn), editor);
     return Quiz(body, ctx, () => {
       const item = pickFor('intervals', ctx);
       const [ivId, dir] = item.id.split(':');
@@ -101,6 +102,7 @@ tool('degrees', {
   tab: 'ear', skill: 'degrees', title: 'Scale degrees', eyebrow: 'Ear · functional hearing',
   desc: 'A cadence sets the key, then one note sounds. Name its degree. This is the core skill for playing by ear.',
   render(body, ctx) {
+    if (TOOLS.lighthouse && !ctx.block) body.append(h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => openTool('lighthouse', { returnTab: 'train' }) }, '🎮 Play as a game: Lighthouse Keeper')));
     return Quiz(body, ctx, () => {
       const item = pickFor('degrees', ctx);
       const dg = D.DEGREES.find(d => d.id === item.id);

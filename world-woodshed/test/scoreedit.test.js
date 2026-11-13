@@ -77,6 +77,15 @@ describe('changing length and rests', () => {
     expect(beatInfo(dotted, at(1, 2))).toMatchObject({ rest: true, type: 'eighth' });
     expect(barsToCheck(dotted)).toEqual([]);
   });
+  it('measures each bar against its own time when the time changes from bar to bar', () => {
+    const q = p => ev(1, [P(p, 5)]);
+    const xml = scoreToMusicXML({
+      title: 'T', time: { num: 4, den: 4 }, times: [{ num: 4, den: 4 }, { num: 5, den: 4 }, { num: 3, den: 4 }], fifths: 0, pickup: 0,
+      parts: [{ name: 'Guitar', staves: ['G'], bars: [[[['C', 'D', 'E', 'F'].map(q)]], [[['C', 'D', 'E', 'F', 'G'].map(q)]], [[['C', 'D', 'E'].map(q)]]] }], warnings: [], counts: {}
+    }, { bpm: 80 });
+    expect(barsToCheck(xml)).toEqual([]);
+    expect(barsToCheck(editBeat(xml, at(1, 4), 'delete'))).toEqual([2]);
+  });
   it('dots a note', () => {
     const xml = editBeat(melody(), at(1, 0), { length: 'quarter', dots: 1 });
     expect(beatInfo(xml, at(1, 0))).toMatchObject({ type: 'quarter', dots: 1 });
