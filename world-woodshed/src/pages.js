@@ -85,6 +85,12 @@ const TRAIN = {
   games: { name: 'Games', title: 'Practice as a game', tools: ['tower', 'lighthouse', 'firefly', 'opening', 'formgame', 'tightrope', 'twodrums', 'parrot'], tip: 'Every game counts as practice: its time goes to the skill it trains and its answers into your progress there. High scores are your own, synced to your other devices with the rest of your progress. Your club grows with every kind of practice.' },
   away: { name: 'No guitar', title: 'Practice without the instrument', tools: ['commute', 'away', 'dictation', 'sightread', 'notenames', 'intervals', 'degrees', 'rhythms', 'fretboard', 'listening', 'lesson'], tip: 'Ear training, rhythm taps, fretboard quizzes, theory and listening all work with just the phone. Any routine can also run in no-guitar mode from the Routine tab.' }
 };
+// when a session put aside with Finish for now was left: today, yesterday or the weekday
+function parkedWhen(ts) {
+  const d = new Date(ts), now = new Date(), day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const ago = Math.round((day(now) - day(d)) / 86400000);
+  return ago <= 0 ? 'today' : ago === 1 ? 'yesterday' : d.toLocaleDateString(undefined, { weekday: 'long' });
+}
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
 
 Object.assign(PAGES, {
@@ -108,9 +114,9 @@ Object.assign(PAGES, {
     const pc = h('div', { class: 'card practice-card' });
     if (ses) {
       const b = ses.blocks[ses.idx];
-      pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: ses.paused ? 'Session paused' : 'Session in progress' }), h('h2', { text: ses.name })), h('span', { class: 'mono small muted', text: 'Block ' + (ses.idx + 1) + ' of ' + ses.blocks.length })),
+      pc.append(h('div', { class: 'spread' }, h('div', { class: 'stack', style: { gap: '2px' } }, h('span', { class: 'eyebrow', text: ses.parked ? 'Saved for later · ' + parkedWhen(ses.parked) : ses.paused ? 'Session paused' : 'Session in progress' }), h('h2', { text: ses.name })), h('span', { class: 'mono small muted', text: 'Block ' + (ses.idx + 1) + ' of ' + ses.blocks.length })),
         ribbon(ses.blocks, { small: true, state: (x, i) => (x.done ? 'done' : '') + (i === ses.idx ? ' now' : '') }),
-        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => runCurrent() }, '▶ Resume: ' + (b ? blockTitle(b) : 'finish')), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'See the plan'),
+        h('div', { class: 'row' }, h('button', { class: 'btn brass big', onclick: () => runCurrent() }, (ses.parked ? '▶ Pick up: ' : '▶ Resume: ') + (b ? blockTitle(b) : 'finish')), h('button', { class: 'btn ghost', onclick: () => go('routine') }, 'See the plan'),
           h('button', { class: 'btn ghost', onclick: () => { discardSession(); toast('Session ended'); } }, 'End it')));
     } else {
       // the smart plan is the main way in; a custom routine is one tap away

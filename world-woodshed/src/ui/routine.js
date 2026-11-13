@@ -4,7 +4,7 @@ import E from '../engine.js';
 import Cur from '../curriculum.js';
 import { view, h, toast, go, PAGES, hooks } from './core.js';
 import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks, blockDef } from '../routines.js';
-import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause, autoAdvanceToggle } from './session.js';
+import { startSession, runCurrent, jump, finishScreen, finishEarly, discardSession, togglePause, autoAdvanceToggle } from './session.js';
 import { smartPlanner, learningPrefsCard } from './smart.js';
 
 const PRESETS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -67,7 +67,7 @@ function sessionCard() {
     if (!card.isConnected && card.dataset.drawn) return;
     const st = E.session(); if (!st) { card.remove(); return; }
     const el = st.blocks.reduce((a, b) => a + (b.elapsed || 0), 0) / 1000;
-    status.textContent = fmtClock(el) + ' of ' + fmtMin(totalOf(st.blocks)) + (st.paused ? ' · paused' : '');
+    status.textContent = fmtClock(el) + ' of ' + fmtMin(totalOf(st.blocks)) + (st.parked ? ' · saved for later' : st.paused ? ' · paused' : '');
     list.querySelectorAll('[data-i]').forEach(row => {
       const b = st.blocks[+row.dataset.i];
       row.querySelector('.t').textContent = b.done ? '✓ ' + fmtClock(b.elapsed / 1000) : b.swapped ? 'swapped' : b.skipped ? 'skipped' : +row.dataset.i === st.idx ? fmtClock(Math.max(0, b.minutes * 60 - b.elapsed / 1000)) + ' left' : fmtMin(b.minutes);
@@ -82,7 +82,8 @@ function sessionCard() {
     h('div', { class: 'row' },
       h('button', { class: 'btn brass', onclick: () => runCurrent() }, '▶ Back to ' + blockTitle(s.blocks[s.idx] || s.blocks[0])),
       h('button', { class: 'btn', onclick: () => { togglePause(); go('routine'); } }, s.paused ? 'Resume timer' : 'Pause timer'),
-      h('button', { class: 'btn ghost', onclick: () => finishScreen() }, 'Finish now'),
+      h('button', { class: 'btn ghost', onclick: () => finishEarly(), title: 'Stop here and pick the session up later' }, 'Finish for now'),
+      h('button', { class: 'btn ghost', onclick: () => finishScreen() }, 'End & save'),
       h('button', { class: 'btn ghost small', onclick: () => {
         const c = h('div', { class: 'confirm' }, h('b', { text: 'Discard this session?' }), h('span', { class: 'small', text: 'Time already practised still counts in your stats.' }),
           h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep it'), h('button', { class: 'btn small danger', onclick: () => { discardSession(); go('routine'); } }, 'Discard')));

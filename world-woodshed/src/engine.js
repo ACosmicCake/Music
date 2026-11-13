@@ -921,7 +921,8 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 function session() {
   const s = state.session;
   if (!s) return null;
-  if (Date.now() - (s.lastTick || s.started) > 12 * 3600 * 1000) { state.session = null; return null; }
+  // one put aside with Finish for now is kept for a week (src/ui/session.js closes it into the journal then)
+  if (Date.now() - (s.lastTick || s.started) > (s.parked ? 8 * 86400000 : 12 * 3600 * 1000)) { state.session = null; return null; }
   return s;
 }
 function startSession(src) {
