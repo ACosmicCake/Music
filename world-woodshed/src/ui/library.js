@@ -12,6 +12,7 @@ import Cur from '../curriculum.js';
 import E from '../engine.js';
 import { shareBlob, openBlob, isNative } from '../native.js';
 import * as LS from '../libsync.js';
+import { isAutoRec } from '../recorder.js';
 
 ICONS.library = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><circle cx="10.5" cy="16.5" r="1.8"/><path d="M12.3 16.5V10l3 1"/></svg>';
 TABS.push(['library', 'Library']);
@@ -131,18 +132,21 @@ PAGES.library = function () {
     h('p', { class: 'small muted', text: 'PDF, MusicXML, MuseScore, Guitar Pro, MIDI, photos and audio. To transcribe, load a recording you have: the app can\'t download from YouTube or other sites.' }), syncLine()));
   if (LS.isOn()) LS.syncFiles();
 
-  const all = L.listEntries(), songs = E.listSongs();
-  if (all.length && songs.length) {
+  // what the laptop's last 20 minutes saved has its own section, out of the scores and songs
+  const every = L.listEntries(), impro = every.filter(isAutoRec), all = every.filter(e => !isAutoRec(e)), songs = E.listSongs();
+  const heard = songs.length || impro.length;
+  if (all.length && heard) {
     view.append(h('div', { class: 'seg lib-kind', role: 'group', 'aria-label': 'Show' }, KINDS.map(([id, label]) =>
       h('button', { 'aria-pressed': filter.kind === id ? 'true' : 'false', onclick: () => { filter.kind = id; go('library'); } }, label))));
   }
-  const kind = all.length && songs.length ? filter.kind : 'all';
+  const kind = all.length && heard ? filter.kind : 'all';
   const list = h('div', { class: 'tools lib-list' });
   const section = h('div', { class: 'section' });
   if (kind !== 'recordings') view.append(section);
+  if (kind !== 'scores' && impro.length) view.append(improvisations(impro));
   if (kind !== 'scores' && songs.length) view.append(recordings(songs));
   if (!all.length) {
-    if (!songs.length) section.append(h('p', { class: 'muted small', text: 'Nothing here yet. Photograph a page of a score, add a PDF or MusicXML file, open a recording to transcribe, or note a song you have learned.' }));
+    if (!heard) section.append(h('p', { class: 'muted small', text: 'Nothing here yet. Photograph a page of a score, add a PDF or MusicXML file, open a recording to transcribe, or note a song you have learned.' }));
     else section.remove();
     return;
   }
@@ -188,6 +192,43 @@ PAGES.library = function () {
   }
   drawList();
 };
+
+/* ---------- your improvisations: what the laptop's last 20 minutes saved (src/ui/recorder.js), newest first ---------- */
+function improvisations(list) {
+  const sec = h('div', { class: 'section' }, h('h2', { text: 'Your improvisations' }),
+    h('p', { class: 'muted small', text: 'Saved from the last 20 minutes on your laptop (the ⏺ in the top bar). Listen here, or open one to transcribe it, rename it or download it.' }));
+  const rows = h('div', { class: 'tools' });
+  list.slice().sort((a, b) => (b.created || 0) - (a.created || 0)).forEach(e => {
+    const f = e.files.find(x => x.kind === 'audio');
+    const row = h('div', { class: 'songrow lib-impro' });
+    const tile = h('button', { class: 'tile lib-tile', onclick: () => entryPage(e.id) },
+      h('span', { class: 'lib-thumb', 'aria-hidden': 'true', text: '⏺' }),
+      h('span', { class: 't-title', text: e.title }), h('span', { class: 't-desc', text: [e.created ? dateLabel(e.created) : '', f ? sizeLabel(f.size) : 'no audio'].filter(Boolean).join(' · ') }));
+    const acts = h('div', { class: 'row' });
+    if (f) {
+      const listen = h('button', { class: 'btn small brass', 'aria-expanded': 'false', 'aria-label': 'Listen to ' + e.title, onclick: async () => {
+        const was = row.querySelector('.lib-audio');
+        if (was) { was.remove(); listen.setAttribute('aria-expanded', 'false'); return; }
+        const got = await L.getFile(f.id);
+        if (!got) { toast('This recording is not on this device'); return; }
+        row.append(h('audio', { class: 'lib-audio', controls: true, autoplay: true, src: urlFor(got.blob.type ? got.blob : new Blob([got.blob], { type: got.type })) }));
+        listen.setAttribute('aria-expanded', 'true');
+      } }, 'Listen');
+      acts.append(listen);
+    }
+    acts.append(h('button', { class: 'btn small ghost', 'aria-label': 'Delete ' + e.title, onclick: () => {
+      if (row.querySelector('.confirm')) return;
+      const c = h('div', { class: 'confirm' }, h('span', { class: 'small', text: 'Delete "' + e.title + '"? The recording goes for good.' }),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep it'),
+          h('button', { class: 'btn small danger', onclick: async () => { await L.deleteEntry(e.id); row.remove(); toast('Deleted'); } }, 'Delete')));
+      row.append(c);
+    } }, 'Delete'));
+    row.append(tile, acts);
+    rows.append(row);
+  });
+  sec.append(rows);
+  return sec;
+}
 
 /* ---------- the recordings you transcribe: their loops, sections, speed and notes, opened in Transcribe ---------- */
 const KEY_MAJ = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
