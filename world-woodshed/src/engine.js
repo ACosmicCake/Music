@@ -53,7 +53,9 @@ const TUNINGS = [
   { id: 'opend', name: 'Open D', midi: [38, 45, 50, 54, 57, 62] },
   { id: 'openc', name: 'Open C', midi: [36, 43, 48, 55, 60, 64] },
   { id: 'opene', name: 'Open E', midi: [40, 47, 52, 56, 59, 64] },
-  { id: 'dropc', name: 'Drop C', midi: [36, 43, 48, 53, 57, 62] }
+  { id: 'dropc', name: 'Drop C', midi: [36, 43, 48, 53, 57, 62] },
+  // the vọng cổ guitar (phím lõm): low to high A D G D A D, every string tuned down from standard (src/content/drills-vn.js)
+  { id: 'daylai', name: 'Dây Lai (vọng cổ)', midi: [33, 38, 43, 50, 57, 62] }
 ];
 const POS_IDS = ['E', 'A', 'D', 'G', 'B', 'e'];
 const PCN = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];

@@ -179,7 +179,7 @@ function recordRow(r, e, i, redraw) {
     h('button', { class: 'heardbtn', 'aria-pressed': on ? 'true' : 'false', 'aria-label': (on ? 'Heard: ' : 'Mark as heard: ') + e.work, onclick: () => { E.setHeard(key, !on); redraw(); } }, on ? '✓' : String(i + 1)),
     h('div', { class: 'rec-body' },
       h('div', { class: 'rec-title' }, h('b', { text: e.work }), h('span', { class: 'badge', text: e.kind }), i === 0 ? h('span', { class: 'badge brass', text: 'Start here' }) : null),
-      h('span', { class: 'small' }, e.artist, h('span', { class: 'mono muted', text: ' · ' + e.year })),
+      h('span', { class: 'small' }, e.artist, e.year ? h('span', { class: 'mono muted', text: ' · ' + e.year }) : null),
       e.note ? h('p', { class: 'small muted', text: e.note }) : null),
     onSpotify(e) ? h('div', { class: 'rec-link rec-links' }, spotify(e, 'Spotify'), ext(yt(e.artist + ' ' + e.work), 'YouTube'))
       : ext(yt(e.artist + ' ' + e.work), 'Play', 'linkbtn rec-link'));
@@ -204,7 +204,7 @@ tool('listening', {
       else {
         const i = r.essential.indexOf(e);
         card.append(h('span', { class: 'eyebrow', text: 'Recording ' + (i + 1) + ' of ' + r.essential.length }),
-          h('h2', { class: 'rec-now', text: e.work }), h('p', {}, e.artist, h('span', { class: 'mono muted', text: ' · ' + e.year + ' · ' + e.kind })),
+          h('h2', { class: 'rec-now', text: e.work }), h('p', {}, e.artist, h('span', { class: 'mono muted', text: (e.year ? ' · ' + e.year : '') + ' · ' + e.kind })),
           e.note ? h('p', { class: 'lede', text: e.note }) : null,
           r.listenFor ? h('div', { class: 'callout' }, h('b', { text: 'While it plays, listen for' }), h('ul', { class: 'list' }, shuffle(r.listenFor).slice(0, 3).map(x => h('li', { text: x })))) : null,
           h('div', { class: 'row' }, onSpotify(e) ? spotify(e, 'Open in Spotify', 'btn primary') : null,
@@ -222,7 +222,7 @@ tool('listening', {
 });
 
 /* ---------- Theory course ---------- */
-const LEVELS = ['Foundations', 'Intermediate', 'Advanced'];
+const LEVELS = ['Foundations', 'Intermediate', 'Advanced', 'World traditions'];
 function theoryIndex() {
   const done = D.LESSONS.filter(l => E.lessonDone(l.id)).length;
   const nxt = D.LESSONS.find(l => !E.lessonDone(l.id));

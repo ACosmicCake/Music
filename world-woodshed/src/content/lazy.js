@@ -14,7 +14,7 @@ function once(load) {
 export const loadEssays = once(() => Promise.all([
   import('./essays-1.js'), import('./essays-2.js'), import('./essays-3.js'),
   import('./essays-4.js'), import('./essays-5.js'), import('./essays-6.js'),
-  import('./essays-7.js'), import('./essays-8.js')
+  import('./essays-7.js'), import('./essays-8.js'), import('./essays-9.js')
 ]).then(mods => {
   const all = Object.assign({}, ...mods.map(m => m.default));
   D.REGIONS.forEach(r => { if (all[r.id]) r.essay = all[r.id]; });
@@ -29,7 +29,7 @@ const fill = (list, mods) => {
   mods.forEach(m => m.default.forEach(full => { const x = byId.get(full.id); if (x) Object.assign(x, full); }));
 };
 export const loadGuides = once(() => Promise.all([import('./techniques-a.js'), import('./techniques-b.js')]).then(m => fill(D.TECHNIQUES, m)));
-export const loadDrills = once(() => Promise.all([import('./drills-a.js'), import('./drills-b.js'), import('./drills-montunos.js'), import('./drills-c.js'), import('./drills-heroes.js'), import('./drills-players.js'), import('./drills-players-b.js'), import('./drills-solo.js')]).then(m => {
+export const loadDrills = once(() => Promise.all([import('./drills-a.js'), import('./drills-b.js'), import('./drills-montunos.js'), import('./drills-c.js'), import('./drills-heroes.js'), import('./drills-players.js'), import('./drills-players-b.js'), import('./drills-vn.js'), import('./drills-solo.js')]).then(m => {
   const solo = m.pop().default;
   fill(D.DRILLS, m);
   D.DRILLS.forEach(d => { if (solo[d.id]) d.solo = solo[d.id]; }); // how to solo, for the drills where you improvise
