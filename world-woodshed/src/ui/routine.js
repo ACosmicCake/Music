@@ -4,7 +4,7 @@ import E from '../engine.js';
 import Cur from '../curriculum.js';
 import { view, h, toast, go, PAGES, hooks } from './core.js';
 import { BLOCKS, BLOCK_ORDER, CATS, PATTERNS, DRILLS, TEMPLATES, awayBlocks, needsGuitar, warmScales, describe, blockTitle, newBlock, fromTemplate, setTotal, syncWeights, totalOf, fmtMin, fmtClock, placeBreaks, blockDef } from '../routines.js';
-import { startSession, runCurrent, jump, finishScreen, discardSession, togglePause, autoAdvanceToggle } from './session.js';
+import { startSession, runCurrent, jump, finishEarly, discardSession, togglePause, autoAdvanceToggle } from './session.js';
 import { smartPlanner, learningPrefsCard } from './smart.js';
 
 const PRESETS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -82,7 +82,7 @@ function sessionCard() {
     h('div', { class: 'row' },
       h('button', { class: 'btn brass', onclick: () => runCurrent() }, '▶ Back to ' + blockTitle(s.blocks[s.idx] || s.blocks[0])),
       h('button', { class: 'btn', onclick: () => { togglePause(); go('routine'); } }, s.paused ? 'Resume timer' : 'Pause timer'),
-      h('button', { class: 'btn ghost', onclick: () => finishScreen() }, 'Finish now'),
+      h('button', { class: 'btn ghost', onclick: () => finishEarly() }, 'Finish for now'),
       h('button', { class: 'btn ghost small', onclick: () => {
         const c = h('div', { class: 'confirm' }, h('b', { text: 'Discard this session?' }), h('span', { class: 'small', text: 'Time already practised still counts in your stats.' }),
           h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => c.remove() }, 'Keep it'), h('button', { class: 'btn small danger', onclick: () => { discardSession(); go('routine'); } }, 'Discard')));

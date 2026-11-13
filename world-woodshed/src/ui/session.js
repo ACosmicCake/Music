@@ -125,6 +125,19 @@ export function addMinutes(n) {
   const s = E.session(); s.autoAt = null;
   E.sessionChanged(); render();
 }
+/* Finish for now: end the session at the current block. Time already counts as practice (tick adds it every few
+   seconds); this adds the last few seconds, grades the current block's item from what the tools measured (never
+   asks), and opens the finish screen, where Back to the session still carries on from here. */
+export function finishEarly() {
+  const s = E.session(); if (!s) return;
+  const b = cur();
+  if (b && secAcc >= 1000) { E.addTime(Math.round(secAcc / 1000), blockDef(b.type).skill); secAcc = 0; }
+  if (b && b.cur && !b.rated && (b.elapsed || 0) > 20000) { const g = autoGrade(b); if (g) applyGrade(b, g); }
+  if (b) b.askRating = false;
+  s.autoAt = null;
+  E.sessionChanged();
+  finishScreen();
+}
 export function stay() { const s = E.session(); if (s) { s.autoAt = null; render(); } }
 
 /* ---------- ticker ---------- */
@@ -217,6 +230,7 @@ function paint(el) {
         h('button', { class: 'btn small ghost', onclick: () => addMinutes(1) }, '+1 min'),
         h('button', { class: 'btn small ghost', onclick: swapPrompt, title: 'Swap this block for something else' }, '⇄ Swap'),
         h('button', { class: 'btn small ghost', onclick: () => go('routine') }, 'Plan'),
+        nxt ? h('button', { class: 'btn small ghost', onclick: finishEarly, title: 'End the session here and save the time you practised' }, '■ Finish for now') : '',
         h('span', { class: 'grow' }),
         h('button', { class: 'btn small ghost', onclick: () => next(true) }, 'Skip'),
         h('button', { class: 'btn small brass', onclick: () => next(false) }, nxt ? 'Done · next →' : 'Finish ✓')),
@@ -238,7 +252,7 @@ function paint(el) {
 function render() {
   bars.forEach(el => { if (!el.isConnected) bars.delete(el); else paint(el); });
   const s = E.session(), b = cur();
-  pill.hidden = !s || !b || inSessionTool();
+  pill.hidden = !s || !b || inSessionTool() || (ui.runner && ui.runner.id === 'session-end');
   if (!pill.hidden) {
     const left = b.minutes * 60 - b.elapsed / 1000;
     pill.className = 'session-pill cat-' + blockDef(b.type).cat + (s.paused ? ' paused' : '');
@@ -255,15 +269,17 @@ export function finishScreen() {
   view.innerHTML = ''; window.scrollTo(0, 0);
   const sec = s.blocks.reduce((a, b) => a + (b.elapsed || 0), 0) / 1000;
   const done = s.blocks.filter(b => b.done).length;
+  const early = s.blocks.some(b => !b.done && !b.skipped);
   const note = h('textarea', { rows: 4, id: 'journal-note', placeholder: 'What went well? What to fix next time? Tempos reached, songs learned…' });
   // leaving this screen any other way than Back to the session saves the session as it is, with the note typed,
   // rather than leaving it half open until it times out hours later
   let saved = false;
   const save = () => { if (saved || E.session() !== s) return; saved = true; Cur.logSession(s, sec / 60); E.endSession(note.value); updateWake(); };
   ui.cleanup = () => save();
+  render();
   view.append(
     h('div', { class: 'hero done-hero' },
-      h('span', { class: 'eyebrow', text: 'Session complete' }),
+      h('span', { class: 'eyebrow', text: early ? 'Finished for now' : 'Session complete' }),
       h('h1', { text: 'Nice work.' }),
       h('div', { class: 'stats' },
         h('div', { class: 'stat' }, h('b', { class: 'mono', text: fmtMin(sec / 60) }), h('span', { text: 'practised' })),
@@ -274,7 +290,7 @@ export function finishScreen() {
       h('h3', { text: 'What you did' }),
       h('div', { class: 'stack' }, s.blocks.map(b => h('div', { class: 'endrow cat-' + blockDef(b.type).cat },
         h('span', { class: 'dot' }), h('span', { text: blockTitle(b) }),
-        h('span', { class: 'mono small muted', text: b.done ? fmtClock(b.elapsed / 1000) : b.skipped ? 'skipped' : 'not done' }))))),
+        h('span', { class: 'mono small muted', text: b.done ? fmtClock(b.elapsed / 1000) : b.skipped ? 'skipped' : (b.elapsed || 0) >= 1000 ? fmtClock(b.elapsed / 1000) + ' of ' + fmtClock(b.minutes * 60) : 'not done' }))))),
     h('div', { class: 'card' },
       h('label', { class: 'stack', for: 'journal-note' }, h('h3', { text: 'Practice journal' }), h('span', { class: 'small muted', text: 'A line or two for future you. It shows on the Today page.' })), note,
       h('div', { class: 'row' },
