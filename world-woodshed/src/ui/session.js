@@ -28,6 +28,7 @@ export function autoAdvanceToggle() {
 
 export function startSession(src) {
   if (!src.blocks.length) { toast('Add a block first'); return; }
+  if (E.session()) discardSession(); // a session put aside or still open goes into the journal first
   E.startSession(src);
   ensureTicker();
   runCurrent();
@@ -36,7 +37,7 @@ export function runCurrent() {
   const s = E.session(); if (!s) { go('routine'); return; }
   const b = s.blocks[s.idx];
   if (!b) { finishScreen(); return; }
-  if (s.paused) { s.paused = false; E.sessionChanged(); }
+  if (s.paused || s.parked) { s.paused = false; s.parked = null; E.sessionChanged(); }
   ensureTicker();
   // resolve 'auto' choices once, so coming back to a block opens the same exercise or tune
   if (!b.resolved) { b.params = paramsFor(b, new Set(s.blocks.map(x => x.cur).filter(Boolean))); b.resolved = true; E.touchSession(); }
@@ -125,18 +126,21 @@ export function addMinutes(n) {
   const s = E.session(); s.autoAt = null;
   E.sessionChanged(); render();
 }
-/* Finish for now: end the session at the current block. Time already counts as practice (tick adds it every few
-   seconds); this adds the last few seconds, grades the current block's item from what the tools measured (never
-   asks), and opens the finish screen, where Back to the session still carries on from here. */
+/* Finish for now: put the session aside to pick up later, from Today or the Routine tab. Time already counts as
+   practice (tick adds it every few seconds); this adds the last few seconds and grades the current block's item
+   from what the tools measured (never asks). The session stays paused and parked (s.parked) on this device, kept
+   for PARK_DAYS, until Resume carries on from the same block or End it closes it into the journal. */
+export const PARK_DAYS = 7;
 export function finishEarly() {
   const s = E.session(); if (!s) return;
   const b = cur();
   if (b && secAcc >= 1000) { E.addTime(Math.round(secAcc / 1000), blockDef(b.type).skill); secAcc = 0; }
   if (b && b.cur && !b.rated && (b.elapsed || 0) > 20000) { const g = autoGrade(b); if (g) applyGrade(b, g); }
   if (b) b.askRating = false;
-  s.autoAt = null;
-  E.sessionChanged();
-  finishScreen();
+  s.autoAt = null; s.paused = true; s.parked = Date.now();
+  E.sessionChanged(); updateWake();
+  toast('Session saved for later. Pick it up from Today.');
+  go('today');
 }
 export function stay() { const s = E.session(); if (s) { s.autoAt = null; render(); } }
 
@@ -230,7 +234,7 @@ function paint(el) {
         h('button', { class: 'btn small ghost', onclick: () => addMinutes(1) }, '+1 min'),
         h('button', { class: 'btn small ghost', onclick: swapPrompt, title: 'Swap this block for something else' }, '⇄ Swap'),
         h('button', { class: 'btn small ghost', onclick: () => go('routine') }, 'Plan'),
-        nxt ? h('button', { class: 'btn small ghost', onclick: finishEarly, title: 'End the session here and save the time you practised' }, '■ Finish for now') : '',
+        h('button', { class: 'btn small ghost', onclick: finishEarly, title: 'Stop here and pick the session up later' }, '■ Finish for now'),
         h('span', { class: 'grow' }),
         h('button', { class: 'btn small ghost', onclick: () => next(true) }, 'Skip'),
         h('button', { class: 'btn small brass', onclick: () => next(false) }, nxt ? 'Done · next →' : 'Finish ✓')),
@@ -252,7 +256,7 @@ function paint(el) {
 function render() {
   bars.forEach(el => { if (!el.isConnected) bars.delete(el); else paint(el); });
   const s = E.session(), b = cur();
-  pill.hidden = !s || !b || inSessionTool() || (ui.runner && ui.runner.id === 'session-end');
+  pill.hidden = !s || !b || !!s.parked || inSessionTool() || (ui.runner && ui.runner.id === 'session-end');
   if (!pill.hidden) {
     const left = b.minutes * 60 - b.elapsed / 1000;
     pill.className = 'session-pill cat-' + blockDef(b.type).cat + (s.paused ? ' paused' : '');
@@ -279,7 +283,7 @@ export function finishScreen() {
   render();
   view.append(
     h('div', { class: 'hero done-hero' },
-      h('span', { class: 'eyebrow', text: early ? 'Finished for now' : 'Session complete' }),
+      h('span', { class: 'eyebrow', text: early ? 'Finished early' : 'Session complete' }),
       h('h1', { text: 'Nice work.' }),
       h('div', { class: 'stats' },
         h('div', { class: 'stat' }, h('b', { class: 'mono', text: fmtMin(sec / 60) }), h('span', { text: 'practised' })),
@@ -312,7 +316,7 @@ export function bootSession() {
   if (s) {
     const idle = Date.now() - (s.lastTick || s.started || 0);
     // the app was closed on the finish screen: save it now
-    if (idle > IDLE_END || s.idx >= s.blocks.length) discardSession();
+    if (s.idx >= s.blocks.length || idle > (s.parked ? PARK_DAYS * 86400000 : IDLE_END)) discardSession();
     else if (idle > IDLE_PAUSE && !s.paused) { s.paused = true; s.autoAt = null; E.sessionChanged(); }
   }
   if (E.session()) ensureTicker();
