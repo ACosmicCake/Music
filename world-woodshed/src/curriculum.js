@@ -61,7 +61,8 @@ export function catalog() { return baseCatalog().concat(pieces()); }
 function baseCatalog() {
   if (catCache) return catCache;
   const list = [];
-  const stylesOfScale = id => D.REGIONS.filter(r => r.scales.includes(id)).map(r => r.id);
+  const sameAs = (sid, id) => sid === id || (D.SCALES.find(x => x.id === sid) || {}).same === id;
+  const stylesOfScale = id => D.REGIONS.filter(r => r.scales.some(sid => sameAs(sid, id))).map(r => r.id);
   SCALE_ORDER.forEach((id, i) => {
     const sc = D.SCALES.find(x => x.id === id);
     if (!sc || !sc.steps.every(Number.isInteger)) return;

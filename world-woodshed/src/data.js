@@ -97,8 +97,13 @@ const SCALES = [
   { id: 'melmin', name: 'Melodic minor', aka: 'Jazz minor', steps: [0, 2, 3, 5, 7, 9, 11], tier: 4, region: 'Jazz', note: 'Minor with major 6th and 7th; source of altered sounds.' },
   { id: 'lyddom', name: 'Lydian dominant', aka: 'Baião mode · Vachaspati', steps: [0, 2, 4, 6, 7, 9, 10], tier: 4, region: 'Brazil · Jazz', note: 'Raised 4th and flat 7th; the sound of northeast Brazil.' },
   { id: 'todi', name: 'Todi thaat', aka: 'Raga Miyan ki Todi', steps: [0, 1, 3, 6, 7, 8, 11], tier: 4, region: 'North India', note: 'Komal Re, Ga, Dha with tivra Ma. A morning raga family.' },
-  { id: 'marwa', name: 'Raga Marwa', aka: 'Marwa thaat (6 notes, no Pa)', steps: [0, 1, 4, 6, 9, 11], tier: 4, region: 'North India', note: 'A sunset raga that avoids the 5th.' },
+  { id: 'marwa', name: 'Raga Marwa', aka: 'Marwa thaat (6 notes, no Pa)', steps: [0, 1, 4, 6, 9, 11], tier: 4, region: 'North India', note: 'A sunset raga that avoids the 5th. Komal Re and tivra Ma. Up: Ni Re Ga Ma Dha Ni Re Sa, holding Sa back to the very top; down: Re Ni Dha Ma Ga Re Sa. It leans on Re and Dha.' },
   { id: 'purvi', name: 'Purvi thaat', aka: 'Raga Purvi', steps: [0, 1, 4, 6, 7, 8, 11], tier: 4, region: 'North India', note: 'Komal Re and Dha with tivra Ma.' },
+  // ragas with the same notes as a scale above, listed under their own names so they can be practised as ragas;
+  // same: the scale whose notes they share (ear training and the scale finder count them as that scale)
+  { id: 'bilawal', name: 'Raga Bilawal', aka: 'Bilawal thaat · Shankarabharanam (Carnatic) · the notes of the major scale', steps: [0, 2, 4, 5, 7, 9, 11], same: 'major', tier: 1, region: 'North India', note: 'A morning raga on all seven natural notes. Up: Sa Re Ga Ma Pa Dha Ni Sa, often bending back as Sa, Ga Re, Ga Pa, Dha Ni Sa; down: Sa Ni Dha Pa Ma Ga Re Sa. Rest on Dha and Ga.' },
+  { id: 'bhupali', name: 'Raga Bhupali', aka: 'Bhoop · Mohanam (Carnatic) · the notes of the major pentatonic', steps: [0, 2, 4, 7, 9], same: 'majpent', tier: 1, region: 'North India', note: 'An evening raga of five notes, no Ma and no Ni. Up: Sa Re Ga Pa Dha Sa; down: Sa Dha Pa Ga Re Sa. Rest on Ga and Dha; Re passes between Ga and Sa.' },
+  { id: 'kirwani', name: 'Raga Kirwani', aka: 'Keeravani (Carnatic) · the notes of the harmonic minor', steps: [0, 2, 3, 5, 7, 8, 11], same: 'harmmin', tier: 2, region: 'India', note: 'Komal Ga and komal Dha with shuddh Ni, the same going up and down (Sa Re Ga Ma Pa Dha Ni Sa). Taken into Hindustani music from the Carnatic Keeravani.' },
   { id: 'malkauns', name: 'Raga Malkauns', aka: 'Hindolam (Carnatic)', steps: [0, 3, 5, 8, 10], tier: 4, region: 'North India', note: 'A deep late-night pentatonic raga.' },
   { id: 'misheberakh', name: 'Misheberakh', aka: 'Ukrainian Dorian · Altered Dorian', steps: [0, 2, 3, 6, 7, 9, 10], tier: 4, region: 'Klezmer', note: 'Dorian with a raised 4th; a weeping klezmer mode.' },
   { id: 'bayati', name: 'Maqam Bayati', aka: 'Jins Bayati on the tonic', steps: [0, 1.5, 3, 5, 7, 8, 10], tier: 5, region: 'Arab world · Turkey', note: 'The 2nd is a quarter tone flat. On guitar: bend from the ♭2 fret halfway.' },
@@ -286,7 +291,7 @@ const REGIONS = [
     summary: 'North Indian classical music is built on raga, a melodic framework, and tala, a rhythmic cycle, over a constant drone. Performances often grow from a slow, free alap into composed and improvised sections.',
     concepts: ['Raga: scale plus signature phrases, mood and time of day', 'Tala: a cycle of matras; sam is beat 1', 'Sargam: Sa Re Ga Ma Pa Dha Ni', 'Thaat: ten parent scales', 'Meend (glide) and gamak (oscillation)', 'Tihai: a phrase played three times that lands on sam'],
     instruments: ['Sitar', 'Sarod', 'Tabla', 'Tanpura', 'Bansuri', 'Sarangi', 'Harmonium'],
-    rhythms: ['teental', 'keherwa', 'dadra', 'rupak', 'jhaptal', 'ektal'], scales: ['lydian', 'dbharm', 'phrygian', 'dorian', 'mixolydian', 'todi', 'purvi', 'marwa', 'majpent', 'malkauns'],
+    rhythms: ['teental', 'keherwa', 'dadra', 'rupak', 'jhaptal', 'ektal'], scales: ['lydian', 'dbharm', 'phrygian', 'dorian', 'mixolydian', 'todi', 'purvi', 'marwa', 'bilawal', 'bhupali', 'kirwani', 'malkauns'],
     guitar: ['Practice ragas over a drone, using slides and bends for meend', "Learn each raga's signature phrases (pakad), not only the scale", 'Sing sargam while you play', 'Clap and wave the tala while someone else plays'],
     listen: ['Ravi Shankar', 'Ali Akbar Khan', 'Nikhil Banerjee', 'Zakir Hussain', 'Hariprasad Chaurasia', 'Debashish Bhattacharya', 'Brij Bhushan Kabra'],
     facts: [
