@@ -100,6 +100,11 @@ function followAlong(staff, x) {
         and returns its staff, onExpected(e, seg), onPieceEnd(seg): a piece was read to its end, onEnd(),
         from: start the first piece at this bar of its play order (a tapped bar), after a count-in in that bar's time }
    A seg is { item, piece, k, expected: [{ i, q, len, midi, chord, t, dur, j }], ats, spq, staff }. */
+// the cursor choices in full screen (settings.readingCursor): every note, the start of every bar or of every
+// 2nd… 8th bar, or none; cursorBars gives the n of a 'bar' or 'barN' choice, null for the others
+const CURSORS = [['note', 'Cursor: every note'], ['bar', 'Cursor: each bar'],
+  ...[2, 3, 4, 5, 6, 7, 8].map(n => ['bar' + n, 'Cursor: every ' + n + ' bars']), ['off', 'Cursor: off']];
+const cursorBars = mode => (mode === 'bar' ? 1 : /^bar\d+$/.test(mode) ? +mode.slice(3) : null);
 const G = 1 / 12;
 function playRun(o) {
   const actx = A.ensure();
@@ -133,8 +138,10 @@ function playRun(o) {
     const byStep = new Map(); ats.forEach((a, j) => byStep.set(Math.round(a.q / G), Object.assign({ j }, a)));
     const evAt = new Map(); eventStarts(piece).forEach(e => evAt.set(Math.round(e.q / G), e.i));
     // the first note of each note's bar, for a cursor that shows only where each bar starts
-    const barFirst = []; piece.bars.forEach(bar => { const f = barFirst.length; bar.forEach(() => barFirst.push(f)); });
-    const seg = { item, piece, order, barFirst, bars, k: segs.length, start, pre, preBar, preBeat, skip, from: f, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
+    // (barOf: each note's written bar, barStart: each bar's first note, for a cursor every n bars)
+    const barFirst = [], barOf = [], barStart = [];
+    piece.bars.forEach((bar, b) => { const f = barFirst.length; barStart.push(f); bar.forEach(() => { barFirst.push(f); barOf.push(b); }); });
+    const seg = { item, piece, order, barFirst, barOf, barStart, bars, k: segs.length, start, pre, preBar, preBeat, skip, from: f, end: start + pre + len, ts, spq, barSteps, beatSteps, byStep, evAt, ats, expected: [], staff: segs.length ? null : o.staff };
     segs.push(seg);
     return seg;
   };
@@ -151,10 +158,13 @@ function playRun(o) {
   make(o.first, 0, o.from);
   let nowEl = null, nowSys = -1, ended = false;
   const setNow = (seg, i) => {
-    // o.cursor(): 'note' (default) follows every note, 'bar' shows only where each bar starts, 'off' none;
-    // the page or line still follows the music either way
+    // o.cursor(): 'note' (default) follows every note, 'bar' shows only where each bar starts, 'bar2', 'bar3'…
+    // only where every 2nd, 3rd… bar starts (counted from the piece's first bar), 'off' none; the page or line
+    // still follows the music either way
     const mode = i === null ? 'note' : o.cursor ? o.cursor() : 'note';
-    const shown = i === null || mode === 'off' ? null : mode === 'bar' ? seg.barFirst[i] : i;
+    const every = cursorBars(mode);
+    const shown = i === null || mode === 'off' ? null : every === 1 ? seg.barFirst[i]
+      : every ? seg.barStart[Math.floor(seg.barOf[i] / every) * every] : i;
     if (nowEl) nowEl.classList.remove('now');
     nowEl = shown === null || !seg.staff ? null : seg.staff.noteEls[shown];
     if (nowEl) nowEl.classList.add('now');
@@ -904,14 +914,17 @@ function melodyMode(root, lv, ctx, own) {
   let pv = null, pvLoading = null, gone = false;
   const usePages = () => !!(full && paged && paged.on() && pv);
   const fsPages = h('button', { class: 'btn small', hidden: !paged, onclick: () => { paged.set(!paged.on()); if (paged.on()) loadPages(); paintFs(); if (!run) draw(); } });
-  // the cursor in full screen: on every note, only at the start of each bar, or none (settings.readingCursor)
-  const CURSORS = [['note', 'Cursor: every note'], ['bar', 'Cursor: each bar'], ['off', 'Cursor: off']];
+  // the cursor in full screen: on every note, only at the start of each bar or of every 2nd, 3rd… bar, or none
+  // (settings.readingCursor, CURSORS)
   const cursorMode = () => (full ? (CURSORS.find(c => c[0] === E.state.settings.readingCursor) || CURSORS[0])[0] : 'note');
-  const fsCursor = h('button', { class: 'btn small', title: 'Show the cursor on every note, only where each bar starts, or not at all', onclick: () => {
+  const fsCursor = h('select', { class: 'sr-fscursor', 'aria-label': 'Cursor', title: 'Show the cursor on every note, only where each bar (or every few bars) starts, or not at all',
+    onchange: () => { E.setSetting('readingCursor', fsCursor.value); paintFs(); } },
+    CURSORS.map(c => h('option', { value: c[0] }, c[1])));
+  const nextCursor = () => {
     const k = CURSORS.findIndex(c => c[0] === cursorMode());
     E.setSetting('readingCursor', CURSORS[(k + 1) % CURSORS.length][0]);
     paintFs();
-  } });
+  };
   const fsPrev = h('button', { class: 'btn small', 'aria-label': 'Previous page', onclick: () => { if (pv) pv.turn(-1); } }, '‹');
   const fsPage = h('span', { class: 'mono small sr-fspage' });
   const fsNextPage = h('button', { class: 'btn small', 'aria-label': 'Next page', onclick: () => { if (pv) pv.turn(1); } }, '›');
@@ -932,7 +945,7 @@ function melodyMode(root, lv, ctx, own) {
     fsBpm.textContent = bpm + ' bpm';
     fsStart.hidden = !!run; fsNext.hidden = !!run || !!(own && own.single); fsPrevSec.hidden = !!run || !sectioned;
     if (sectioned && cur.total) fsSecCount.textContent = cur.no + '/' + cur.total;
-    fsCursor.textContent = (CURSORS.find(c => c[0] === cursorMode()) || CURSORS[0])[1];
+    fsCursor.value = cursorMode();
     if (!paged) { fsPrev.hidden = fsNextPage.hidden = fsPage.hidden = fsZoom.hidden = true; return; }
     fsPages.textContent = paged.on() ? '♫ One line' : '📄 The page';
     fsPages.setAttribute('aria-label', paged.on() ? 'Read it on one line instead' : 'Read it from the ' + paged.kind + ' itself');
@@ -1197,7 +1210,7 @@ function melodyMode(root, lv, ctx, own) {
     { on: ['ArrowDown'], shift: true, label: '1 bpm slower', run: () => { tempo.bump(-1); paintFs(); } },
     { on: ['l'], label: 'Check my playing (the mic), on or off', when: idle, run: () => { const b = mic.el.querySelector('.micbtn'); if (b) b.click(); } },
     { on: ['f'], label: full ? 'Leave full screen' : 'Full screen', run: () => setFull(!full) },
-    { on: ['c'], label: 'Cursor: every note, each bar, off', when: () => !!full, run: () => fsCursor.click() },
+    { on: ['c'], label: 'Cursor: every note, each bar, every 2… 8 bars, off', when: () => !!full, run: nextCursor },
     { on: ['v'], label: 'The printed page, or one line', when: () => !!(full && paged), run: () => fsPages.click() },
     { on: ['+', '='], label: 'Zoom in', when: usePages, run: () => pv.zoomIn() },
     { on: ['-'], label: 'Zoom out', when: usePages, run: () => pv.zoomOut() },
