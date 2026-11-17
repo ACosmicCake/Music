@@ -80,12 +80,6 @@ html.compact .game-big { font-size: 2rem; }
 .td-dot.no { animation: td-no 0.35s; }
 @keyframes td-ok { 40% { fill: var(--good); r: 13px; } }
 @keyframes td-no { 40% { fill: var(--bad); } }
-.td-pads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.td-pad { min-height: 130px; border-radius: 14px; font: 700 1.05rem var(--font-display); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; border: 2px solid; }
-.td-pad.l { background: var(--patina-soft); border-color: var(--patina); color: var(--ink); }
-.td-pad.r { background: var(--brass-soft); border-color: var(--brass); color: var(--ink); }
-.td-pad.flash.l { background: var(--patina); color: var(--surface); }
-.td-pad.flash.r { background: var(--brass); color: var(--surface); }
 
 /* Parrot */
 .pr-branch { fill: none; stroke: var(--wood-line); stroke-width: 6; stroke-linecap: round; }
@@ -102,7 +96,6 @@ html.compact .game-big { font-size: 2rem; }
 .pr-hidden .pr-dot { opacity: 0; }
 .pr-hidden .pr-dot.hit { opacity: 1; }
 .pr-cursor { stroke: var(--brass); stroke-width: 2; }
-html.compact .td-pad { min-height: 96px; font-size: 0.9rem; }
 @media (prefers-reduced-motion: reduce) { .tr-walker, .tr-meter .tr-dot { transition: none; } }
 
 /* Lighthouse Keeper */
