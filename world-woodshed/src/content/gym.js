@@ -138,6 +138,12 @@ function randomBar(rng, tier) {
   desc: 'The app plays a one-bar rhythm on the 16th grid; you play it straight back in the next bar. A new rhythm every two bars. Hearing, remembering and placing 16ths in one exercise.',
   pattern: (bar, run) => randomBar(seeded(1000 * run + Math.floor(bar / 2) * 7 + 3), tier), label: bar => (bar % 2 ? 'Your turn: play it back' : 'Listen…') }));
 
+/* Two hands: in polyrhythms and tuplets your part runs against the beat, so the player may tap each line with its own hand:
+   the left keeps the beat (what the click plays), the right plays the part. Null for exercises that are one line. */
+export function handsOf(ex) {
+  if (!ex || (ex.cat !== 'poly' && ex.cat !== 'tuplets')) return null;
+  return { left: perBeat(1, ex.beats), l: 'the beat', r: ex.poly ? ex.poly[0] + ' against ' + ex.poly[1] : 'your part' };
+}
 export const gymItems = () => GYM.map(x => ({ id: x.id, label: x.name, tier: x.tier }));
 export const CATS = { tuplets: 'Subdivisions & tuplets', feel: 'Feel changes', poly: 'Polyrhythms', grid16: 'The 16th-note grid', displace: 'Displaced click', echo: 'Echo' };
 

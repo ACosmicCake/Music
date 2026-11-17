@@ -108,7 +108,7 @@ function universe(skill) {
     case 'chords': list = D.CHORDS.map(c => ({ id: c.id, label: c.name, tier: c.tier })); break;
     case 'degrees': list = D.DEGREES.map(d => ({ id: d.id, label: 'Degree ' + d.id, tier: d.tier })); break;
     case 'progressions': list = D.NUMERALS.filter(n => n.id !== 'I').map(n => ({ id: n.id, label: n.id + ' chord', tier: n.tier })); break;
-    case 'scales': list = D.SCALES.map(s => ({ id: s.id, label: s.name, tier: s.tier })); break;
+    case 'scales': list = D.SCALES.filter(s => !s.same).map(s => ({ id: s.id, label: s.name, tier: s.tier })); break;
     case 'dictation': list = dictationItems(); break;
     case 'rhythmTap': case 'rhythmId': list = D.RHYTHMS.map(r => ({ id: r.id, label: r.name, tier: r.tier })); break;
     case 'clock': list = [[100, 1], [80, 1], [120, 2], [60, 2], [140, 3], [50, 3], [160, 4]].map(([b, t]) => ({ id: String(b), label: b + ' bpm', tier: t })); break;

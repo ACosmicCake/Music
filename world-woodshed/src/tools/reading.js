@@ -675,7 +675,8 @@ function scoresMode(root, lv, ctx, p) {
 }
 
 /* ======================================================
-   THE LIBRARY: every piece you read is kept. New ones never run out; missed ones come back for a re-read.
+   THE LIBRARY: every piece you read is kept. New ones never run out; missed rhythms come back for a re-read,
+   melodies never come back by themselves and are never shown twice (src/readlib.js).
    ====================================================== */
 /* the click in 6/8, 9/8 and 12/8 for Your scores: dotted quarters (the usual count, the default), quarters or eighths */
 const CLICKS = [{ id: 'dq', q: 1.5, label: '♩.' }, { id: 'q', q: 1, label: '♩' }, { id: 'e', q: 0.5, label: '♪' }];
@@ -697,9 +698,9 @@ function libraryPanel(kind, lv, onOpen) {
     const all = Lib.list(lv.id, kind).sort((a, b) => b.last - a.last);
     const due = all.filter(p => Lib.isDue(p));
     const pick = { all, due, missed: all.filter(p => p.best < 0.9), star: all.filter(p => p.star) }[filter];
-    box.append(h('div', { class: 'spread' }, h('b', { text: 'Your ' + KIND_PLURAL[kind] + ' at level ' + lv.id }), h('span', { class: 'small muted', text: all.length + ' kept · ' + due.length + ' due' })),
+    box.append(h('div', { class: 'spread' }, h('b', { text: 'Your ' + KIND_PLURAL[kind] + ' at level ' + lv.id }), h('span', { class: 'small muted', text: all.length + ' kept' + (kind === 'm' ? '' : ' · ' + due.length + ' due') })),
       h('p', { class: 'small muted', text: 'Every piece you read is kept here. A clean first read is done; anything less comes back after a day, then at longer gaps, until you read it cleanly. A retry straight away doesn’t count: by then you are partly playing from memory.' }),
-      h('div', { class: 'chips' }, [['all', 'All'], ['due', 'Due (' + due.length + ')'], ['missed', 'Not clean yet'], ['star', '★ Starred']].map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': k === filter ? 'true' : 'false', onclick: () => { filter = k; draw(); } }, t))));
+      h('div', { class: 'chips' }, [['all', 'All'], ...(kind === 'm' ? [] : [['due', 'Due (' + due.length + ')']]), ['missed', 'Not clean yet'], ['star', '★ Starred']].map(([k, t]) => h('button', { class: 'chip', 'aria-pressed': k === filter ? 'true' : 'false', onclick: () => { filter = k; draw(); } }, t))));
     if (!pick.length) { box.append(h('p', { class: 'small', text: all.length ? 'Nothing here.' : 'Nothing kept yet: read a piece to the end and it lands here.' })); return; }
     box.append(h('ul', { class: 'sr-liblist' }, pick.slice(0, 40).map(p => {
       const d = Lib.describe(p), pc = Lib.decode(p.code);
@@ -707,7 +708,7 @@ function libraryPanel(kind, lv, onOpen) {
         h('button', { class: 'sr-libopen', onclick: () => onOpen(p.id) },
           h('b', { text: KIND_NAME[kind] + ' ' + p.no }),
           h('span', { class: 'small muted', text: (kind === 'm' ? keyName(pc.key) + ' · ' : '') + pc.time + ' · ' + d.reads + ' read' + (d.reads === 1 ? '' : 's') + ' · best ' + d.best + '% · ' + d.when }),
-          Lib.isDue(p) ? h('span', { class: 'badge brass', text: 'due' }) : p.due ? h('span', { class: 'small muted', text: 'back in ' + Math.max(1, Math.ceil((p.due - Date.now()) / 864e5)) + ' d' }) : ''),
+          Lib.isDue(p) ? h('span', { class: 'badge brass', text: 'due' }) : p.due && kind !== 'm' ? h('span', { class: 'small muted', text: 'back in ' + Math.max(1, Math.ceil((p.due - Date.now()) / 864e5)) + ' d' }) : ''),
         h('button', { class: 'mbtn', 'aria-label': p.star ? 'Unstar' : 'Star', title: p.star ? 'Starred: kept for good' : 'Star to keep it for good', onclick: () => { Lib.star(p.id, !p.star); draw(); } }, p.star ? '★' : '☆'),
         h('button', { class: 'mbtn', 'aria-label': 'Delete', title: 'Delete', onclick: () => { Lib.remove(p.id); draw(); } }, '✕'));
     })));

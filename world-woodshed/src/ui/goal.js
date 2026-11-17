@@ -32,6 +32,15 @@ export function applyRamp() {
   }
 }
 
+/* The streak freezes: how many are saved and when the next comes */
+function freezeLine(st) {
+  const n = st.freezes, next = st.freezeNext;
+  const saved = n ? n + ' streak freeze' + (n === 1 ? '' : 's') + ' saved' : 'No streak freezes yet';
+  const more = next ? '. Next one after ' + days(next).replace('day', 'more goal day') + ' in a row.' : ' (the most you can keep).';
+  return h('p', { class: 'small goal-freeze', title: 'Every ' + Goals.FREEZE_EVERY + ' goal days in a row earn a freeze. A day you miss the goal uses one by itself, so the goal streak carries on.' },
+    h('span', { 'aria-hidden': 'true', text: '❄ ' }), saved + more);
+}
+
 /* What counts toward the streak, in words */
 function ruleText(rule, goal) {
   return rule === 'goal' ? fmtMin(goal) : typeof rule === 'number' && rule > 0 ? rule + ' min' : 'a minute or more';
@@ -48,7 +57,9 @@ export function goalCard() {
     h('p', { class: 'small goal-left', text: left ? fmtMin(left) + ' to go today.' : 'Goal met for today. Anything more is a bonus.' }),
     h('div', { class: 'goal-streaks' },
       h('div', {}, h('b', { class: 'mono', text: st.current }), h('span', { text: 'day streak' + (st.best > st.current ? ' · best ' + st.best : '') })),
-      h('div', {}, h('b', { class: 'mono', text: st.goalCurrent }), h('span', { text: 'goal days in a row' + (st.goalBest > st.goalCurrent ? ' · best ' + st.goalBest : '') }))));
+      h('div', {}, h('b', { class: 'mono', text: st.goalCurrent }), h('span', { text: 'goal days in a row' + (st.goalBest > st.goalCurrent ? ' · best ' + st.goalBest : '') }))),
+    freezeLine(st));
+  if (st.freezeUsed) card.append(h('p', { class: 'small callout', text: 'A streak freeze covered yesterday, so your ' + days(st.goalCurrent).replace('day', 'goal day') + ' in a row ' + (st.goalCurrent === 1 ? 'is' : 'are') + ' safe.' }));
   if (st.atRisk) card.append(h('p', { class: 'small callout', text: 'Practise ' + ruleText(p.streakRule, goal) + ' today to keep your ' + days(st.current) + ' going.' }));
   const r = Goals.ramp({ goal, target: t, since: p.goalSince, log: p.goalLog }, E.state.history, Date.now());
   if (r) card.append(h('p', { class: 'small muted', text: 'Growing toward ' + fmtMin(t) + ' a day. Next step ' + fmtMin(r.next) + (r.wait
@@ -75,7 +86,8 @@ export function goalSettings(opts = {}) {
         h('div', { class: 'chips presets' }, TARGETS.map(m => h('button', { class: 'chip', 'aria-pressed': t === m ? 'true' : 'false', onclick: () => { Cur.setPrefs({ goalTarget: m, goalSince: p.goalSince || E.dayKey() }); done(); } }, m ? short(m) : 'Off'))),
         h('span', { class: 'small muted', text: 'Each week you meet the goal on ' + Goals.RAMP_MET + ' of 7 days, it goes up about 10% (at least 10 minutes) until it reaches this. It never goes down by itself.' })),
       h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'A day counts toward the streak with' }),
-        h('div', { class: 'chips presets' }, RULES.map(([v, label]) => h('button', { class: 'chip', 'aria-pressed': rule === v ? 'true' : 'false', onclick: () => { Cur.setPrefs({ streakRule: v }); done(); } }, label)))));
+        h('div', { class: 'chips presets' }, RULES.map(([v, label]) => h('button', { class: 'chip', 'aria-pressed': rule === v ? 'true' : 'false', onclick: () => { Cur.setPrefs({ streakRule: v }); done(); } }, label))),
+        h('span', { class: 'small muted', text: 'Goal days in a row earn a streak freeze every ' + Goals.FREEZE_EVERY + ' days, up to ' + Goals.FREEZE_MAX + ' saved. A day you miss the goal uses one by itself and the goal streak carries on; that day doesn\'t add to it.' })));
   }
   draw();
   return wrap;

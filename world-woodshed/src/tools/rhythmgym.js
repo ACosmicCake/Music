@@ -3,7 +3,7 @@ import E from '../engine.js';
 import { h, s, tool, hooks, pickFor, openTool, TOOLS } from '../ui/core.js';
 import { TapPad, tapTime, scoreTaps, OffsetChart, describeOffset, feel16On } from './rhythm.js';
 import { withStar, favStar } from '../ui/favs.js';
-import { GYM, CATS, SEGS, FEELS, FEEL_GROUPS, FEEL_PRESETS, feelOpts, feelAt, beatsClick } from '../content/gym.js';
+import { GYM, CATS, SEGS, FEELS, FEEL_GROUPS, FEEL_PRESETS, feelOpts, feelAt, beatsClick, handsOf } from '../content/gym.js';
 
 /* ======================================================
    RHYTHM GYM: tuplets, polyrhythms, the 16th-note grid, displaced clicks and rhythmic echo.
@@ -23,9 +23,15 @@ function Timeline(beats) {
     draw(bar) {
       marks.innerHTML = '';
       (bar.click || []).forEach(c => marks.append(s('path', { class: 'gclick' + (c.hi ? ' hi' : ''), d: `M${x(c.pos) - 6} 6 L${x(c.pos) + 6} 6 L${x(c.pos)} 15 Z` })));
-      bar.pattern.forEach(p => marks.append(s('circle', { class: 'gnote' + (bar.guided ? '' : ' silent'), cx: x(p), cy: 46, r: 7 })));
+      // with two hands, the right hand's part above and the left hand's beat below
+      const two = !!bar.left, sil = bar.guided ? '' : ' silent';
+      bar.pattern.forEach(p => marks.append(s('circle', { class: 'gnote' + sil, cx: x(p), cy: two ? 38 : 46, r: two ? 6 : 7 })));
+      if (two) bar.left.forEach(p => marks.append(s('circle', { class: 'gnote l' + sil, cx: x(p), cy: 56, r: 6 })));
     },
-    tap(pos, ok) { marks.append(s('line', { class: 'gtap' + (ok ? ' ok' : ''), x1: x(pos), x2: x(pos), y1: 32, y2: 60 })); },
+    tap(pos, ok, hand) {
+      const [y1, y2] = hand === 'r' ? [30, 46] : hand === 'l' ? [48, 62] : [32, 60];
+      marks.append(s('line', { class: 'gtap' + (ok ? ' ok' : ''), x1: x(pos), x2: x(pos), y1, y2 }));
+    },
     head(pos) { const xx = x(Math.max(0, Math.min(beats, pos))); head.setAttribute('x1', xx); head.setAttribute('x2', xx); }
   };
 }
@@ -52,6 +58,23 @@ function FeelBuilder(opts, changed) {
   }
   draw();
   return el;
+}
+
+/* Two pads, one per hand: the left keeps the beat, the right plays the part (F or ←, J or →, as in Two Drums).
+   Taps only: the mic can't tell the hands apart. */
+function TwoPads(onTap, labels) {
+  const pads = { l: h('button', { class: 'td-pad l', type: 'button' }, 'Left: ' + labels.l), r: h('button', { class: 'td-pad r', type: 'button' }, 'Right: ' + labels.r) };
+  const fire = (side, ev) => { onTap(side, ev); pads[side].classList.add('flash'); setTimeout(() => pads[side].classList.remove('flash'), 80); };
+  Object.entries(pads).forEach(([side, el]) => el.addEventListener('pointerdown', ev => { ev.preventDefault(); fire(side, ev); }));
+  const key = ev => {
+    if (ev.repeat || (ev.target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName))) return;
+    const side = ev.code === 'KeyF' || ev.code === 'ArrowLeft' ? 'l' : ev.code === 'KeyJ' || ev.code === 'ArrowRight' ? 'r' : null;
+    if (side) { ev.preventDefault(); fire(side, ev); }
+  };
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  document.addEventListener('keydown', key);
+  return { el: h('div', { class: 'stack' }, h('div', { class: 'td-pads' }, pads.l, pads.r), h('p', { class: 'small muted', text: 'Left thumb on the left pad, right thumb on the right. On a keyboard: F and J, or ← and →.' })),
+    cleanup: () => document.removeEventListener('keydown', key) };
 }
 
 /* The game for an exercise: polyrhythms on Two Drums, echo on Parrot, a displaced click on Tightrope; the rest have no game */
@@ -99,13 +122,23 @@ tool('gym', {
       const testBtn = h('button', { class: 'btn brass' }, 'Take the test');
       const padHolder = h('div'), result = h('div', { class: 'stack' });
       const setBpm = v => { bpm = Math.max(30, Math.min(220, Math.round(v))); bpmLbl.textContent = bpm + ' bpm'; const o = Object.assign({}, E.state.settings.gymBpm || {}); o[ex.id] = bpm; E.setSetting('gymBpm', o); };
+      const hands = handsOf(ex);
+      const twoOn = () => !!hands && !!E.state.settings.gymHands;
+      const howTxt = () => twoOn()
+        ? 'Filled circles: the app plays the line. Hollow: you play it alone. Top row: your right hand (' + hands.r + '); bottom row: your left hand (' + hands.l + '). Lines are your taps, green when on time.'
+        : 'Filled circles: the app plays your part. Hollow: you play it alone. Lines are your notes, green when on time. Tap the pad or space bar, or switch on the mic and play.';
+      const how = h('p', { class: 'small muted', text: howTxt() });
+      const handsBox = hands ? h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: twoOn() ? true : null, onchange: e => {
+        E.setSetting('gymHands', e.target.checked); how.textContent = howTxt();
+        if (running) go(running);
+      } }), 'Two hands: left taps the beat, right your part') : '';
       const f16 = h('label', { class: 'check small' }, h('input', { type: 'checkbox', checked: feel16On() ? true : null, onchange: e => E.setSetting('feel16', e.target.checked) }), 'Feel the 16ths (soft pulse)');
       card.append(h('div', { class: 'spread' }, h('button', { class: 'btn ghost small', onclick: list }, '← All exercises'), h('span', { class: 'eyebrow', text: CATS[ex.cat] + ' · level ' + ex.tier })),
         h('div', { class: 'spread' }, h('h2', { text: ex.name }), favStar('gym', ex.id, ex.name)), h('p', { class: 'small', text: ex.desc }),
         builder, label, tl.el, status, stats,
-        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), bpmLbl, h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'), f16),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => setBpm(bpm - 4) }, '−4'), bpmLbl, h('button', { class: 'btn small', onclick: () => setBpm(bpm + 4) }, '+4'), f16, handsBox),
         h('div', { class: 'row' }, practiceBtn, testBtn, gameBtn(ex, ctx)), padHolder, result,
-        h('p', { class: 'small muted', text: 'Filled circles: the app plays your part. Hollow: you play it alone. Lines are your notes, green when on time. Tap the pad or space bar, or switch on the mic and play.' }));
+        how);
 
       // shared engine for practice (open-ended) and test (fixed bars)
       function go(mode) {
@@ -113,25 +146,29 @@ tool('gym', {
         const beatDur = () => 60 / bpm;
         const testPlan = [true, true, false, false, true, false, false, false];
         const nBars = mode === 'test' ? testPlan.length + 1 : Infinity;
-        const expected = [], taps = [];
+        const two = twoOn();
+        const expected = [], taps = [], tapsBy = { l: [], r: [] };
         const lat = (E.state.settings.latencyMs || 0) / 1000;
         let barStart = 0, curBar = null, rafId = 0;
         const barPlan = b => {
           const k = b - 1; // bar 0 is a count-in
           const guided = k < 0 ? false : mode === 'test' ? testPlan[k] : ex.guided ? ex.guided(k, opts) : ex.plan[k % ex.plan.length];
           const click = ex.click ? ex.click(Math.max(0, k)) : ex.poly ? beatsClick(ex.poly[1]) : beatsClick(ex.beats);
-          return { k, guided, click: k < 0 ? beatsClick(ex.beats) : click, pattern: k < 0 ? [] : ex.pattern(Math.max(0, k), run, opts), cue: k >= 0 && !!ex.cue && ex.cue(k, run, opts),
+          return { k, guided, click: k < 0 ? beatsClick(ex.beats) : click, pattern: k < 0 ? [] : ex.pattern(Math.max(0, k), run, opts), left: two && k >= 0 ? hands.left : null, cue: k >= 0 && !!ex.cue && ex.cue(k, run, opts),
           label: k < 0 ? (ex.feels ? 'Count-in… first: ' + feelAt(0, run, opts).name : 'Count-in…') : ex.label(k, run, opts) };
         };
-        const win = () => { const p = (curBar && curBar.pattern.length) ? curBar.pattern.slice().sort((a, b) => a - b) : [0, 1]; let g = ex.beats; for (let i = 1; i < p.length; i++) g = Math.min(g, p[i] - p[i - 1]); return Math.max(0.035, Math.min(0.09, g * beatDur() * 0.42)); };
-        const pad = TapPad(ev => {
+        // the window: under half the closest two notes of a line, 35 to 90 ms; with two hands each hand's own line
+        const win = (hand = 'r') => { const line = hand === 'l' ? hands.left : curBar && curBar.pattern; const p = (line && line.length) ? line.slice().sort((a, b) => a - b) : [0, 1]; let g = ex.beats; for (let i = 1; i < p.length; i++) g = Math.min(g, p[i] - p[i - 1]); return Math.max(0.035, Math.min(0.09, g * beatDur() * 0.42)); };
+        const onTap = (hand, ev) => {
           const t = tapTime(ev, lat); taps.push(t);
+          if (hand) tapsBy[hand].push(t);
           if (curBar) {
             const pos = (t - barStart) / beatDur();
-            const ok = expected.some(e => Math.abs(e.t - t) <= win());
-            if (pos >= -0.2 && pos <= ex.beats) tl.tap(Math.max(0, pos), ok);
+            const ok = expected.some(e => (!hand || e.hand === hand) && Math.abs(e.t - t) <= win(hand || 'r'));
+            if (pos >= -0.2 && pos <= ex.beats) tl.tap(Math.max(0, pos), ok, hand);
           }
-        }, 'Tap here (or space bar)', { mic: true });
+        };
+        const pad = two ? TwoPads(onTap, hands) : TapPad(ev => onTap(null, ev), 'Tap here (or space bar)', { mic: true });
         padHolder.innerHTML = ''; padHolder.append(pad.el);
         const loop = A.Loop({
           steps: ex.beats, stepDur: beatDur, maxSteps: isFinite(nBars) ? nBars * ex.beats : 0,
@@ -143,8 +180,10 @@ tool('gym', {
             bar.pattern.filter(p => p >= i && p < i + 1).forEach(p => {
               const at = t + (p - i) * bd;
               if (bar.guided) A.hit('clave', at, 0.75);
-              if (bar.k >= 0) expected.push({ t: at, ghost: !bar.guided });
+              if (bar.k >= 0) expected.push({ t: at, ghost: !bar.guided, hand: 'r' });
             });
+            // the left hand's beat: the click already plays it, so nothing more sounds
+            if (bar.left) bar.left.filter(p => p >= i && p < i + 1).forEach(p => expected.push({ t: t + (p - i) * bd, ghost: !bar.guided, hand: 'l' }));
           },
           onVisual: (i, cycle) => {
             if (i === 0) {
@@ -157,8 +196,13 @@ tool('gym', {
               // running accuracy over the last few bars
               if (mode !== 'test' && expected.length) {
                 const recent = expected.filter(e => e.t > A.now() - 8 * ex.beats * beatDur() && e.t < A.now() - 0.1);
-                const r = scoreTaps(recent, taps, win());
-                stats.textContent = recent.length ? 'Last bars: ' + Math.round(r.hitRate * 100) + '% on time · ±' + Math.round(r.meanAbs * 1000) + ' ms' : '';
+                if (two) {
+                  const pct = hd => Math.round(scoreTaps(recent.filter(e => e.hand === hd), tapsBy[hd], win(hd)).hitRate * 100) + '%';
+                  stats.textContent = recent.length ? 'Last bars on time: left ' + pct('l') + ' · right ' + pct('r') : '';
+                } else {
+                  const r = scoreTaps(recent, taps, win());
+                  stats.textContent = recent.length ? 'Last bars: ' + Math.round(r.hitRate * 100) + '% on time · ±' + Math.round(r.meanAbs * 1000) + ' ms' : '';
+                }
               }
             }
           },
@@ -172,6 +216,7 @@ tool('gym', {
         stopFn = () => { loop.stop(); cancelAnimationFrame(rafId); pad.cleanup(); padHolder.innerHTML = ''; running = null; practiceBtn.textContent = '▶ Practise'; testBtn.disabled = false; };
         function finish() {
           if (mode !== 'test') return;
+          if (two) return finishTwo();
           const w = win();
           const res = scoreTaps(expected, taps, w), alone = scoreTaps(expected.filter(e => e.ghost), taps, w);
           const ok = res.score >= 0.7;
@@ -186,6 +231,23 @@ tool('gym', {
             OffsetChart(res.errs, w),
             h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => go('test') }, 'Try again'),
               ok && res.score >= 0.85 ? h('button', { class: 'btn small brass', onclick: () => { setBpm(bpm + 4); go('test'); } }, '+4 bpm and again') : ''));
+        }
+        // two hands: each hand judged against its own line only; the score is the two averaged
+        function finishTwo() {
+          const by = hd => { const w = win(hd), exp = expected.filter(e => e.hand === hd); return { w, res: scoreTaps(exp, tapsBy[hd], w), alone: scoreTaps(exp.filter(e => e.ghost), tapsBy[hd], w) }; };
+          const L = by('l'), Rr = by('r');
+          const score = (L.res.score + Rr.res.score) / 2, ok = score >= 0.7;
+          E.record('tuplets', ex.id, ok, { score, hands: 2 });
+          if (hooks.signal) hooks.signal('gym:' + ex.id, { score });
+          ctx.tick(1);
+          stop();
+          const line = (name, x) => h('span', { class: 'small', text: name + ': ' + Math.round(x.res.hitRate * 100) + '% on time (' + Math.round(x.alone.hitRate * 100) + '% on your own) · ±' + Math.round(x.res.sd * 1000) + ' ms' + (x.res.hitRate ? ' · ' + describeOffset(x.res.mean * 1000) : '') + (x.res.extra ? ' ' + x.res.extra + ' extra taps.' : '') });
+          result.append(h('div', { class: 'feedback ' + (ok ? 'ok' : 'no') },
+            h('div', { class: 'spread' }, h('b', { text: 'Score ' + Math.round(score * 100) + '%' }), h('span', { class: 'mono small', text: 'Left ' + Math.round(L.res.score * 100) + '% · right ' + Math.round(Rr.res.score * 100) + '%' })),
+            line('Left hand (' + hands.l + ')', L), line('Right hand (' + hands.r + ')', Rr)),
+            OffsetChart(L.res.errs.concat(Rr.res.errs), Math.max(L.w, Rr.w)),
+            h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => go('test') }, 'Try again'),
+              ok && score >= 0.85 ? h('button', { class: 'btn small brass', onclick: () => { setBpm(bpm + 4); go('test'); } }, '+4 bpm and again') : ''));
         }
       }
       practiceBtn.onclick = () => (running === 'practice' ? stop() : go('practice'));

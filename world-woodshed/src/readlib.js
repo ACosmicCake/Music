@@ -1,7 +1,10 @@
 /* World Woodshed — the reading library.
    The generators never run out: every "New" is a fresh, unseen piece. Each piece you read is kept here
    (stored compactly with the rest of your progress), so you can play it again, star it, and get the ones
-   you missed back for a re-read after a gap: long enough that you are reading it again, not remembering it. */
+   you missed back for a re-read after a gap: long enough that you are reading it again, not remembering it.
+   Melodies never come back by themselves (Pan wants a new one every time, never one to learn): no re-reads
+   are scheduled for them, and every melody shown is remembered as a short hash (`seen`) so a new one is
+   never one already seen, on any device. Opening one from the library by hand still works. */
 import E from './engine.js';
 
 const DAY = 864e5;
@@ -47,8 +50,51 @@ function decode(code) {
   return piece;
 }
 
+/* kinds that never come back for a re-read, and are never shown twice when new */
+const NO_REPEAT = { m: true };
+const SEEN_CAP = 5000; // hashes kept per kind, newest last (about 8 bytes each)
+const TRIES = 40;
+/* FNV-1a over the piece's code, in base 36 */
+export function hashCode(code) {
+  let x = 0x811c9dc5;
+  for (let i = 0; i < code.length; i++) { x ^= code.charCodeAt(i); x = Math.imul(x, 0x01000193) >>> 0; }
+  return x.toString(36);
+}
+function seenOf(kind) {
+  const L = lib();
+  if (!L.seen || typeof L.seen !== 'object') L.seen = {};
+  if (!Array.isArray(L.seen[kind])) L.seen[kind] = Object.values(L.pieces).filter(p => p && p.kind === kind && p.code).map(p => hashCode(p.code));
+  return L.seen[kind];
+}
+const seenSets = {};
+function seenSet(kind) {
+  const arr = seenOf(kind);
+  let c = seenSets[kind];
+  if (!c || c.arr !== arr || c.len !== arr.length) c = seenSets[kind] = { arr, len: arr.length, set: new Set(arr) };
+  return c.set;
+}
+function markSeen(kind, hash) {
+  const arr = seenOf(kind);
+  arr.push(hash);
+  if (arr.length > SEEN_CAP) arr.splice(0, arr.length - SEEN_CAP);
+  E.touch();
+}
+/* A piece from gen() that has never been shown before (of this kind), remembered as seen. After TRIES
+   pieces that were all seen (a level with very few possible pieces), the last one is shown. */
+function fresh(kind, gen) {
+  const set = seenSet(kind);
+  let piece, h;
+  for (let i = 0; i < TRIES; i++) {
+    piece = gen(); h = hashCode(encode(piece));
+    if (!set.has(h)) break;
+  }
+  markSeen(kind, h);
+  return piece;
+}
+const seen = (kind, piece) => seenSet(kind).has(hashCode(encode(piece)));
+
 const list = (lv, kind) => Object.values(lib().pieces).filter(p => (lv == null || p.lv === lv) && (!kind || p.kind === kind));
-const isDue = (p, now = Date.now()) => p.due != null && p.due <= now;
+const isDue = (p, now = Date.now()) => !NO_REPEAT[p.kind] && p.due != null && p.due <= now;
 
 function prune(lv, kind) {
   const all = list(lv, kind).filter(p => !p.star);
@@ -58,10 +104,12 @@ function prune(lv, kind) {
   all.slice(0, all.length - CAP).forEach(p => { delete lib().pieces[p.id]; });
 }
 
-/* What to read next: mostly new pieces; when re-reads are due, every third piece is one of them. */
+/* What to read next: mostly new pieces; when re-reads are due, every third piece is one of them.
+   Melodies are always new. */
 let sinceReview = {};
 function next(lv, kind, gen) {
   const k = lv + kind;
+  if (NO_REPEAT[kind]) return { entry: null, piece: fresh(kind, gen), review: false };
   const due = list(lv, kind).filter(p => isDue(p)).sort((a, b) => a.due - b.due);
   if (due.length && (sinceReview[k] || 0) >= 2) {
     sinceReview[k] = 0;
@@ -88,7 +136,7 @@ function record(cur, lv, kind, score, bpm) {
   if (p.reads.length > 8) p.reads.shift();
   p.last = now; p.best = Math.max(p.best || 0, score);
   if (sameSitting) { /* an immediate retry is read from memory: it doesn't change when the piece comes back */ }
-  else if (score >= 0.9) { p.due = null; p.gap = 0; }
+  else if (score >= 0.9 || NO_REPEAT[kind]) { p.due = null; p.gap = 0; }
   else {
     p.gap = score < 0.5 || !p.gap ? 1 : Math.min(21, Math.round(p.gap * 2.5));
     p.due = now + p.gap * DAY;
@@ -107,4 +155,4 @@ function describe(p) {
   return { when, reads: p.reads.length, last: lastS, best: Math.round((p.best || 0) * 100) };
 }
 
-export default { next, open, record, star, remove, list, dueCount, isDue, describe, encode, decode };
+export default { next, fresh, seen, open, record, star, remove, list, dueCount, isDue, describe, encode, decode };

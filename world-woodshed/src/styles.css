@@ -755,6 +755,7 @@ html.compact body.in-tool .sr-padbox.live, html.compact body.in-tool .sr-runbar.
 .goal-streaks > div { display: grid; gap: 1px; background: var(--sunk); border-radius: 10px; padding: 6px 10px; }
 .goal-streaks b { font-family: var(--font-display); font-size: 1.25rem; }
 .goal-streaks span { font-size: 0.78rem; color: var(--muted); }
+.goal-freeze { color: var(--muted); }
 .goal-more > summary { cursor: pointer; color: var(--muted); }
 .goal-more[open] > summary { margin-bottom: 10px; }
 html.compact .goal-card { gap: 5px; }
@@ -810,6 +811,16 @@ html.compact .because-list { grid-template-columns: 1fr; }
 .gym-tl .gnote.silent { fill: none; stroke-dasharray: 3 2; }
 .gym-tl .gtap { stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
 .gym-tl .gtap.ok { stroke: var(--good); }
+/* two pads side by side, one per hand (Rhythm gym's Two hands, the Two Drums game) */
+.td-pads { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.td-pad { min-height: 130px; border-radius: 14px; font: 700 1.05rem var(--font-display); cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; border: 2px solid; }
+.td-pad.l { background: var(--patina-soft); border-color: var(--patina); color: var(--ink); }
+.td-pad.r { background: var(--brass-soft); border-color: var(--brass); color: var(--ink); }
+.td-pad.flash.l { background: var(--patina); color: var(--surface); }
+.td-pad.flash.r { background: var(--brass); color: var(--surface); }
+html.compact .td-pad { min-height: 96px; font-size: 0.9rem; }
+.gym-tl .gnote.l { fill: var(--patina); stroke: var(--patina); }
+.gym-tl .gnote.l.silent { fill: none; }
 .gym-tl .gym-head { stroke: var(--patina); stroke-width: 2; opacity: 0.7; }
 .gym-label { font-size: 1.15rem; }
 .gym-label.cue { color: var(--brass); }

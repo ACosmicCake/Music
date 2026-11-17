@@ -347,6 +347,15 @@ export function merge(local, remote) {
   if (a.readLib || b.readLib) {
     const la = a.readLib || {}, lb = b.readLib || {};
     out.readLib = { n: maxNum(la.n, lb.n), pieces: dropDeleted(byKey(la.pieces, lb.pieces), tomb, 'piece:') };
+    // melodies already shown (hashes, src/readlib.js): both lists joined, newest kept
+    if (la.seen || lb.seen) {
+      const sa = isObj(la.seen) ? la.seen : {}, sb = isObj(lb.seen) ? lb.seen : {}, seen = {};
+      new Set([...Object.keys(sa), ...Object.keys(sb)]).forEach(k => {
+        const all = [...new Set([...(Array.isArray(sa[k]) ? sa[k] : []), ...(Array.isArray(sb[k]) ? sb[k] : [])])];
+        seen[k] = all.slice(-5000);
+      });
+      out.readLib.seen = seen;
+    }
   }
   out.history = rebuildHistory(out, Object.assign({}, b.history, a.history));
   // settings: each from the copy that changed it last, but this device keeps its own latency and mic settings

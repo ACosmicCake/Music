@@ -205,7 +205,8 @@ tool('scales', {
   render(body, ctx) {
     let drone = null;
     const stopDrone = () => { if (drone) { drone.stop(); drone = null; } };
-    const regionFilter = (x, region) => { const r = D.REGIONS.find(rr => rr.id === region); return r && r.scales.includes(x.id); };
+    // a raga listed under its own name (same: the scale with its notes) stands for that scale here
+    const regionFilter = (x, region) => { const r = D.REGIONS.find(rr => rr.id === region); return r && r.scales.some(id => id === x.id || (D.SCALES.find(s => s.id === id) || {}).same === x.id); };
     const cleanup = Quiz(body, ctx, () => {
       stopDrone();
       const item = pickFor('scales', ctx, regionFilter);
@@ -213,7 +214,7 @@ tool('scales', {
       const tonic = rand(50, 57);
       let pool = (ctx.params.test ? E.universe('scales') : E.unlocked('scales')).map(x => x.id).filter(id => id !== sc.id);
       if (ctx.params.contrast) pool = ctx.params.contrast.filter(id => id !== sc.id);
-      else if (pool.length < 3) pool = D.SCALES.filter(x => x.tier <= sc.tier + 1 && x.id !== sc.id).map(x => x.id);
+      else if (pool.length < 3) pool = D.SCALES.filter(x => !x.same && x.tier <= sc.tier + 1 && x.id !== sc.id).map(x => x.id);
       const opts = shuffle(shuffle(pool).slice(0, 3).concat([sc.id])).map(id => D.SCALES.find(x => x.id === id));
       const play = (scale = sc) => {
         stopDrone(); A.stopAll();
