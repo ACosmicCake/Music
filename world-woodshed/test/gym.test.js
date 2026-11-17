@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GYM, FEELS, FEEL_GROUPS, SEGS, FEEL_PRESETS, feelOpts, feelAt, feelPos, nextFeel } from '../src/content/gym.js';
+import * as GYM_HANDS from '../src/content/gym.js';
 
 describe('rhythm gym', () => {
   it('has unique ids and patterns inside the bar', () => {
@@ -62,5 +63,17 @@ describe('rhythm gym', () => {
     }
     expect(seen.size).toBe(o.seq.length);
     expect(feelAt(50, 42, o)).toBe(feelAt(50, 42, o));
+  });
+});
+
+describe('two hands', () => {
+  it('polyrhythms and tuplets offer a left hand on the beat; other exercises do not', () => {
+    const { handsOf } = GYM_HANDS;
+    const p32 = GYM.find(x => x.id === 'p32');
+    expect(handsOf(p32)).toMatchObject({ left: [0, 1], l: 'the beat', r: '3 against 2' });
+    expect(handsOf(GYM.find(x => x.id === 'qtrip')).left).toEqual([0, 1, 2, 3]);
+    GYM.forEach(x => expect(!!handsOf(x)).toBe(x.cat === 'poly' || x.cat === 'tuplets'));
+    // the left hand's line is every beat of the bar, inside it
+    GYM.filter(handsOf).forEach(x => expect(handsOf(x).left.length).toBe(x.beats));
   });
 });
