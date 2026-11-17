@@ -62,40 +62,77 @@ describe('compact encoding', () => {
   });
 });
 
-describe('re-reads', () => {
+describe('re-reads (rhythms)', () => {
   const piece = { key: 'C', time: '4/4', bars: [[{ midi: 60, dur: 'w' }]] };
   it('a clean first read (90% or better) never comes back', () => {
-    const p = RL.record({ piece, entry: null }, 1, 'melody', 0.95, 80);
+    const p = RL.record({ piece, entry: null }, 1, 'r', 0.95, 80);
     expect(p.due).toBeNull();
   });
   it('a missed read comes back after a day, then at 2.5× the gap, up to three weeks', () => {
     const cur = { piece, entry: null };
-    const p = RL.record(cur, 1, 'melody', 0.7, 80);
+    const p = RL.record(cur, 1, 'r', 0.7, 80);
     expect(p.due).toBe(T0 + DAY);
     const gaps = [];
-    for (let i = 1; i <= 5; i++) { vi.setSystemTime(T0 + i * 30 * DAY); RL.record(cur, 1, 'melody', 0.7, 80); gaps.push(p.gap); }
+    for (let i = 1; i <= 5; i++) { vi.setSystemTime(T0 + i * 30 * DAY); RL.record(cur, 1, 'r', 0.7, 80); gaps.push(p.gap); }
     expect(gaps).toEqual([3, 8, 20, 21, 21]);
   });
   it('a bad read (under 50%) resets the gap to a day', () => {
     const cur = { piece, entry: null };
-    const p = RL.record(cur, 1, 'melody', 0.7, 80);
-    vi.setSystemTime(T0 + 2 * DAY); RL.record(cur, 1, 'melody', 0.7, 80);
+    const p = RL.record(cur, 1, 'r', 0.7, 80);
+    vi.setSystemTime(T0 + 2 * DAY); RL.record(cur, 1, 'r', 0.7, 80);
     expect(p.gap).toBe(3);
-    vi.setSystemTime(T0 + 6 * DAY); RL.record(cur, 1, 'melody', 0.3, 80);
+    vi.setSystemTime(T0 + 6 * DAY); RL.record(cur, 1, 'r', 0.3, 80);
     expect(p.gap).toBe(1);
   });
   it('an immediate retry in the same sitting does not move the next re-read', () => {
     const cur = { piece, entry: null };
-    const p = RL.record(cur, 1, 'melody', 0.6, 80);
+    const p = RL.record(cur, 1, 'r', 0.6, 80);
     vi.setSystemTime(T0 + 5 * 60e3);
-    RL.record(cur, 1, 'melody', 1, 80);
+    RL.record(cur, 1, 'r', 1, 80);
     expect(p.due).toBe(T0 + DAY);
     expect(p.reads).toHaveLength(2);
   });
   it('deleting a piece leaves a tombstone so a sync does not bring it back', () => {
-    const p = RL.record({ piece, entry: null }, 1, 'melody', 0.6, 80);
+    const p = RL.record({ piece, entry: null }, 1, 'r', 0.6, 80);
     RL.remove(p.id);
     expect(E.state.readLib.pieces[p.id]).toBeUndefined();
     expect(E.state.tomb['piece:' + p.id]).toBe(T0);
+  });
+});
+
+describe('melodies never repeat', () => {
+  it('a missed melody is never scheduled to come back', () => {
+    const piece = { key: 'C', time: '4/4', bars: [[{ midi: 60, dur: 'w' }]] };
+    const p = RL.record({ piece, entry: null }, 1, 'm', 0.3, 80);
+    expect(p.due).toBeNull();
+    p.due = T0 - DAY; // one scheduled by an older app
+    expect(RL.isDue(p)).toBe(false);
+    expect(RL.dueCount(1, 'm')).toBe(0);
+  });
+  it('next() always gives a new melody, never one already shown', () => {
+    const L = LEVELS[0], codes = new Set();
+    for (let i = 0; i < 200; i++) {
+      const cur = RL.next(L.id, 'm', () => genMelody(L, { bars: 4 }));
+      expect(cur.review).toBe(false);
+      const c = RL.encode(cur.piece);
+      expect(codes.has(c)).toBe(false);
+      codes.add(c);
+      if (i % 3 === 0) { vi.setSystemTime(T0 + i * 2 * DAY); RL.record(cur, L.id, 'm', 0.4, 80); }
+    }
+  });
+  it('skips a melody already seen', () => {
+    const a = { key: 'C', time: '4/4', bars: [[{ midi: 60, dur: 'w' }]] }, b = { key: 'C', time: '4/4', bars: [[{ midi: 62, dur: 'w' }]] };
+    const gen = [a, a, a, b];
+    expect(RL.fresh('m', () => a)).toBe(a);
+    expect(RL.seen('m', a)).toBe(true);
+    expect(RL.fresh('m', () => gen.shift())).toBe(b);
+  });
+  it('rhythms still come back for a re-read', () => {
+    const piece = { key: 'C', time: '4/4', bars: [[{ midi: 71, dur: 'w' }]] };
+    RL.record({ piece, entry: null }, 1, 'r', 0.3, 80);
+    vi.setSystemTime(T0 + 2 * DAY);
+    const gen = () => ({ key: 'C', time: '4/4', bars: [[{ midi: 71, dur: 'h' }, { midi: 71, dur: 'h' }]] });
+    const got = [0, 1, 2].map(() => RL.next(1, 'r', gen).review);
+    expect(got).toEqual([false, false, true]);
   });
 });

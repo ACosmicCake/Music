@@ -6,6 +6,7 @@
    score the rhythm. Each line counts in that level's Sight-reading record. */
 import A from '../audio.js';
 import E from '../engine.js';
+import Lib from '../readlib.js';
 import Mic from '../listen.js';
 import { h, tool } from '../ui/core.js';
 import { MicToggle } from '../ui/mic.js';
@@ -79,7 +80,7 @@ tool('opening', {
 
       // the next four-bar line, at the current level, straight after the last
       function addLine() {
-        const piece = genMelody(L, { bars: 4 });
+        const piece = Lib.fresh('m', () => genMelody(L, { bars: 4 })); // never a line already seen
         const prev = lines[lines.length - 1], q0 = prev ? prev.q0 + prev.len : 0;
         const bars = piece.bars.map((b, k) => ({ len: barLength(piece, k), notes: [] }));
         let acc = 0; bars.forEach(b => { b.q0 = q0 + acc; acc += b.len; });
