@@ -12,8 +12,11 @@ const mod12 = x => ((x % 12) + 12) % 12;
 /* Every scale, with the D.REGIONS ids it belongs to: the region pages list D.SCALES ids, the world scales
    carry their own. app: true for the ones the rest of the app teaches (so the explorer can show them). */
 export function catalogue(D) {
-  const styles = id => (D.REGIONS || []).filter(r => (r.scales || []).includes(id)).map(r => r.id);
-  const own = (D.SCALES || []).map(s => ({ ...s, styles: styles(s.id), more: MORE_NAMES[s.id] || [], app: true }));
+  // a raga listed under its own name (same: the scale with its notes) is one more name for that scale here
+  const alias = (D.SCALES || []).filter(s => s.same);
+  const styles = id => (D.REGIONS || []).filter(r => (r.scales || []).some(x => x === id || alias.some(a => a.id === x && a.same === id))).map(r => r.id);
+  const own = (D.SCALES || []).filter(s => !s.same).map(s => ({ ...s, styles: styles(s.id), app: true,
+    more: (MORE_NAMES[s.id] || []).concat(alias.filter(a => a.same === s.id && !(s.aka || '').includes(a.name)).map(a => a.name)) }));
   const seen = new Set(own.map(s => s.id));
   return own.concat(WORLD_SCALES.filter(s => !seen.has(s.id)).map(s => ({ ...s, more: [], app: false })));
 }
