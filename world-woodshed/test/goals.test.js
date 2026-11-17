@@ -49,6 +49,36 @@ describe('streaks', () => {
   });
 });
 
+describe('streak freezes', () => {
+  const met = (h, k) => (h[k] ? h[k].sec / 60 : 0) >= 30;
+  it('earns one every 5 goal days in a row and spends it on a missed day', () => {
+    // 5 goal days (10..6 ago), a miss (5 ago), 4 more goal days and today met
+    const h = hist({ 10: 30, 9: 30, 8: 30, 7: 30, 6: 30, 5: 3, 4: 30, 3: 30, 2: 30, 1: 30, 0: 30 });
+    expect(G.streaks(h, NOW, { goal: 30 })).toMatchObject({ goalCurrent: 10, goalBest: 10, freezes: 1, frozen: [ago(5)], freezeUsed: false });
+  });
+  it('a frozen day keeps the streak but does not add to it, and says so the day after', () => {
+    const h = hist({ 6: 30, 5: 30, 4: 30, 3: 30, 2: 30, 1: 0 });
+    expect(G.streaks(h, NOW, { goal: 30 })).toMatchObject({ goalCurrent: 5, freezes: 0, freezeNext: 5, frozen: [ago(1)], freezeUsed: true, goalToday: false });
+  });
+  it('breaks the streak when no freeze is left', () => {
+    const h = hist({ 8: 30, 7: 30, 6: 30, 5: 30, 4: 30, 3: 0, 2: 0, 1: 30 });
+    expect(G.streaks(h, NOW, { goal: 30 })).toMatchObject({ goalCurrent: 1, goalBest: 5, freezes: 0, frozen: [] });
+  });
+  it('covers missed days in a row with several freezes, and keeps at most FREEZE_MAX', () => {
+    const run = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 3, 30]));
+    const h = hist(Object.assign(run, { 2: 0, 1: 0 }));
+    // 30 goal days earned 6, but the bank holds FREEZE_MAX (5); two misses leave 3
+    const before = new Date(ago(3) + 'T15:00:00').getTime();
+    expect(G.goalRun(k => met(h, k), ago(32), before)).toMatchObject({ current: 30, freezes: G.FREEZE_MAX, next: 0 });
+    expect(G.goalRun(k => met(h, k), ago(32), NOW)).toMatchObject({ current: 30, freezes: 3, next: 5, frozen: [ago(2), ago(1)], usedYesterday: true });
+    expect(G.goalRun(k => met(h, k), ago(32), NOW, { max: 2 })).toMatchObject({ current: 30, freezes: 0 });
+  });
+  it('leaves today open: a goal not yet met today uses nothing', () => {
+    const h = hist({ 5: 30, 4: 30, 3: 30, 2: 30, 1: 30 });
+    expect(G.streaks(h, NOW, { goal: 30 })).toMatchObject({ goalCurrent: 5, freezes: 1, frozen: [], freezeNext: 5 });
+  });
+});
+
 describe('the goal log', () => {
   it('keeps one entry per day, and only changes', () => {
     let log = G.logGoal([], ago(9), 30);
