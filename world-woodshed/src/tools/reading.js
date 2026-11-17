@@ -660,6 +660,12 @@ function scoresMode(root, lv, ctx, p) {
       };
       own.page = await pagesOf(got, mel);
       if (my !== token || gone) return;
+      // the tempo you last read this score at, kept per Library entry in quarters a minute (so it holds when the
+      // click changes between dotted quarters, quarters and eighths, and when Fix the notes makes a new file);
+      // a score never read here starts at the tempo you last read any score at
+      const ownBpm = E.state.settings.readingOwnBpm || {};
+      own.bpm = () => (ownBpm[pick.e.id] > 0 ? Math.max(30, Math.min(220, Math.round(ownBpm[pick.e.id] / beatQ))) : null);
+      own.saveBpm = v => E.setSetting('readingOwnBpm', Object.assign({}, E.state.settings.readingOwnBpm || {}, { [pick.e.id]: v * beatQ }));
       const olv = { id: 'own', tempo: [60, 200], range: (bpm ? 'written at ' + bpm + ' bpm' : 'your tempo') + unit };
       api = melodyMode(body, olv, ctx, own);
     }
@@ -877,7 +883,7 @@ function melodyMode(root, lv, ctx, own) {
   const card = h('div', { class: 'card' }); root.append(card);
   const make = own ? own.make : () => Lib.next(lv.id, 'm', () => genMelody(lv, { bars: lenFor('m') }));
   const NEXT = own ? 'Next section' : 'Next melody';
-  let cur = make(), piece = cur.piece, staff = null, run = null, bpm = bpmFor(lv, 'm'), marks = {};
+  let cur = make(), piece = cur.piece, staff = null, run = null, bpm = (own && own.bpm && own.bpm()) || bpmFor(lv, 'm'), marks = {};
   // a tapped bar: the next run starts there (its place in the play order), and whether it was Hear it playing
   let from = 0, hearing = false;
   const takeFrom = () => { const f = from; from = 0; return f; };
@@ -890,7 +896,7 @@ function melodyMode(root, lv, ctx, own) {
   const runList = h('ul', { class: 'sr-run', hidden: true, 'aria-label': 'Pieces read in this run' });
   const result = h('div', { class: 'stack' });
   const live = h('span', { class: 'mono small' });
-  const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'm', v); }, lv);
+  const tempo = tempoControl(() => bpm, v => { bpm = v; saveBpm(lv, 'm', v); if (own && own.saveBpm) own.saveBpm(v); }, lv);
   const startBtn = h('button', { class: 'btn brass' }, '▶ Start reading');
   const hearBtn = h('button', { class: 'btn' }, 'Hear it');
   const newBtn = h('button', { class: 'btn ghost' }, NEXT);
