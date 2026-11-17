@@ -162,6 +162,15 @@ describe('merge', () => {
   });
 });
 
+describe('melodies already shown', () => {
+  it('joins both devices\' lists so neither shows the other\'s melodies again', () => {
+    const a = base({ readLib: { n: 1, pieces: {}, seen: { m: ['a1', 'b2'] } } });
+    const b = base({ readLib: { n: 2, pieces: {}, seen: { m: ['b2', 'c3'] } } });
+    expect(merge(a, b).readLib.seen.m.sort()).toEqual(['a1', 'b2', 'c3']);
+    expect(merge(a, base({ readLib: { n: 0, pieces: {} } })).readLib.seen.m).toEqual(['a1', 'b2']);
+  });
+});
+
 describe('rebuildHistory', () => {
   it('keeps days that only exist in the old history', () => {
     const s = { hdev: { d1: { '2026-10-21': { sec: 60, q: 1, c: 1, by: {} } } }, history: { '2026-01-01': { sec: 5, q: 0, c: 0, by: {} } } };
