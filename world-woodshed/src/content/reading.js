@@ -345,6 +345,42 @@ export function withAccidentals(L, only) {
   if (only === '#' || only === 'b') out.accOnly = only;
   return out;
 }
+/* ---------- chords on the levels before the key signatures ----------
+   The player's choice (settings.readingChords) puts chords into the melodies of the levels still in C (every
+   level before "The key of G"): 'dyad' two notes at once, 'triad' three-note chords, 'melody' chords under the
+   strong beats of a tune. L.fit keeps them to what the level has taught: every chord note is one of the level's
+   notes, the chord lies in first position on separate strings (frets 0 to 3, playable as written), chords sit
+   on notes of a quarter or longer (eighths and sixteenths stay single notes), and the keys are C and A minor
+   (the natural minor, the same notes). The level's rhythm and meter stay as they are. */
+export const CHORD_KINDS = [['dyad', 'Two notes'], ['triad', 'Three notes'], ['melody', 'Chord melody']];
+export const chordsFit = L => !!(L && !L.chords && L.keys && L.keys.length && L.keys.every(k => k === 'C'));
+// three-note chords need the D string (the top three strings alone hold no G chord in first position);
+// chord melody needs the G string, so a tune on the top two strings has room for a note under it
+export const chordsFrom = kind => LEVELS.find(L => chordsFit(L) && (kind === 'triad' ? Math.min(...L.notes) <= 62 : kind === 'melody' ? Math.min(...L.notes) <= 67 : true)) || null;
+export function chordsOk(L, kind) { const f = chordsFrom(kind); return chordsFit(L) && !!f && L.id >= f.id; }
+export function withChords(L, kind) {
+  if (!chordsOk(L, kind)) return L;
+  const am = L.notes.some(n => n % 12 === 9) && L.notes.some(n => n % 12 === 4);
+  return Object.assign({}, L, { chords: kind, fit: true, keys: am ? ['C', 'C', 'Am'] : ['C'] });
+}
+const OPEN = [52, 57, 62, 67, 71, 76]; // the open strings, written
+/* can these notes be held at once in first position, each on its own string at fret 0 to 3? */
+export function firstPosChord(notes) {
+  const ns = notes.slice().sort((a, b) => a - b), used = new Set();
+  const place = i => {
+    if (i === ns.length) return true;
+    for (let s = 0; s < OPEN.length; s++) {
+      const f = ns[i] - OPEN[s];
+      if (f < 0 || f > 3 || used.has(s)) continue;
+      used.add(s); if (place(i + 1)) return true; used.delete(s);
+    }
+    return false;
+  };
+  return place(0);
+}
+const longEnough = n => !n.tup && n.dur !== '8' && n.dur !== '16';
+const fitChord = (L, ch) => ch.every(m => L.notes.includes(m)) && firstPosChord(ch);
+
 /* a note outside the key written with the other kind of sign than only allows */
 export function wrongSign(midi, key, pref, only) {
   if (!only || midi == null || keyScale(key).includes(((midi % 12) + 12) % 12)) return false;
@@ -364,6 +400,8 @@ export function genMelody(L, o = {}) {
     const m = L.chords === 'triad' ? chordPiece(L, key, rng, o) : L.chords === 'slash' ? slashPiece(L, key, rng, o) : tryMelody(L, key, rng, o);
     if (m && L.chords === 'dyad') addThirdsAndSixths(L, m, rng);
     if (m && L.chords === 'melody') addChordsUnder(L, m, rng);
+    // the chords switch: a piece with no chord in it (or only one) is tried again
+    if (m && L.fit && attempt < 250 && m.bars.flat().filter(n => n.chord).length < 2) continue;
     if (m && L.arts) addArts(m, rng);
     if (m && L.repeats) addRepeat(m, rng);
     // with the sharps and flats switch on, a melody shows at least one
@@ -515,18 +553,25 @@ const voiceDist = (a, b) => a.reduce((s, x, i) => s + Math.abs(x - b[i]), 0);
 function chordPiece(L, key, rng, o) {
   const plain = Object.assign({}, L, { durs: L.durs.filter(d => d !== '8' && d !== '16'), dotted: (L.dotted || []).filter(d => d === 'h'), ties: false, feats: [] });
   const rh = genRhythm(plain, { time: o.time, bars: o.bars || 4, rng, final: true, noRestStart: true });
-  const lo = 62, hi = 81, nb = rh.bars.length;
+  const lo = L.fit ? Math.min(...L.notes) : 62, hi = L.fit ? Math.max(...L.notes) : 81, nb = rh.bars.length;
   let deg = 0, prev = null;
   const raise = !!L.lead;
+  const shapes = d => { const vs = closeVoicings(triadPcs(key, d, raise), lo, hi); return L.fit ? vs.filter(v => fitChord(L, v)) : vs; };
+  // with the chords switch, only the chords the level's notes can make in first position
+  const can = L.fit ? [0, 1, 2, 3, 4, 5, 6].filter(d => shapes(d).length && !(KEYS[key].minor ? d === 1 : d === 6)) : null;
+  if (can && (!can.includes(0) || can.length < 2)) return null;
+  const next = d => { const n = nextDegree(key, d, rng); return !can || can.includes(n) ? n : can.filter(x => x !== d)[Math.floor(rng() * (can.length - 1))]; };
+  const dominant = !can || can.includes(4) ? 4 : can.includes(3) ? 3 : can.find(x => x !== 0);
   const bars = rh.bars.map((bar, bi) => {
-    // one chord per bar, sometimes two; V in the last bar but one, I in the last
-    const plan = bi === nb - 1 ? [0] : bi === nb - 2 ? [4] : [bi === 0 ? 0 : nextDegree(key, deg, rng)];
-    if (bi > 0 && bi < nb - 2 && rng() < 0.35) plan.push(nextDegree(key, plan[0], rng));
+    // one chord per bar, sometimes two; V in the last bar but one (IV if the level has no V), I in the last
+    const plan = bi === nb - 1 ? [0] : bi === nb - 2 ? [dominant] : [bi === 0 ? 0 : next(deg)];
+    if (bi > 0 && bi < nb - 2 && rng() < 0.35) plan.push(next(plan[0]));
     return bar.map((e, j) => {
       if (e.rest) { const r = { midi: null, dur: e.dur }; if (e.dot) r.dot = true; return r; }
       const half = plan.length > 1 && j >= bar.length / 2 ? 1 : 0;
       deg = plan[half];
-      const vs = closeVoicings(triadPcs(key, deg, raise), lo, hi);
+      const vs = shapes(deg);
+      if (!vs.length) return null;
       const v = prev ? vs.slice().sort((a, b) => voiceDist(a, prev) - voiceDist(b, prev) + (rng() - 0.5) * 2)[0] : vs.slice().sort((a, b) => Math.abs(a[2] - 76) - Math.abs(b[2] - 76))[0];
       prev = v;
       const n = { midi: v[2], chord: v.slice(), dur: e.dur };
@@ -534,6 +579,7 @@ function chordPiece(L, key, rng, o) {
       return n;
     });
   });
+  if (bars.some(bar => bar.includes(null))) return null;
   // the first chord is the tonic; the piece must have at least two chords
   if (bars.flat().filter(n => n.chord).length < 2) return null;
   return { key, time: rh.time, bars };
@@ -598,8 +644,8 @@ function addRepeat(piece, rng) {
 function addThirdsAndSixths(L, piece, rng) {
   const sc = keyScale(piece.key), lo = Math.min(...L.notes);
   piece.bars.forEach(bar => bar.forEach(n => {
-    if (n.midi == null || n.spell || rng() > 0.75) return;
-    const under = [3, 4, 8, 9].map(iv => n.midi - iv).filter(m => m >= lo && sc.includes(m % 12));
+    if (n.midi == null || n.spell || rng() > 0.75 || (L.fit && !longEnough(n))) return;
+    const under = [3, 4, 8, 9].map(iv => n.midi - iv).filter(m => m >= lo && sc.includes(m % 12) && (!L.fit || fitChord(L, [m, n.midi])));
     if (!under.length) return;
     const thirds = under.filter(m => n.midi - m <= 4), sixths = under.filter(m => n.midi - m >= 8);
     const pick = (rng() < 0.55 && thirds.length ? thirds : sixths.length ? sixths : thirds)[0];
@@ -619,7 +665,7 @@ function addChordsUnder(L, piece, rng) {
     bar.forEach(n => {
       const at = q; q += durQ(n);
       const prevN = flat[flat.indexOf(n) - 1];
-      if (n.midi == null || n.spell || (prevN && prevN.tie) || !strong.some(x => Math.abs(x - at) < 1e-6) || n.midi < 64) return;
+      if (n.midi == null || n.spell || (prevN && prevN.tie) || !strong.some(x => Math.abs(x - at) < 1e-6) || n.midi < 64 || (L.fit && !longEnough(n))) return;
       const last = bi === piece.bars.length - 1;
       const fits = degs.filter(d => triadPcs(piece.key, d, !!L.lead).includes(n.midi % 12));
       if (!fits.length) return;
@@ -628,6 +674,7 @@ function addChordsUnder(L, piece, rng) {
       const pcs = triadPcs(piece.key, deg, !!L.lead);
       const under = [];
       for (let m = n.midi - 1; m >= n.midi - 12 && under.length < 2; m--) if (pcs.includes(m % 12) && m % 12 !== n.midi % 12) under.unshift(m);
+      if (L.fit) { while (under.length && !fitChord(L, under.concat(n.midi))) under.shift(); }
       if (under.length && under[0] >= 55) n.chord = under.concat(n.midi);
     });
   });

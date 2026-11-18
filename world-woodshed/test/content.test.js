@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import D from '../src/data.js';
-import { LEVELS, STAGES, withAccidentals, wrongSign, noteCard, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
+import { LEVELS, STAGES, withAccidentals, withChords, chordsFit, chordsOk, chordsFrom, firstPosChord, wrongSign, noteCard, genMelody, rhythmPiece, pieceLength, playLength, playOrder, attacks } from '../src/content/reading.js';
 import { parseChord } from '../src/theory.js';
 import { parseTime, keyScale, KEYS } from '../src/notation.js';
 import { loadDrills } from '../src/content/lazy.js';
@@ -199,6 +199,35 @@ describe('sight-reading generators', () => {
       if (L.chords === 'triad') expect(flat.filter(n => n.midi != null).every(n => n.chord && n.chord.length === 3)).toBe(true);
       // attacks carry every pitch, so the mic can match any of them
       attacks(m).forEach(a => { const n = flat[a.i]; if (n.chord) expect(a.chord).toEqual(n.chord); });
+    }
+  });
+  it('put chords into the levels before the key signatures, with only the notes each level has taught', () => {
+    const early = LEVELS.filter(chordsFit);
+    expect(early.map(l => l.id)).toEqual(LEVELS.slice(0, LEVELS.findIndex(l => l.name.startsWith('The key of G'))).map(l => l.id));
+    expect(chordsFrom('dyad').id).toBe(1);
+    expect(chordsFrom('triad').notes).toContain(62);
+    expect(withChords(LEVELS.find(l => l.name.startsWith('The key of G')), 'dyad').chords).toBeFalsy();
+    expect(firstPosChord([67, 72, 76])).toBe(true);   // G C E: open G, C on the B string, open e
+    expect(firstPosChord([71, 74])).toBe(false);       // B and D both on the B string
+    for (const base of early) for (const kind of ['dyad', 'triad', 'melody']) {
+      if (!chordsOk(base, kind)) continue;
+      const L = withChords(base, kind);
+      expect(L.chords).toBe(kind);
+      for (let i = 0; i < 25; i++) {
+        const m = genMelody(L, { bars: 8 }), flat = m.bars.flat(), sc = keyScale(m.key);
+        expect(['C', 'Am'], 'level ' + base.id).toContain(m.key);
+        expect(flat.filter(n => n.chord).length, 'level ' + base.id + ' ' + kind).toBeGreaterThanOrEqual(2);
+        flat.forEach((n, j) => {
+          if (n.midi == null) return;
+          expect(base.notes, 'level ' + base.id).toContain(n.midi);
+          if (!n.chord) return;
+          n.chord.forEach(x => { expect(base.notes, 'level ' + base.id + ' ' + kind).toContain(x); expect(sc).toContain(x % 12); });
+          expect(firstPosChord(n.chord), n.chord.join(' ')).toBe(true);
+          // a chord is struck on a quarter or longer (a tie may hold it on into a shorter note)
+          if (!(flat[j - 1] && flat[j - 1].tie)) expect(n.dur === '8' || n.dur === '16' || n.tup, 'a chord on a short note').toBeFalsy();
+        });
+        if (kind === 'triad') expect(flat.filter(n => n.midi != null).every(n => n.chord && n.chord.length === 3)).toBe(true);
+      }
     }
   });
   it('group the path into stages that cover every level once', () => {
