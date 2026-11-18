@@ -179,6 +179,22 @@ describe('rebuildHistory', () => {
   });
 });
 
+describe('your own scales', () => {
+  const sc = (id, updatedAt, name = id) => ({ id, name, steps: [0, 2, 3.5, 5, 7, 9, 10.5], tonic: 0, updatedAt });
+  it('a schema-14 save gains an empty list of scales', () => {
+    const m = migrate({ v: 1, schema: 14 }, 'd1');
+    expect(m.myScales).toEqual({});
+  });
+  it('joins both devices’ scales, keeping the newer edit, and a deleted one stays deleted', () => {
+    const a = base({ myScales: { s1: sc('s1', 10, 'Old'), s2: sc('s2', 5) } });
+    const b = base({ myScales: { s1: sc('s1', 20, 'New'), s3: sc('s3', 7) }, tomb: { 'scale:s2': 9 } });
+    const m = merge(a, b);
+    expect(Object.keys(m.myScales).sort()).toEqual(['s1', 's3']);
+    expect(m.myScales.s1.name).toBe('New');
+    expect(merge(b, a).myScales.s1.name).toBe('New');
+  });
+});
+
 describe('your own tunes', () => {
   const tune = (id, updatedAt, name = id) => ({ id, name, groove: 'swing', bpm: 140, note: '', bars: ['Dm7', 'G7', 'Cmaj7', 'Cmaj7'], updatedAt });
   it('a schema-2 save gains an empty tune list and keeps the rest', () => {

@@ -451,7 +451,11 @@ export function Quiz(container, ctx, gen, opts = {}) {
 
 /* ---------- Fretboard ---------- */
 const FB = { W: 700, H: 250, nut: 44, fw: 54.6, top: 22, gap: 40 };
-function fretX(f) { return f === 0 ? FB.nut / 2 : FB.nut + (f - 0.5) * FB.fw; }
+// a fractional fret (a note between two frets, as a quarter tone is) sits between the two frets' dots
+function fretX(f) {
+  if (f !== Math.floor(f)) { const a = Math.floor(f); return fretX(a) + (f - a) * (fretX(a + 1) - fretX(a)); }
+  return f === 0 ? FB.nut / 2 : FB.nut + (f - 0.5) * FB.fw;
+}
 function strY(si) { return FB.top + (5 - si) * FB.gap; }
 export function Fretboard(opts = {}) {
   // left-handed players see the neck mirrored: nut on the right
@@ -475,8 +479,10 @@ export function Fretboard(opts = {}) {
   function mark(list, keep) {
     if (!keep) dots.innerHTML = '';
     list.forEach(m => {
-      const filled = ['root', 'g3', 'good', 'bad'].includes(m.kind);
-      dots.append(s('circle', { class: 'dot ' + (m.kind || 'tone'), cx: X(fretX(m.f)), cy: strY(m.s), r: 14 }));
+      const filled = ['root', 'g3', 'good', 'bad'].some(k => (m.kind || '').split(' ').includes(k));
+      // a note between the frets (m.f fractional): a diamond, so it reads as off the frets at a glance
+      if (m.f !== Math.floor(m.f)) dots.append(s('rect', { class: 'dot micro ' + (m.kind || 'tone'), x: X(fretX(m.f)) - 11, y: strY(m.s) - 11, width: 22, height: 22, rx: 3, transform: `rotate(45 ${X(fretX(m.f))} ${strY(m.s)})` }));
+      else dots.append(s('circle', { class: 'dot ' + (m.kind || 'tone'), cx: X(fretX(m.f)), cy: strY(m.s), r: 14 }));
       if (m.label) dots.append(s('text', { class: 'lbl' + (filled ? ' on' : ''), x: X(fretX(m.f)), y: strY(m.s) }, m.label));
     });
     // on a narrow screen the neck scrolls sideways: bring the marked notes into view
@@ -494,6 +500,11 @@ export function Fretboard(opts = {}) {
     const px = X(p.x);
     let si = Math.round(5 - (p.y - FB.top) / FB.gap); si = Math.max(0, Math.min(5, si));
     let f = px < FB.nut ? 0 : Math.ceil((px - FB.nut) / FB.fw); f = Math.max(0, Math.min(12, f));
+    // opts.micro (a function, or true): a tap on or right beside a fret wire is the quarter tone between the frets
+    if (opts.micro && (typeof opts.micro !== 'function' || opts.micro())) {
+      const u = (px - FB.nut) / FB.fw, k = Math.round(u);
+      if (k >= 0 && k <= 11 && Math.abs(u - k) < 0.17) f = k + 0.5;
+    }
     opts.onTap(si, f, ev);
   });
   const wrap = h('div', { class: 'fretwrap' }); wrap.append(svg);

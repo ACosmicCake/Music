@@ -21,6 +21,7 @@ import './tools/play.js';
 import './tools/atlas.js';
 import './tools/practice.js';
 import './tools/whatis.js';
+import './tools/scales.js';
 import './tools/arpeggio.js';
 import './tools/constraint.js';
 import './tools/reading.js';

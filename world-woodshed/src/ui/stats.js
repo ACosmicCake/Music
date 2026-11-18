@@ -9,6 +9,7 @@ import { view, h, s, ui, go, renderTabs, teardown, focusView } from './core.js';
 import { fmtMin } from '../routines.js';
 import { weekReviewCard } from './weekreview.js';
 import { spell, keyPrefersFlats } from '../theory.js';
+import { resolveScale } from '../scalelib.js';
 
 const OTHER_NAMES = { transcribe: 'Transcribe', pieces: 'Library pieces', improv: 'Improvising' };
 export const skillName = k => (E.SKILLS[k] ? E.SKILLS[k].name : OTHER_NAMES[k] || k);
@@ -107,7 +108,7 @@ function scaleCard() {
   const tot = list.reduce((a, x) => [a[0] + x.v, a[1] + x.p], [0, 0]);
   card.append(h('p', { class: 'small muted', text: 'All time, every device. In your head: ' + dur(tot[0]) + ' · played: ' + dur(tot[1]) + '. Tap a scale for its keys.' }));
   list.forEach(x => {
-    const sc = D.SCALES.find(y => y.id === x.scale), minor = sc ? sc.steps[2] === 3 : false;
+    const sc = resolveScale(x.scale, D, E.state.myScales), minor = sc ? sc.steps[2] === 3 : false;
     card.append(h('details', { class: 'scaletime' },
       h('summary', {}, h('span', { class: 'st-name', text: sc ? sc.name : x.scale }), h('b', { class: 'mono', text: dur(x.total) }),
         h('span', { class: 'small muted st-split', text: 'head ' + dur(x.v) + ' · played ' + dur(x.p) })),

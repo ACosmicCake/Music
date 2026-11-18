@@ -35,6 +35,8 @@ export const loadDrills = once(() => Promise.all([import('./drills-a.js'), impor
   D.DRILLS.forEach(d => { if (solo[d.id]) d.solo = solo[d.id]; }); // how to solo, for the drills where you improvise
 }));
 export const loadLessons = once(() => import('./lessons.js').then(m => fill(D.LESSONS, [m])));
+/* The scale library (Learn → Scales): src/content/scales-lib.js as D.SCALE_LIB, read by src/scalelib.js */
+export const loadScaleLib = once(() => import('./scales-lib.js').then(m => { D.SCALE_LIB = m; }));
 
 /* Inside a tool or a card: show "Loading…" in `el`, then call draw() (which may return a cleanup).
    Returns a cleanup for the caller to run when the view goes away, before or after the load. */

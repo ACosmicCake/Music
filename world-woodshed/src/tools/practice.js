@@ -12,13 +12,26 @@ import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote,
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
 import { statsPage } from '../ui/stats.js';
+import { resolveScale, listOwn } from '../scalelib.js';
+import { loadScaleLib, drawWhenLoaded } from '../content/lazy.js';
 import { ARP_ORDER, arpOf, toneLabel, windowNotes, arpPositions, PROGRESSIONS, progOf, progChords, bestPosition } from '../arpeggios.js';
 
 /* ======================================================
    PRACTICE TOOLS: scale warm-up, explorer, circle of fifths, tuner, free practice, break
    ====================================================== */
 
-const scaleOf = id => D.SCALES.find(x => x.id === id) || D.SCALES[0];
+// a scale from D.SCALES, your own (Learn → Scales → My scales) or the scale library once it is loaded
+const scaleOf = id => resolveScale(id, D, E.state.myScales) || D.SCALES[0];
+const knownScale = id => !!resolveScale(id, D, E.state.myScales);
+/* The scale picker's list: the app's scales by level, then your own, then the library scale that is up now */
+function withOwn(groups, cur, fretted) {
+  const own = listOwn(E.state.myScales).filter(o => !fretted || o.steps.every(Number.isInteger));
+  const out = groups.slice();
+  if (own.length) out.push({ group: 'My scales', items: own.map(o => ({ value: o.id, text: o.name })) });
+  const sc = resolveScale(cur, D, E.state.myScales);
+  if (sc && !out.some(g => g.items.some(it => it.value === cur))) out.push({ group: 'From the scale library', items: [{ value: sc.id, text: sc.name }] });
+  return out;
+}
 export function selectEl(id, label, options, value, onchange) {
   const sel = h('select', { id, 'aria-label': label });
   options.forEach(o => {
@@ -128,6 +141,14 @@ tool('scalewarm', {
   tab: 'play', skill: 'technique', title: 'Scale warm-up', eyebrow: 'Warm-up · scales with the click',
   desc: 'One scale, one position, the metronome and a pattern. The fretboard follows along; the tempo climbs as you stay clean.',
   render(body, ctx) {
+    // a scale from the scale library (Learn → Scales) needs the library loaded first
+    const want = (ctx.params || {}).scale || (E.state.settings.warm || {}).scale;
+    if (want && !knownScale(want) && !loadScaleLib.done()) return drawWhenLoaded(loadScaleLib, body, () => warmUp(body, ctx));
+    return warmUp(body, ctx);
+  }
+});
+function warmUp(body, ctx) {
+  {
     const p = ctx.params || {};
     const saved = E.state.settings.warm || {};
     const st = {
@@ -322,7 +343,7 @@ tool('scalewarm', {
       const restart = () => { st.start = null; persist(); const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); };
       ctl.append(h('h3', { text: 'Set up' }),
         h('div', { class: 'formgrid' },
-          selectEl('warm-scale', 'Scale', scaleOptions(warmScales()), st.scale, v => { st.scale = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; restart(); }),
+          selectEl('warm-scale', 'Scale', withOwn(scaleOptions(warmScales()), st.scale, true), st.scale, v => { st.scale = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; restart(); }),
           selectEl('warm-pattern', 'Pattern', Object.entries(PATTERNS).map(([k, v]) => ({ value: k, text: v })), st.pattern, v => { st.pattern = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; persist(); const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); }),
           selectEl('warm-sub', 'Notes per beat', [1, 2, 3, 4].map(v => ({ value: String(v), text: ['1 (quarters)', '2 (eighths)', '3 (triplets)', '4 (sixteenths)'][v - 1] })), String(st.sub), v => { st.sub = +v; persist(); if (loop) { stop(); start(); } else build(); }),
           selectEl('warm-pos', 'Position', Array.from({ length: 9 }, (_, i) => ({ value: String(i), text: 'Frets ' + i + '–' + (i + 4) })), String(st.start), v => { st.start = +v; follow(); const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); })),
@@ -343,7 +364,7 @@ tool('scalewarm', {
     build();
     return () => { clearInterval(rampTimer); clock.stop(); countTimers.forEach(clearTimeout); loops.forEach(l => l.stop()); loop = null; meter.stop(); mic.cleanup(); };
   }
-});
+}
 
 /* ---------- Chord & scale explorer ---------- */
 tool('explorer', {
@@ -361,7 +382,7 @@ tool('explorer', {
       const seg = h('div', { class: 'seg' }, ['scale', 'chord'].map(m => h('button', { 'aria-pressed': st.mode === m ? 'true' : 'false', onclick: () => { st.mode = m; st.focus = null; draw(); } }, m === 'scale' ? 'Scales' : 'Chords')));
       const labSeg = h('div', { class: 'seg' }, [['deg', 'Intervals'], ['name', 'Note names']].map(([k, t]) => h('button', { 'aria-pressed': st.labels === k ? 'true' : 'false', onclick: () => { st.labels = k; draw(); } }, t)));
       const picker = st.mode === 'scale'
-        ? selectEl('ex-scale', 'Scale', scaleOptions(D.SCALES), st.scale, v => { st.scale = v; st.focus = null; draw(); })
+        ? selectEl('ex-scale', 'Scale', withOwn(scaleOptions(D.SCALES), st.scale), st.scale, v => { st.scale = v; st.focus = null; draw(); })
         : selectEl('ex-chord', 'Chord', D.CHORDS.map(c => ({ value: c.id, text: c.name })), st.chord, v => { st.chord = v; draw(); });
       const iv = intervals();
       const flats = keyPrefersFlats(st.root, iv[2] === 3 || iv[1] === 3);
@@ -379,8 +400,8 @@ tool('explorer', {
         st.mode === 'scale' ? h('p', { class: 'small muted', text: scaleOf(st.scale).aka + '. ' + scaleOf(st.scale).note }) : null,
         h('div', { class: 'row' },
           h('button', { class: 'btn primary', onclick: () => playIt(iv) }, '▶ Play'),
-          st.mode === 'scale' ? h('button', { class: 'btn', onclick: () => ctxOpen('scalewarm', { scale: st.scale, tonic: st.root }) }, 'Warm up with it') : null,
-          st.mode === 'scale' ? h('button', { class: 'btn ghost', onclick: () => ctxOpen('drone', { scale: st.scale, tonic: st.root }) }, 'Improvise over a drone') : null),
+          st.mode === 'scale' && scaleOf(st.scale).steps.every(Number.isInteger) ? h('button', { class: 'btn', onclick: () => ctxOpen('scalewarm', { scale: st.scale, tonic: st.root }) }, 'Warm up with it') : null,
+          st.mode === 'scale' && D.SCALES.some(x => x.id === st.scale) ? h('button', { class: 'btn ghost', onclick: () => ctxOpen('drone', { scale: st.scale, tonic: st.root }) }, 'Improvise over a drone') : null),
         fb.el);
       mark(iv, flats);
       drawChords(flats);

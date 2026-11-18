@@ -263,11 +263,21 @@ describe('loading a save from every past format', () => {
     Object.keys(saved.club.bought).forEach(k => expect(k in s.club.bought || Object.values(s.club.placed).some(p => p.k === k), k).toBe(true));
     expect(Object.keys(s.club.placed).some(u => u.startsWith('s:cafe:'))).toBe(true);
   });
-  it('schema 14 (current): the club with its placed pieces loads as saved', async () => {
+  it('schema 14: the club with its placed pieces loads as saved, with no scales of your own yet', async () => {
     const saved = JSON.parse(fixture(14));
     localStorage.setItem(LS_KEY, fixture(14));
     const E = await boot();
     expect(E.state.schema).toBe(SCHEMA);
+    expect(E.state.club).toEqual(saved.club);
+    expect(E.state.myScales).toEqual({});
+  });
+  it('schema 15 (current): your own scales and their deletions load as saved', async () => {
+    const saved = JSON.parse(fixture(15));
+    localStorage.setItem(LS_KEY, fixture(15));
+    const E = await boot();
+    expect(E.state.schema).toBe(SCHEMA);
+    expect(E.state.myScales).toEqual(saved.myScales);
+    expect(E.state.tomb['scale:my-gone']).toBe(saved.tomb['scale:my-gone']);
     expect(E.state.club).toEqual(saved.club);
   });
   it('schema 11 gets empty setting times', async () => {
