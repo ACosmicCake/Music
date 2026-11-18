@@ -144,7 +144,7 @@ tool('scalewarm', {
     let bpm = p.smart ? p.bpm : p.bpm && !bpms[bpmKey()] ? p.bpm : (bpms[bpmKey()] || p.bpm || 72);
     if (p.smart && Number.isInteger(p.start)) st.start = Math.min(8, Math.max(0, p.start));
     const sig = { clean: 0, notClean: 0 };
-    const report = extra => { Object.assign(sig, extra || {}, { bpm }); if (hooks.signal) hooks.signal('warm:' + st.scale, sig); };
+    const report = extra => { Object.assign(sig, extra || {}, { bpm }); if (hooks.signal) hooks.signal('warm:' + (scaleOf(st.scale).same || st.scale), sig); };
     let loop = null, seq = [], notes = [], rounds = 0;
     const card = h('div', { class: 'card' }), ctl = h('div', { class: 'card' });
     body.append(card, ctl);
@@ -193,7 +193,9 @@ tool('scalewarm', {
       onOff: () => { listenBox.hidden = true; meter.stop(); if (micNoteOff) micNoteOff(); micNoteOff = null; } });
     card.append(mic.el, listenBox);
 
-    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, ramp: st.ramp, rampStep: st.rampStep, rampMin: st.rampMin }); }
+    function persist() { E.setSetting('warm', { scale: st.scale, tonic: st.tonic, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, ramp: st.ramp, rampStep: st.rampStep, rampMin: st.rampMin }); follow(); }
+    // in a planned session block, the block (its title, rating and what is graded) follows the scale you pick
+    function follow() { if (p.smart && hooks.follow) hooks.follow('scalewarm', st.scale, { scale: st.scale, tonic: st.tonic, pattern: st.pattern, start: st.start, bpm }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));
       bpmLbl.textContent = bpm; rampFrom = null;
@@ -323,7 +325,7 @@ tool('scalewarm', {
           selectEl('warm-scale', 'Scale', scaleOptions(warmScales()), st.scale, v => { st.scale = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; restart(); }),
           selectEl('warm-pattern', 'Pattern', Object.entries(PATTERNS).map(([k, v]) => ({ value: k, text: v })), st.pattern, v => { st.pattern = v; bpm = (E.state.settings.warmBpm || {})[bpmKey()] || bpm; bpmLbl.textContent = bpm; persist(); const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); }),
           selectEl('warm-sub', 'Notes per beat', [1, 2, 3, 4].map(v => ({ value: String(v), text: ['1 (quarters)', '2 (eighths)', '3 (triplets)', '4 (sixteenths)'][v - 1] })), String(st.sub), v => { st.sub = +v; persist(); if (loop) { stop(); start(); } else build(); }),
-          selectEl('warm-pos', 'Position', Array.from({ length: 9 }, (_, i) => ({ value: String(i), text: 'Frets ' + i + '–' + (i + 4) })), String(st.start), v => { st.start = +v; const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); })),
+          selectEl('warm-pos', 'Position', Array.from({ length: 9 }, (_, i) => ({ value: String(i), text: 'Frets ' + i + '–' + (i + 4) })), String(st.start), v => { st.start = +v; follow(); const was = !!loop; if (loop) { loop.stop(); loop = null; } build(); if (was) start(); })),
         h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Key' }), keyChips(st.tonic, i => { st.tonic = i; restart(); })),
         h('div', { class: 'row' },
           h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: st.guide ? true : null, onchange: e => { st.guide = e.target.checked; persist(); } }), 'Play the notes with me'),
