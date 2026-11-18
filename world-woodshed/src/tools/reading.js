@@ -7,7 +7,7 @@ import { fullScreen } from '../native.js';
 import { MicToggle, noteLabel } from '../ui/mic.js';
 import { TapPad } from './rhythm.js';
 import { renderStaff, parseTime, keyName, durQ, KEYS, keyAlters } from '../notation.js';
-import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts, barTime, barLength } from '../content/reading.js';
+import { LEVELS, STAGES, HOW_TO, readingItems, withAccidentals, withChords, chordsFit, chordsOk, chordsFrom, CHORD_KINDS, genMelody, rhythmPiece, noteCard, attacks, playLength, playOrder, eventStarts, barTime, barLength } from '../content/reading.js';
 import { placeFrets } from '../notate.js';
 import { parseChord } from '../theory.js';
 import { guitarMidis } from '../voicings.js';
@@ -244,6 +244,9 @@ const paperOn = () => !!E.state.settings.readingPaper;
 const ACC_MODES = [[false, 'Off'], [true, '♯ and ♭'], ['sharps', '♯ only'], ['flats', '♭ only']];
 const accMode = () => { const v = E.state.settings.readingAcc; return v === 'sharps' || v === 'flats' ? v : !!v; };
 const accOnly = () => ({ sharps: '#', flats: 'b' })[accMode()];
+/* Chords in the melodies of the levels still in C (settings.readingChords): off, or 'dyad', 'triad', 'melody' */
+const chordsMode = () => { const v = E.state.settings.readingChords; return CHORD_KINDS.some(k => k[0] === v) ? v : false; };
+const CHORD_NOTE = { dyad: 'Two notes at once, a third or a sixth apart, on notes of a quarter or longer.', triad: 'A chord on every note: three notes from this level, held in first position on three strings.', melody: 'A chord under the tune on the strong beats, made of the notes this level has taught.' };
 /* how many bars a rhythm or melody runs to, and whether the next one follows by itself */
 const LENGTHS = [4, 8, 16];
 const lenFor = kind => { const v = (E.state.settings.readingLen || {})[kind]; return LENGTHS.includes(v) ? v : 8; };
@@ -314,14 +317,35 @@ tool('sightread', {
     ACC_MODES.forEach(([v, label]) => accSeg.append(h('button', { onclick: () => { if (accMode() === v) return; E.setSetting('readingAcc', v); paintAcc(); renderLevel(); renderMode(); } }, label)));
     paintAcc();
     const accBox = h('div', { class: 'sr-acctoggle' }, h('span', { class: 'small', text: 'Sharps and flats beside the notes, at any level' }), accSeg);
+    const chordSeg = h('div', { class: 'seg sr-accseg', role: 'group', 'aria-label': 'Chords' });
+    const chordLater = h('span', { class: 'small muted' });
+    const chordBox = h('div', { class: 'sr-acctoggle sr-chordtoggle' }, h('span', { class: 'small', text: 'Chords in the melodies, before the key signatures' }), chordSeg, chordLater);
+    const paintChords = () => {
+      chordSeg.innerHTML = '';
+      const base = LEVELS[level - 1], cur = chordsMode();
+      chordBox.hidden = !chordsFit(base) || mode === 'scores';
+      [[false, 'Off']].concat(CHORD_KINDS).forEach(([v, label]) => {
+        const ok = !v || chordsOk(base, v), from = v && chordsFrom(v);
+        chordSeg.append(h('button', { 'aria-pressed': v === cur ? 'true' : 'false', disabled: ok ? null : true, title: ok ? '' : label + ' start at level ' + from.id + ' (' + from.name + ')',
+          onclick: () => { if (chordsMode() === v) return; E.setSetting('readingChords', v); if (v && mode !== 'melody') { mode = 'melody'; E.setSetting('readingMode', mode); renderSeg(); } paintChords(); renderLevel(); renderMode(); } }, label));
+      });
+      const later = CHORD_KINDS.filter(([v]) => !chordsOk(base, v)).map(([v, label]) => label + ' from level ' + chordsFrom(v).id);
+      chordLater.textContent = later.length ? later.join(', ') + ', when the lower strings come in.' : '';
+      chordLater.hidden = !later.length;
+    };
     // shown only where there is a keyboard and a mouse (styles.css hides it on a touch screen)
     const keyHelp = h('button', { class: 'btn small ghost' }, '⌨ Keyboard shortcuts');
     const keyHint = h('p', { class: 'row small muted sr-keyhint' }, keyHelp, h('span', { text: 'or press ?' }));
-    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, paper), modeBody, keyHint, how);
+    wrap.append(levelCard, modeSeg, h('div', { class: 'stack sr-toggles' }, accBox, chordBox, paper), modeBody, keyHint, how);
     body.append(wrap);
 
-    const L = () => accMode() ? withAccidentals(LEVELS[level - 1], accOnly()) : LEVELS[level - 1];
-    const go = n => { level = clampLevel(n); renderLevel(); renderMode(); };
+    // the chords switch changes melodies only; Notes and Rhythm stay as the level has them
+    const L = () => {
+      let lv = LEVELS[level - 1];
+      if (mode === 'melody' && chordsMode()) lv = withChords(lv, chordsMode());
+      return accMode() ? withAccidentals(lv, accOnly()) : lv;
+    };
+    const go = n => { level = clampLevel(n); paintChords(); renderLevel(); renderMode(); };
     function renderLevel() {
       const top = unlocked(), lv = L();
       levelCard.innerHTML = '';
@@ -348,13 +372,15 @@ tool('sightread', {
           h('button', { class: 'btn small', 'aria-label': 'Next level', disabled: level >= LEVELS.length ? true : null, onclick: () => go(level + 1) }, '→')),
         h('p', { text: lv.goal }),
         lv.acc ? h('p', { class: 'small muted sr-accnote', text: lv.accOnly === '#' ? 'With sharps only: notes can carry a ♯ (and a ♮ to cancel it), which lasts to the end of the bar.' : lv.accOnly === 'b' ? 'With flats only: notes can carry a ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' : 'With sharps and flats: notes can carry a ♯ or ♭ (and a ♮ to cancel it), which lasts to the end of the bar.' }) : '',
+        lv.fit ? h('p', { class: 'small muted sr-accnote', text: 'With chords: ' + CHORD_NOTE[lv.chords] + (lv.keys.includes('Am') ? ' In C major or A minor.' : '') }) : '',
+        mode !== 'melody' && chordsMode() && chordsOk(LEVELS[level - 1], chordsMode()) ? h('p', { class: 'small muted sr-accnote', text: 'Chords are on for Melody.' }) : '',
         locked ? h('p', { class: 'small sr-preview', text: 'Preview: this level unlocks when you read level ' + top + ' reliably (notes, rhythm and melody). You can still try it.' }) : '',
         h('details', { class: 'sr-tips' }, h('summary', { class: 'small' }, 'Tips for this level'), h('ul', {}, lv.tips.map(t => h('li', { class: 'small', text: t })))),
         path);
     }
     function renderSeg() {
       modeSeg.innerHTML = '';
-      [['notes', 'Notes'], ['rhythm', 'Rhythm'], ['melody', 'Melody'], ['scores', 'Your scores']].forEach(([k, t]) => modeSeg.append(h('button', { 'aria-pressed': mode === k ? 'true' : 'false', onclick: () => { if (mode === k) return; mode = k; E.setSetting('readingMode', k); renderSeg(); renderMode(); } }, t)));
+      [['notes', 'Notes'], ['rhythm', 'Rhythm'], ['melody', 'Melody'], ['scores', 'Your scores']].forEach(([k, t]) => modeSeg.append(h('button', { 'aria-pressed': mode === k ? 'true' : 'false', onclick: () => { if (mode === k) return; mode = k; E.setSetting('readingMode', k); renderSeg(); paintChords(); renderLevel(); renderMode(); } }, t)));
     }
     function renderMode() {
       if (modeApi) { try { modeApi.cleanup(); } catch (e) { console.error(e); } }
@@ -397,7 +423,7 @@ tool('sightread', {
     };
     document.addEventListener('keydown', onKey, true);
     keyHelp.onclick = showKeys;
-    renderLevel(); renderSeg(); renderMode();
+    paintChords(); renderLevel(); renderSeg(); renderMode();
     return () => { window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey, true); if (sheet) sheet.close(); clearTimeout(rsz); if (modeApi) modeApi.cleanup(); };
   }
 });
