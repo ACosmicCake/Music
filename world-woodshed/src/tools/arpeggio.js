@@ -113,7 +113,9 @@ tool('arpwarm', {
     const check = micCheck(() => loop, () => lastStep, steps, report);
     card.append(check.mic.el, check.box);
 
-    function persist() { E.setSetting('arp', { chord: st.chord, root: st.root, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, set: p.smart ? saved.set || 'off' : st.set, setEvery: st.setEvery }); }
+    function persist() { E.setSetting('arp', { chord: st.chord, root: st.root, pattern: st.pattern, sub: st.sub, guide: st.guide, climb: st.climb, autoPos: st.autoPos, posEvery: st.posEvery, set: p.smart ? saved.set || 'off' : st.set, setEvery: st.setEvery }); follow(); }
+    // in a planned session block, the block (its title, rating and what is graded) follows the arpeggio you pick
+    function follow() { if (p.smart && hooks.follow) hooks.follow('arpwarm', st.chord, { chord: st.chord, root: st.root, pattern: st.pattern, start: st.start, bpm }); }
     function setBpm(v) {
       bpm = Math.max(30, Math.min(260, Math.round(v)));
       bpmLbl.textContent = bpm;

@@ -4,6 +4,7 @@ import E from '../engine.js';
 import { h, ui, go, openTool, toast, view, renderTabs, teardown, hooks, TOOLS } from './core.js';
 import { paramsFor, blockTitle, describe, fmtClock, fmtMin, totalOf, blockDef } from '../routines.js';
 import Cur from '../curriculum.js';
+import D from '../data.js';
 import { openSwap } from './swap.js';
 import Mic from '../listen.js';
 import { keepAwake } from '../native.js';
@@ -54,6 +55,26 @@ export function jump(i) {
 hooks.signal = (curId, data) => {
   const b = cur();
   if (b && b.cur === curId) { b.signals = Object.assign(b.signals || {}, data); E.touchSession(); }
+};
+// A warm-up whose player picks another scale or arpeggio (or key, pattern, position) says so, and the block follows:
+// its title, the item its signals count for, the rating it asks for and the key and pattern logged are what was
+// played, not what was planned. A scale the plan doesn't track (Hơi Bắc) is played without a rating; a raga with
+// another scale's notes counts as that scale, as the planner counts it.
+const FOLLOWS = { scalewarm: 'warm', arpwarm: 'arp' };
+hooks.follow = (type, ref, params) => {
+  const b = cur(); if (!b || b.type !== type || b.rated || !FOLLOWS[type]) return;
+  if (b.planned === undefined) { if (!b.cur) return; b.planned = b.cur; }
+  if (type === 'scalewarm') { const sc = D.SCALES.find(x => x.id === ref); if (sc && sc.same) ref = sc.same; }
+  const id = FOLLOWS[type] + ':' + ref;
+  const tracked = Cur.catalog().some(x => x.id === id);
+  if ((tracked ? id : null) !== b.cur) {
+    b.cur = tracked ? id : null; b.signals = null;
+    // the planner's reason was about the item it chose
+    if (b.plannedReason === undefined) b.plannedReason = b.reason || '';
+    b.reason = b.cur === b.planned ? b.plannedReason : 'Your choice instead of ' + Cur.describeItem(b.planned) + (b.cur ? '. Rate it at the end and it comes back on its own schedule.' : '. Not one the plan tracks, so there is nothing to rate.');
+  }
+  b.params = Object.assign({}, b.params, params);
+  E.sessionChanged(); render();
 };
 function autoGrade(b) {
   const g = b.signals || {};
@@ -209,7 +230,7 @@ function paint(el) {
   const def = blockDef(b.type);
   el.className = 'sessionbar cat-' + def.cat + (s.paused ? ' paused' : '') + (b.timeUp ? ' over' : '');
   const left = b.minutes * 60 - b.elapsed / 1000;
-  const sig = [s.idx, s.paused, b.timeUp, !!s.autoAt, b.minutes, !!b.askRating].join('|');
+  const sig = [s.idx, s.paused, b.timeUp, !!s.autoAt, b.minutes, !!b.askRating, b.cur, describe(b), b.reason].join('|');
   if (el.dataset.sig !== sig) {
     el.dataset.sig = sig;
     el.innerHTML = '';

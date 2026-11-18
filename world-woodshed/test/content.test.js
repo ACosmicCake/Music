@@ -237,3 +237,21 @@ describe('sight-reading generators', () => {
     LEVELS.forEach(L => { expect(L.tips.length).toBeGreaterThanOrEqual(3); L.tips.forEach(t => expect(t, 'level ' + L.id).not.toMatch(/\?/)); });
   });
 });
+
+describe('melody leaps', () => {
+  // Pan found the melodies too stepwise: from the full first position on, at least a fifth of the moves
+  // between notes are leaps of a fourth or more, and after the Larger leaps level some go past a sixth
+  const share = (L, min) => {
+    let big = 0, all = 0;
+    for (let i = 0; i < 150; i++) {
+      const ns = genMelody(L).bars.flat().filter(n => n.midi != null).map(n => n.midi);
+      for (let j = 1; j < ns.length; j++) { const iv = Math.abs(ns[j] - ns[j - 1]); if (!iv) continue; all++; if (iv >= min) big++; }
+    }
+    return big / all;
+  };
+  it('leaps often enough', () => {
+    LEVELS.filter(L => L.id >= 7 && (!L.chords || L.chords === 'melody')).forEach(L => expect(share(L, 5), 'level ' + L.id).toBeGreaterThan(0.2));
+    const big = LEVELS.find(L => L.name === 'Larger leaps');
+    expect(share(big, 8)).toBeGreaterThan(0.1);
+  });
+});

@@ -90,7 +90,7 @@ const PATH = [
   { name: 'Melody with chords', goal: 'Read a tune with chords under it on the strong beats, and single notes in between: chord melody.', chords: 'melody', feats: ['dq', 'sync'], notes: chrom(62, 84),
     tips: ['The melody is the top note of each chord. Hear it sing above the rest.', 'Fret the chord, then play the single notes with the fingers you have free.', 'Let the chord ring under the melody notes when the shape allows.'] },
   { name: 'Second position', stage: 'Up the neck', goal: 'Read with the index finger at the 2nd fret: one finger per fret from 2 to 5, so the sharp keys lie under the hand.',
-    chords: null, notes: posNotes(2), keys: ['D', 'A', 'E', 'Bm', 'F#m', 'G'], feats: ['dq', 'sync', '16mix', 'd8'], ties: true, rests: ['h', 'q', '8'], durs: ['w', 'h', 'q', '8', '16'], tempo: [50, 76], maxLeap: 7, leaps: 0.1, position: 2,
+    chords: null, notes: posNotes(2), keys: ['D', 'A', 'E', 'Bm', 'F#m', 'G'], feats: ['dq', 'sync', '16mix', 'd8'], ties: true, rests: ['h', 'q', '8'], durs: ['w', 'h', 'q', '8', '16'], tempo: [50, 76], maxLeap: 7, leaps: 0.3, position: 2,
     tips: ['Second position: index at fret 2, little finger at fret 5, and a stretch to 1 or 6 when a note asks for it.', 'The open strings are still there, but play the fretted note instead: B on the G string 4th fret, E on the B string 5th fret. It keeps the hand where it is.', 'A major and D major lie well here: the whole scale is under four fingers on every string.'] },
   { name: 'Fifth position: ledger lines above', goal: 'Read up to D above the staff in fifth position (index finger at the 5th fret).',
     chords: null, notes: uniq(nat(57, 86).concat([61, 66, 68, 70, 73, 78, 80, 82, 85])), keys: ['C', 'G', 'F', 'D', 'Am', 'Em'], feats: ['dq', 'sync', '16mix', 'd8', 'trip8'], ties: true, rests: ['h', 'q', '8'], durs: ['w', 'h', 'q', '8', '16'], tempo: [50, 76], position: 5,
@@ -102,18 +102,18 @@ const PATH = [
     notes: posNotes(9), keys: ['C', 'F', 'G', 'Am', 'Dm', 'Bb'], tempo: [46, 70], position: 9,
     tips: ['Ninth position: the low E string gives C♯, D, D♯ and E at frets 9 to 12, and the high e gives the same notes two octaves up.', 'The 12th fret is the open strings an octave up: E A D G B E, the same letters as first position.', 'Count ledger lines in pairs: two lines is C, three is E, four is G above the staff.'] },
   { name: 'Across positions: shifting', goal: 'A melody too wide for one position: pick where to shift, and move the hand on an open string, a rest or a slide by a step.',
-    notes: chrom(52, 89), keys: MOST_KEYS, maxLeap: 9, leaps: 0.15, tempo: [48, 72], position: null,
+    notes: chrom(52, 89), keys: MOST_KEYS, maxLeap: 9, leaps: 0.35, tempo: [48, 72], position: null,
     tips: ['Scan for the highest and lowest notes first, and decide the shifts before you play: in a rest, on a long note, or on an open string.', 'Shift with a guide finger: keep the finger that played the last note on its string and slide it to the new fret.', 'Change position by a whole hand (first to fifth, fifth to ninth) more often than by a fret or two: you know where you land.'] },
-  { name: 'Larger leaps', stage: 'Range and beyond', position: null, goal: 'Read leaps of a sixth, seventh and octave by recognising the shape of the interval on the staff.', notes: chrom(52, 86), keys: ['C', 'G', 'D', 'F', 'A', 'Bb', 'Am', 'Em', 'Dm'], maxLeap: 12, leaps: 0.3,
+  { name: 'Larger leaps', stage: 'Range and beyond', position: null, goal: 'Read leaps of a sixth, seventh and octave by recognising the shape of the interval on the staff.', notes: chrom(52, 86), keys: ['C', 'G', 'D', 'F', 'A', 'Bb', 'Am', 'Em', 'Dm'], maxLeap: 12, leaps: 0.5,
     tips: ['Read intervals, not just letters: line to line is an odd interval (3rd, 5th, 7th), line to space an even one.', 'An octave is line to space (or space to line) seven steps away: on the guitar, two strings over and two or three frets up.', 'Look at where a leap lands before you reach it, so the hand moves early.'] },
-  { name: 'Sixteenth-note triplets', goal: 'Three notes in half a beat: the quick triplet turn, and six to the beat.', feats: ['dq', 'sync', '16mix', 'd8', 'trip8', 'tripmix', 'tripq', 'trip16'], focus: ['trip16'], maxLeap: 7, leaps: 0.1, tempo: [44, 63],
+  { name: 'Sixteenth-note triplets', goal: 'Three notes in half a beat: the quick triplet turn, and six to the beat.', feats: ['dq', 'sync', '16mix', 'd8', 'trip8', 'tripmix', 'tripq', 'trip16'], focus: ['trip16'], maxLeap: 9, leaps: 0.35, tempo: [44, 63],
     tips: ['Three sixteenth-triplets take the time of two sixteenths: half a beat.', 'Six of them fill a beat: count "1 la li & la li".', 'Practise them as a quick turn or a slur first: hammer-ons and pull-offs make them easy to play even.'] },
   { name: '5/4 time', goal: 'Five beats to the bar, felt as 3 + 2 or 2 + 3.', times: ['5/4'], focus: [], tempo: [52, 80],
     tips: ['Count "1 2 3 4 5" with a small accent on 1 and a lighter one on 4 (3 + 2).', 'Long notes and ties often show the grouping: look where they start.', 'Take Five (Dave Brubeck Quartet, 1959) is the classic 5/4 to listen to.'] },
   { name: '12/8 time', goal: 'Four big beats of three eighths each: the slow blues and gospel feel.', times: ['12/8'], tempo: [40, 60],
     tips: ['12/8 is four dotted-quarter beats, each split in three: "1 trip let 2 trip let 3 trip let 4 trip let".', 'It reads like 4/4 with triplets everywhere, written without the 3s.', 'Quarter + eighth inside a beat is the shuffle again.'] },
   { name: 'Accents and staccato', stage: 'Band charts', goal: 'Play what the marks say: an accent (>) louder, a staccato dot short and detached, everything else full length.',
-    arts: true, times: ['4/4', '3/4', '2/4', '6/8'], feats: ['dq', 'sync', '16mix', 'd8', 'trip8'], notes: chrom(52, 84), keys: MOST_KEYS, maxLeap: 9, leaps: 0.15, tempo: [52, 80], focus: [],
+    arts: true, times: ['4/4', '3/4', '2/4', '6/8'], feats: ['dq', 'sync', '16mix', 'd8', 'trip8'], notes: chrom(52, 84), keys: MOST_KEYS, maxLeap: 9, leaps: 0.35, tempo: [52, 80], focus: [],
     tips: ['An accent is a dig with the pick or a firmer rest stroke, not a different note: keep the time steady through it.', 'A staccato note lasts about half its value. Lift the fretting finger just off the string, or touch the string with the picking hand.', 'In a band chart, accents often show the hits the whole band plays together. Look for them first.'] },
   { name: 'Repeat signs', goal: 'Follow a repeat: at the end sign (:‖) go back to the start sign (‖:), or to the beginning if there is none, and play those bars again.',
     repeats: true,
@@ -125,7 +125,7 @@ const PATH = [
     chords: 'slash', tab: false, times: ['4/4', '3/4', '6/8', '12/8'], keys: MOST_KEYS,
     tips: ['A slash has no pitch: play the chord named above, any voicing you know.', 'Long slashes ring, short ones are chopped; rests are silence. Accents are the band\'s hits.', 'Have the next chord shape ready a beat early: look at the symbol over the next bar while you strum this one.'] },
   { name: 'Everything', chords: null, tab: false, goal: 'Mixed keys, meters, rhythms, triplets and positions: the kind of page a session or a band chart puts in front of you.',
-    notes: chrom(52, 88), times: ['4/4', '3/4', '2/4', '6/8', '5/4', '12/8'], keys: ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Am', 'Em', 'Bm', 'Dm', 'Gm'], tempo: [52, 84], maxLeap: 12, chromatic: 0.1, leaps: 0.15, focus: [],
+    notes: chrom(52, 88), times: ['4/4', '3/4', '2/4', '6/8', '5/4', '12/8'], keys: ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Am', 'Em', 'Bm', 'Dm', 'Gm'], tempo: [52, 84], maxLeap: 12, chromatic: 0.1, leaps: 0.4, focus: [],
     tips: ['Before you start: key, meter, the highest and lowest notes, and any tricky rhythm. Ten seconds of scanning saves the read.', 'Choose a position that covers the range, then stay in it.', 'Pick a tempo you can hold without stopping. Steady and slightly wrong beats perfect and halting.'] }
 ];
 const CARRY = ['arts', 'repeats', 'tab', 'notes', 'durs', 'dotted', 'rests', 'ties', 'feats', 'times', 'keys', 'tempo', 'maxLeap', 'chromatic', 'leaps', 'lead', 'chords', 'position', 'stage'];
@@ -436,7 +436,7 @@ function tryMelody(L, key, rng, o) {
   const start = pickW(tonics, t => 1 / (1 + Math.abs(t - mid) / 4), rng);
   const lo = dia[0], hi = dia[dia.length - 1];
   const seq = [start], spells = [null];
-  const leapP = L.leaps || 0.1;
+  const leapP = L.leaps || 0.3;
   const idxOf = m => dia.indexOf(m);
   let forced = null;
   for (let i = 1; i < n; i++) {
@@ -477,19 +477,24 @@ function tryMelody(L, key, rng, o) {
         if (!only || nbSp === only) { seq.push(c); spells.push(nbSp); forced = { m: prev, sp: null }; continue; }
       }
     }
-    // diatonic motion: mostly steps, some thirds, occasional leaps; recover after a leap
+    // diatonic motion: steps, thirds and leaps in about equal measure at the start (Pan found melodies of mostly
+    // steps too easy to read by feel), more leaps as `leaps` grows; a leap of a fourth or more lands on 1, 3 or 5
+    // more often (the melody outlines the chord) and is followed by a turn the other way, by step or a smaller leap
     const pi = idxOf(prev);
     const lastLeap = prev2 !== undefined ? prev - prev2 : 0;
     const cand = [];
     dia.forEach((m, j) => {
-      const d = j - pi, iv = Math.abs(m - prev);
+      const d = j - pi, iv = Math.abs(m - prev), ad = Math.abs(d);
       if (iv > L.maxLeap) return;
       let w;
-      if (d === 0) w = 0.25;
-      else if (Math.abs(d) === 1) w = 5;
-      else if (Math.abs(d) === 2) w = 1.8;
-      else w = leapP * 6 / (Math.abs(d) - 1);
-      if (Math.abs(lastLeap) >= 5) w *= Math.sign(m - prev) === -Math.sign(lastLeap) && Math.abs(d) === 1 ? 4 : 0.15;
+      if (d === 0) w = 0.3;
+      else if (ad === 1) w = 3;
+      else if (ad === 2) w = 2.2;
+      else w = leapP * 9 / Math.pow(ad - 2, 0.6) * (restful.includes(m % 12) ? 1.5 : 0.8);
+      if (Math.abs(lastLeap) >= 5) {
+        const back = Math.sign(m - prev) === -Math.sign(lastLeap);
+        w *= back ? (iv < Math.abs(lastLeap) ? (ad === 1 ? 3 : 1.5) : 0.3) : (ad === 1 ? 0.5 : 0.1);
+      }
       // drift back towards the middle of the range
       const nm = (m - mid) / Math.max(4, (hi - lo) / 2);
       w *= Math.exp(-nm * nm * 0.8);
