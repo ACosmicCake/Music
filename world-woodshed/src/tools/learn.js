@@ -10,6 +10,7 @@ import { loadEssays, loadGuides, loadLessons, whenLoaded, drawWhenLoaded } from 
 import { onSpotify, spotifyQuery, spotifyWeb, openSpotify } from '../spotify.js';
 import { PLAYERS } from '../taste.js';
 import Cur from '../curriculum.js';
+import { scalesIndex } from './scales.js';
 
 /* ======================================================
    LEARN: styles library, theory course, reference tools
@@ -30,11 +31,12 @@ PAGES.learn = function () {
   view.append(h('div', { class: 'pagehead' },
     h('span', { class: 'eyebrow', text: 'Learn' }), h('h1', { text: 'Every style, the theory, the records' }),
     h('p', { class: 'muted', text: 'Deep dives into 24 musical traditions: what they mean to the people who make them, how they work, what to hear and who to study. Plus in-depth technique guides, a theory course that plays its own examples, and reference tools.' })));
-  const seg = h('div', { class: 'seg big' }, [['styles', 'Styles'], ['techniques', 'Techniques'], ['theory', 'Theory'], ['tools', 'Reference']].map(([k, t]) =>
+  const seg = h('div', { class: 'seg big learn-seg' }, [['styles', 'Styles'], ['techniques', 'Techniques'], ['theory', 'Theory'], ['scales', 'Scales'], ['tools', 'Reference']].map(([k, t]) =>
     h('button', { 'aria-pressed': section === k ? 'true' : 'false', onclick: () => go('learn', k) }, t)));
   view.append(seg);
   if (section === 'theory') theoryIndex();
   else if (section === 'techniques') techniqueIndex();
+  else if (section === 'scales') scalesIndex(view);
   else if (section === 'tools') refIndex();
   else stylesIndex();
 };
