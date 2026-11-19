@@ -8,7 +8,7 @@ import E from './engine.js';
 import { isNative } from './native.js';
 
 export const IDS = [701, 702, 703, 704, 705, 706, 707]; // one notification a day, a week ahead
-const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+import { dayKey } from './day.js';
 
 /* 'HH:MM' → { hour, minute }, or null */
 export function parseTime(s) {
@@ -17,17 +17,18 @@ export function parseTime(s) {
   return { hour: +m[1], minute: +m[2] };
 }
 
-/* The times of the next `days` reminders from `now` (ms): at `time` on each day, today's only if it is still
-   ahead and nothing was practised today. → [Date] */
+/* The times of the next `days` reminders from `now` (ms): at `time` on each day, only those still ahead, and
+   none in today's practice day (which ends at 1 am, src/day.js) once something was practised. → [Date] */
 export function reminderTimes(now, time, practisedToday, days = IDS.length) {
   const t = parseTime(time);
   if (!t) return [];
   const out = [];
-  for (let k = 0; out.length < days && k <= days; k++) {
+  const today = dayKey(now);
+  for (let k = 0; out.length < days && k <= days + 1; k++) {
     const d = new Date(now);
     d.setDate(d.getDate() + k);
     d.setHours(t.hour, t.minute, 0, 0);
-    if (k === 0 && (practisedToday || d.getTime() <= now)) continue;
+    if (d.getTime() <= now || (practisedToday && dayKey(d.getTime()) === today)) continue;
     out.push(d);
   }
   return out.slice(0, days);

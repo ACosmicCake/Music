@@ -14,6 +14,7 @@ import { favsOf } from './favlist.js';
 import { GYM } from './content/gym.js';
 import { BLOCKS } from './routines.js';
 import { ARP_ORDER, arpPositions } from './arpeggios.js';
+import { DAY_ENDS } from './day.js';
 
 const DAY = 86400000, HOUR = 3600000;
 
@@ -241,7 +242,7 @@ export function context() {
     sinceLast: lastEnd ? (now - lastEnd) / HOUR : null,
     newToday: d.fresh.length, newMotorToday: freshMotor.length,
     lastNewMotorAgo: freshMotor.length ? (now - Math.max(...freshMotor.map(f => f.t))) / HOUR : null,
-    dueBacklog, dueNow, level: established < 5 ? 'beginner' : established < 15 ? 'intermediate' : 'advanced', evening: hour >= 19, budget: PACE[prefs().pace || 'steady'].newPerDay,
+    dueBacklog, dueNow, level: established < 5 ? 'beginner' : established < 15 ? 'intermediate' : 'advanced', evening: hour >= 19 || hour < DAY_ENDS, budget: PACE[prefs().pace || 'steady'].newPerDay,
     practisedToday: id => (d.items[id] || []).length,
     firstToday: id => (d.items[id] || [])[0] || null,
     freshToday: d.fresh

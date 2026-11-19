@@ -6,11 +6,11 @@
    Monday to Sunday, as on the Today heatmap. Nothing here reads the clock or the engine: the caller passes
    the state and "now", so the tests can pin both. */
 
-const keyOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+import { ymd as keyOf, practiceDate, dayEnd } from './day.js';
 
-/* Noon on the Monday of the week holding t (noon keeps day steps clear of daylight-saving changes) */
+/* Noon on the Monday of the week holding t's practice day (noon keeps day steps clear of daylight-saving changes) */
 export function weekStart(t) {
-  const d = new Date(t); d.setHours(12, 0, 0, 0);
+  const d = practiceDate(t);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d;
 }
@@ -92,10 +92,9 @@ export function quizDue(skills, t) {
   return out;
 }
 
-/* The end of the day after t (23:59:59.999 local time) */
+/* The end of the practice day after t's (00:59:59.999 local time the morning after it, src/day.js) */
 export function endOfTomorrow(t) {
-  const d = new Date(t); d.setDate(d.getDate() + 1); d.setHours(23, 59, 59, 999);
-  return d.getTime();
+  return dayEnd(t, 1);
 }
 
 /* Time on each scale, every device added up (state.scaleTime: { device: { 'scale:tonic': { v, p, last } } },

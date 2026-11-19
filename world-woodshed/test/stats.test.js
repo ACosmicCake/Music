@@ -86,10 +86,11 @@ describe('accuracy', () => {
 });
 
 describe('quizDue and endOfTomorrow', () => {
-  it('ends tomorrow at midnight, local time', () => {
+  it('ends when tomorrow’s practice day does, at 1 am local time', () => {
     const t = St.endOfTomorrow(NOW);
-    expect(key(t)).toBe('2026-10-22');
-    expect(key(t + 1)).toBe('2026-10-23');
+    expect(key(t)).toBe('2026-10-23');
+    expect(new Date(t).getHours()).toBe(0);
+    expect(new Date(t + 1).getHours()).toBe(1);
   });
   it('counts quiz items due by the time, per skill', () => {
     const skills = {
