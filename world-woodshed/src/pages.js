@@ -1,5 +1,6 @@
 import D from './data.js';
 import E from './engine.js';
+import { practiceDate } from './day.js';
 import { view, h, s, toast, bar, ui, go, TOOLS, openTool, startPlacement, PAGES, noteName, isCompact, applyDisplay, teardown, renderTabs, focusView } from './ui/core.js';
 import { regionPage } from './tools/atlas.js';
 import { heardCount, nextRecording, lessonPage } from './tools/learn.js';
@@ -87,8 +88,7 @@ const TRAIN = {
 };
 // when a session put aside with Finish for now was left: today, yesterday or the weekday
 function parkedWhen(ts) {
-  const d = new Date(ts), now = new Date(), day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const ago = Math.round((day(now) - day(d)) / 86400000);
+  const d = practiceDate(ts), ago = Math.round((practiceDate() - d) / 86400000);
   return ago <= 0 ? 'today' : ago === 1 ? 'yesterday' : d.toLocaleDateString(undefined, { weekday: 'long' });
 }
 function greeting() { const hr = new Date().getHours(); return hr < 5 ? 'Late session' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening'; }
@@ -98,7 +98,7 @@ Object.assign(PAGES, {
     const st = E.state;
     const days = E.lastNDays(14), week = days.slice(-7);
     const wkMin = week.reduce((a, d) => a + d.min, 0), wkQ = week.reduce((a, d) => a + d.q, 0), wkC = week.reduce((a, d) => a + d.c, 0);
-    const d = new Date();
+    const d = practiceDate(); // the practice day, which ends at 1 am
     const lessonsDone = D.LESSONS.filter(l => E.lessonDone(l.id)).length;
     const heardAll = D.REGIONS.reduce((a, r) => a + heardCount(r), 0);
     view.append(h('div', { class: 'hero today-hero' },

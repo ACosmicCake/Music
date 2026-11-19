@@ -6,6 +6,7 @@ import { dictationItems } from './content/dictation.js';
 import { noteNameItems } from './content/notenames.js';
 import { SCHEMA, migrate, merge, digest, stampKeys, keyCache } from './sync.js';
 import Goals from './goals.js';
+import * as Day from './day.js';
 import { addScore, table as gameTable, rankFor } from './games.js';
 
 const LS_KEY = 'world-woodshed-v1';
@@ -374,10 +375,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => saveNow());
 
 /* ---------- Dates & history ---------- */
-function dayKey(t = Date.now()) {
-  const d = new Date(t);
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
+// the practice day, which ends at 1 am (src/day.js)
+const dayKey = Day.dayKey;
 function today() {
   const k = dayKey();
   if (!state.history[k]) state.history[k] = { sec: 0, q: 0, c: 0, by: {} };

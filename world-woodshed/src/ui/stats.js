@@ -5,6 +5,7 @@ import D from '../data.js';
 import E from '../engine.js';
 import Cur from '../curriculum.js';
 import St from '../stats.js';
+import { practiceDate } from '../day.js';
 import { view, h, s, ui, go, renderTabs, teardown, focusView } from './core.js';
 import { fmtMin } from '../routines.js';
 import { weekReviewCard } from './weekreview.js';
@@ -192,7 +193,7 @@ function sized(box, draw, fallback) {
    The squares shrink to fit the card, down to a size still easy to see; below that the map scrolls, latest weeks first */
 export function heatmap() {
   const weeks = 26, padL = 24, padT = 16, minCol = 8, maxCol = 16;
-  const end = new Date(); end.setHours(12, 0, 0, 0);
+  const end = practiceDate();
   const start = new Date(end); start.setDate(end.getDate() - (weeks * 7 - 1));
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // back to a Monday
   const cols = Math.round((end - start) / 864e5 / 7) + 1;

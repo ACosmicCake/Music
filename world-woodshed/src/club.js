@@ -26,6 +26,7 @@
    - Reputation (★): real progress since the club opened (band members joining and growing, tunes and pieces
      learned, lessons finished, skill levels opened, game scores set, nights open, regulars, real trees). Never
      spent; a room needs enough of it before it can be built. */
+import { dayKey } from './day.js';
 
 export const OPEN_MIN = 5;           // minutes in a day before the doors open
 export const PACE = 4;               // tips come this many times slower than the prices: a room is a real project
@@ -163,10 +164,8 @@ export const isRoom = id => ROOMS.some(r => r.id === id);
 export const isPiece = id => CATALOG.some(x => x.id === id);
 
 /* ---------- days ---------- */
-export function dayKey(t = Date.now()) {
-  const d = new Date(t);
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
+// a night is a practice day, which ends at 1 am (src/day.js)
+export { dayKey };
 const prevDay = day => { const [y, m, d] = day.split('-').map(Number); return dayKey(new Date(y, m - 1, d - 1, 12).getTime()); };
 const isDay = k => /^\d{4}-\d{2}-\d{2}$/.test(k);
 

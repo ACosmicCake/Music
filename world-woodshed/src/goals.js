@@ -13,12 +13,15 @@
      does not add to it. Freezes are worked out from the history alone, so every device agrees and nothing
      new is stored. */
 
+import { dayKey, practiceDate } from './day.js';
+
 const DAY = 864e5;
 export const RAMP_DAYS = 7, RAMP_MET = 5, FREEZE_EVERY = 5, FREEZE_MAX = 5;
-export const keyOf = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+/* the practice day holding t (it ends at 1 am, src/day.js) */
+export const keyOf = t => dayKey(t);
 const noon = key => new Date(key + 'T12:00:00');
-/* the day n days before the day of t (by the calendar, so daylight-saving changes don't skip a day) */
-export function dayBefore(t, n) { const d = new Date(t); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - n); return keyOf(d); }
+/* the practice day n days before the one holding t (by the calendar, so daylight-saving changes don't skip a day) */
+export function dayBefore(t, n) { const d = practiceDate(t); d.setDate(d.getDate() - n); return keyOf(d); }
 export function daysBetween(a, b) { return Math.round((noon(b) - noon(a)) / DAY); }
 
 export const minutesOn = (history, key) => { const h = history && history[key]; return h ? (h.sec || 0) / 60 : 0; };

@@ -5,7 +5,7 @@
 import { weeks } from './stats.js';
 import { goalOn } from './goals.js';
 
-const keyOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+import { ymd as keyOf } from './day.js';
 const MIN_ANSWERS = 10; // fewer answers than this in a week say little about accuracy
 const MOVE = 0.05;      // accuracy has moved when it changed by 5 points or more
 
