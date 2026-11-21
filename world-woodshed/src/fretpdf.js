@@ -8,7 +8,7 @@ export const PAPERS = { a4: [297, 210], letter: [279.4, 215.9] };
 export const OVERLAP = 12;
 const MARGIN = 10;
 
-const ascii = t => String(t).replace(/¢/g, 'c').replace(/♭/g, 'b').replace(/♯/g, '#').replace(/[−–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7e]/g, '?');
+const ascii = t => String(t).replace(/¢/g, 'c').replace(/♭/g, 'b').replace(/♯/g, '#').replace(/↑/g, '^').replace(/[−–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7e]/g, '?');
 const esc = t => ascii(t).replace(/[\\()]/g, m => '\\' + m);
 const n = v => (Math.round(v * 100) / 100).toString();
 

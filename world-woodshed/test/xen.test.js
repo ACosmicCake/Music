@@ -68,19 +68,29 @@ describe('tuning systems', () => {
   });
   it('offers Bohlen-Pierce tunings that standard strings take', () => {
     const std = [0, 500, 1000, 1500, 1900, 2400];
-    ['bp13', 'bpjust'].forEach(id => {
-      const s = systemOf(id);
-      expect(tuningsFor(s)).toBe(BP_TUNINGS);
-      BP_TUNINGS.forEach(t => {
+    ['bp13', 'bpjust', 'bp26'].forEach(id => {
+      const s = systemOf(id), x = id === 'bp26' ? 2 : 1;
+      if (x === 1) expect(tuningsFor(s)).toBe(BP_TUNINGS);
+      tuningsFor(s).forEach(t => {
         expect(openOf(s, t.open)).toEqual(t.open);
         expect(t.root).toBeGreaterThanOrEqual(24); expect(t.root).toBeLessThanOrEqual(60);
         t.open.forEach((k, i) => { const off = (t.root - 40) * 100 + stepCents(s, k) - std[i]; expect(off).toBeGreaterThan(-300); expect(off).toBeLessThanOrEqual(100.001); });
         // 3 or 4 steps between neighbouring strings, but for the one 2-step gap of the open chord
-        t.open.slice(1).forEach((k, i) => expect(k - t.open[i]).toBeGreaterThanOrEqual(t.id === 'open' ? 2 : 3));
-        t.open.slice(1).forEach((k, i) => expect(k - t.open[i]).toBeLessThanOrEqual(4));
+        t.open.slice(1).forEach((k, i) => expect(k - t.open[i]).toBeGreaterThanOrEqual(x * (t.id === 'open' ? 2 : 3)));
+        t.open.slice(1).forEach((k, i) => expect(k - t.open[i]).toBeLessThanOrEqual(4 * x));
       });
     });
     expect(BP_TUNINGS[0].open).toEqual(defaultOpen(systemOf('bp13')));
+    // 26EDT: half BP steps, its even steps the BP notes and its strings on them
+    const d = systemOf('bp26');
+    expect(d.steps.length).toBe(26);
+    expect(stepCents(d, 2)).toBeCloseTo(stepCents(systemOf('bp13'), 1), 6);
+    expect(stepName(d, 14).name).toBe('H');
+    expect(stepName(d, 15).name).toBe('H↑');
+    expect(stepName(d, 27)).toEqual({ name: 'C↑', period: 1, m: 1 });
+    expect(defaultOpen(d)).toEqual([0, 6, 14, 20, 26, 32]);
+    expect(build({ kind: 'ed', n: 26, of: '3/1' }).names[3]).toBe('D♭↑');
+    expect(tuningsFor(systemOf('edo24'))).toEqual([]);
     expect(tuningsFor(systemOf('edo12'))).toEqual([]);
     expect(tuningsFor(systemOf('alpha'))).toEqual([]);
   });
