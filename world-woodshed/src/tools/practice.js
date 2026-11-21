@@ -634,7 +634,7 @@ tool('tuner', {
           adviceEl.textContent = advice(cents);
         }
         dial.set(cents);
-        centsEl.textContent = centsText(cents) + ' cents · ' + ev.freq.toFixed(1) + ' Hz';
+        centsEl.textContent = centsText(cents) + ' cents · ' + ev.freq.toFixed(2) + ' Hz';
         tcard.classList.toggle('intune', Math.abs(cents) <= IN_TUNE);
         clearTimeout(quiet); quiet = setTimeout(() => { inSince = 0; steady.reset(); idle(); }, 1500);
       }); },
