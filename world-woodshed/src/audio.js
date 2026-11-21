@@ -150,7 +150,7 @@ function track(node, g, at) {
 }
 /* Silence one source: not started yet, it never plays; sounding, its level falls to nothing in FADE
    seconds (a sudden stop clicks) and then it stops. */
-function silence(node, t) {
+function silence(node, t, fade = FADE) {
   const v = voices.get(node);
   voices.delete(node);
   try {
@@ -158,8 +158,8 @@ function silence(node, t) {
     const p = v.g.gain;
     if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t);
     else { p.cancelScheduledValues(t); p.setValueAtTime(p.value, t); }
-    p.linearRampToValueAtTime(0, t + FADE);
-    node.stop(t + FADE + 0.01);
+    p.linearRampToValueAtTime(0, t + fade);
+    node.stop(t + fade + 0.01);
   } catch (e) { /* already stopped */ }
 }
 function fresh() {
@@ -296,10 +296,14 @@ function hit(type, when, vel = 0.8, out, o = {}) {
    opts: { steps, stepDur(i) -> seconds, onStep(i, time, cycle), onVisual(i, cycle), maxSteps, onEnd(),
    ahead: how far ahead to schedule sounds (s, default 0.12; more keeps the beat even through a slow page),
    shot: true for a loop a play button starts to be heard once (two cycles of a rhythm): A.fresh() stops
-   it, and calls onEnd so its button is reset }.
+   it, and calls onEnd so its button is reset,
+   cut: seconds over which stopping also fades out the notes it started that are still ringing (a drone's
+   notes ring for seconds; left alone, they overlap whatever plays next) }.
    onVisual runs when a step is heard (heard()), checked every frame, so a cursor moves with the sound however
    far ahead the step was scheduled.
-   Stopping a loop cancels the sounds it had already scheduled ahead that haven't started. */
+   Stopping a loop cancels the sounds it had already scheduled ahead that haven't started.
+   Every running loop is listed in `loops`, so leaving a tool can stop one its tool forgot (stopLoops). */
+const loops = new Set();
 function Loop(opts) {
   let timer = null, nextTime = 0, step = 0, running = false, raf = null;
   const ahead = opts.ahead || 0.12;
@@ -318,7 +322,7 @@ function Loop(opts) {
   function end() {
     const endDelay = Math.max(0, (nextTime - heard()) * 1000);
     clearInterval(timer); timer = null;
-    setTimeout(() => { if (running) { drain(true); running = false; shotLoops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
+    setTimeout(() => { if (running) { drain(true); running = false; shotLoops.delete(api); loops.delete(api); opts.onEnd && opts.onEnd(); } }, endDelay + 30);
   }
   function tick() {
     if (opts.onVisual) drain(); // where frames don't run (a hidden page)
@@ -349,6 +353,7 @@ function Loop(opts) {
     start(at) {
       ensure();
       if (opts.shot) shotLoops.add(api);
+      loops.add(api);
       running = true; step = 0; vis.length = 0; nextTime = Math.max(at || 0, ctx.currentTime + 0.08);
       api.startTime = nextTime;
       tick();
@@ -359,11 +364,12 @@ function Loop(opts) {
     stop() {
       running = false;
       shotLoops.delete(api);
+      loops.delete(api);
       if (timer) clearInterval(timer); timer = null;
       if (raf) cancelAnimationFrame(raf); raf = null;
       vis.length = 0;
       const t = ctx ? ctx.currentTime : 0;
-      mine.forEach(n => { const v = voices.get(n); if (v && v.at > t + 0.005) silence(n, t); });
+      mine.forEach(n => { const v = voices.get(n); if (v && (v.at > t + 0.005 || opts.cut)) silence(n, t, opts.cut || FADE); });
       mine.clear();
     },
     /* stopped by A.fresh: as stop, and onEnd runs so whoever started it can reset its button */
@@ -373,18 +379,30 @@ function Loop(opts) {
   return api;
 }
 
-/* Tanpura-like drone: Pa, Sa', Sa', Sa (low) */
+/* Tanpura-like drone: Pa, Sa', Sa', Sa (low). One drone plays at a time: starting one stops any other
+   still going (a tool that started a second without stopping the first played two at once), and a
+   stopped drone fades out within a quarter second instead of letting its last notes ring on for three. */
+let drone = null;
 function Drone(tonicMidi, fifth = 7) {
   const pattern = [tonicMidi - 12 + fifth, tonicMidi, tonicMidi, tonicMidi - 12];
   const loop = Loop({
     steps: 4,
+    cut: 0.25,
     stepDur: i => (i === 3 ? 1.1 : 0.7),
     onStep: (i, t) => {
       note(pattern[i], t, i === 3 ? 0.42 : 0.3, 2.8);
     }
   });
+  const start = loop.start;
+  loop.start = at => {
+    if (drone && drone !== loop) drone.stop();
+    drone = loop;
+    return start(at);
+  };
   return loop;
 }
+/* Leaving a tool: every loop still running stops (a tool's own cleanup should have; this is the net) */
+function stopLoops() { [...loops].forEach(lp => lp.stop()); drone = null; }
 
 /* Sustained, organ-like reference tone (for tuning). Returns a function that stops it. */
 function tone(midi, when, dur = 4, vel = 0.35) {
@@ -427,4 +445,4 @@ function eventToAudioTime(ev) {
 /* An instrument's channel input (guitar, perc), for a caller that wants its own node on that channel */
 const channel = name => { ensure(); return chan[name]; };
 
-export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, heard, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, onClick, tone, Loop, Drone, stopAll, fresh, later, eventToAudioTime };
+export default { out: () => master, channel, setOutput, outputUsed: () => outputUsed, outputFor: pref => latencyHintFor(pref, onAndroid()), ensure, now, latency, heard, mtof, note, strum, strumPlan, hit, setHitSampler, setNoteSampler, onClick, tone, Loop, Drone, stopAll, stopLoops, fresh, later, eventToAudioTime };
