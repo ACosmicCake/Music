@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cents, pitchCents, parseScl, build, systemOf, PRESETS, stepCents, stepName, nearestStep, defaultOpen, openOf, fretTable, nearStandard, tightest, fretCsv, specKey } from '../src/xen.js';
+import { cents, pitchCents, parseScl, build, systemOf, PRESETS, stepCents, stepName, nearestStep, defaultOpen, openOf, tuningsFor, BP_TUNINGS, fretTable, nearStandard, tightest, fretCsv, specKey } from '../src/xen.js';
 import { fretPdf } from '../src/fretpdf.js';
 
 describe('tuning systems', () => {
@@ -65,6 +65,24 @@ describe('tuning systems', () => {
     expect(openOf(systemOf('bp13'), [0, 4, 7, 10, 13, 17])).toEqual([0, 4, 7, 10, 13, 17]);
     expect(openOf(systemOf('bp13'), [1, 4, 7, 10, 13, 17])).toEqual([0, 3, 7, 10, 13, 16]);
     expect(openOf(systemOf('bp13'), 'x')).toEqual([0, 3, 7, 10, 13, 16]);
+  });
+  it('offers Bohlen-Pierce tunings that standard strings take', () => {
+    const std = [0, 500, 1000, 1500, 1900, 2400];
+    ['bp13', 'bpjust'].forEach(id => {
+      const s = systemOf(id);
+      expect(tuningsFor(s)).toBe(BP_TUNINGS);
+      BP_TUNINGS.forEach(t => {
+        expect(openOf(s, t.open)).toEqual(t.open);
+        expect(t.root).toBeGreaterThanOrEqual(24); expect(t.root).toBeLessThanOrEqual(60);
+        t.open.forEach((k, i) => { const off = (t.root - 40) * 100 + stepCents(s, k) - std[i]; expect(off).toBeGreaterThan(-300); expect(off).toBeLessThanOrEqual(100.001); });
+        // 3 or 4 steps between neighbouring strings, but for the one 2-step gap of the open chord
+        t.open.slice(1).forEach((k, i) => expect(k - t.open[i]).toBeGreaterThanOrEqual(t.id === 'open' ? 2 : 3));
+        t.open.slice(1).forEach((k, i) => expect(k - t.open[i]).toBeLessThanOrEqual(4));
+      });
+    });
+    expect(BP_TUNINGS[0].open).toEqual(defaultOpen(systemOf('bp13')));
+    expect(tuningsFor(systemOf('edo12'))).toEqual([]);
+    expect(tuningsFor(systemOf('alpha'))).toEqual([]);
   });
   it('places the frets', () => {
     const t12 = fretTable(systemOf('edo12'), 645, 20);

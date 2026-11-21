@@ -113,6 +113,28 @@ export function systemOf(id, mine = []) {
   return systemOf('edo12');
 }
 
+/* open-string tunings for a Bohlen-Pierce guitar (13 steps to the tritave), low to high as steps above the
+   lowest string, which sounds at root (a MIDI note). A BP fret is about 1.46 times as wide as a standard one,
+   so a hand covers about three frets: gaps of 3 or 4 steps between strings (439 and 585 cents) play the way
+   fourths do on a standard guitar. Every string stays within 300 cents below and 100 cents above its standard
+   pitch, so the strings already on the guitar take it (test/xen.test.js). */
+export const BP_TUNINGS = [
+  { id: 'near', name: 'Near standard', open: [0, 3, 7, 10, 13, 16], root: 40,
+    note: 'The default. Every string is within 61 cents of standard, so the tension hardly changes. Gaps of 3 and 4 steps feel like fourths and a third, and strings 1 and 5, 2 and 6 are a tritave apart, so a shape on the low strings repeats two strings up.' },
+  { id: 'even', name: 'All 9:7s (every gap 3 steps)', open: [0, 3, 6, 9, 12, 15], root: 41,
+    note: 'Every string is a 9:7 (439 cents, a wide major third) above the one before, so every shape moves across the strings unchanged, like all-thirds tuning. Three frets per string reach every note, so one hand position plays the whole BP chromatic, and the range is the narrowest. The low string goes up a semitone to F and the high one down a semitone, the limits of what standard strings take.' },
+  { id: 'frame', name: 'Tritave frame (4-3-3-3-4)', open: [0, 4, 7, 10, 13, 17], root: 39,
+    note: 'Gaps of 4, 3, 3, 3, 4: the outer pairs are 7:5 (585 cents, the stretch of a standard fourth), the middle ones 9:7. Strings 1 and 5, 2 and 6 are tritaves, and the low three ring C F H, the 5:7:9 chord. Tuned from E♭ so every string goes down.' },
+  { id: 'open', name: 'Open chord on H', open: [0, 4, 7, 11, 13, 17], root: 39,
+    note: 'The top four strings strum the 15:21:25:35 chord on H, which holds the 3:5:7 triad, and a barre at any fret moves it. Good for strumming, drones and slide. Every string goes down from standard.' },
+  { id: 'wide', name: 'Wide bass (4-4-3-3-3)', open: [0, 4, 8, 11, 14, 17], root: 39,
+    note: 'Two 7:5 gaps on the bass spread the low strings wider for bass lines under a melody, played with the thumb. The top four strings are 9:7s apart as in the all-9:7 tuning, so treble shapes move across them unchanged. Every string goes down or stays within 70 cents of standard.' }
+];
+/* the tunings offered for a system: Bohlen-Pierce's when it has 13 steps to a tritave, none otherwise */
+export function tuningsFor(sys) {
+  return sys && sys.steps.length === 13 && Math.abs(sys.period - cents(3)) < 1 ? BP_TUNINGS : [];
+}
+
 /* step k (any whole number, 0 the open string) in cents */
 export function stepCents(sys, k) {
   const n = sys.steps.length, p = Math.floor(k / n);

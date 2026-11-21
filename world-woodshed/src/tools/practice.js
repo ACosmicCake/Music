@@ -8,7 +8,7 @@ import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { keepAwake } from '../native.js';
-import { PRESETS, systemOf, stepCents, stepName, nearestStep, openOf, defaultOpen, stdText } from '../xen.js';
+import { PRESETS, systemOf, stepCents, stepName, nearestStep, openOf, defaultOpen, stdText, tuningsFor } from '../xen.js';
 import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote, pickString, advice, centsText, needleAngle, Steady } from '../tuner.js';
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
@@ -669,12 +669,19 @@ tool('tuner', {
       const changed = () => { stopTone(); done = new Set(); steady.reset(); drawTuning(); paintStrings(); draw(); };
       const roots = []; for (let m = 24; m <= 60; m++) roots.push({ value: String(m), text: flatName(m) + (Math.floor(m / 12) - 1) });
       const stepOpts = from => { const o = []; for (let k = from; k <= Math.max(n * 3, 30); k++) { const st = stepName(sys, k); o.push({ value: String(k), text: st.name + ['', '′', '″', '‴'][Math.min(3, st.period)] + ' (' + k + ') · ' + stdText(root + stepCents(sys, k) / 100) }); } return o; };
-      const wrap = h('div', { class: 'stack tn-open' },
+      const presets = tuningsFor(sys), cur = presets.find(p => p.root === root && p.open.join() === open.join());
+      const pick = presets.length ? h('div', { class: 'stack' },
+        selectEl('tn-preset', 'Tuning', (cur ? [] : [{ value: '', text: 'Your own · ' + open.map(k => stepName(sys, k).name).join(' ') }]).concat(presets.map(p => ({ value: p.id, text: p.name + ' · ' + p.open.map(k => stepName(sys, k).name).join(' ') }))), cur ? cur.id : '', v => {
+          const p = presets.find(x => x.id === v); if (!p) return;
+          saveXen({ root: p.root, open: Object.assign({}, xs().open, { [sys.id]: p.open.slice() }) }); changed();
+        }),
+        cur ? h('p', { class: 'small muted tn-why', text: cur.note }) : null) : null;
+      const wrap = h('div', { class: 'stack tn-open' }, pick,
         h('div', { class: 'row' }, selectEl('tn-root', 'Lowest string (step 0)', roots, String(root), v => { saveXen({ root: +v }); changed(); }),
           h('p', { class: 'small muted', text: 'Step 0 is called ' + stepName(sys, 0).name + '. It sounds at ' + (opt.a4 * Math.pow(2, (root - 69) / 12)).toFixed(2) + ' Hz with A = ' + opt.a4 + '.' })),
         h('div', { class: 'tn-opengrid' }, open.slice(1).map((k, j) => selectEl('tn-open-' + (j + 1), 'String ' + (5 - j), stepOpts(open[j]), String(k), v => set(j + 1, +v)))),
         h('div', { class: 'row' },
-          h('button', { class: 'btn small ghost', type: 'button', onclick: () => { const o = Object.assign({}, xs().open); delete o[sys.id]; saveXen({ open: o }); changed(); } }, 'Back to ' + defaultOpen(sys).map(k => stepName(sys, k).name).join(' ')),
+          h('button', { class: 'btn small ghost', type: 'button', onclick: () => { const o = Object.assign({}, xs().open); delete o[sys.id]; saveXen({ open: o, root: 40 }); changed(); } }, 'Back to ' + defaultOpen(sys).map(k => stepName(sys, k).name).join(' ')),
           h('button', { class: 'btn small ghost', type: 'button', onclick: () => openTool('frets', { returnTab: 'train' }) }, 'Fret calculator')));
       return wrap;
     }
