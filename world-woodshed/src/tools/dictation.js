@@ -148,7 +148,7 @@ tool('dictation', {
     const muteMic = until => Mic.muteUntil(until + 0.3 + Mic.latencyMs() / 1000);
     function keyIn(at) {
       if (pref.key === 'drone') {
-        drone = A.Drone(50 + degOf(tonic, 50));
+        drone = A.Drone(50 + degOf(tonic, 50), 7, { under: true });
         drone.start(at);
         return at + 2.4;
       }

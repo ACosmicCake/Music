@@ -124,7 +124,7 @@ tool('phrases', {
       roundLbl.textContent = '0';
       if (back.click) {
         const b = st.click.bpb;
-        if (st.click.drone) { drone = A.Drone(48 + st.click.tonic); drone.start(); }
+        if (st.click.drone) { drone = A.Drone(48 + st.click.tonic, 7, { under: true }); drone.start(); }
         chordLbl.textContent = D.NOTE_NAMES[st.click.tonic];
         loop = A.Loop({
           steps: b, stepDur: () => 60 / bpmOf(),
@@ -184,7 +184,7 @@ tool('phrases', {
       const grid = h('div', { class: 'formgrid' }, selectEl('ph-back', 'Backing', opts, st.backing, setBacking));
       if (back.click) {
         grid.append(
-          selectEl('ph-key', 'Drone on', D.NOTE_NAMES.map((n, i) => ({ value: String(i), text: n })), String(st.click.tonic), v => { st.click.tonic = +v; persist(); showBack(); if (drone) { drone.stop(); drone = A.Drone(48 + st.click.tonic); drone.start(); } if (running()) chordLbl.textContent = D.NOTE_NAMES[st.click.tonic]; }),
+          selectEl('ph-key', 'Drone on', D.NOTE_NAMES.map((n, i) => ({ value: String(i), text: n })), String(st.click.tonic), v => { st.click.tonic = +v; persist(); showBack(); if (drone) { drone.stop(); drone = A.Drone(48 + st.click.tonic, 7, { under: true }); drone.start(); } if (running()) chordLbl.textContent = D.NOTE_NAMES[st.click.tonic]; }),
           selectEl('ph-bpb', 'Beats in a bar', BEATS.map(n => ({ value: String(n), text: String(n) })), String(st.click.bpb), v => { const was = running(); if (was) stop(); st.click.bpb = +v; persist(); showBack(); if (was) begin(); }));
       } else {
         grid.append(selectEl('ph-who', 'Who plays', Object.entries(WHO).map(([k, [t]]) => ({ value: k, text: t })), st.who, v => { st.who = v; persist(); if (band) band.set({ parts: WHO[v][1] }); }));
@@ -195,7 +195,7 @@ tool('phrases', {
           h('button', { class: 'btn small', onclick: () => setBpm(bpmOf() - 4) }, '−4'),
           h('div', { class: 'stack', style: { gap: '0', justifyItems: 'center' } }, h('span', { class: 'eyebrow', text: 'bpm' }), bpmLbl),
           h('button', { class: 'btn small', onclick: () => setBpm(bpmOf() + 4) }, '+4')));
-      if (back.click) ctl.append(checkbox(st.click.drone, 'Drone', v => { st.click.drone = v; persist(); showBack(); if (!v && drone) { drone.stop(); drone = null; } else if (v && loop && !drone) { drone = A.Drone(48 + st.click.tonic); drone.start(); } }));
+      if (back.click) ctl.append(checkbox(st.click.drone, 'Drone', v => { st.click.drone = v; persist(); showBack(); if (!v && drone) { drone.stop(); drone = null; } else if (v && loop && !drone) { drone = A.Drone(48 + st.click.tonic, 7, { under: true }); drone.start(); } }));
       if (st.len === 'mix') {
         ctl.append(
           h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Mix these lengths' }),
