@@ -168,10 +168,18 @@ describe('planSession', () => {
     expect(fresh(30)).toBe(3);
     expect(fresh(60)).toBe(4);
   });
+  it('starts phrase lengths at one bar and opens longer ones as the short ones settle', () => {
+    E.resetAll();
+    const b = Cur.blockFor('phrases', null, 8);
+    expect(b).toMatchObject({ type: 'phrases', cur: 'phrase:1', params: { len: '1', smart: true } });
+    expect(Cur.blockFor('phrases', '4', 8)).toMatchObject({ cur: 'phrase:4', params: { len: '4' } });
+    const names = Cur.catalog().filter(x => x.kind === 'phrase').sort((x, y) => x.tier - y.tier || x.order - y.order).map(x => x.ref);
+    expect(names).toEqual(['1', '2', 'half', '4', '8', 'mix']);
+  });
   it('never plans more than one new item in a session once the starters are in', () => {
     // a player with one item of every kind already learned yesterday
     Cur.setPrefs({ pace: 'fast' });
-    ['warm', 'arp', 'tech', 'rhythm', 'tune', 'drill'].forEach(k => { const x = Cur.catalog().find(c => c.kind === k); if (x) Cur.review(x.id, 'good'); });
+    ['warm', 'arp', 'tech', 'rhythm', 'tune', 'drill', 'phrase'].forEach(k => { const x = Cur.catalog().find(c => c.kind === k); if (x) Cur.review(x.id, 'good'); });
     E.state.cur.days = {};
     Object.values(E.state.cur.items).forEach(it => { it.last -= DAY; it.intro -= DAY; });
     const { blocks } = Cur.planSession(60);

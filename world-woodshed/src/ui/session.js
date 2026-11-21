@@ -60,7 +60,7 @@ hooks.signal = (curId, data) => {
 // its title, the item its signals count for, the rating it asks for and the key and pattern logged are what was
 // played, not what was planned. A scale the plan doesn't track (Hơi Bắc) is played without a rating; a raga with
 // another scale's notes counts as that scale, as the planner counts it.
-const FOLLOWS = { scalewarm: 'warm', arpwarm: 'arp' };
+const FOLLOWS = { scalewarm: 'warm', arpwarm: 'arp', phrases: 'phrase' };
 hooks.follow = (type, ref, params) => {
   const b = cur(); if (!b || b.type !== type || b.rated || !FOLLOWS[type]) return;
   if (b.planned === undefined) { if (!b.cur) return; b.planned = b.cur; }

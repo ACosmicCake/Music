@@ -173,3 +173,36 @@ describe('a cursor that moves with the sound', () => {
     expect(seen).toEqual([]);
   });
 });
+
+describe('drones never overlap', () => {
+  const ringing = s => s.startAt <= ctx.currentTime && (s.stopAt === undefined || s.stopAt > ctx.currentTime + 0.5);
+  it('a stopped drone fades out the notes still ringing, instead of letting them ring on for seconds', () => {
+    vi.useFakeTimers();
+    const d = A.Drone(50);
+    d.start(ctx.currentTime);
+    for (let k = 0; k < 40; k++) { ctx.currentTime += 0.05; vi.advanceTimersByTime(25); } // two seconds in
+    const notes = made.slice();
+    expect(notes.some(ringing)).toBe(true);
+    d.stop();
+    notes.forEach(s => expect(s.stopAt <= ctx.currentTime + 0.3).toBe(true));
+  });
+  it('starting a drone stops the one already playing', () => {
+    vi.useFakeTimers();
+    const a = A.Drone(50), b = A.Drone(55);
+    a.start(); b.start();
+    expect(a.running).toBe(false);
+    expect(b.running).toBe(true);
+    b.stop();
+  });
+  it('leaving a tool stops every loop still running', () => {
+    vi.useFakeTimers();
+    const d = A.Drone(50), click = A.Loop({ steps: 4, stepDur: () => 0.5, onStep: (i, t) => A.hit('click', t, 0.9) });
+    d.start(); click.start();
+    A.stopLoops();
+    expect(d.running).toBe(false);
+    expect(click.running).toBe(false);
+    const n = made.length;
+    ctx.currentTime += 2; vi.advanceTimersByTime(100);
+    expect(made.length).toBe(n);
+  });
+});

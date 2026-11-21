@@ -25,6 +25,7 @@ import './tools/whatis.js';
 import './tools/scales.js';
 import './tools/arpeggio.js';
 import './tools/constraint.js';
+import './tools/phrases.js';
 import './tools/reading.js';
 import './tools/notenames.js';
 import './tools/notate.js';
