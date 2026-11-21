@@ -20,6 +20,7 @@ import './tools/rhythm.js';
 import './tools/play.js';
 import './tools/atlas.js';
 import './tools/practice.js';
+import './tools/frets.js';
 import './tools/whatis.js';
 import './tools/scales.js';
 import './tools/arpeggio.js';

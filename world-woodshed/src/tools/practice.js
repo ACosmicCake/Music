@@ -8,6 +8,7 @@ import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { keepAwake } from '../native.js';
+import { PRESETS, systemOf, stepCents, stepName, nearestStep, openOf, defaultOpen } from '../xen.js';
 import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote, pickString, advice, centsText, needleAngle, Steady } from '../tuner.js';
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
@@ -535,9 +536,22 @@ function TunerDial() {
     ...ticks, ...labs, needle);
   return { el: svg, set(cents) { needle.style.transform = cents === null ? '' : 'rotate(' + needleAngle(cents).toFixed(1) + 'deg)'; svg.classList.toggle('idle', cents === null); } };
 }
+/* the tuning systems to choose from, for a select: the presets by group, then your own */
+export function systemOptions(mine) {
+  const groups = [];
+  PRESETS.forEach(p => { let g = groups.find(x => x.group === p.group); if (!g) groups.push(g = { group: p.group, items: [] }); g.items.push({ value: p.id, text: systemOf(p.id).name }); });
+  const own = (Array.isArray(mine) ? mine : []).map(m => systemOf(m.id, mine)).filter(x => x.mine);
+  if (own.length) groups.push({ group: 'Your own', items: own.map(x => ({ value: x.id, text: x.name })) });
+  return groups;
+}
+export const periodWord = sys => Math.abs(sys.period - 1200) < 0.01 ? 'octave' : Math.abs(sys.period - 1901.955) < 0.01 ? 'tritave' : 'period';
+export function sysLine(sys) {
+  const n = sys.steps.length, even = sys.steps.every((c, i) => Math.abs(c - i * sys.period / n) < 0.01);
+  return n + ' steps' + (even ? ' of ' + (sys.period / n).toFixed(1) + ' cents' : '') + ' in each ' + periodWord(sys) + ' (' + sys.period.toFixed(1) + ' cents)' + (sys.note ? '. ' + sys.note : '.');
+}
 tool('tuner', {
   tab: 'learn', skill: null, title: 'Tuner', eyebrow: 'Tune up',
-  desc: 'A chromatic and guitar tuner that listens through the mic: the note, how many cents sharp or flat, and which way to turn the peg, in ten tunings and at any A from 430 to 450 Hz. Reference tones below for tuning by ear.',
+  desc: 'A chromatic and guitar tuner that listens through the mic: the note, how many cents sharp or flat, and which way to turn the peg, in ten tunings and at any A from 430 to 450 Hz, or in Bohlen-Pierce, other equal divisions, just ratios and Scala files. Reference tones below for tuning by ear.',
   render(body) {
     const saved = Object.assign({ mode: 'guitar', a4: 440 }, E.state.settings.tuner || {});
     const opt = { mode: saved.mode === 'chromatic' ? 'chromatic' : 'guitar', a4: a4Of(saved.a4) };
@@ -545,6 +559,16 @@ tool('tuner', {
     let ti = Math.max(0, E.TUNINGS.findIndex(t => t.id === E.guitar().tuning)), stopFn = null, playing = -1, cycle = null;
     let pinned = -1, done = new Set(), inSince = 0, heardSi = -1, quiet = null;
     const steady = Steady();
+    // the tuning system (settings.xen, shared with the fret calculator): 12 equal uses the app's tunings,
+    // any other names the steps of that system above a root, with six open strings as steps above it
+    const xs = () => E.state.settings.xen || {};
+    let sys = systemOf(xs().sys, xs().mine);
+    const rootMidi = () => { const r = +xs().root; return r >= 24 && r <= 60 ? r : 40; };
+    const openSteps = () => openOf(sys, (xs().open || {})[sys.id]);
+    const saveXen = patch => E.setSetting('xen', Object.assign({}, xs(), patch));
+    const curMidis = () => sys.std ? TUNINGS[ti][1] : openSteps().map(k => rootMidi() + stepCents(sys, k) / 100);
+    const strName = i => sys.std ? flatName(TUNINGS[ti][1][i]) : stepName(sys, openSteps()[i]).name;
+    const sysSel = h('div', { class: 'tn-tuning' });
     // the listening tuner
     const tcard = h('div', { class: 'card tuner' });
     const dial = TunerDial(); dial.set(null);
@@ -565,11 +589,11 @@ tool('tuner', {
     }
     function paintStrings() {
       strRow.innerHTML = '';
-      const midis = TUNINGS[ti][1];
+      const midis = curMidis();
       strRow.append(h('button', { type: 'button', class: 'tn-str auto', 'aria-pressed': String(pinned < 0), onclick: () => { pinned = -1; steady.reset(); paintMode(); paintStrings(); } }, h('b', { text: 'Auto' }), h('span', { class: 'small muted', text: 'any string' })));
-      midis.forEach((m, i) => strRow.append(h('button', { type: 'button', class: 'tn-str' + (heardSi === i ? ' heard' : '') + (done.has(i) ? ' done' : ''), 'aria-pressed': String(pinned === i), 'aria-label': 'String ' + (6 - i) + ', ' + flatName(m) + (done.has(i) ? ', in tune' : ''),
+      midis.forEach((m, i) => strRow.append(h('button', { type: 'button', class: 'tn-str' + (heardSi === i ? ' heard' : '') + (done.has(i) ? ' done' : ''), 'aria-pressed': String(pinned === i), 'aria-label': 'String ' + (6 - i) + ', ' + strName(i) + (done.has(i) ? ', in tune' : ''),
         onclick: () => { pinned = pinned === i ? -1 : i; steady.reset(); paintMode(); paintStrings(); } },
-      h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: done.has(i) ? '✓' : String(6 - i) }))));
+      h('b', { text: strName(i) }), h('span', { class: 'small muted', text: done.has(i) ? '✓' : String(6 - i) }))));
     }
     function paintA4() { a4Lbl.textContent = 'A = ' + opt.a4 + ' Hz'; }
     const stepA4 = d => { opt.a4 = a4Of(Math.max(A4_MIN, Math.min(A4_MAX, opt.a4 + d))); keep(); paintA4(); steady.reset(); if (playing >= 0) { stopTone(); draw(); } };
@@ -581,10 +605,10 @@ tool('tuner', {
         tcard.classList.add('live');
         let cents, label;
         if (opt.mode === 'guitar') {
-          const midis = TUNINGS[ti][1], p = pickString(m, midis, pinned);
+          const midis = curMidis(), p = pickString(m, midis, pinned);
           const moved = heardSi !== p.si;
           if (moved) inSince = 0;
-          cents = p.cents; heardSi = p.si; label = flatName(midis[p.si]);
+          cents = p.cents; heardSi = p.si; label = strName(p.si);
           noteEl.textContent = label; noteEl.dataset.sub = 'string ' + (6 - p.si);
           adviceEl.textContent = 'String ' + (6 - p.si) + ' (' + label + '): ' + advice(cents);
           if (Math.abs(cents) <= IN_TUNE) {
@@ -592,10 +616,15 @@ tool('tuner', {
             else if (Date.now() - inSince >= HOLD_MS && !done.has(p.si)) { done.add(p.si); paintStrings(); }
           } else inSince = 0;
           if (moved) paintStrings();
-        } else {
+        } else if (sys.std) {
           const n = nearestNote(m);
           cents = n.cents; label = noteLabel(n.midi).split(' ')[0];
           noteEl.textContent = label; noteEl.dataset.sub = '';
+          adviceEl.textContent = advice(cents);
+        } else {
+          const n = nearestStep(sys, (m - rootMidi()) * 100), st = stepName(sys, n.k);
+          cents = n.cents; label = st.name;
+          noteEl.textContent = label; noteEl.dataset.sub = 'step ' + st.m + ' of ' + sys.steps.length + ' · ' + periodWord(sys) + ' ' + (st.period + 1);
           adviceEl.textContent = advice(cents);
         }
         dial.set(cents);
@@ -604,7 +633,7 @@ tool('tuner', {
         clearTimeout(quiet); quiet = setTimeout(() => { inSince = 0; steady.reset(); idle(); }, 1500);
       }); },
       onOff: () => { keepAwake(false, 'tuner'); if (pitchOff) pitchOff(); pitchOff = null; clearTimeout(quiet); steady.reset(); idle(); paintMode(); } });
-    tcard.append(h('div', { class: 'spread' }, modeSeg, mic.el),
+    tcard.append(h('div', { class: 'spread' }, modeSeg, mic.el), sysSel,
       h('div', { class: 'tn-dialwrap' }, dial.el, h('div', { class: 'tn-read' }, noteEl, centsEl)), adviceEl, strRow, tunSel,
       h('div', { class: 'row tn-a4' }, h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Lower A by 1 Hz', onclick: () => stepA4(-1) }, '−'), a4Lbl,
         h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Raise A by 1 Hz', onclick: () => stepA4(1) }, '+'),
@@ -613,19 +642,45 @@ tool('tuner', {
     const card = h('div', { class: 'card' }); body.append(card);
     function stopTone() { if (stopFn) stopFn(); stopFn = null; playing = -1; clearTimeout(cycle); cycle = null; }
     const toneOf = m => at440(m, opt.a4);
+    function drawSys() {
+      sysSel.innerHTML = '';
+      sysSel.append(selectEl('tn-sys', 'Tuning system', systemOptions(xs().mine), sys.id, v => {
+        stopTone(); saveXen({ sys: v }); sys = systemOf(v, xs().mine); done = new Set(); pinned = -1; steady.reset();
+        drawSys(); drawTuning(); idle(); paintMode(); draw();
+      }));
+      if (!sys.std) sysSel.append(h('p', { class: 'small muted', text: sysLine(sys) }));
+    }
     function drawTuning() {
       tunSel.innerHTML = '';
+      if (!sys.std) { tunSel.append(openEditor()); return; }
       tunSel.append(selectEl('tun-sel', 'Tuning', TUNINGS.map((t, i) => ({ value: String(i), text: t[0] + ' · ' + t[1].map(m => flatName(m)).join(' ') })), String(ti), v => { stopTone(); ti = +v; done = new Set(); pinned = -1; steady.reset(); drawTuning(); paintStrings(); paintMode(); draw(); }));
+    }
+    /* the six open strings of a system other than 12 equal: the root (step 0) as a note at the A above, and
+       each string as a step of the system above it */
+    function openEditor() {
+      const open = openSteps(), n = sys.steps.length, root = rootMidi();
+      const set = (i, k) => { const o = open.slice(); o[i] = k; for (let j = i + 1; j < 6; j++) if (o[j] < o[j - 1]) o[j] = o[j - 1]; saveXen({ open: Object.assign({}, xs().open, { [sys.id]: o }) }); changed(); };
+      const changed = () => { stopTone(); done = new Set(); steady.reset(); drawTuning(); paintStrings(); draw(); };
+      const roots = []; for (let m = 24; m <= 60; m++) roots.push({ value: String(m), text: flatName(m) + (Math.floor(m / 12) - 1) });
+      const stepOpts = from => { const o = []; for (let k = from; k <= Math.max(n * 3, 30); k++) { const st = stepName(sys, k); o.push({ value: String(k), text: st.name + ['', '′', '″', '‴'][Math.min(3, st.period)] + ' (step ' + k + ')' }); } return o; };
+      const wrap = h('div', { class: 'stack tn-open' },
+        h('div', { class: 'row' }, selectEl('tn-root', 'Lowest string (step 0)', roots, String(root), v => { saveXen({ root: +v }); changed(); }),
+          h('p', { class: 'small muted', text: 'Step 0 is called ' + stepName(sys, 0).name + '. It sounds at ' + (opt.a4 * Math.pow(2, (root - 69) / 12)).toFixed(2) + ' Hz with A = ' + opt.a4 + '.' })),
+        h('div', { class: 'tn-opengrid' }, open.slice(1).map((k, j) => selectEl('tn-open-' + (j + 1), 'String ' + (5 - j), stepOpts(open[j]), String(k), v => set(j + 1, +v)))),
+        h('div', { class: 'row' },
+          h('button', { class: 'btn small ghost', type: 'button', onclick: () => { const o = Object.assign({}, xs().open); delete o[sys.id]; saveXen({ open: o }); changed(); } }, 'Back to ' + defaultOpen(sys).map(k => stepName(sys, k).name).join(' ')),
+          h('button', { class: 'btn small ghost', type: 'button', onclick: () => openTool('frets', { returnTab: 'train' }) }, 'Fret calculator')));
+      return wrap;
     }
     function draw() {
       card.innerHTML = '';
-      const [name, midis] = TUNINGS[ti];
+      const name = sys.std ? TUNINGS[ti][0] : sys.name + ' · ' + openSteps().map(k => stepName(sys, k).name).join(' '), midis = curMidis();
       card.append(h('h3', { text: 'Reference tones' }),
         h('div', { class: 'strings' }, midis.map((m, i) => h('button', { class: 'stringbtn' + (playing === i ? ' on' : ''), onclick: () => {
           A.ensure(); const was = playing === i; stopTone();
           if (!was) { stopFn = A.tone(toneOf(m), A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
           draw();
-        } }, h('b', { text: flatName(m) }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
+        } }, h('b', { text: strName(i) }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
         h('div', { class: 'row' },
           h('button', { class: 'btn', onclick: () => {
             A.ensure(); stopTone();
@@ -634,10 +689,10 @@ tool('tuner', {
             step();
           } }, '▶ Play all strings'),
           h('button', { class: 'btn ghost', onclick: () => { stopTone(); draw(); } }, 'Stop')),
-        E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo + ' (tune the open strings without it)' : '') + '.' }),
+        !sys.std ? h('p', { class: 'small', text: 'Tune the open strings to these; the frets give the rest. The Fret calculator places them for your scale length.' }) : E.TUNINGS[ti].id !== E.guitar().tuning ? h('div', { class: 'row' }, h('button', { class: 'btn small brass', onclick: () => { E.setGuitar({ tuning: E.TUNINGS[ti].id }); toast('The whole app now uses ' + name); draw(); } }, 'Use ' + name + ' everywhere in the app')) : h('p', { class: 'small', text: 'This is the tuning the app uses' + (E.guitar().capo ? ', with a capo at fret ' + E.guitar().capo + ' (tune the open strings without it)' : '') + '.' }),
         h('p', { class: 'small muted', text: name + '. Tones use A = ' + opt.a4 + ' Hz, without a capo. Tap a string to hold its note; tap again to stop.' }));
     }
-    paintA4(); drawTuning(); paintStrings(); paintMode(); draw();
+    paintA4(); drawSys(); drawTuning(); paintStrings(); paintMode(); draw();
     return () => { stopTone(); clearTimeout(quiet); keepAwake(false, 'tuner'); mic.cleanup(); };
   }
 });
