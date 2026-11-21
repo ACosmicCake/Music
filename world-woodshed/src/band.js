@@ -19,6 +19,9 @@ function wpick(list) { // [[item, weight]]
 /* ---------- mixing bus ---------- */
 let bus = null, noise = null, rideBuf = null, chickBuf = null;
 const live = new Set();
+// the cut a stopped band makes 200 ms later, once its bus has faded: shared, because the bus and `live` are,
+// so a band started straight after another (a new vamp, a new tune) cancels it instead of losing its first notes
+let stopTimer = null;
 function keep(node, until) { live.add(node); node.onended = () => live.delete(node); node.stop(until); }
 
 function impulse(ctx, secs) {
@@ -340,7 +343,7 @@ export function Band(o) {
   const nextBar = (bi, ch) => (bi < hi ? bars[bi + 1] : barsOf(ch + 1)[lo]);
   const BPB = Math.round(g.steps / g.spb) || 4;
   const bright = ['rock', 'funk', 'reggae', 'soukous', 'highlife', 'son', 'son23', 'chacha'].includes(gid);
-  let loop = null, stopTimer = null, countTimers = [];
+  let loop = null, countTimers = [];
   let bassPrev = null, bassStart = null, voicing = null, pushed = false, barPlan = null;
   const history = [];
   const beatDur = () => 60 / o.bpm();

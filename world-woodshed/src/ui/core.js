@@ -140,6 +140,7 @@ export function renderTabs() {
 export function teardown() {
   if (ui.cleanup) { try { ui.cleanup(); } catch (e) { console.error(e); } }
   ui.cleanup = null;
+  A.stopLoops();
   A.stopAll();
 }
 /* After a navigation, move keyboard and screen-reader focus to the new view's heading (without scrolling),
