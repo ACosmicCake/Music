@@ -5,13 +5,14 @@
    The tool is src/tools/phrases.js; each length is an item of the smart plan, 'phrase:<id>' (src/curriculum.js). */
 
 // tier and order are the planner's: one- and two-bar phrases first, then half a bar and four, then eight and mixed
+// (orders ten apart, so the planner's small random nudge never puts two bars before one)
 export const LENGTHS = [
   { id: '1', bars: 1, name: 'One-bar phrases', short: '1 bar', tier: 1, order: 0 },
-  { id: '2', bars: 2, name: 'Two-bar phrases', short: '2 bars', tier: 1, order: 1 },
-  { id: 'half', bars: 0.5, name: 'Half-bar phrases', short: '½ bar', tier: 2, order: 2 },
-  { id: '4', bars: 4, name: 'Four-bar phrases', short: '4 bars', tier: 2, order: 3 },
-  { id: '8', bars: 8, name: 'Eight-bar phrases', short: '8 bars', tier: 3, order: 4 },
-  { id: 'mix', bars: null, name: 'Mixed phrase lengths', short: 'Mixed', tier: 3, order: 5 }
+  { id: '2', bars: 2, name: 'Two-bar phrases', short: '2 bars', tier: 1, order: 10 },
+  { id: 'half', bars: 0.5, name: 'Half-bar phrases', short: '½ bar', tier: 2, order: 20 },
+  { id: '4', bars: 4, name: 'Four-bar phrases', short: '4 bars', tier: 2, order: 30 },
+  { id: '8', bars: 8, name: 'Eight-bar phrases', short: '8 bars', tier: 3, order: 40 },
+  { id: 'mix', bars: null, name: 'Mixed phrase lengths', short: 'Mixed', tier: 3, order: 50 }
 ];
 export const FIXED = LENGTHS.filter(x => x.bars);
 export const lengthOf = id => LENGTHS.find(x => x.id === String(id)) || LENGTHS[0];
