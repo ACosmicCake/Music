@@ -2,6 +2,7 @@
 import D from './data.js';
 import E from './engine.js';
 import Cur from './curriculum.js';
+import { LENGTHS as PHRASE_LENGTHS } from './phrases.js';
 
 /* Block categories: colour tokens live in styles.css as --c-<id> */
 export const CATS = {
@@ -22,6 +23,7 @@ export const BLOCKS = {
   arpwarm: { name: 'Arpeggio warm-up', cat: 'warm', tool: 'arpwarm', skill: 'technique', minutes: 6, fields: [], desc: 'An arpeggio in one position with the metronome, from triads to 9ths. The smart plan rotates the arpeggio, key, pattern and tempo.' },
   arpchanges: { name: 'Arpeggio changes', cat: 'tech', tool: 'arpchanges', skill: 'technique', minutes: 8, fields: [], desc: 'A new arpeggio every few bars through a progression or your own chords, in one position.' },
   constraint: { name: 'Constraint roll', cat: 'music', tool: 'constraint', skill: 'improv', minutes: 10, fields: [], desc: 'Improvise over a vamp with one rule at a time (three notes, one string, off the beat…), a new one every few minutes.' },
+  phrases: { name: 'Phrase lengths', cat: 'music', tool: 'phrases', skill: 'improv', minutes: 8, fields: [], desc: 'Solo in phrases of a set length (½, 1, 2, 4 or 8 bars, or mixed): play, then rest as long, while the band keeps going. The smart plan moves you from one-bar phrases to eight.' },
   technique: { name: 'Technique', cat: 'tech', tool: 'technique', skill: 'technique', minutes: 10, fields: ['exercise'], desc: 'A tempo ladder for one exercise: picking, legato, rasgueado, travis and more.' },
   callresp: { name: 'Call & response', cat: 'tech', tool: 'callresp', skill: 'callresp', minutes: 8, fields: [], desc: 'Hear a phrase, play it back on the fretboard.' },
   rhythms: { name: 'Rhythm & groove', cat: 'rhythm', tool: 'rhythms', skill: 'rhythmTap', minutes: 10, fields: ['rhythm'], desc: 'Loop a rhythm from anywhere in the world and take the tap-along test.' },
@@ -55,7 +57,7 @@ export const BLOCKS = {
    doesn't know yet: it is kept as it is (so it syncs back unchanged), shown as such and opened as free practice. */
 export const UNKNOWN_BLOCK = { name: 'A block from a newer version', cat: 'study', tool: 'free', skill: null, minutes: 5, fields: [], desc: 'Update the app on this device to use this block.', unknown: true };
 export const blockDef = type => BLOCKS[type] || UNKNOWN_BLOCK;
-export const BLOCK_ORDER = ['scalewarm', 'arpwarm', 'arpchanges', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'constraint', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
+export const BLOCK_ORDER = ['scalewarm', 'arpwarm', 'arpchanges', 'technique', 'callresp', 'rhythms', 'gym', 'metronome', 'clock', 'rhythmid', 'intervals', 'degrees', 'chords', 'progressions', 'scales', 'dictation', 'drone', 'sightread', 'notenames', 'fretboard', 'explorer', 'drill', 'repertoire', 'constraint', 'phrases', 'piece', 'transcribe', 'free', 'lesson', 'listening', 'atlasquiz', 'away', 'break'];
 
 export const PATTERNS = {
   updown: 'Up and down',
@@ -79,6 +81,7 @@ const AWAY_SWAP = {
   arpwarm: b => ({ drill: 'arps', chord: (b.params || {}).chord, root: (b.params || {}).root }),
   arpchanges: () => ({ drill: 'arps', mode: 'changes' }),
   constraint: () => ({ drill: 'sing' }),
+  phrases: () => ({ drill: 'sing' }),
   technique: () => ({ drill: 'fingers' }),
   free: () => ({ drill: 'visualise' })
 };
@@ -116,6 +119,7 @@ export function describe(b) {
     case 'rhythms': { const rid = st.rhythm || (b.params && b.params.rhythm); parts.push(rid && rid !== 'auto' ? (D.RHYTHMS.find(r => r.id === rid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'repertoire': { const tid = st.tune || (b.params && b.params.tune); parts.push(tid && tid !== 'auto' ? (D.TUNES.find(t => t.id === tid) || E.getTune(tid) || {}).name : 'Smart choice: rotates for you'); break; }
     case 'drill': { const did = st.drill && st.drill !== 'auto' ? st.drill : b.params && b.params.drill; const dd = did && (D.DRILLS || []).find(x => x.id === did); parts.push(dd ? dd.name + ' (' + ((D.REGIONS.find(r => r.id === dd.style) || {}).name || dd.style) + ')' : 'Smart choice: from the styles you put first'); break; }
+    case 'phrases': { const L = (b.params || {}).len; parts.push(L ? (PHRASE_LENGTHS.find(x => x.id === String(L)) || {}).name : 'Smart choice: from one-bar phrases up to eight'); break; }
     case 'piece': { const pid = b.params && b.params.entry, pe = pid && E.getLibEntry(pid); parts.push(pe ? pe.title : 'Smart choice: a piece you are learning'); break; }
     case 'transcribe': { const sg = st.song && st.song !== 'auto' ? E.getSong(st.song) : null; parts.push(sg ? sg.title : 'Your most recent song'); break; }
     case 'lesson': { const lid = st.lesson && st.lesson !== 'auto' ? st.lesson : b.params && b.params.lesson; parts.push(lid ? (D.LESSONS.find(l => l.id === lid) || {}).title : 'Smart choice: new lessons and reviews'); break; }
@@ -154,6 +158,7 @@ export function paramsFor(b, used = new Set()) {
       break;
     }
     case 'arpwarm': if (!out.chord) { const it = smart('arp'); if (it) Object.assign(out, Cur.arpDetails(it)); } break;
+    case 'phrases': if (!out.len) { const it = smart('phrase'); if (it) Object.assign(out, { len: it.ref, smart: true }); } break;
     case 'drone': if (st.scale) Object.assign(out, { scale: st.scale, tonic: st.tonic ?? 2 }); else if (!out.scale) out.scale = rw.scales.find(id => D.SCALES.find(x => x.id === id)) || 'dorian'; break;
     case 'technique': {
       if (!auto(st.exercise)) out.exercise = st.exercise;
