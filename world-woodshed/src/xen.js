@@ -174,9 +174,21 @@ export const MM_PER_IN = 25.4;
 export function lenText(mm, unit) { return unit === 'in' ? (mm / MM_PER_IN).toFixed(3) : mm.toFixed(1); }
 
 /* the table as CSV, in the chosen unit */
-export function fretCsv(sys, table, unit, names) {
+export function fretCsv(sys, table, unit, names, std) {
   const u = unit === 'in' ? 'in' : 'mm';
-  const rows = [['fret', 'step', 'cents', 'from nut (' + u + ')', 'from previous fret (' + u + ')']];
-  table.forEach(r => rows.push([r.fret, names ? names(r.k) : stepName(sys, r.k).name, r.cents.toFixed(2), lenText(r.dist, u), lenText(r.gap, u)]));
+  const rows = [['fret', 'step'].concat(std ? ['standard note on the low string'] : [], ['cents', 'from nut (' + u + ')', 'from previous fret (' + u + ')'])];
+  table.forEach(r => rows.push([r.fret, names ? names(r.k) : stepName(sys, r.k).name].concat(std ? [std(r)] : [], [r.cents.toFixed(2), lenText(r.dist, u), lenText(r.gap, u)])));
   return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v)).join(',')).join('\n') + '\n';
+}
+
+/* The standard (12 equal) note nearest a pitch, as "D3 +24¢": the octave number with C4 middle C, the cents
+   rounded to one (to 0.1 with fine). midi may be fractional, on the A the tuner uses. */
+const STD_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+export function standardOf(midi) {
+  const n = Math.round(midi);
+  return { midi: n, name: STD_NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1), cents: (midi - n) * 100 };
+}
+export function stdText(midi, fine = false) {
+  const s = standardOf(midi), c = fine ? Math.round(s.cents * 10) / 10 : Math.round(s.cents);
+  return s.name + (c ? ' ' + (c > 0 ? '+' : '−') + Math.abs(c) + '¢' : '');
 }

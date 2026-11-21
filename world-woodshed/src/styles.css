@@ -1183,3 +1183,6 @@ html.compact .bio .timeline p::before { display: none; }
 .fr-table tr.fr-period td { background: color-mix(in srgb, var(--patina) 14%, transparent); font-weight: 700; }
 html.compact .fr-table td, html.compact .fr-table th { padding: 4px 5px; font-size: 0.78rem; }
 html.compact .tn-opengrid { grid-template-columns: 1fr; }
+.tn-std { font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
+.tn-strstd { display: block; font-family: var(--font-mono); font-size: 0.62rem; line-height: 1.25; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
+.stringbtn .tn-strstd { font-size: 0.7rem; }

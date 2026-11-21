@@ -96,3 +96,29 @@ describe('tuning systems', () => {
     expect(s).toContain('/MediaBox [0 0 841.89 595.28]');
   });
 });
+
+describe('Bohlen-Pierce tuning, checked end to end', () => {
+  it('names the standard note beside a step', async () => {
+    const { stdText, standardOf } = await import('../src/xen.js');
+    const bp = systemOf('bp13');
+    expect(stdText(40)).toBe('E2');
+    expect(stdText(40 + stepCents(bp, 7) / 100)).toBe('D3 +24¢'); // H on the low E string
+    expect(stdText(40 + stepCents(bp, 13) / 100)).toBe('B3 +2¢'); // the tritave, 3:1 above E2
+    expect(stdText(40 + stepCents(bp, 3) / 100, true)).toBe('A♭2 +38.9¢'); // E, 438.9 cents above E2
+    expect(standardOf(68.5).midi).toBe(69);
+  });
+  it('hears every BP open string and fret within a cent', async () => {
+    const { Analyzer } = await import('../src/analyzer.js');
+    const bp = systemOf('bp13'), sr = 48000;
+    for (const k of [0, 3, 7, 10, 13, 16, 1, 5, 20, 29]) {
+      const f = 82.407 * Math.pow(2, stepCents(bp, k) / 1200), got = [];
+      const an = Analyzer(sr, { emit: e => { if (e.type === 'pitch') got.push(1200 * Math.log2(e.freq / f)); } });
+      const n = Math.round(sr * 1.5), x = new Float32Array(n + sr / 4);
+      for (let i = 0; i < n; i++) { const t = i / sr; let v = 0; for (let h = 1; h <= 8; h++) v += Math.sin(2 * Math.PI * f * h * t + h) / h * Math.exp(-t * h); x[sr / 4 + i] = 0.3 * v * Math.exp(-t * 1.5); }
+      for (let i = 0; i < x.length; i += 1024) an.push(x.slice(i, i + 1024), i / sr);
+      got.sort((a, b) => a - b);
+      expect(got.length).toBeGreaterThan(20);
+      expect(Math.abs(got[got.length >> 1])).toBeLessThan(1);
+    }
+  });
+});
