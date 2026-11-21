@@ -8,7 +8,7 @@ import { guitarMidis, progressionMidis } from '../voicings.js';
 import Mic from '../listen.js';
 import { MicToggle, TimingMeter, noteLabel } from '../ui/mic.js';
 import { keepAwake } from '../native.js';
-import { PRESETS, systemOf, stepCents, stepName, nearestStep, openOf, defaultOpen } from '../xen.js';
+import { PRESETS, systemOf, stepCents, stepName, nearestStep, openOf, defaultOpen, stdText } from '../xen.js';
 import { a4Of, A4_MIN, A4_MAX, IN_TUNE, HOLD_MS, freqToMidi, at440, nearestNote, pickString, advice, centsText, needleAngle, Steady } from '../tuner.js';
 import St from '../stats.js';
 import { fmtMin } from '../routines.js';
@@ -568,6 +568,9 @@ tool('tuner', {
     const saveXen = patch => E.setSetting('xen', Object.assign({}, xs(), patch));
     const curMidis = () => sys.std ? TUNINGS[ti][1] : openSteps().map(k => rootMidi() + stepCents(sys, k) / 100);
     const strName = i => sys.std ? flatName(TUNINGS[ti][1][i]) : stepName(sys, openSteps()[i]).name;
+    // the standard note beside a step of another system, as "D3 +24¢"
+    const strStd = i => sys.std ? '' : stdText(curMidis()[i]).replace(' ', '\n');
+    const stdEl = h('div', { class: 'mono tn-std', text: '' });
     const sysSel = h('div', { class: 'tn-tuning' });
     // the listening tuner
     const tcard = h('div', { class: 'card tuner' });
@@ -579,7 +582,7 @@ tool('tuner', {
     const strRow = h('div', { class: 'tn-strings' });
     const a4Lbl = h('b', { class: 'mono', text: '' });
     const tunSel = h('div', { class: 'tn-tuning' });
-    const idle = () => { dial.set(null); noteEl.textContent = '—'; centsEl.textContent = ''; heardSi = -1; tcard.classList.remove('intune', 'live'); paintStrings(); };
+    const idle = () => { dial.set(null); noteEl.textContent = '—'; centsEl.textContent = ''; stdEl.textContent = ''; heardSi = -1; tcard.classList.remove('intune', 'live'); paintStrings(); };
     function paintMode() {
       modeSeg.innerHTML = '';
       [['guitar', 'Guitar'], ['chromatic', 'Chromatic']].forEach(([id, t]) => modeSeg.append(h('button', { type: 'button', 'aria-pressed': String(opt.mode === id), onclick: () => { opt.mode = id; keep(); paintMode(); idle(); } }, t)));
@@ -593,7 +596,7 @@ tool('tuner', {
       strRow.append(h('button', { type: 'button', class: 'tn-str auto', 'aria-pressed': String(pinned < 0), onclick: () => { pinned = -1; steady.reset(); paintMode(); paintStrings(); } }, h('b', { text: 'Auto' }), h('span', { class: 'small muted', text: 'any string' })));
       midis.forEach((m, i) => strRow.append(h('button', { type: 'button', class: 'tn-str' + (heardSi === i ? ' heard' : '') + (done.has(i) ? ' done' : ''), 'aria-pressed': String(pinned === i), 'aria-label': 'String ' + (6 - i) + ', ' + strName(i) + (done.has(i) ? ', in tune' : ''),
         onclick: () => { pinned = pinned === i ? -1 : i; steady.reset(); paintMode(); paintStrings(); } },
-      h('b', { text: strName(i) }), h('span', { class: 'small muted', text: done.has(i) ? '✓' : String(6 - i) }))));
+      h('b', { text: strName(i) }), sys.std ? null : h('span', { class: 'tn-strstd', text: strStd(i) }), h('span', { class: 'small muted', text: done.has(i) ? '✓' : String(6 - i) }))));
     }
     function paintA4() { a4Lbl.textContent = 'A = ' + opt.a4 + ' Hz'; }
     const stepA4 = d => { opt.a4 = a4Of(Math.max(A4_MIN, Math.min(A4_MAX, opt.a4 + d))); keep(); paintA4(); steady.reset(); if (playing >= 0) { stopTone(); draw(); } };
@@ -610,6 +613,7 @@ tool('tuner', {
           if (moved) inSince = 0;
           cents = p.cents; heardSi = p.si; label = strName(p.si);
           noteEl.textContent = label; noteEl.dataset.sub = 'string ' + (6 - p.si);
+          stdEl.textContent = sys.std ? '' : 'Target ' + stdText(midis[p.si], true) + ' · ' + (opt.a4 * Math.pow(2, (midis[p.si] - 69) / 12)).toFixed(2) + ' Hz · you play ' + stdText(m, true);
           adviceEl.textContent = 'String ' + (6 - p.si) + ' (' + label + '): ' + advice(cents);
           if (Math.abs(cents) <= IN_TUNE) {
             if (!inSince) inSince = Date.now();
@@ -619,12 +623,14 @@ tool('tuner', {
         } else if (sys.std) {
           const n = nearestNote(m);
           cents = n.cents; label = noteLabel(n.midi).split(' ')[0];
-          noteEl.textContent = label; noteEl.dataset.sub = '';
+          noteEl.textContent = label; noteEl.dataset.sub = ''; stdEl.textContent = '';
           adviceEl.textContent = advice(cents);
         } else {
           const n = nearestStep(sys, (m - rootMidi()) * 100), st = stepName(sys, n.k);
           cents = n.cents; label = st.name;
           noteEl.textContent = label; noteEl.dataset.sub = 'step ' + st.m + ' of ' + sys.steps.length + ' · ' + periodWord(sys) + ' ' + (st.period + 1);
+          const tm = rootMidi() + stepCents(sys, n.k) / 100;
+          stdEl.textContent = 'Target ' + stdText(tm, true) + ' · ' + (opt.a4 * Math.pow(2, (tm - 69) / 12)).toFixed(2) + ' Hz · you play ' + stdText(m, true);
           adviceEl.textContent = advice(cents);
         }
         dial.set(cents);
@@ -634,7 +640,7 @@ tool('tuner', {
       }); },
       onOff: () => { keepAwake(false, 'tuner'); if (pitchOff) pitchOff(); pitchOff = null; clearTimeout(quiet); steady.reset(); idle(); paintMode(); } });
     tcard.append(h('div', { class: 'spread' }, modeSeg, mic.el), sysSel,
-      h('div', { class: 'tn-dialwrap' }, dial.el, h('div', { class: 'tn-read' }, noteEl, centsEl)), adviceEl, strRow, tunSel,
+      h('div', { class: 'tn-dialwrap' }, dial.el, h('div', { class: 'tn-read' }, noteEl, centsEl)), stdEl, adviceEl, strRow, tunSel,
       h('div', { class: 'row tn-a4' }, h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Lower A by 1 Hz', onclick: () => stepA4(-1) }, '−'), a4Lbl,
         h('button', { class: 'btn small ghost', type: 'button', 'aria-label': 'Raise A by 1 Hz', onclick: () => stepA4(1) }, '+'),
         h('button', { class: 'btn small ghost', type: 'button', onclick: () => stepA4(440 - opt.a4) }, '440')));
@@ -662,7 +668,7 @@ tool('tuner', {
       const set = (i, k) => { const o = open.slice(); o[i] = k; for (let j = i + 1; j < 6; j++) if (o[j] < o[j - 1]) o[j] = o[j - 1]; saveXen({ open: Object.assign({}, xs().open, { [sys.id]: o }) }); changed(); };
       const changed = () => { stopTone(); done = new Set(); steady.reset(); drawTuning(); paintStrings(); draw(); };
       const roots = []; for (let m = 24; m <= 60; m++) roots.push({ value: String(m), text: flatName(m) + (Math.floor(m / 12) - 1) });
-      const stepOpts = from => { const o = []; for (let k = from; k <= Math.max(n * 3, 30); k++) { const st = stepName(sys, k); o.push({ value: String(k), text: st.name + ['', '′', '″', '‴'][Math.min(3, st.period)] + ' (step ' + k + ')' }); } return o; };
+      const stepOpts = from => { const o = []; for (let k = from; k <= Math.max(n * 3, 30); k++) { const st = stepName(sys, k); o.push({ value: String(k), text: st.name + ['', '′', '″', '‴'][Math.min(3, st.period)] + ' (' + k + ') · ' + stdText(root + stepCents(sys, k) / 100) }); } return o; };
       const wrap = h('div', { class: 'stack tn-open' },
         h('div', { class: 'row' }, selectEl('tn-root', 'Lowest string (step 0)', roots, String(root), v => { saveXen({ root: +v }); changed(); }),
           h('p', { class: 'small muted', text: 'Step 0 is called ' + stepName(sys, 0).name + '. It sounds at ' + (opt.a4 * Math.pow(2, (root - 69) / 12)).toFixed(2) + ' Hz with A = ' + opt.a4 + '.' })),
@@ -680,7 +686,7 @@ tool('tuner', {
           A.ensure(); const was = playing === i; stopTone();
           if (!was) { stopFn = A.tone(toneOf(m), A.now() + 0.02, 30); playing = i; cycle = setTimeout(() => { stopTone(); draw(); }, 30400); } // the tone ends after 30 s: so does the lit button
           draw();
-        } }, h('b', { text: strName(i) }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
+        } }, h('b', { text: strName(i) }), sys.std ? null : h('span', { class: 'tn-strstd', text: strStd(i) + '\n' + (opt.a4 * Math.pow(2, (m - 69) / 12)).toFixed(1) + ' Hz' }), h('span', { class: 'small muted', text: (6 - i) + (i === 0 ? ' (low)' : i === 5 ? ' (high)' : '') })))),
         h('div', { class: 'row' },
           h('button', { class: 'btn', onclick: () => {
             A.ensure(); stopTone();

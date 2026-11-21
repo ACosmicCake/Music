@@ -8,7 +8,7 @@ export const PAPERS = { a4: [297, 210], letter: [279.4, 215.9] };
 export const OVERLAP = 12;
 const MARGIN = 10;
 
-const ascii = t => String(t).replace(/♭/g, 'b').replace(/♯/g, '#').replace(/[−–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7e]/g, '?');
+const ascii = t => String(t).replace(/¢/g, 'c').replace(/♭/g, 'b').replace(/♯/g, '#').replace(/[−–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7e]/g, '?');
 const esc = t => ascii(t).replace(/[\\()]/g, m => '\\' + m);
 const n = v => (Math.round(v * 100) / 100).toString();
 
@@ -58,6 +58,7 @@ export function fretPdf(o) {
       pg.line(x, y0 - 6, x, y1 + 6, 0.25);
       pg.text(x, y1 + 8, String(f.fret), 9, { bold: true, align: 'center' });
       if (f.name) pg.text(x, y1 + 12, f.name, 7, { align: 'center' });
+      if (f.std) pg.text(x, y1 + 15.5, f.std, 6, { align: 'center' });
       pg.text(x - 1, y0 - 7, fmt(f.dist), 7, { rot: true, align: 'right' });
     });
     // the overlap with the page before, to cut along and lay over it
@@ -81,7 +82,7 @@ export function fretPdf(o) {
   tp.text(pw - MARGIN, top - 4, 'Page ' + total + ' of ' + total, 9, { align: 'right' });
   (o.lines || []).forEach((t, j) => tp.text(MARGIN, top - 10 - j * 4.2, t, 8));
   const rows = o.table || [], y0 = top - 12 - (o.lines || []).length * 4.2 - 4;
-  const perCol = Math.floor((y0 - MARGIN) / 4.4), cols = [0, 14, 34, 54, 82];
+  const perCol = Math.floor((y0 - MARGIN) / 4.4), cols = [0, 12, 26, 50, 70, 98];
   rows.forEach((r, j) => {
     const col = j === 0 ? 0 : Math.floor((j - 1) / (perCol - 1)), row = j === 0 ? 0 : (j - 1) % (perCol - 1) + 1;
     const draw = (rr, rowI, colI) => rr.forEach((c, k) => tp.text(MARGIN + colI * 135 + cols[k], y0 - rowI * 4.4, c, 8, { bold: rowI === 0 }));

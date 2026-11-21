@@ -5,7 +5,7 @@
 import E from '../engine.js';
 import { h, tool, openTool, toast } from '../ui/core.js';
 import { selectEl, systemOptions, sysLine } from './practice.js';
-import { systemOf, build, specKey, fretTable, stepName, nearStandard, tightest, lenText, fretCsv, MM_PER_IN } from '../xen.js';
+import { systemOf, build, specKey, fretTable, stepName, nearStandard, tightest, lenText, fretCsv, MM_PER_IN, stdText } from '../xen.js';
 import { fretPdf } from '../fretpdf.js';
 import { openBlob } from '../native.js';
 
@@ -26,6 +26,9 @@ tool('frets', {
     const sysCard = h('div', { class: 'card' }), gtrCard = h('div', { class: 'card' }), tblCard = h('div', { class: 'card' }), outCard = h('div', { class: 'card' });
     body.append(sysCard, gtrCard, tblCard, outCard);
     const name = k => stepName(sys, k).name;
+    // the standard note a fret sounds on the low string (tuned to the tuner's root, E2 unless changed)
+    const lowRoot = () => { const r = +xs().root; return r >= 24 && r <= 60 ? r : 40; };
+    const onLow = r => stdText(lowRoot() + r.cents / 100);
     const u = () => g.unit === 'in' ? 'in' : 'mm';
 
     function drawSys() {
@@ -96,9 +99,9 @@ tool('frets', {
         h('p', { class: 'small muted', text: 'From the front edge of the nut to the middle of each fret slot, in ' + (g.unit === 'in' ? 'inches' : 'mm') + '. Plain positions: no nut or saddle compensation.' }));
       if (tight && tight.gap < TIGHT) tblCard.append(h('p', { class: 'small fr-warn', text: 'Frets ' + (tight.fret - 1) + ' and ' + tight.fret + ' are only ' + lenText(tight.gap, u()) + ' ' + u() + ' apart: hard to play cleanly and to fit zip ties. Fewer frets may be better.' }));
       tblCard.append(h('div', { class: 'tablewrap' }, h('table', { class: 'fr-table mono' },
-        h('thead', {}, h('tr', {}, ['Fret', 'Step', 'Cents', 'From nut', 'From last', 'Old fret'].map(c => h('th', { text: c })))),
+        h('thead', {}, h('tr', {}, ['Fret', 'Step', 'On low ' + stdText(lowRoot()), 'Cents', 'From nut', 'From last', 'Old fret'].map(c => h('th', { text: c })))),
         h('tbody', {}, t.map(r => { const ns = nearStandard(r.dist, g.len); return h('tr', { class: r.k % sys.steps.length === 0 ? 'fr-period' : null },
-          h('td', { text: String(r.fret) }), h('td', { text: name(r.k) }), h('td', { text: r.cents.toFixed(1) }),
+          h('td', { text: String(r.fret) }), h('td', { text: name(r.k) }), h('td', { text: onLow(r) }), h('td', { text: r.cents.toFixed(1) }),
           h('td', { text: lenText(r.dist, u()) }), h('td', { text: lenText(r.gap, u()) }),
           h('td', { text: Math.abs(ns.off) <= SNAP ? ns.fret + ' (' + (ns.off >= 0 ? '+' : '−') + lenText(Math.abs(ns.off), u()) + ')' : '—' })); })))),
         h('p', { class: 'small muted', text: 'Old fret: for zip ties on a guitar that keeps its frets, the standard fret within ' + SNAP + ' mm of this one and how far past it (+) or before it (−). The highlighted rows end a ' + (Math.abs(sys.period - 1200) < 0.01 ? 'octave' : 'period') + '.' }));
@@ -112,11 +115,11 @@ tool('frets', {
           h('button', { class: 'btn', type: 'button', onclick: () => {
             const t = fretTable(sys, g.len, g.count);
             const bytes = fretPdf({ title: sys.name, lines: lines(), unit: g.unit, paper: g.paper,
-              frets: t.map(r => ({ fret: r.fret, dist: r.dist, name: name(r.k) })),
-              table: [['Fret', 'Step', 'Cents', 'From nut (' + u() + ')', 'From last (' + u() + ')'], ...t.map(r => [String(r.fret), name(r.k), r.cents.toFixed(1), lenText(r.dist, u()), lenText(r.gap, u())])] });
+              frets: t.map(r => ({ fret: r.fret, dist: r.dist, name: name(r.k), std: onLow(r) })),
+              table: [['Fret', 'Step', 'On low ' + stdText(lowRoot()), 'Cents', 'From nut (' + u() + ')', 'From last (' + u() + ')'], ...t.map(r => [String(r.fret), name(r.k), onLow(r), r.cents.toFixed(1), lenText(r.dist, u()), lenText(r.gap, u())])] });
             openBlob(fileName('pdf'), new Blob([bytes], { type: 'application/pdf' }), 'Fret template');
           } }, 'Full-size template (PDF)'),
-          h('button', { class: 'btn ghost', type: 'button', onclick: () => openBlob(fileName('csv'), new Blob([fretCsv(sys, fretTable(sys, g.len, g.count), g.unit, name)], { type: 'text/csv' }), 'Fret table') }, 'Table (CSV)')),
+          h('button', { class: 'btn ghost', type: 'button', onclick: () => openBlob(fileName('csv'), new Blob([fretCsv(sys, fretTable(sys, g.len, g.count), g.unit, name, onLow)], { type: 'text/csv' }), 'Fret table') }, 'Table (CSV)')),
         h('p', { class: 'small muted', text: 'Print the template at 100% (Actual size, not Fit to page) and check the 100 mm bar on each page with a ruler. Cut along the dashed line and lay each page over the one before so the fret lines meet, then tape the strip to the fingerboard with its nut line on the nut’s front edge and mark or saw at each line.' }));
     }
     const fileName = ext => 'frets ' + sys.name.replace(/[^\w\- ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ' + Math.round(g.len) + 'mm.' + ext;
