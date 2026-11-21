@@ -379,13 +379,44 @@ function Loop(opts) {
   return api;
 }
 
-/* Tanpura-like drone: Pa, Sa', Sa', Sa (low). One drone plays at a time: starting one stops any other
-   still going (a tool that started a second without stopping the first played two at once), and a
-   stopped drone fades out within a quarter second instead of letting its last notes ring on for three. */
+/* A held, bowed drone note for under a melody: a few soft harmonics through a dark filter, swelling in
+   and out so that one note overlapping the next is one unbroken sound, with no attack of its own */
+function hum(midi, when, dur, vel) {
+  const f = mtof(midi), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.3;
+  const swell = Math.min(0.9, dur / 3);
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.linearRampToValueAtTime(vel, when + swell);
+  g.gain.setValueAtTime(vel, when + dur - swell);
+  g.gain.linearRampToValueAtTime(0.0001, when + dur);
+  lp.connect(g); g.connect(chan.guitar || master);
+  [[1, 1, 0], [2, 0.45, 4], [3, 0.22, -3], [4, 0.1, 2]].forEach(([k, a, cents]) => {
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = 'triangle'; o.frequency.value = f * k; o.detune.value = cents; og.gain.value = a;
+    o.connect(og); og.connect(lp); o.start(when); o.stop(when + dur + 0.05); track(o, g, when);
+  });
+}
+
+/* Tanpura-like drone: Pa, Sa', Sa', Sa (low), plucked on the guitar sound, for improvising over.
+   o.under: a drone for under a melody the app plays (dictation, scales by ear). Plucked on the same guitar,
+   in the melody's octave, it blurred with the melody, so this one is held, not plucked: Sa and Pa an octave
+   below the tonic, softer and darker, the notes overlapping into one unbroken sound.
+   One drone plays at a time: starting one stops any other still going (a tool that started a second
+   without stopping the first played two at once), and a stopped drone fades out within a quarter second
+   instead of letting its last notes ring on for three. */
 let drone = null;
-function Drone(tonicMidi, fifth = 7) {
+function Drone(tonicMidi, fifth = 7, o = {}) {
   const pattern = [tonicMidi - 12 + fifth, tonicMidi, tonicMidi, tonicMidi - 12];
-  const loop = Loop({
+  const HUM = 3; // seconds between held notes, each held 4 s so they overlap
+  const loop = o.under ? Loop({
+    steps: 2,
+    cut: 0.25,
+    stepDur: () => HUM,
+    onStep: (i, t) => {
+      hum(tonicMidi - 12, t, HUM + 1, 0.11); // Sa, low
+      hum(tonicMidi - 12 + fifth, t, HUM + 1, 0.06); // Pa, under it
+    }
+  }) : Loop({
     steps: 4,
     cut: 0.25,
     stepDur: i => (i === 3 ? 1.1 : 0.7),

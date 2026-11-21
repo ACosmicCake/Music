@@ -206,3 +206,23 @@ describe('drones never overlap', () => {
     expect(made.length).toBe(n);
   });
 });
+
+describe('a drone under a melody', () => {
+  it('is held below the tonic, not plucked on the guitar in the melody\'s octave', () => {
+    vi.useFakeTimers();
+    const notes = [];
+    A.setNoteSampler((midi) => { notes.push(midi); return null; });
+    try {
+      const d = A.Drone(55, 7, { under: true });
+      d.start(ctx.currentTime);
+      for (let k = 0; k < 160; k++) { ctx.currentTime += 0.05; vi.advanceTimersByTime(25); } // eight seconds
+      d.stop();
+      expect(notes).toEqual([]); // no guitar notes
+      const fundamentals = made.filter(s => s.frequency && s.frequency.value < A.mtof(55));
+      expect(fundamentals.length).toBeGreaterThan(0);
+      const starts = [...new Set(made.map(s => s.startAt))].sort((a, b) => a - b);
+      for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThan(2.9); // no replucking
+      made.forEach(s => expect(s.stopAt <= ctx.currentTime + 0.3).toBe(true)); // and it stops at once
+    } finally { A.setNoteSampler(null); }
+  });
+});

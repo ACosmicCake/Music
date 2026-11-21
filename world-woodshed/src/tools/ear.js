@@ -218,7 +218,7 @@ tool('scales', {
       const opts = shuffle(shuffle(pool).slice(0, 3).concat([sc.id])).map(id => D.SCALES.find(x => x.id === id));
       const play = (scale = sc) => {
         stopDrone(); A.stopAll();
-        drone = A.Drone(tonic); drone.start();
+        drone = A.Drone(tonic, 7, { under: true }); drone.start();
         playScale(tonic + 12, scale.steps, A.now() + 1.6);
       };
       return {
