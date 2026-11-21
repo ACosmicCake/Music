@@ -1167,3 +1167,19 @@ html.compact .bio .timeline p::before { display: none; }
   .seg.big.learn-seg { flex-wrap: wrap; border-radius: 14px; }
   .seg.big.learn-seg button { flex: 1 1 30%; }
 }
+
+/* Tuner in other systems and the fret calculator (src/tools/frets.js) */
+.tn-open { width: 100%; text-align: left; gap: 8px; }
+.tn-opengrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; }
+.tn-opengrid select, .tn-open select { max-width: 100%; }
+.fr-steps .chip { cursor: default; font-family: var(--font-mono); font-size: 0.78rem; }
+.fr-num { width: 6.5em; }
+.fr-make { margin-top: 6px; }
+.fr-make summary { cursor: pointer; font-weight: 700; }
+.fr-make textarea { width: 100%; font-family: var(--font-mono); }
+.fr-err { color: var(--danger, #b3261e); }
+.fr-warn { color: var(--brass, #9a6b12); font-weight: 600; }
+.fr-table td, .fr-table th { padding: 5px 8px; white-space: nowrap; }
+.fr-table tr.fr-period td { background: color-mix(in srgb, var(--patina) 14%, transparent); font-weight: 700; }
+html.compact .fr-table td, html.compact .fr-table th { padding: 4px 5px; font-size: 0.78rem; }
+html.compact .tn-opengrid { grid-template-columns: 1fr; }

@@ -1,0 +1,182 @@
+/* Tuning systems other than 12 equal (plain functions, test/xen.test.js): Bohlen-Pierce, other equal
+   divisions of any interval, just ratios and Scala .scl files, for the tuner and the fret calculator.
+   Every system here can be fretted with straight frets (a refret or zip ties on a normal guitar): a system is
+   one list of steps, in cents above the open string, repeated every period (an octave, or a tritave 3:1 in
+   Bohlen-Pierce), and fret k sits where step k does on every string. */
+
+export const cents = r => 1200 * Math.log2(r);
+
+/* Bohlen-Pierce note names, step 0 being C (as in Bohlen's and the usual BP charts) */
+export const BP_NAMES = ['C', 'D♭', 'D', 'E', 'F', 'G♭', 'G', 'H', 'J♭', 'J', 'A', 'B♭', 'B'];
+
+/* A pitch as Scala writes one: with a dot it is cents ("701.955"), otherwise a ratio ("3/2", "2"). Returns
+   cents, or null when it is not one. */
+export function pitchCents(t) {
+  t = String(t == null ? '' : t).trim();
+  if (/^-?\d*\.\d*$/.test(t) && /\d/.test(t)) return +t;
+  const m = /^(\d+)(?:\s*\/\s*(\d+))?$/.exec(t);
+  if (!m) return null;
+  const a = +m[1], b = m[2] ? +m[2] : 1;
+  return a > 0 && b > 0 ? cents(a / b) : null;
+}
+
+/* A Scala .scl file: '!' lines are comments, then a description, the number of pitches and the pitches
+   (the first word of each line), the last being the period. Returns { name, period, steps } or { error }. */
+export function parseScl(text) {
+  const lines = String(text || '').split(/\r?\n/).filter(l => !/^\s*!/.test(l));
+  if (lines.length < 2) return { error: 'A Scala file has a description line, a count, then the pitches.' };
+  const name = lines[0].trim(), count = parseInt(lines[1], 10);
+  if (!(count > 0)) return { error: 'The second line should be how many pitches follow.' };
+  const ps = lines.slice(2).map(l => l.trim()).filter(Boolean).slice(0, count).map(l => pitchCents(l.split(/\s+/)[0]));
+  if (ps.length < count) return { error: 'The file lists ' + count + ' pitches but has ' + ps.length + '.' };
+  if (ps.some(c => c === null)) return { error: 'A pitch could not be read: write ratios like 3/2 or cents like 701.955.' };
+  const period = ps[ps.length - 1];
+  return Object.assign(scaleOf(ps.slice(0, -1), period), { name: name || 'Scala scale' });
+}
+
+/* steps from a list of cents inside a period: 0 first, sorted, repeats and anything outside dropped */
+function scaleOf(list, period) {
+  if (!(period > 1)) return { error: 'The period has to be wider than a unison.' };
+  const steps = [0];
+  list.filter(c => c > 0.5 && c < period - 0.5).sort((a, b) => a - b).forEach(c => { if (c - steps[steps.length - 1] > 0.5) steps.push(c); });
+  return { period, steps };
+}
+
+/* Build a system from its recipe:
+   { kind: 'ed', n, of: '2/1' }  n equal steps of an interval (n-EDO when it is the octave)
+   { kind: 'ji', ratios: '9/8 5/4 …', of: '2/1' }  just ratios repeated every period
+   { kind: 'scl', text }  a Scala file
+   Returns { id, name, period, steps, names, std } or { error }. */
+export function build(spec) {
+  if (!spec || typeof spec !== 'object') return { error: 'No tuning system.' };
+  let out;
+  if (spec.kind === 'ed') {
+    const n = Math.round(+spec.n), period = pitchCents(spec.of || '2/1');
+    if (!(n >= 1 && n <= 200)) return { error: 'Choose between 1 and 200 steps.' };
+    if (period === null) return { error: 'Write the interval as a ratio such as 2/1 or 3/1, or in cents.' };
+    out = scaleOf(Array.from({ length: n - 1 }, (_, i) => (i + 1) * period / n), period);
+    if (!out.error) {
+      const octave = Math.abs(period - 1200) < 0.01, tritave = Math.abs(period - cents(3)) < 0.01;
+      out.name = spec.name || (octave ? n + ' equal (' + n + '-EDO)' : tritave && n === 13 ? 'Bohlen-Pierce, 13 equal steps of 3:1' : n + ' equal steps of ' + (spec.of || '2/1'));
+      if (tritave && n === 13) out.names = BP_NAMES;
+      if (octave && n === 12) out.std = true;
+    }
+  } else if (spec.kind === 'ji') {
+    const period = pitchCents(spec.of || '2/1');
+    if (period === null) return { error: 'Write the period as a ratio such as 2/1 or 3/1.' };
+    const words = String(spec.ratios || '').split(/[\s,]+/).filter(Boolean), cs = words.map(pitchCents);
+    if (!words.length) return { error: 'Write the ratios of the steps, such as 9/8 5/4 4/3.' };
+    const bad = words.find((w, i) => cs[i] === null);
+    if (bad) return { error: '“' + bad + '” is not a ratio or a number of cents.' };
+    out = scaleOf(cs, period);
+    if (!out.error) {
+      out.name = spec.name || 'Just ratios';
+      if (Math.abs(period - cents(3)) < 0.01 && out.steps.length === 13) out.names = BP_NAMES;
+    }
+  } else if (spec.kind === 'scl') {
+    out = parseScl(spec.text);
+    if (!out.error && spec.name) out.name = spec.name;
+  } else return { error: 'Unknown tuning system.' };
+  if (out.error) return out;
+  if (out.steps.length > 200) return { error: 'That is more than 200 steps in a period.' };
+  out.id = spec.id || specKey(spec);
+  return out;
+}
+
+/* a stable id for a recipe, so a saved system and its open strings stay together across devices */
+export function specKey(spec) {
+  const body = spec.kind === 'ed' ? spec.n + ':' + (spec.of || '2/1') : spec.kind === 'ji' ? (spec.ratios || '') + '|' + (spec.of || '2/1') : String(spec.text || '');
+  let x = 5381;
+  for (let i = 0; i < body.length; i++) x = ((x * 33) ^ body.charCodeAt(i)) >>> 0;
+  return 'mine:' + spec.kind + ':' + x.toString(36);
+}
+
+const BP_JUST = '27/25 25/21 9/7 7/5 75/49 5/3 9/5 49/25 15/7 7/3 63/25 25/9';
+/* the systems offered without building one: all of them playable with straight frets */
+export const PRESETS = [
+  { id: 'edo12', group: 'Standard', spec: { kind: 'ed', n: 12, of: '2/1', name: '12 equal (standard)' } },
+  { id: 'bp13', group: 'Bohlen-Pierce', spec: { kind: 'ed', n: 13, of: '3/1' }, note: 'No octaves: the tritave, 3:1, is an octave and a fifth. Built on odd harmonics (3, 5, 7, 9), its main chord is 3:5:7.' },
+  { id: 'bpjust', group: 'Bohlen-Pierce', spec: { kind: 'ji', ratios: BP_JUST, of: '3/1', name: 'Bohlen-Pierce, just' }, note: 'The 13 just ratios Bohlen and Pierce derived from the 3:5:7 chord. With straight frets every string gets these ratios above its own open note.' },
+  ...[10, 15, 16, 17, 19, 22, 24, 31].map(n => ({ id: 'edo' + n, group: 'Equal divisions of the octave', spec: { kind: 'ed', n, of: '2/1' },
+    note: { 10: 'Steps of 120 cents: no fifths, very open.', 15: 'Steps of 80 cents, with a good 7:4 and three tritones.', 16: 'Steps of 75 cents: eerie, with a flat fifth.', 17: 'Neutral thirds; a fifth slightly sharp.', 19: 'Meantone-like, sweet thirds and room for sharps and flats as separate notes.', 22: 'Good 5-limit and 7-limit harmony; its fifth is a little sharp.', 24: 'Quarter tones: maqam and Arabic music.', 31: 'Near meantone, with very pure thirds and good 7:4. Frets get close high up.' }[n] })),
+  { id: 'alpha', group: 'Non-octave', spec: { kind: 'ed', n: 9, of: '3/2', name: 'Carlos alpha, 9 equal steps of 3:2' }, note: 'Wendy Carlos’s alpha: steps of about 78 cents, with good 3:2, 5:4 and 6:5, and no octave.' },
+  { id: 'beta', group: 'Non-octave', spec: { kind: 'ed', n: 11, of: '3/2', name: 'Carlos beta, 11 equal steps of 3:2' }, note: 'Wendy Carlos’s beta: steps of about 64 cents, with good 3:2 and 7:4.' },
+  { id: 'just12', group: 'Just intonation', spec: { kind: 'ji', ratios: '16/15 9/8 6/5 5/4 4/3 45/32 3/2 8/5 5/3 9/5 15/8', of: '2/1', name: 'Just 12 (5-limit)' }, note: 'Pure 5-limit ratios above each open string. With straight frets the open-string tuning decides how chords across strings sound.' }
+];
+
+/* the system a setting names: a preset id or one of your own (mine: [{ id, … recipe }]); 12 equal otherwise */
+export function systemOf(id, mine = []) {
+  const p = PRESETS.find(x => x.id === id);
+  if (p) return Object.assign(build(p.spec), { id: p.id, note: p.note || '' });
+  const m = (Array.isArray(mine) ? mine : []).find(x => x && x.id === id);
+  if (m) { const s = build(m); if (!s.error) return Object.assign(s, { id: m.id, note: '', mine: true }); }
+  return systemOf('edo12');
+}
+
+/* step k (any whole number, 0 the open string) in cents */
+export function stepCents(sys, k) {
+  const n = sys.steps.length, p = Math.floor(k / n);
+  return p * sys.period + sys.steps[k - p * n];
+}
+/* its name inside the period, and which period (0 the first) */
+export function stepName(sys, k) {
+  const n = sys.steps.length, p = Math.floor(k / n), m = k - p * n;
+  return { name: sys.names ? sys.names[m] : String(m), period: p, m };
+}
+/* the step nearest a pitch c cents above step 0, and how far off: { k, cents } */
+export function nearestStep(sys, c) {
+  const n = sys.steps.length, p = Math.floor(c / sys.period);
+  let best = null;
+  for (let k = (p - 1) * n; k <= (p + 2) * n; k++) {
+    const d = c - stepCents(sys, k);
+    if (!best || Math.abs(d) < Math.abs(best.d)) best = { k, d };
+  }
+  return { k: best.k, cents: Math.round(best.d) };
+}
+
+/* open strings low to high, as steps above the lowest: the steps nearest standard tuning's E A D G B E,
+   each above the one before (Bohlen-Pierce gives 0 3 7 10 13 16, C E H A C E) */
+const STANDARD = [0, 500, 1000, 1500, 1900, 2400];
+export function defaultOpen(sys) {
+  const out = [];
+  STANDARD.forEach(c => { let k = nearestStep(sys, c).k; if (out.length && k <= out[out.length - 1]) k = out[out.length - 1] + 1; out.push(k); });
+  return out;
+}
+/* saved open strings, kept only when they are six whole numbers rising from 0 within reason */
+export function openOf(sys, saved) {
+  if (Array.isArray(saved) && saved.length === 6 && saved.every((k, i) => Number.isInteger(k) && k >= 0 && k <= sys.steps.length * 6 && (i === 0 ? k === 0 : k >= saved[i - 1]))) return saved.slice();
+  return defaultOpen(sys);
+}
+
+/* fret positions from the nut on a scale length (any unit): fret k at step k */
+export function fretTable(sys, len, count) {
+  const out = [];
+  let last = 0;
+  for (let k = 1; k <= count; k++) {
+    const c = stepCents(sys, k), dist = len * (1 - Math.pow(2, -c / 1200));
+    out.push({ fret: k, k, cents: c, dist, gap: dist - last });
+    last = dist;
+  }
+  return out;
+}
+/* the standard (12 equal) fret nearest a position, for zip ties over old frets: { fret, off } */
+export function nearStandard(dist, len) {
+  const j = Math.max(1, Math.round(-12 * Math.log2(1 - Math.min(dist / len, 0.999))));
+  return { fret: j, off: dist - len * (1 - Math.pow(2, -j / 12)) };
+}
+/* the closest two frets in a table: { fret, gap } (fret is the higher one) */
+export function tightest(table) {
+  return table.reduce((b, r) => !b || r.gap < b.gap ? { fret: r.fret, gap: r.gap } : b, null);
+}
+
+export const MM_PER_IN = 25.4;
+/* a length in the chosen unit: mm to 0.1, inches to 0.001 */
+export function lenText(mm, unit) { return unit === 'in' ? (mm / MM_PER_IN).toFixed(3) : mm.toFixed(1); }
+
+/* the table as CSV, in the chosen unit */
+export function fretCsv(sys, table, unit, names) {
+  const u = unit === 'in' ? 'in' : 'mm';
+  const rows = [['fret', 'step', 'cents', 'from nut (' + u + ')', 'from previous fret (' + u + ')']];
+  table.forEach(r => rows.push([r.fret, names ? names(r.k) : stepName(sys, r.k).name, r.cents.toFixed(2), lenText(r.dist, u), lenText(r.gap, u)]));
+  return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v)).join(',')).join('\n') + '\n';
+}
