@@ -8,6 +8,9 @@ export const cents = r => 1200 * Math.log2(r);
 
 /* Bohlen-Pierce note names, step 0 being C (as in Bohlen's and the usual BP charts) */
 export const BP_NAMES = ['C', 'D♭', 'D', 'E', 'F', 'G♭', 'G', 'H', 'J♭', 'J', 'A', 'B♭', 'B'];
+/* 26 equal steps of the tritave split each BP step in two: the even steps are the BP notes, an odd one the
+   BP note below raised half a step, written with ↑ (C, C↑, D♭, D♭↑ … B, B↑) */
+export const BP26_NAMES = BP_NAMES.flatMap(x => [x, x + '↑']);
 
 /* A pitch as Scala writes one: with a dot it is cents ("701.955"), otherwise a ratio ("3/2", "2"). Returns
    cents, or null when it is not one. */
@@ -57,8 +60,9 @@ export function build(spec) {
     out = scaleOf(Array.from({ length: n - 1 }, (_, i) => (i + 1) * period / n), period);
     if (!out.error) {
       const octave = Math.abs(period - 1200) < 0.01, tritave = Math.abs(period - cents(3)) < 0.01;
-      out.name = spec.name || (octave ? n + ' equal (' + n + '-EDO)' : tritave && n === 13 ? 'Bohlen-Pierce, 13 equal steps of 3:1' : n + ' equal steps of ' + (spec.of || '2/1'));
+      out.name = spec.name || (octave ? n + ' equal (' + n + '-EDO)' : tritave && n === 13 ? 'Bohlen-Pierce, 13 equal steps of 3:1' : tritave && n === 26 ? 'Bohlen-Pierce, 26 equal steps of 3:1 (26EDT)' : n + ' equal steps of ' + (spec.of || '2/1'));
       if (tritave && n === 13) out.names = BP_NAMES;
+      if (tritave && n === 26) out.names = BP26_NAMES;
       if (octave && n === 12) out.std = true;
     }
   } else if (spec.kind === 'ji') {
@@ -97,6 +101,7 @@ export const PRESETS = [
   { id: 'edo12', group: 'Standard', spec: { kind: 'ed', n: 12, of: '2/1', name: '12 equal (standard)' } },
   { id: 'bp13', group: 'Bohlen-Pierce', spec: { kind: 'ed', n: 13, of: '3/1' }, note: 'No octaves: the tritave, 3:1, is an octave and a fifth. Built on odd harmonics (3, 5, 7, 9), its main chord is 3:5:7.' },
   { id: 'bpjust', group: 'Bohlen-Pierce', spec: { kind: 'ji', ratios: BP_JUST, of: '3/1', name: 'Bohlen-Pierce, just' }, note: 'The 13 just ratios Bohlen and Pierce derived from the 3:5:7 chord. With straight frets every string gets these ratios above its own open note.' },
+  { id: 'bp26', group: 'Bohlen-Pierce', spec: { kind: 'ed', n: 26, of: '3/1' }, note: '26EDT: every BP step split in two, steps of about 73 cents. Every other fret is a BP fret, so it plays all of 13 equal and adds a note between each, for inflections and bends in BP. Frets are about three quarters as wide as standard ones; about 27 reach where a standard 20th fret sits.' },
   ...[10, 15, 16, 17, 19, 22, 24, 31].map(n => ({ id: 'edo' + n, group: 'Equal divisions of the octave', spec: { kind: 'ed', n, of: '2/1' },
     note: { 10: 'Steps of 120 cents: no fifths, very open.', 15: 'Steps of 80 cents, with a good 7:4 and three tritones.', 16: 'Steps of 75 cents: eerie, with a flat fifth.', 17: 'Neutral thirds; a fifth slightly sharp.', 19: 'Meantone-like, sweet thirds and room for sharps and flats as separate notes.', 22: 'Good 5-limit and 7-limit harmony; its fifth is a little sharp.', 24: 'Quarter tones: maqam and Arabic music.', 31: 'Near meantone, with very pure thirds and good 7:4. Frets get close high up.' }[n] })),
   { id: 'alpha', group: 'Non-octave', spec: { kind: 'ed', n: 9, of: '3/2', name: 'Carlos alpha, 9 equal steps of 3:2' }, note: 'Wendy Carlos’s alpha: steps of about 78 cents, with good 3:2, 5:4 and 6:5, and no octave.' },
@@ -111,6 +116,31 @@ export function systemOf(id, mine = []) {
   const m = (Array.isArray(mine) ? mine : []).find(x => x && x.id === id);
   if (m) { const s = build(m); if (!s.error) return Object.assign(s, { id: m.id, note: '', mine: true }); }
   return systemOf('edo12');
+}
+
+/* open-string tunings for a Bohlen-Pierce guitar (13 steps to the tritave), low to high as steps above the
+   lowest string, which sounds at root (a MIDI note). A BP fret is about 1.46 times as wide as a standard one,
+   so a hand covers about three frets: gaps of 3 or 4 steps between strings (439 and 585 cents) play the way
+   fourths do on a standard guitar. Every string stays within 300 cents below and 100 cents above its standard
+   pitch, so the strings already on the guitar take it (test/xen.test.js). */
+export const BP_TUNINGS = [
+  { id: 'near', name: 'Near standard', open: [0, 3, 7, 10, 13, 16], root: 40,
+    note: 'The default. Every string is within 61 cents of standard, so the tension hardly changes. Gaps of 3 and 4 steps feel like fourths and a third, and strings 1 and 5, 2 and 6 are a tritave apart, so a shape on the low strings repeats two strings up.' },
+  { id: 'even', name: 'All 9:7s (every gap 3 steps)', open: [0, 3, 6, 9, 12, 15], root: 41,
+    note: 'Every string is a 9:7 (439 cents, a wide major third) above the one before, so every shape moves across the strings unchanged, like all-thirds tuning. Three frets per string reach every note, so one hand position plays the whole BP chromatic, and the range is the narrowest. The low string goes up a semitone to F and the high one down a semitone, the limits of what standard strings take.' },
+  { id: 'frame', name: 'Tritave frame (4-3-3-3-4)', open: [0, 4, 7, 10, 13, 17], root: 39,
+    note: 'Gaps of 4, 3, 3, 3, 4: the outer pairs are 7:5 (585 cents, the stretch of a standard fourth), the middle ones 9:7. Strings 1 and 5, 2 and 6 are tritaves, and the low three ring C F H, the 5:7:9 chord. Tuned from E♭ so every string goes down.' },
+  { id: 'open', name: 'Open chord on H', open: [0, 4, 7, 11, 13, 17], root: 39,
+    note: 'The top four strings strum the 15:21:25:35 chord on H, which holds the 3:5:7 triad, and a barre at any fret moves it. Good for strumming, drones and slide. Every string goes down from standard.' },
+  { id: 'wide', name: 'Wide bass (4-4-3-3-3)', open: [0, 4, 8, 11, 14, 17], root: 39,
+    note: 'Two 7:5 gaps on the bass spread the low strings wider for bass lines under a melody, played with the thumb. The top four strings are 9:7s apart as in the all-9:7 tuning, so treble shapes move across them unchanged. Every string goes down or stays within 70 cents of standard.' }
+];
+/* 26EDT plays the same tunings at twice the steps, so its open strings stay on BP notes */
+const BP26_TUNINGS = BP_TUNINGS.map(t => Object.assign({}, t, { open: t.open.map(k => 2 * k), name: t.name.replace(/\(([^)]*)\)/, (m, x) => '(' + x.replace(/\d+/g, d => 2 * d) + ')'), note: t.note + ' In 26EDT each BP step here is two frets, and the strings stay on BP notes.' }));
+/* the tunings offered for a system: Bohlen-Pierce's when it has 13 or 26 steps to a tritave, none otherwise */
+export function tuningsFor(sys) {
+  if (!sys || Math.abs(sys.period - cents(3)) >= 1) return [];
+  return sys.steps.length === 13 ? BP_TUNINGS : sys.steps.length === 26 ? BP26_TUNINGS : [];
 }
 
 /* step k (any whole number, 0 the open string) in cents */
@@ -138,6 +168,8 @@ export function nearestStep(sys, c) {
    each above the one before (Bohlen-Pierce gives 0 3 7 10 13 16, C E H A C E) */
 const STANDARD = [0, 500, 1000, 1500, 1900, 2400];
 export function defaultOpen(sys) {
+  const ts = tuningsFor(sys);
+  if (ts.length) return ts[0].open.slice();
   const out = [];
   STANDARD.forEach(c => { let k = nearestStep(sys, c).k; if (out.length && k <= out[out.length - 1]) k = out[out.length - 1] + 1; out.push(k); });
   return out;
