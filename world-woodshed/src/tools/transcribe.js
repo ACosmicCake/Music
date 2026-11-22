@@ -8,6 +8,7 @@ import './transcribe.css';
 import { TRANSCRIBE_META } from './transcribe-lazy.js';
 import TN from '../mytunes.js';
 import { keepAwake, isNative } from '../native.js';
+import { setSongSource, toggleNameIt } from '../ui/nameit.js';
 
 export default function transcribe(UI) {
   const { h, s, toast, bar, Fretboard, positionsOfPc } = UI;
@@ -841,9 +842,32 @@ export default function transcribe(UI) {
         if (prog === undefined) { statusBar.hidden = true; return; }
         statusBar.hidden = false; statusBar.firstChild.style.width = Math.round(prog * 100) + '%';
       }
+      /* ----- Name it (src/ui/nameit.js): the chord at the playhead and the scale over a span, from the
+         recording itself, transposed with it. A long span is heard at up to 80 frames spread across it. ----- */
+      function spanChroma(a, b) {
+        if (!P.mono || P.mono.length < 8192) return null;
+        const sr = P.sr, N = 8192, tune = P.est ? P.est.tune || 0 : 0;
+        const s0 = clamp(Math.floor(a * sr), 0, P.mono.length - N), s1 = clamp(Math.floor(b * sr), s0 + N, P.mono.length);
+        if (s0 < 0 || s1 - s0 < N) return null;
+        const n = Math.min(80, Math.max(1, Math.floor((s1 - s0 - N) / 4096) + 1)), step = n > 1 ? (s1 - s0 - N) / (n - 1) : 0;
+        const pcs = new Float64Array(12), low = new Float64Array(12);
+        let tot = 0;
+        for (let i = 0; i < n; i++) tot += foldPeaks(magAt(P.mono, Math.round(s0 + i * step), N), sr, N, 45, 2200, pcs, low, { pow: 2, tune });
+        if (!(tot > 1e-6)) return null;
+        const sh = ((P.semis % 12) + 12) % 12, rot = arr => Array.from({ length: 12 }, (x, pc) => arr[(pc - sh + 12) % 12]);
+        return { pcs: rot(pcs), low: rot(low) };
+      }
+      const songSource = {
+        name: () => (P.setup && (P.setup.title || P.setup.fileName)) || 'the song',
+        now: () => curPos(), playing: () => !!P.playing, dur: () => P.dur,
+        loop: () => (P.a !== null && P.b - P.a > 0.3 ? { a: P.a, b: P.b } : null),
+        chroma: spanChroma, seek: t => seek(t)
+      };
+
       function buildUI() {
         root.querySelectorAll('.tr-ui').forEach(n => n.remove());
         const st = P.setup;
+        setSongSource(songSource);
 
         /* Player card: the waveform, its zoom and the loop markers */
         const player = playerEl = h('div', { class: 'card tr-ui tr-player' });
@@ -886,6 +910,7 @@ export default function transcribe(UI) {
           grp('Move A and B', nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
           grp('Skip', back(), fwd()),
           grp('Zoom', ...zoomBtns()), grp('Keys', keysBtn()));
+        const nameItBtn = h('button', { class: 'btn small ghost tr-nameit', title: 'Name the chord or scale (K)', onclick: () => toggleNameIt({ src: 'song' }) }, '♯ Name it');
         fsExit = h('button', { class: 'btn small tr-fs-exit', 'aria-label': 'Exit full screen', onclick: () => setFull(false) }, '✕', h('span', { class: 'tr-fs-exit-l', text: ' Exit full screen' }));
         // full screen: a strip of the panels under the waveform; a tap scrolls to one
         wsJump = h('div', { class: 'tr-ws-jump', role: 'navigation', 'aria-label': 'Panels' });
@@ -894,7 +919,7 @@ export default function transcribe(UI) {
         statusBar = bar(0, 'brass'); statusBar.hidden = true;
         repsLbl = h('span', { class: 'small muted mono', text: '' });
         timesEl = h('div', { class: 'spread tr-times' }, timeLbl, loopLbl);
-        player.append(h('div', { class: 'tr-head' }, titleH, fsExit), ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, timesEl, wsBar, zoomRow,
+        player.append(h('div', { class: 'tr-head' }, titleH, nameItBtn, fsExit), ...(vid ? [vid] : []), h('div', { class: 'wave-wrap' }, canvas), ovCanvas, timesEl, wsBar, zoomRow,
           h('div', { class: 'row tr-looprow' }, toA(), setA(), setB(), back(), fwd(), clearL()),
           h('div', { class: 'row tr-nudges' }, nudge('a', -0.05), nudge('a', 0.05), nudge('b', -0.05), nudge('b', 0.05)),
           wsJump, wsHide, statusEl, statusBar, repsLbl,
@@ -1826,6 +1851,7 @@ export default function transcribe(UI) {
           { on: ['z'], keys: ['Z'], label: 'Zoom to the loop', run: zoomToLoop },
           { on: ['w'], keys: ['W'], label: 'Show the whole song', run: () => { P.view = [0, P.dur]; drawStatic(); } },
           { on: ['f'], keys: ['F'], label: 'Full screen on or off', run: () => setFull(!P.full) },
+          { on: ['k'], keys: ['K'], label: 'Name the chord or scale here (Name it)', run: () => toggleNameIt({ src: 'song' }) },
           { on: ['n'], keys: ['N'], label: 'Hide or show the note at the playhead in full screen', run: () => {
             toggleHidden('Note'); toast(hiddenPanes().has('Note') ? 'Note at the playhead hidden in full screen' : 'Note at the playhead shown');
           } },
@@ -1926,6 +1952,7 @@ export default function transcribe(UI) {
 
       return () => {
         P.alive = false; P.anToken++;
+        setSongSource(null);
         persist(true);
         clearTimeout(saveTimer);
         stopSource();

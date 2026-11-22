@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nameChord, hearNotes, spectrum, tuningOf, peaksOf, ChordEar, CHORD_TYPES, spellTone } from '../src/chordid.js';
+import { nameChord, hearNotes, spectrum, tuningOf, peaksOf, ChordEar, CHORD_TYPES, spellTone, chordsFromChroma, notesFromChroma, pcOf } from '../src/chordid.js';
 
 const SR = 48000;
 const top = (notes, bass) => (nameChord(notes, bass)[0] || {}).sym;
@@ -100,5 +100,38 @@ describe('hearing a strum', () => {
     }
     const names = chords.map((_, ci) => heard.filter(c => c.t > ci * 1.4 && c.t < (ci + 1) * 1.4).map(c => c.names[0] && c.names[0].sym));
     expect(names.map(n => n[n.length - 1])).toEqual(['C', 'Am', 'F', 'G']);
+  });
+});
+
+describe('naming a chord in a recording (pitch-class profiles)', () => {
+  // a mix: the chord tones strong, a little of everything else (drums, a voice's passing notes)
+  const prof = (tones, extra = {}) => { const p = Array(12).fill(0.05); tones.forEach((pc, i) => { p[pc] = i === 0 ? 1 : 0.8; }); Object.entries(extra).forEach(([k, v]) => { p[+k] = v; }); return p; };
+  const bass = pc => { const l = Array(12).fill(0.02); l[pc] = 1; return l; };
+  it('names triads and sevenths with the bass on the root', () => {
+    expect(chordsFromChroma(prof([0, 4, 7]), bass(0))[0].sym).toBe('C');
+    expect(chordsFromChroma(prof([9, 0, 4]), bass(9))[0].sym).toBe('Am');
+    expect(chordsFromChroma(prof([7, 11, 2, 5]), bass(7))[0].sym).toBe('G7');
+    expect(chordsFromChroma(prof([2, 5, 9, 0]), bass(2))[0].sym).toBe('Dm7');
+  });
+  it('hears an inversion from the bass line', () => {
+    expect(chordsFromChroma(prof([0, 4, 7]), bass(4))[0].sym).toBe('C/E');
+  });
+  it('lists every chord it could be, best first', () => {
+    const all = chordsFromChroma(prof([9, 0, 4, 7]), bass(9)).map(c => c.sym);
+    expect(all[0]).toBe('Am7');
+    expect(all).toContain('C6/A');
+    expect(all.length).toBeGreaterThan(1);
+    expect(new Set(all).size).toBe(all.length);
+  });
+  it('marks the tones it did not hear and gives nothing for silence', () => {
+    const c = chordsFromChroma(prof([7, 11, 5], { 2: 0.05 }), bass(7)).find(x => x.sym === 'G7');
+    expect(c.tones.find(t => t.deg === '5').heard).toBe(false);
+    expect(chordsFromChroma(Array(12).fill(0), Array(12).fill(0))).toEqual([]);
+  });
+  it('turns a profile into notes for the scale finder, the bass first and the strongest last', () => {
+    const n = notesFromChroma(prof([9, 11, 0, 2, 4, 5, 7]), bass(9));
+    expect(pcOf(n[0].midi)).toBe(9);
+    expect(pcOf(n[n.length - 1].midi)).toBe(9); // prof() makes its first tone the strongest
+    expect(new Set(n.map(x => pcOf(x.midi))).size).toBe(7);
   });
 });

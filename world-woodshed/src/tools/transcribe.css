@@ -126,3 +126,6 @@ html.compact .tr-deck .tr-toa { width: 36px; }
   .tr-compact-steps { display: flex; gap: 6px; }
 }
 @media (hover: none) and (pointer: coarse) { .tr-keys-btn, .tr-ws-grp[aria-label="Keys"] { display: none; } }
+/* Name it beside the title in full screen, where the top bar's button is covered (src/ui/nameit.js) */
+.tr-head .tr-nameit { display: none; flex: none; }
+.tr-player.tr-fs .tr-head .tr-nameit { display: inline-flex; }

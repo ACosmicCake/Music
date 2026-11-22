@@ -297,3 +297,64 @@ export function ChordEar(sr, opts = {}) {
     reset() { hist = []; lastSent = ''; }
   };
 }
+
+/* ---------------- naming a chord in a recording ---------------- */
+
+/* Every chord a recording's pitch-class profile could be, best first, in nameChord's shape plus fit (0..1 of
+   the best). A full mix has bass, drums and a voice over the chord, so its notes can't be listed one by one
+   as a lone guitar's can; instead each chord type on each root is scored by how much of the energy lies on
+   its tones against how much lies off them (larger chords pay a little, so a triad isn't heard as a 9th
+   because a voice sang the 9th), with the bass line's strongest pitch class for the root or a slash.
+   pcs, low: 12 numbers each (any scale), the whole range and below about 260 Hz. opts: { keep: how far
+   behind the best a name may be (0.3), max: names (16) }. Returns [] when there is nothing pitched. */
+export function chordsFromChroma(pcs, low, opts = {}) {
+  const mx = Math.max(...pcs), lmx = Math.max(0, ...(low || []));
+  if (!(mx > 0)) return [];
+  const P = pcs.map(v => v / mx), L = (low || []).map(v => (lmx > 0 ? v / lmx : 0));
+  const bassPc = lmx > 0 ? L.indexOf(1) : -1;
+  const out = [];
+  for (let r = 0; r < 12; r++) {
+    for (let ti = 0; ti < CHORD_TYPES.length; ti++) {
+      const T = CHORD_TYPES[ti];
+      if (T.iv.length > 5 || T.q === '5') continue;
+      const tones = T.iv.map(x => pcOf(r + x));
+      let inS = 0, outS = 0, weak = 0;
+      for (let p = 0; p < 12; p++) { if (tones.includes(p)) inS += P[p]; else outS += P[p]; }
+      // every tone the type needs (not its optional fifth) must be there at least a little
+      T.iv.forEach((x, i) => { if (!(T.opt || []).includes(x) && P[tones[i]] < 0.18) weak++; });
+      if (weak) continue;
+      let score = inS / Math.sqrt(T.iv.length) - 0.45 * outS / Math.sqrt(12 - T.iv.length) - 0.07 * Math.max(0, T.iv.length - 3) - ti * 0.002;
+      // the bass: on the root is best; on another chord tone an inversion; elsewhere a little against it
+      const b = bassPc >= 0 && tones.includes(bassPc) && L[r] < 0.75 ? bassPc : r;
+      score += 0.25 * (L[r] || 0) - (b !== r ? 0.05 : 0);
+      out.push({ r, T, b, score });
+    }
+  }
+  if (!out.length) return [];
+  out.sort((x, y) => y.score - x.score);
+  const best = out[0].score, keep = opts.keep ?? 0.3, max = opts.max ?? 16, seen = new Set(), res = [], aliases = [];
+  const add = (c, o, list) => { if (seen.has(c.sym)) return; seen.add(c.sym); list.push({ ...c, tones: c.tones.map(t => ({ ...t, heard: P[t.pc] >= 0.15 })), fit: Math.max(0, Math.min(1, o.score / best)), score: o.score }); };
+  for (const o of out) {
+    if (o.score < best - keep || res.length >= max) break;
+    const notes = [48 + o.b, ...o.T.iv.map(x => 60 + pcOf(o.r + x))];
+    const all = nameChord(notes, o.b), named = all.find(c => c.root === o.r && c.q === o.T.q && c.bass === o.b);
+    if (!named) continue;
+    add(named, o, res);
+    // the other names for the same notes (Am7 is also C6/A), after the chords heard
+    all.forEach(c => { if (c !== named) add(c, o, aliases); });
+  }
+  return res.concat(aliases).slice(0, max + 8);
+}
+
+/* A recording's pitch-class profile as notes for findScales (src/scalefind.js): each pitch class heard,
+   weighted by its share, the bass line's strongest one first (lowest) and the strongest of all last, the two
+   places a phrase's home note would be. */
+export function notesFromChroma(pcs, low) {
+  const mx = Math.max(...pcs);
+  if (!(mx > 0)) return [];
+  const lmx = Math.max(0, ...(low || [])), b = lmx > 0 ? low.indexOf(lmx) : pcs.indexOf(mx);
+  const out = [{ midi: 48 + b, w: pcs[b] / mx }];
+  pcs.forEach((v, p) => { if (p !== b && v / mx >= 0.15) out.push({ midi: 60 + p, w: v / mx }); });
+  out.push({ midi: 60 + pcs.indexOf(mx), w: 0.001 });
+  return out;
+}
