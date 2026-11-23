@@ -47,6 +47,7 @@ import { settingsPage, offerLink } from './pages.js';
 import { decodeLink, isLinkHash } from './linkcode.js';
 import './ui/library.js';
 import { bootRecorder } from './ui/recorder.js';
+import { bootNameIt } from './ui/nameit.js';
 import transcribe from './tools/transcribe-lazy.js';
 import { registerApp } from './pwa.js';
 import { isNative, onBack } from './native.js';
@@ -73,6 +74,7 @@ initGarden();
 initClub();
 initReminder();
 bootRecorder();
+bootNameIt();
 let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(applyDisplay, 150); });
 E.onChange(applyDisplay);
@@ -105,4 +107,5 @@ window.addEventListener('hashchange', () => { if (takeLink()) return; if (locati
 // The Android app has no service worker (it is already offline); its back button closes tools first.
 if (!isNative()) registerApp(toast);
 // a full-screen view inside a tool marks its close button with data-back-close: back closes that first
-onBack(() => { const x = document.querySelector('[data-back-close]'); if (x) { x.click(); return true; } if (ui.runner) { go(ui.tab || 'today'); return true; } if (ui.tab !== 'today') { go('today'); return true; } return false; });
+// (the last one: a panel opened over a full-screen view, such as Name it over Transcribe, closes before it)
+onBack(() => { const x = [...document.querySelectorAll('[data-back-close]')].pop(); if (x) { x.click(); return true; } if (ui.runner) { go(ui.tab || 'today'); return true; } if (ui.tab !== 'today') { go('today'); return true; } return false; });

@@ -75,9 +75,9 @@ tool('whatchord', {
           c.missing.length ? h('p', { class: 'small muted', text: 'No ' + c.missing.join(' or ') + ': guitarists often leave ' + (c.missing.length > 1 ? 'them' : 'it') + ' out, and the chord keeps its name.' }) : null,
           c.extra.length ? h('p', { class: 'small muted', text: 'Plus ' + c.extra.map(NOTE).join(', ') + ', which isn’t in this chord.' }) : null,
           st.from === 'mic' ? h('p', { class: 'small muted', text: 'Heard: ' + notes.map(m => NOTE(m) + (Math.floor(m / 12) - 1)).join(' ') + '. Not right? Tap the frets below instead.' }) : null].filter(Boolean));
-        const others = names.slice(0, 6).map((x, i) => [x, i]).filter(([, i]) => i !== (names[st.pick] ? st.pick : 0));
-        if (others.length) result.append(h('div', { class: 'stack wi-also' }, h('span', { class: 'eyebrow', text: 'Also called' }),
-          h('div', { class: 'chips' }, others.map(([x, i]) => h('button', { class: 'chip', onclick: () => { st.pick = i; draw(); } }, x.sym)))));
+        // every name the notes go by, not only the best (tap one to see it)
+        if (names.length > 1) result.append(h('div', { class: 'stack wi-also' }, h('span', { class: 'eyebrow', text: 'Every name for these notes (' + names.length + ')' }),
+          h('div', { class: 'chips' }, names.map((x, i) => h('button', { class: 'chip', 'aria-pressed': String(x === c), title: x.name, onclick: () => { st.pick = i; draw(); } }, x.sym)))));
         result.append(h('div', { class: 'row' },
           h('button', { class: 'btn', onclick: () => strum(notes) }, '▶ Hear it'),
           st.from === 'mic' ? h('button', { class: 'btn ghost', onclick: () => showShape(c) }, 'Show a shape for ' + c.sym.split('/')[0]) : null));
@@ -107,7 +107,7 @@ tool('whatscale', {
   tab: 'train', skill: null, title: 'What scale is this?', eyebrow: 'Name it',
   desc: 'Play a phrase or a run into the mic, or tap notes on the neck, and see which scales fit: modes, ragas, maqamat, Persian dastgahs, Japanese, Chinese and Ethiopian scales, with the styles each one belongs to.',
   render(body) {
-    const st = { notes: [], tonic: null, open: 0 };   // notes: [{ midi, w }] in the order played
+    const st = { notes: [], tonic: null, open: 0, all: false };   // notes: [{ midi, w }] in the order played
     const inCard = h('div', { class: 'card' });
     const outCard = h('div', { class: 'card wi-result', 'aria-live': 'polite' });
     const neckCard = h('div', { class: 'card' });
@@ -147,8 +147,9 @@ tool('whatscale', {
         return;
       }
       const all = findScales(st.notes, { list: scaleList(), tonic: st.tonic });
-      // one entry per scale and tonic; the top ten
-      const top = all.slice(0, 10);
+      // every scale (and tonic) that holds all the notes, or the ten closest when none does
+      const fits = all.filter(x => !x.outside.length);
+      const top = fits.length ? fits : all.slice(0, 10);
       const r = top[st.open] || top[0];
       const sc = r.scale, flats = keyPrefersFlats(r.tonic, minorish(sc.steps));
       const names = sc.steps.map(x => stepName(r.tonic, x, flats));
@@ -169,8 +170,10 @@ tool('whatscale', {
           [...sc.steps, 12].forEach((x, i) => A.note(base + x, t0 + i * 0.32, 0.7, 0.6, { detune: Number.isInteger(x) ? 0 : (x - Math.round(x)) * 100 }));
         } }, '▶ Hear the scale'),
         sc.app ? h('button', { class: 'btn ghost', onclick: () => openTool('explorer', { params: { mode: 'scale', scale: sc.id, root: r.tonic }, returnTab: 'train' }) }, 'See it on the whole neck') : null));
-      if (top.length > 1) outCard.append(h('div', { class: 'stack wi-also' }, h('span', { class: 'eyebrow', text: 'Other scales that fit' }),
-        h('div', { class: 'wi-list' }, top.map((x, i) => i === st.open ? null : h('button', { class: 'wi-row', onclick: () => { st.open = i; draw(); } },
+      const SHOW = 30;
+      if (top.length > 1) outCard.append(h('div', { class: 'stack wi-also' }, h('span', { class: 'eyebrow', text: fits.length ? 'Every scale that fits (' + fits.length + ')' : 'Nothing fits every note: the closest' }),
+        top.length > SHOW ? h('button', { class: 'btn small ghost', onclick: () => { st.all = !st.all; draw(); } }, st.all ? 'Show fewer' : 'Show all ' + top.length) : null,
+        h('div', { class: 'wi-list' }, (st.all ? top : top.slice(0, SHOW)).map((x, i) => i === st.open ? null : h('button', { class: 'wi-row', onclick: () => { st.open = i; draw(); } },
           h('b', { text: spell(x.tonic, keyPrefersFlats(x.tonic, minorish(x.scale.steps))) + ' ' + x.scale.name }),
           h('span', { class: 'small muted', text: x.scale.region + (x.missing.length ? ' · ' + x.missing.length + ' not played' : '') + (x.outside.length ? ' · ' + x.outside.length + ' outside' : '') }))))));
       // the scale on the neck, home notes filled
