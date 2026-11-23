@@ -18,8 +18,9 @@ import { MicToggle } from './mic.js';
 import { keepAwake } from '../native.js';
 import { spell, keyPrefersFlats, degreeLabel } from '../theory.js';
 import { voicing } from '../voicings.js';
-import { nameChord, ChordEar, chordsFromChroma, notesFromChroma, CHORD_TYPES, pcOf } from '../chordid.js';
+import { ChordEar, chordsFromChroma, notesFromChroma, CHORD_TYPES, pcOf } from '../chordid.js';
 import { findScales, catalogue } from '../scalefind.js';
+import { Identifier } from './identify.js';
 import '../tools/whatis.css';
 import './nameit.css';
 
@@ -44,7 +45,6 @@ const prefs = Object.assign({ mode: 'chord', src: 'mic', small: false, span: 'lo
 const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ } };
 const S = {
   open: false, pick: 0, hold: false,
-  frets: [null, null, null, null, null, null],    // the neck, chord mode
   heard: null,                                     // the mic's chord: { notes, names }
   songNames: [], songAt: null, votes: [],          // the recording's chord at the playhead
   history: [],                                     // [{ sym, names, t (song time) | null }] newest first
@@ -135,15 +135,11 @@ function tick() {
 function chordNames() {
   const from = src();
   if (from === 'song') return S.songNames;
-  if (from === 'mic') return S.heard ? S.heard.names : [];
-  const notes = S.frets.map((f, si) => (f === null ? null : E.STRINGS[si].midi + f)).filter(m => m !== null);
-  return nameChord(notes);
+  return S.heard ? S.heard.names : [];
 }
 function chordNotes() {
   const from = src();
-  if (from === 'mic') return S.heard ? S.heard.notes : [];
-  if (from === 'neck') return S.frets.map((f, si) => (f === null ? null : E.STRINGS[si].midi + f)).filter(m => m !== null);
-  return [];
+  return from === 'mic' && S.heard ? S.heard.notes : [];
 }
 function hearChord(c) {
   A.ensure(); A.fresh();
@@ -167,10 +163,22 @@ function draw() {
     h('button', { class: 'chip', 'aria-pressed': String(cur === id), onclick: () => set(id) }, text)));
   const sources = [song ? ['song', '🎵 Recording'] : null, ['mic', '🎤 Mic'], ['neck', '✋ Neck']].filter(Boolean);
   body.append(h('div', { class: 'ni-bar' },
-    seg([['chord', 'Chord'], ['scale', 'Scale']], prefs.mode, m => { prefs.mode = m; savePrefs(); S.pick = 0; S.scaleOpen = 0; S.showAll = false; if (mic && mic.on) startMic(); draw(); tick(); }, 'Name a chord or a scale'),
+    from === 'neck' ? h('span') : seg([['chord', 'Chord'], ['scale', 'Scale']], prefs.mode, m => { prefs.mode = m; savePrefs(); S.pick = 0; S.scaleOpen = 0; S.showAll = false; if (mic && mic.on) startMic(); draw(); tick(); }, 'Name a chord or a scale'),
     seg(sources, from, x => setSrc(x), 'Listen to')));
   if (from === 'mic') body.append(mic.el);
+  // tapping notes: the identifier, the neck first and every chord and scale the notes could be under it
+  if (from === 'neck') { body.append(ident().el); ident().draw(); return; }
   if (prefs.mode === 'chord') drawChord(from); else drawScale(from);
+}
+let idf = null;
+function ident() {
+  return idf || (idf = Identifier({ tab: () => prefs.mode, setTab: m => { prefs.mode = m; savePrefs(); draw(); } }));
+}
+/* tapping the neck in another view moves to the identifier with that note */
+function toNeck(si, f) {
+  prefs.src = 'neck'; savePrefs(); if (mic && mic.on) mic.cleanup();
+  ident().setNotes([{ midi: E.STRINGS[si].midi + f, s: si, f }]);
+  draw();
 }
 function setSrc(x) {
   prefs.src = x; savePrefs(); S.pick = 0; S.scaleOpen = 0; S.showAll = false; S.songAt = null; S.songKey = '';
@@ -219,18 +227,11 @@ function drawChord(from) {
       S.pick = 0; draw();
     } }, (x.t != null ? fmt(x.t) + ' ' : '') + x.sym)))));
   // the neck: what you tap, or a shape for the chord named
-  fb = Fretboard({ label: from === 'neck' ? 'Guitar neck: tap where your fingers are' : 'A shape for this chord', onTap: (si, f) => {
-    A.ensure(); A.fresh(); A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.75, 1.4);
-    if (from !== 'neck') { prefs.src = 'neck'; savePrefs(); if (mic && mic.on) mic.cleanup(); S.frets = [null, null, null, null, null, null]; }
-    S.frets[si] = S.frets[si] === f ? null : f; S.pick = 0; draw();
-  } });
-  let frets = S.frets;
-  if (from !== 'neck' && c) { const t = CHORD_TYPES.find(x => x.q === c.q), v = t && voicing(c.root, t.iv); frets = v ? v.frets : []; }
+  fb = Fretboard({ label: 'A shape for this chord', onTap: (si, f) => { A.ensure(); A.fresh(); A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.75, 1.4); toNeck(si, f); } });
+  let frets = [];
+  if (c) { const t = CHORD_TYPES.find(x => x.q === c.q), v = t && voicing(c.root, t.iv); frets = v ? v.frets : []; }
   fb.mark(frets.map((f, si) => (f === null || f === undefined || f < 0 ? null : { s: si, f, kind: c && pcOf(E.STRINGS[si].midi + f) === c.root ? 'root' : 'tone', label: NOTE(E.STRINGS[si].midi + f) })).filter(Boolean));
-  body.append(h('div', { class: 'ni-neck' }, fb.el, from === 'neck'
-    ? h('div', { class: 'row' }, h('button', { class: 'btn small ghost', onclick: () => { S.frets = [null, null, null, null, null, null]; S.pick = 0; draw(); } }, 'Clear'),
-      h('button', { class: 'btn small ghost', onclick: () => openTool('whatchord', { returnTab: ui.tab }) }, 'Open the full page'))
-    : h('p', { class: 'small muted', text: c ? 'A shape for ' + c.sym + '. Tap the neck to name your own.' : 'Tap the neck to name a chord by its frets.' })));
+  body.append(h('div', { class: 'ni-neck' }, fb.el, h('p', { class: 'small muted', text: c ? 'A shape for ' + c.sym + '. Tap the neck to work out notes of your own.' : 'Tap the neck to work out a chord or scale from its notes.' })));
 }
 
 function drawScale(from) {
@@ -298,14 +299,9 @@ function drawScale(from) {
     }
   }
   if (prefs.small) return;
-  fb = Fretboard({ label: 'Guitar neck: tap notes to add them', onTap: (si, f) => {
-    const m = E.STRINGS[si].midi + f;
-    A.ensure(); A.fresh(); A.note(m, A.now() + 0.01, 0.75, 1.2);
-    if (from !== 'neck') { prefs.src = 'neck'; savePrefs(); if (mic && mic.on) mic.cleanup(); S.notes = []; }
-    addNote(m);
-  } });
+  fb = Fretboard({ label: 'The scale on the neck', onTap: (si, f) => { A.ensure(); A.fresh(); A.note(E.STRINGS[si].midi + f, A.now() + 0.01, 0.75, 1.2); toNeck(si, f); } });
   if (r) { const pcs = r.scale.steps.filter(Number.isInteger).map(x => pcOf(r.tonic + x)); fb.mark(positionsOfPc(pcs, 12, p => (p === r.tonic ? 'root' : 'tone'))); }
-  body.append(h('div', { class: 'ni-neck' }, fb.el, h('p', { class: 'small muted', text: r ? 'The neck shows ' + scaleTitle(r) + ', home notes filled. Tap it to add notes of your own.' : 'Each tap adds a note.' })));
+  body.append(h('div', { class: 'ni-neck' }, fb.el, h('p', { class: 'small muted', text: r ? 'The neck shows ' + scaleTitle(r) + ', home notes filled. Tap it to work out notes of your own.' : 'Tap the neck to work out notes of your own.' })));
 }
 
 /* where it sits: above Transcribe's deck when that is showing, else above the tab bar */

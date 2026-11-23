@@ -53,7 +53,13 @@ export const CHORD_TYPES = [
   { q: '13', name: 'dominant 13th', iv: [0, 4, 7, 10, 2, 9], deg: ['R', '3', '5', '♭7', '9', '13'], opt: [7, 2] },
   { q: 'maj13', name: 'major 13th', iv: [0, 4, 7, 11, 2, 9], deg: ['R', '3', '5', '7', '9', '13'], opt: [7, 2] },
   { q: 'm13', name: 'minor 13th', iv: [0, 3, 7, 10, 2, 9], deg: ['R', '♭3', '5', '♭7', '9', '13'], opt: [7, 2] },
-  { q: '7♯9♭13', name: 'altered dominant', iv: [0, 4, 10, 3, 8], deg: ['R', '3', '♭7', '♯9', '♭13'] }
+  { q: '7♯9♭13', name: 'altered dominant', iv: [0, 4, 10, 3, 8], deg: ['R', '3', '♭7', '♯9', '♭13'] },
+  { q: 'add11', name: 'major add 11', iv: [0, 4, 7, 5], deg: ['R', '3', '5', '11'], opt: [7] },
+  { q: 'mMaj9', name: 'minor-major 9th', iv: [0, 3, 7, 11, 2], deg: ['R', '♭3', '5', '7', '9'], opt: [7] },
+  { q: '7sus4♭9', name: 'sus ♭9', iv: [0, 5, 7, 10, 1], deg: ['R', '4', '5', '♭7', '♭9'], opt: [7] },
+  { q: '7♯5♯9', name: 'dominant 7th sharp 5 sharp 9', iv: [0, 4, 8, 10, 3], deg: ['R', '3', '♯5', '♭7', '♯9'] },
+  { q: 'maj9♯11', name: 'Lydian major 9th', iv: [0, 4, 7, 11, 2, 6], deg: ['R', '3', '5', '7', '9', '♯11'], opt: [7, 2] },
+  { q: '13♭9', name: 'dominant 13th flat 9', iv: [0, 4, 7, 10, 1, 9], deg: ['R', '3', '5', '♭7', '♭9', '13'], opt: [7] }
 ];
 
 /* Root names as guitarists write them: F♯ rather than G♭; for minor chords C♯ and G♯ rather than D♭ and A♭ */

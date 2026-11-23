@@ -1,0 +1,20 @@
+/* The chord and scale identifier (src/ui/identify.js): the neck first, what the notes could be under it */
+.id-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.id-neck { min-width: 0; }
+.id-head { display: grid; gap: 8px; }
+.id-notes { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; min-height: 40px; }
+.id-hint { margin: 0; }
+.id-pcs { display: flex; flex-wrap: wrap; gap: 6px; }
+.id-pc { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; padding: 2px 10px; border-radius: 8px; background: var(--patina-soft); }
+.id-acts { gap: 4px; }
+.id-neck .fretboard { width: 100%; height: auto; }
+.id-out { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.id-tabs .chip { font-weight: 700; }
+.id-detail { display: grid; gap: 8px; margin: 0; }
+.id-use { margin: 0; }
+.id-group .chips { flex-wrap: wrap; }
+.id-chip .id-add { color: var(--muted); font-size: 0.8em; }
+.id-chip[aria-pressed="true"] .id-add { color: inherit; opacity: 0.8; }
+.id-list { max-height: 300px; overflow-y: auto; }
+.id-tools select { min-width: 0; }
+html.compact .id-pc { font-size: 1.05rem; padding: 1px 7px; }

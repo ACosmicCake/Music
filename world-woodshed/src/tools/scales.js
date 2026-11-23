@@ -7,17 +7,13 @@
 import D from '../data.js';
 import A from '../audio.js';
 import E from '../engine.js';
-import Mic from '../listen.js';
 import { h, s, tool, openTool, Fretboard, toast } from '../ui/core.js';
-import { MicToggle } from '../ui/mic.js';
-import { keepAwake } from '../native.js';
 import { spell, keyPrefersFlats, degreeLabel, diatonicChords, prettySym } from '../theory.js';
 import { guitarMidis } from '../voicings.js';
-import { nameChord, ChordEar, pcOf } from '../chordid.js';
-import { findScales } from '../scalefind.js';
-import { libraryCards, finderList, filterCards, parseSteps, stepsText, toggleStep, listOwn, cleanScale, neckSpots, microName, stepWords, isMicro, normSteps, pcKey } from '../scalelib.js';
+import { libraryCards, filterCards, parseSteps, stepsText, toggleStep, listOwn, cleanScale, neckSpots, microName, stepWords, isMicro, normSteps, pcKey } from '../scalelib.js';
 import { loadScaleLib, drawWhenLoaded } from '../content/lazy.js';
 import { stylePage } from './learn.js';
+import { Identifier } from '../ui/identify.js';
 import './scales.css';
 
 const mod12 = x => ((x % 12) + 12) % 12;
@@ -67,7 +63,7 @@ export function scalesIndex(view) {
   view.append(h('div', { class: 'tools sl-tools' },
     h('button', { class: 'tile', onclick: () => openTool('scalefinder', { returnTab: 'learn' }) },
       h('span', { class: 't-title', text: 'Find a scale or chord' }),
-      h('span', { class: 't-desc', text: 'Tap notes on the neck or play them into the mic, and see the chords and scales they make.' })),
+      h('span', { class: 't-desc', text: 'Tap notes on the neck or play them into the mic: every chord and scale they could be, narrowing as you add notes.' })),
     h('button', { class: 'tile', onclick: () => openTool('myscales', { returnTab: 'learn' }) },
       h('span', { class: 't-title', text: 'My scales' + (own ? ' (' + own + ')' : '') }),
       h('span', { class: 't-desc', text: 'Make your own: tap the notes on the neck or type the steps. Quarter tones too.' }))));
@@ -180,101 +176,14 @@ function scalePage(body, p) {
 /* ---------------- Find a scale or chord ---------------- */
 tool('scalefinder', {
   tab: 'learn', skill: null, title: 'Find a scale or chord', eyebrow: 'Scale library',
-  desc: 'Tap notes on the neck, or play them into the mic, and see the chords and scales they make, from every tradition in the library and your own scales.',
+  desc: 'Tap notes on the neck, or play them into the mic: every chord and scale they could be shows under the neck and narrows as you add notes, from every tradition in the library and your own scales, with how each is used.',
   render(body) { return drawWhenLoaded(loadScaleLib, body, () => finder(body)); }
 });
+/* the identifier (src/ui/identify.js): the neck first, every chord and scale the notes could be under it */
 function finder(body) {
-  const st = { notes: [], tonic: null, open: 0, micro: false, ear: 'notes' };  // notes: [{ midi, s, f }] (s, f when tapped)
-  const inCard = h('div', { class: 'card' }), neckCard = h('div', { class: 'card' }), chordCard = h('div', { class: 'card wi-result', 'aria-live': 'polite' }), scaleCard = h('div', { class: 'card wi-result', 'aria-live': 'polite' });
-  body.append(inCard, neckCard, chordCard, scaleCard);
-  const list = finderList(cards());
-  // the mic: single notes are added one by one; a strum replaces the notes with the chord heard
-  let offs = [], ear = null, lastT = -1;
-  const stopEar = () => { offs.forEach(f => f()); offs = []; ear = null; };
-  const startEar = () => {
-    stopEar();
-    if (st.ear === 'notes') offs.push(Mic.on('note', ev => { if (ev.t - lastT < 0.05) return; lastT = ev.t; add({ midi: ev.midi }); }));
-    else {
-      ear = ChordEar(Mic.sampleRate || A.ensure().sampleRate, { onChord: c => { st.notes = c.notes.map(m => ({ midi: m })); st.open = 0; draw(); } });
-      offs.push(Mic.on('block', (buf, t0) => ear && ear.push(buf, t0)), Mic.on('onset', ev => ear && ear.strum(ev.t)));
-    }
-  };
-  const mic = MicToggle({ label: 'Listen through the mic', onLabel: 'Listening', hint: '',
-    onOn: () => { keepAwake(true, 'scalefinder'); startEar(); drawIn(); },
-    onOff: () => { keepAwake(false, 'scalefinder'); stopEar(); drawIn(); } });
-  function add(n) { st.notes.push(n); if (st.notes.length > 200) st.notes.shift(); st.open = 0; draw(); }
-  const fb = Fretboard({ label: 'Guitar neck: tap notes to add or take them away', micro: () => st.micro, onTap: (si, f) => {
-    const m = E.STRINGS[si].midi + f;
-    A.ensure(); A.fresh(); sound(m, A.now() + 0.01, 0.75, 1.2);
-    const i = st.notes.findIndex(n => n.s === si && n.f === f);
-    if (i >= 0) { st.notes.splice(i, 1); st.open = 0; draw(); } else add({ midi: m, s: si, f });
-  } });
-  neckCard.append(h('h3', { text: 'Tap the notes' }),
-    h('p', { class: 'small muted', text: 'Each tap adds a note; tap it again to take it away. Tap the frets of a chord, or a run of notes.' }),
-    h('label', { class: 'check' }, h('input', { type: 'checkbox', onchange: e => { st.micro = e.target.checked; } }), 'Quarter tones: a tap on a fret wire is the note between the frets'),
-    fb.el);
-
-  function drawIn() {
-    inCard.innerHTML = '';
-    const pcs = [...new Set(st.notes.map(n => Math.round(mod12(n.midi) * 2) / 2))].sort((a, b) => a - b);
-    inCard.append(h('div', { class: 'spread' }, mic.el,
-      mic.on ? h('div', { class: 'seg' }, [['notes', 'Notes one by one'], ['chord', 'A strummed chord']].map(([k, t]) => h('button', { 'aria-pressed': String(st.ear === k), onclick: () => { st.ear = k; startEar(); drawIn(); } }, t))) : null),
-      h('h3', { text: st.notes.length ? pcs.map(p => microName(p, q => D.NOTE_NAMES[q])).join(' ') : 'Tap or play some notes' }),
-      h('div', { class: 'stack' }, h('span', { class: 'eyebrow', text: 'Home note (for the scales)' }),
-        h('div', { class: 'chips' }, h('button', { class: 'chip', 'aria-pressed': String(st.tonic === null), onclick: () => { st.tonic = null; st.open = 0; draw(); } }, 'Auto'),
-          D.NOTE_NAMES.map((n, i) => h('button', { class: 'chip', 'aria-pressed': String(st.tonic === i), onclick: () => { st.tonic = i; st.open = 0; draw(); } }, n)))),
-      st.notes.length ? h('div', { class: 'row' },
-        h('button', { class: 'btn small', onclick: () => { A.ensure(); A.fresh(); const t0 = A.now() + 0.05; st.notes.forEach((n, i) => sound(n.midi, t0 + i * 0.3)); } }, '▶ Play them'),
-        h('button', { class: 'btn ghost small', onclick: () => { st.notes.pop(); st.open = 0; draw(); } }, 'Undo last'),
-        h('button', { class: 'btn ghost small', onclick: () => { st.notes = []; st.open = 0; draw(); } }, 'Start again')) : null);
-  }
-  function drawChord() {
-    chordCard.innerHTML = '';
-    const ints = st.notes.filter(n => Math.abs(n.midi - Math.round(n.midi)) < 0.25).map(n => Math.round(n.midi));
-    const npc = new Set(ints.map(pcOf)).size;
-    chordCard.append(h('span', { class: 'eyebrow', text: 'As a chord' }));
-    if (npc < 2) { chordCard.append(h('p', { class: 'muted', text: 'Two notes or more make a chord. The lowest note is taken as the bass.' })); return; }
-    const names = npc > 6 ? [] : nameChord(ints);
-    const c = names[0];
-    if (!c) { chordCard.append(h('p', { class: 'muted', text: npc > 6 ? 'Too many notes for a chord: see the scales below.' : 'Not a chord the app knows. Try leaving a note out.' })); return; }
-    chordCard.append(h('div', { class: 'wi-big', text: c.sym }),
-      h('p', { class: 'wi-sub', text: c.name + (c.inversion ? ', ' + c.inversion : '') + (c.slash && !c.inversion ? ', over ' + D.NOTE_NAMES[c.bass] + ' in the bass' : '') }),
-      h('div', { class: 'wi-tones' }, c.tones.map(t => h('span', { class: 'wi-tone' + (t.heard ? '' : ' off') }, h('b', { text: t.name }), h('span', { text: t.deg })))),
-      names.length > 1 ? h('p', { class: 'small muted', text: 'Also: ' + names.slice(1, 6).map(x => x.sym).join(' · ') }) : '',
-      h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => { A.ensure(); A.fresh(); A.strum(ints.slice().sort((a, b) => a - b), A.now() + 0.03, 0.65, 0.022, 2); } }, '▶ Strum it')));
-  }
-  function drawScales() {
-    scaleCard.innerHTML = '';
-    scaleCard.append(h('span', { class: 'eyebrow', text: 'As a scale' }));
-    const distinct = new Set(st.notes.map(n => Math.round(mod12(n.midi) * 2) / 2)).size;
-    if (distinct < 3) { scaleCard.append(h('p', { class: 'muted', text: 'Three different notes or more, please. Five or more tell the scales apart; the note you start or end on is taken as home, unless you pick one.' })); fb.mark(marks(null)); return null; }
-    const top = findScales(st.notes.map(n => ({ midi: n.midi, w: 1 })), { list, tonic: st.tonic }).slice(0, 12);
-    const r = top[st.open] || top[0], sc = r.scale, flats = flatsFor(r.tonic, sc.steps);
-    scaleCard.append(h('div', { class: 'wi-big', text: spell(r.tonic, flats) + ' ' + sc.name }),
-      (sc.more || []).length ? h('p', { class: 'wi-sub', text: 'Also: ' + sc.more.slice(0, 6).join(' · ') }) : '',
-      h('div', { class: 'wi-tones' }, sc.steps.map(x => h('span', { class: 'wi-tone' + (r.missing.includes(x) ? ' off' : '') }, h('b', { text: noteName(r.tonic, x, flats) }), h('span', { text: x === 0 ? 'home' : degName(x) })))),
-      r.missing.length ? h('p', { class: 'small muted', text: 'Not played: ' + r.missing.map(x => noteName(r.tonic, x, flats)).join(', ') + '.' }) : '',
-      r.outside.length ? h('p', { class: 'small muted', text: 'Outside it: ' + r.outside.map(p => microName(p, q => spell(q, flats))).join(', ') + '.' }) : '',
-      h('div', { class: 'row' },
-        h('button', { class: 'btn', onclick: () => playScale(sc.steps, r.tonic) }, '▶ Hear the scale'),
-        h('button', { class: 'btn ghost', onclick: () => openTool('scale', { params: { id: sc.id, tonic: r.tonic }, returnTab: 'learn' }) }, 'Open it')));
-    if (top.length > 1) scaleCard.append(h('div', { class: 'stack wi-also' }, h('span', { class: 'eyebrow', text: 'Other scales that fit' }),
-      h('div', { class: 'wi-list' }, top.map((x, i) => i === st.open ? null : h('button', { class: 'wi-row', onclick: () => { st.open = i; draw(); } },
-        h('b', { text: spell(x.tonic, flatsFor(x.tonic, x.scale.steps)) + ' ' + x.scale.name }),
-        h('span', { class: 'small muted', text: (x.scale.own ? 'Your scale' : x.scale.region) + (x.missing.length ? ' · ' + x.missing.length + ' not played' : '') + (x.outside.length ? ' · ' + x.outside.length + ' outside' : '') }))))));
-    fb.mark(marks(r));
-    return r;
-  }
-  // the neck: the notes you tapped filled, and the best scale's other notes faint around them
-  function marks(r) {
-    const out = [];
-    if (r) neckSpots(r.scale.steps, r.tonic, E.STRINGS).forEach(m => { if (!st.notes.some(n => n.s === m.s && n.f === m.f)) out.push({ s: m.s, f: m.f, kind: 'tone faint' }); });
-    st.notes.forEach(n => { if (n.s !== undefined) out.push({ s: n.s, f: n.f, kind: r && Math.abs(mod12(n.midi - r.tonic)) < 0.01 ? 'root' : 'g3', label: microName(n.midi, q => D.NOTE_NAMES[q]) }); });
-    return out;
-  }
-  function draw() { drawIn(); drawChord(); drawScales(); }
-  draw();
-  return () => { keepAwake(false, 'scalefinder'); stopEar(); mic.cleanup(); };
+  const id = Identifier({ mic: true });
+  body.append(id.el);
+  return () => id.cleanup();
 }
 
 /* ---------------- My scales ---------------- */

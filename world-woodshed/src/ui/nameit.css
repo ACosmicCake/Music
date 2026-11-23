@@ -1,14 +1,14 @@
 /* Name it: the chord and scale panel over any page (src/ui/nameit.js) */
 #nameit-btn ellipse { fill: currentColor; stroke: none; }
 #nameit-btn[aria-pressed="true"] { color: var(--brass); }
-.ni-panel { position: fixed; left: 50%; bottom: 0; z-index: 50; width: min(720px, calc(100% - 12px)); max-height: min(68vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+.ni-panel { grid-template-columns: minmax(0, 1fr); position: fixed; left: 50%; bottom: 0; z-index: 50; width: min(720px, calc(100% - 12px)); max-height: min(68vh, 640px); overflow-y: auto; overscroll-behavior: contain;
   margin: 0; padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; border-radius: 16px 16px 0 0; border-bottom: 0;
   box-shadow: 0 -6px 26px rgb(0 0 0 / 0.2); transform: translate(-50%, 16px); opacity: 0; transition: transform 0.18s ease, opacity 0.18s ease; }
 .ni-panel.in { transform: translate(-50%, 0); opacity: 1; }
 .ni-panel.small { max-height: 40vh; }
 .ni-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: sticky; top: -10px; margin: -10px -12px 0; padding: 8px 12px 4px; background: var(--surface); z-index: 1; }
 .ni-top .row { gap: 4px; flex-wrap: nowrap; }
-.ni-body { display: grid; gap: 8px; min-width: 0; }
+.ni-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
 .ni-bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
 .ni-seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .ni-span { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -29,3 +29,5 @@
 html.compact .ni-panel { width: 100%; padding-inline: 8px; max-height: 72vh; }
 html.compact .ni-top { margin-inline: -8px; padding-inline: 8px; }
 html.compact .ni-big { font-size: 1.7rem; }
+/* a 240 px screen with every top-bar button (the recorder's, the tuner, Name it, Settings): the mark stands for the name */
+@media (max-width: 300px) { .topbar .brand-name { display: none; } }
