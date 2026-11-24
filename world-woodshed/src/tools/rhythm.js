@@ -6,6 +6,7 @@ import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks, tapButton } from
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
 import { soloAt, SOLO_LENS, SOLO_EVERY } from '../solobreak.js';
+import { sayRow, takaRow, sayLegend } from '../syllables.js';
 
 /* ======================================================
    RHYTHM TOOLS
@@ -42,16 +43,35 @@ export function RhythmGrid(r) {
     }
     grid.append(row);
   });
-  const labs = [];
+  const nowAt = []; // every label to light up on each step
+  const mark = (i, el) => (nowAt[i] = nowAt[i] || []).push(el);
+  // say: a syllable per drum sound (or the rhythm's own bols), each one running on over the silent steps after it so it can be read whole
+  const say = sayRow(r);
+  const sayEl = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
+  sayEl.append(h('span', { class: 'rname', text: 'say', title: 'A syllable for each drum sound: say the pattern out loud' }));
+  for (let i = 0; i < r.steps;) {
+    let n = 1; if (!r.labels) while (i + n < r.steps && !say[i + n] && !gstarts.has(i + n)) n++;
+    const l = h('span', { class: 'lab say' + (gstarts.has(i) ? ' gstart' : ''), text: say[i], title: say[i], style: n > 1 ? { gridColumn: 'span ' + n } : {} });
+    for (let k = 0; k < n; k++) mark(i + k, l);
+    sayEl.append(l); i += n;
+  }
+  grid.append(sayEl);
   const labRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
-  labRow.append(h('span', { class: 'rname', text: r.labels ? 'say' : 'count' }));
+  labRow.append(h('span', { class: 'rname', text: 'count' }));
   for (let i = 0; i < r.steps; i++) {
-    let t = r.labels ? r.labels[i] : r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
-    if (r.groups && !r.labels) { let a = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; } }
+    let t = r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
+    if (r.groups && !r.count) { let a = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; } }
     const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: t, title: t });
-    labs.push(l); labRow.append(l);
+    mark(i, l); labRow.append(l);
   }
   grid.append(labRow);
+  const taka = takaRow(r);
+  if (taka) { // Takadimi: ta on the beat, ka di mi between, ta ki da in threes
+    const tRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
+    tRow.append(h('span', { class: 'rname', text: 'ta ka', title: 'Takadimi counting: ta on each beat, then ka di mi (or ki da in threes) between' }));
+    for (let i = 0; i < r.steps; i++) { const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: taka[i] }); mark(i, l); tRow.append(l); }
+    grid.append(tRow);
+  }
   if (r.alt) { // the same pattern counted twice as slowly, as many teachers count clave
     const aRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
     aRow.append(h('span', { class: 'rname', text: 'slow' }));
@@ -69,8 +89,8 @@ export function RhythmGrid(r) {
   return {
     el: wrap,
     setNow(i) {
-      if (prev >= 0) { (cells[prev] || []).forEach(c => c.classList.remove('now')); labs[prev] && labs[prev].classList.remove('now'); }
-      if (i >= 0) { (cells[i] || []).forEach(c => c.classList.add('now')); labs[i] && labs[i].classList.add('now'); }
+      if (prev >= 0) { (cells[prev] || []).forEach(c => c.classList.remove('now')); (nowAt[prev] || []).forEach(l => l.classList.remove('now')); }
+      if (i >= 0) { (cells[i] || []).forEach(c => c.classList.add('now')); (nowAt[i] || []).forEach(l => l.classList.add('now')); }
       prev = i;
     }
   };
@@ -280,6 +300,9 @@ tool('rhythms', {
         h('p', { class: 'small muted', text: 'Outlined cells are your part: ' + (r.target === 'all' ? 'every dum and tek' : r.target) + '. It stays the same while the rest varies.' }));
       shownTracks = null; showGrid(null); now.innerHTML = '';
       tipsBox.innerHTML = '';
+      tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'How to say it' }),
+        h('p', { class: 'small', text: r.labels ? 'The say row is this rhythm\'s own syllables, as players of the tradition speak it. Say it out loud with the grid before you play it.' : 'The say row gives each drum sound a syllable (capitals are loud), so you can speak the whole pattern: ' + sayLegend(r).map(([n, w]) => w + ' = ' + (n === 'low' ? 'low drum' : n === 'high' ? 'high drum' : n === 'mid' ? 'middle drum' : n)).join(', ') + '. Your own part comes first where two sounds fall together.' }),
+        takaRow(r) ? h('p', { class: 'small', text: 'The ta ka row counts where each note falls in the beat (Takadimi): ta on every beat, then ta ka di mi for four in a beat, ta di for two and ta ki da for three. Say it steadily, then clap or play only on your notes while you keep saying it.' }) : ''));
       if (r.words) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Words used here' }), h('ul', { class: 'list small' }, r.words.map(([w, m]) => h('li', {}, h('b', { text: w }), ': ' + m)))));
       if (r.var && r.var.tips && r.var.tips.length) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Practice tips for ' + r.name }), h('ul', { class: 'list small' }, r.var.tips.map(t => h('li', { text: t })))));
       drawOpts();
