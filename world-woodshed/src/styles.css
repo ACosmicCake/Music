@@ -812,6 +812,7 @@ html.compact .because-list { grid-template-columns: 1fr; }
 .studio-now.var { background: color-mix(in srgb, var(--patina) 12%, var(--sunk)); }
 .studio-now.fill { background: var(--brass-soft); }
 .studio-now.ghost { background: color-mix(in srgb, var(--ink) 8%, var(--sunk)); border: 1px dashed var(--muted); }
+.studio-now.solo { background: color-mix(in srgb, var(--brass) 14%, var(--sunk)); border: 1px dashed var(--brass); }
 .studio-next { color: var(--brass); font-weight: 700; }
 .studio-opts { display: grid; gap: 8px; }
 .studio-opts .row { align-items: flex-end; }

@@ -5,6 +5,7 @@ import E from '../engine.js';
 import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks, tapButton } from '../ui/core.js';
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
+import { soloAt, SOLO_LENS, SOLO_EVERY } from '../solobreak.js';
 
 /* ======================================================
    RHYTHM TOOLS
@@ -202,8 +203,10 @@ tool('rhythms', {
     const regionFilter = (x, region) => D.RHYTHMS.find(r => r.id === x.id).region === region;
     let r = D.RHYTHMS.find(x => x.id === ctx.params.rhythm) || D.RHYTHMS.find(x => x.id === (pickFor('rhythmTap', ctx, regionFilter) || {}).id) || D.RHYTHMS[0];
     let bpm = r.bpm, loop = null, testing = false, padObj = null;
-    const opt = Object.assign({ varEvery: 4, fills: 8, ghost: 'some', laya: false, fixed: undefined }, E.state.settings.rhythmStudio || {}, { feel16: feel16On() });
-    const saveOpt = () => E.setSetting('rhythmStudio', { varEvery: opt.varEvery, fills: opt.fills, ghost: opt.ghost });
+    const opt = Object.assign({ varEvery: 4, fills: 8, ghost: 'some', laya: false, fixed: undefined, solo: 0, soloEvery: 2, soloClick: 'soft' }, E.state.settings.rhythmStudio || {}, { feel16: feel16On() });
+    if (!SOLO_LENS.includes(opt.solo)) opt.solo = 0;
+    if (!SOLO_EVERY.includes(opt.soloEvery)) opt.soloEvery = 2;
+    const saveOpt = () => E.setSetting('rhythmStudio', { varEvery: opt.varEvery, fills: opt.fills, ghost: opt.ghost, solo: opt.solo, soloEvery: opt.soloEvery, soloClick: opt.soloClick });
     const card = h('div', { class: 'card' }); body.append(card);
     const sel = h('select', { id: 'rhythm-pick', 'aria-label': 'Rhythm' });
     D.REGIONS.forEach(reg => {
@@ -258,7 +261,11 @@ tool('rhythms', {
           seg('Silent cycles', 'ghost', ['off', 'some', 'many']),
           seg('Tempo', 'laya', [false, true], v => (v ? 'speed up' : 'steady')),
           seg('Feel the 16ths', 'feel16', [true, false], v => (v ? 'on' : 'off'), () => E.setSetting('feel16', opt.feel16))),
-        h('p', { class: 'small muted', text: 'Silent cycles drop your part out so you keep it going alone. ' + (r.var && r.var.layaRamp ? 'This tradition speeds up as a piece builds: try “speed up”.' : '') }));
+        h('div', { class: 'row' },
+          seg('Solo break (cycles)', 'solo', SOLO_LENS, v => (v ? String(v) : 'off'), drawOpts),
+          opt.solo ? seg('Play between (cycles)', 'soloEvery', SOLO_EVERY) : '',
+          opt.solo ? seg('Click in the break', 'soloClick', ['soft', 'off']) : ''),
+        h('p', { class: 'small muted', text: 'Silent cycles drop your part out so you keep it going alone. ' + (opt.solo ? 'In a solo break the whole rhythm stops for you to solo while the count goes on; a bell on the last beat brings it back in. ' : '') + (r.var && r.var.layaRamp ? 'This tradition speeds up as a piece builds: try “speed up”.' : '') }));
     }
     function setR(nr) {
       stop(); r = nr; bpm = r.bpm; sel.value = r.id; opt.fixed = undefined;
@@ -295,8 +302,17 @@ tool('rhythms', {
       loop = A.Loop({
         steps: r.steps, stepDur: () => 60 / bpm / r.spb,
         onStep: (i, t, cycle) => {
+          const so = soloAt(cycle, opt.soloEvery, opt.solo);
+          if (so.solo) {
+            if (i === 0 && opt.laya && cycle > 0) { bpm = Math.min(top, Math.round(bpm * 1.02 * 10) / 10); }
+            // the rhythm stops but the count goes on: a soft click on the beats (or nothing), a bell on the last beat before it comes back
+            const lastBeat = so.last && beats.has(i) && ![...beats].some(b => b > i);
+            if (lastBeat) A.hit('bell', t, 0.8, undefined, { synth: true }); // the synth bell, so it never sounds like the rhythm's own cowbell
+            else if (opt.soloClick !== 'off' && beats.has(i)) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.3);
+            return;
+          }
           if (i === 0) {
-            cur = sched(cycle);
+            cur = sched(so.played);
             if (opt.laya && cycle > 0) { bpm = Math.min(top, Math.round(bpm * 1.02 * 10) / 10); }
           }
           playCycleStep(r, cur, i, t);
@@ -306,7 +322,17 @@ tool('rhythms', {
         onVisual: (i, cycle) => {
           if (i === 0 && cycle !== cyc) {
             cyc = cycle;
-            const p = sched(cycle), nx = sched(cycle + 1);
+            const so = soloAt(cycle, opt.soloEvery, opt.solo), soNx = soloAt(cycle + 1, opt.soloEvery, opt.solo);
+            if (so.solo) {
+              tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl(); tempo.value = Math.round(bpm);
+              now.innerHTML = ''; now.className = 'studio-now solo';
+              now.append(h('span', { class: 'mono small', text: 'Cycle ' + (cycle + 1) }),
+                h('b', { text: 'Solo: cycle ' + so.n + ' of ' + so.of }),
+                h('span', { class: 'small ' + (so.last ? 'studio-next' : 'muted'), text: so.last ? 'The rhythm comes back in next cycle, on 1' : 'Keep counting: the rhythm comes back in after ' + (so.of - so.n + 1 === 1 ? 'this cycle' : (so.of - so.n + 1) + ' cycles') }));
+              grid.setNow(i);
+              return;
+            }
+            const p = sched(so.played), nx = soNx.solo ? { kind: 'solo', name: 'Solo break' } : sched(soNx.played);
             showGrid(p);
             tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl(); tempo.value = Math.round(bpm);
             now.innerHTML = '';
@@ -314,7 +340,7 @@ tool('rhythms', {
             now.append(h('span', { class: 'mono small', text: 'Cycle ' + (cycle + 1) }),
               h('b', { text: p.kind === 'ghost' ? 'Your part is silent: keep it going' : p.kind === 'fill' ? 'Fill: ' + p.name : p.name }),
               p.note && p.kind !== 'ghost' ? h('span', { class: 'small muted', text: p.note }) : '',
-              nx.kind === 'fill' && p.kind !== 'fill' ? h('span', { class: 'small studio-next', text: 'Next cycle: ' + nx.name }) : '');
+              (nx.kind === 'fill' || nx.kind === 'solo') && p.kind !== 'fill' ? h('span', { class: 'small studio-next', text: 'Next cycle: ' + nx.name }) : '');
           }
           grid.setNow(i);
         }
