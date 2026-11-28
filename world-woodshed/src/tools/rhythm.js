@@ -5,6 +5,8 @@ import E from '../engine.js';
 import { h, s, shuffle, regionName, tool, pickFor, Quiz, hooks, tapButton } from '../ui/core.js';
 import Mic from '../listen.js';
 import { MicToggle, micSettingsCard } from '../ui/mic.js';
+import { soloAt, SOLO_LENS, SOLO_EVERY } from '../solobreak.js';
+import { sayRow, takaRow, sayLegend } from '../syllables.js';
 
 /* ======================================================
    RHYTHM TOOLS
@@ -41,16 +43,35 @@ export function RhythmGrid(r) {
     }
     grid.append(row);
   });
-  const labs = [];
+  const nowAt = []; // every label to light up on each step
+  const mark = (i, el) => (nowAt[i] = nowAt[i] || []).push(el);
+  // say: a syllable per drum sound (or the rhythm's own bols), each one running on over the silent steps after it so it can be read whole
+  const say = sayRow(r);
+  const sayEl = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
+  sayEl.append(h('span', { class: 'rname', text: 'say', title: 'A syllable for each drum sound: say the pattern out loud' }));
+  for (let i = 0; i < r.steps;) {
+    let n = 1; if (!r.labels) while (i + n < r.steps && !say[i + n] && !gstarts.has(i + n)) n++;
+    const l = h('span', { class: 'lab say' + (gstarts.has(i) ? ' gstart' : ''), text: say[i], title: say[i], style: n > 1 ? { gridColumn: 'span ' + n } : {} });
+    for (let k = 0; k < n; k++) mark(i + k, l);
+    sayEl.append(l); i += n;
+  }
+  grid.append(sayEl);
   const labRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
-  labRow.append(h('span', { class: 'rname', text: r.labels ? 'say' : 'count' }));
+  labRow.append(h('span', { class: 'rname', text: 'count' }));
   for (let i = 0; i < r.steps; i++) {
-    let t = r.labels ? r.labels[i] : r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
-    if (r.groups && !r.labels) { let a = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; } }
+    let t = r.count ? r.count[i] : (i % r.spb === 0 ? String(i / r.spb + 1) : r.spb === 2 ? '&' : r.spb === 4 ? ['', 'e', '&', 'a'][i % 4] : r.spb === 3 ? ['', '&', 'a'][i % 3] : '');
+    if (r.groups && !r.count) { let a = 0; for (const g of r.groups) { if (i >= a && i < a + g) { t = String(i - a + 1); break; } a += g; } }
     const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: t, title: t });
-    labs.push(l); labRow.append(l);
+    mark(i, l); labRow.append(l);
   }
   grid.append(labRow);
+  const taka = takaRow(r);
+  if (taka) { // Takadimi: ta on the beat, ka di mi between, ta ki da in threes
+    const tRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
+    tRow.append(h('span', { class: 'rname', text: 'ta ka', title: 'Takadimi counting: ta on each beat, then ka di mi (or ki da in threes) between' }));
+    for (let i = 0; i < r.steps; i++) { const l = h('span', { class: 'lab' + (gstarts.has(i) ? ' gstart' : ''), text: taka[i] }); mark(i, l); tRow.append(l); }
+    grid.append(tRow);
+  }
   if (r.alt) { // the same pattern counted twice as slowly, as many teachers count clave
     const aRow = h('div', { class: 'rrow', style: { gridTemplateColumns: cols } });
     aRow.append(h('span', { class: 'rname', text: 'slow' }));
@@ -68,8 +89,8 @@ export function RhythmGrid(r) {
   return {
     el: wrap,
     setNow(i) {
-      if (prev >= 0) { (cells[prev] || []).forEach(c => c.classList.remove('now')); labs[prev] && labs[prev].classList.remove('now'); }
-      if (i >= 0) { (cells[i] || []).forEach(c => c.classList.add('now')); labs[i] && labs[i].classList.add('now'); }
+      if (prev >= 0) { (cells[prev] || []).forEach(c => c.classList.remove('now')); (nowAt[prev] || []).forEach(l => l.classList.remove('now')); }
+      if (i >= 0) { (cells[i] || []).forEach(c => c.classList.add('now')); (nowAt[i] || []).forEach(l => l.classList.add('now')); }
       prev = i;
     }
   };
@@ -202,8 +223,10 @@ tool('rhythms', {
     const regionFilter = (x, region) => D.RHYTHMS.find(r => r.id === x.id).region === region;
     let r = D.RHYTHMS.find(x => x.id === ctx.params.rhythm) || D.RHYTHMS.find(x => x.id === (pickFor('rhythmTap', ctx, regionFilter) || {}).id) || D.RHYTHMS[0];
     let bpm = r.bpm, loop = null, testing = false, padObj = null;
-    const opt = Object.assign({ varEvery: 4, fills: 8, ghost: 'some', laya: false, fixed: undefined }, E.state.settings.rhythmStudio || {}, { feel16: feel16On() });
-    const saveOpt = () => E.setSetting('rhythmStudio', { varEvery: opt.varEvery, fills: opt.fills, ghost: opt.ghost });
+    const opt = Object.assign({ varEvery: 4, fills: 8, ghost: 'some', laya: false, fixed: undefined, solo: 0, soloEvery: 2, soloClick: 'soft' }, E.state.settings.rhythmStudio || {}, { feel16: feel16On() });
+    if (!SOLO_LENS.includes(opt.solo)) opt.solo = 0;
+    if (!SOLO_EVERY.includes(opt.soloEvery)) opt.soloEvery = 2;
+    const saveOpt = () => E.setSetting('rhythmStudio', { varEvery: opt.varEvery, fills: opt.fills, ghost: opt.ghost, solo: opt.solo, soloEvery: opt.soloEvery, soloClick: opt.soloClick });
     const card = h('div', { class: 'card' }); body.append(card);
     const sel = h('select', { id: 'rhythm-pick', 'aria-label': 'Rhythm' });
     D.REGIONS.forEach(reg => {
@@ -258,7 +281,11 @@ tool('rhythms', {
           seg('Silent cycles', 'ghost', ['off', 'some', 'many']),
           seg('Tempo', 'laya', [false, true], v => (v ? 'speed up' : 'steady')),
           seg('Feel the 16ths', 'feel16', [true, false], v => (v ? 'on' : 'off'), () => E.setSetting('feel16', opt.feel16))),
-        h('p', { class: 'small muted', text: 'Silent cycles drop your part out so you keep it going alone. ' + (r.var && r.var.layaRamp ? 'This tradition speeds up as a piece builds: try “speed up”.' : '') }));
+        h('div', { class: 'row' },
+          seg('Solo break (cycles)', 'solo', SOLO_LENS, v => (v ? String(v) : 'off'), drawOpts),
+          opt.solo ? seg('Play between (cycles)', 'soloEvery', SOLO_EVERY) : '',
+          opt.solo ? seg('Click in the break', 'soloClick', ['soft', 'off']) : ''),
+        h('p', { class: 'small muted', text: 'Silent cycles drop your part out so you keep it going alone. ' + (opt.solo ? 'In a solo break the whole rhythm stops for you to solo while the count goes on; a bell on the last beat brings it back in. ' : '') + (r.var && r.var.layaRamp ? 'This tradition speeds up as a piece builds: try “speed up”.' : '') }));
     }
     function setR(nr) {
       stop(); r = nr; bpm = r.bpm; sel.value = r.id; opt.fixed = undefined;
@@ -273,6 +300,9 @@ tool('rhythms', {
         h('p', { class: 'small muted', text: 'Outlined cells are your part: ' + (r.target === 'all' ? 'every dum and tek' : r.target) + '. It stays the same while the rest varies.' }));
       shownTracks = null; showGrid(null); now.innerHTML = '';
       tipsBox.innerHTML = '';
+      tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'How to say it' }),
+        h('p', { class: 'small', text: r.labels ? 'The say row is this rhythm\'s own syllables, as players of the tradition speak it. Say it out loud with the grid before you play it.' : 'The say row gives each drum sound a syllable (capitals are loud), so you can speak the whole pattern: ' + sayLegend(r).map(([n, w]) => w + ' = ' + (n === 'low' ? 'low drum' : n === 'high' ? 'high drum' : n === 'mid' ? 'middle drum' : n)).join(', ') + '. Your own part comes first where two sounds fall together.' }),
+        takaRow(r) ? h('p', { class: 'small', text: 'The ta ka row counts where each note falls in the beat (Takadimi): ta on every beat, then ta ka di mi for four in a beat, ta di for two and ta ki da for three. Say it steadily, then clap or play only on your notes while you keep saying it.' }) : ''));
       if (r.words) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Words used here' }), h('ul', { class: 'list small' }, r.words.map(([w, m]) => h('li', {}, h('b', { text: w }), ': ' + m)))));
       if (r.var && r.var.tips && r.var.tips.length) tipsBox.append(h('details', { class: 'sr-tips' }, h('summary', { class: 'small', text: 'Practice tips for ' + r.name }), h('ul', { class: 'list small' }, r.var.tips.map(t => h('li', { text: t })))));
       drawOpts();
@@ -295,8 +325,17 @@ tool('rhythms', {
       loop = A.Loop({
         steps: r.steps, stepDur: () => 60 / bpm / r.spb,
         onStep: (i, t, cycle) => {
+          const so = soloAt(cycle, opt.soloEvery, opt.solo);
+          if (so.solo) {
+            if (i === 0 && opt.laya && cycle > 0) { bpm = Math.min(top, Math.round(bpm * 1.02 * 10) / 10); }
+            // the rhythm stops but the count goes on: a soft click on the beats (or nothing), a bell on the last beat before it comes back
+            const lastBeat = so.last && beats.has(i) && ![...beats].some(b => b > i);
+            if (lastBeat) A.hit('bell', t, 0.8, undefined, { synth: true }); // the synth bell, so it never sounds like the rhythm's own cowbell
+            else if (opt.soloClick !== 'off' && beats.has(i)) A.hit(i === 0 ? 'clickHi' : 'click', t, 0.3);
+            return;
+          }
           if (i === 0) {
-            cur = sched(cycle);
+            cur = sched(so.played);
             if (opt.laya && cycle > 0) { bpm = Math.min(top, Math.round(bpm * 1.02 * 10) / 10); }
           }
           playCycleStep(r, cur, i, t);
@@ -306,7 +345,17 @@ tool('rhythms', {
         onVisual: (i, cycle) => {
           if (i === 0 && cycle !== cyc) {
             cyc = cycle;
-            const p = sched(cycle), nx = sched(cycle + 1);
+            const so = soloAt(cycle, opt.soloEvery, opt.solo), soNx = soloAt(cycle + 1, opt.soloEvery, opt.solo);
+            if (so.solo) {
+              tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl(); tempo.value = Math.round(bpm);
+              now.innerHTML = ''; now.className = 'studio-now solo';
+              now.append(h('span', { class: 'mono small', text: 'Cycle ' + (cycle + 1) }),
+                h('b', { text: 'Solo: cycle ' + so.n + ' of ' + so.of }),
+                h('span', { class: 'small ' + (so.last ? 'studio-next' : 'muted'), text: so.last ? 'The rhythm comes back in next cycle, on 1' : 'Keep counting: the rhythm comes back in after ' + (so.of - so.n + 1 === 1 ? 'this cycle' : (so.of - so.n + 1) + ' cycles') }));
+              grid.setNow(i);
+              return;
+            }
+            const p = sched(so.played), nx = soNx.solo ? { kind: 'solo', name: 'Solo break' } : sched(soNx.played);
             showGrid(p);
             tempoLbl.textContent = Math.round(bpm) + ' ' + unitLbl(); tempo.value = Math.round(bpm);
             now.innerHTML = '';
@@ -314,7 +363,7 @@ tool('rhythms', {
             now.append(h('span', { class: 'mono small', text: 'Cycle ' + (cycle + 1) }),
               h('b', { text: p.kind === 'ghost' ? 'Your part is silent: keep it going' : p.kind === 'fill' ? 'Fill: ' + p.name : p.name }),
               p.note && p.kind !== 'ghost' ? h('span', { class: 'small muted', text: p.note }) : '',
-              nx.kind === 'fill' && p.kind !== 'fill' ? h('span', { class: 'small studio-next', text: 'Next cycle: ' + nx.name }) : '');
+              (nx.kind === 'fill' || nx.kind === 'solo') && p.kind !== 'fill' ? h('span', { class: 'small studio-next', text: 'Next cycle: ' + nx.name }) : '');
           }
           grid.setNow(i);
         }

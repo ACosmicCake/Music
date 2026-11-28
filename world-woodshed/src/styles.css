@@ -223,6 +223,8 @@ input[type="range"] { accent-color: var(--brass); width: 100%; }
 .cell.gstart { margin-left: 4px; }
 .lab { font-family: var(--font-mono); font-size: 0.62rem; text-align: center; color: var(--muted); overflow: hidden; white-space: nowrap; }
 .lab.now { color: var(--ink); font-weight: 500; }
+.lab.say { color: var(--ink); text-align: left; padding-left: 1px; text-overflow: clip; }
+.lab.say.now { color: var(--brass); font-weight: 600; }
 .tappad { width: 100%; min-height: 130px; border-radius: 14px; border: 2px dashed var(--brass); background: var(--brass-soft); font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .tappad.flash { background: var(--brass); color: #fff; }
 .phase { font-family: var(--font-mono); font-size: 0.85rem; }
@@ -812,6 +814,7 @@ html.compact .because-list { grid-template-columns: 1fr; }
 .studio-now.var { background: color-mix(in srgb, var(--patina) 12%, var(--sunk)); }
 .studio-now.fill { background: var(--brass-soft); }
 .studio-now.ghost { background: color-mix(in srgb, var(--ink) 8%, var(--sunk)); border: 1px dashed var(--muted); }
+.studio-now.solo { background: color-mix(in srgb, var(--brass) 14%, var(--sunk)); border: 1px dashed var(--brass); }
 .studio-next { color: var(--brass); font-weight: 700; }
 .studio-opts { display: grid; gap: 8px; }
 .studio-opts .row { align-items: flex-end; }
